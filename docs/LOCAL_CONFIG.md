@@ -1,4 +1,19 @@
 
+Create an application-override.yml file in src/main/docker-local/config/
+
+```yaml
+datasources:
+  metadata:
+    username: <your username>
+    password: <your password>
+
+x-statement-analysis:
+  hosts:
+    staging-db-primary:
+      username: ${datasources.metadata.username}
+      password: ${datasources.metadata.password}
+
+```
 
 Build the application:
 ```bash
@@ -7,7 +22,7 @@ Build the application:
 docker compose build
 ```
 
-Startup the application:
+Startup the application (this will take a few minutes):
 ```bash
 docker compose up -d explorer-mysql
 
