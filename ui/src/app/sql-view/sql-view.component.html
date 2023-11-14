@@ -1,0 +1,180 @@
+
+<div *ngIf="query" id="runtime-metrics">
+  <div id="sql" class="clearfix">
+    <div class="row">
+      <div class="col">
+        <pre><code highlight="{{query.query}}"></code></pre>
+
+        <div id="query-stats" class="clearfix" *ngIf="query.runtimeMetrics">
+          <div *ngIf="query.analysisFailed && query.analysisFailureReason" class="bg-warning"><pre style="max-height: 40px">{{query.analysisFailureReason}}</pre></div>
+          <div id="full-table-scan" *ngIf="query.runtimeMetrics.fullTableScan">
+            FULL SCAN
+          </div>
+          <div>
+            <ul class="list-group">
+              <li class="list-group-item">Status: {{query.queryActivityStatus}}</li>
+              <li class="list-group-item">Last Seen: {{query.runtimeMetrics?.lastSeen}}</li>
+              <li class="list-group-item">First Seen: {{query.runtimeMetrics?.firstSeen}}</li>
+            </ul>
+          </div>
+
+          <app-tag-view [path]="'/query/' + query.digest"></app-tag-view>
+
+          <table id="runtime-metrics-table" class="table">
+            <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th>Metric</th>
+              <th>Value</th>
+            </tr>
+            </thead>
+            <tr>
+              <td rowspan="3" class="stat-group">Query Counts</td>
+              <td>Executed</td>
+              <td>{{query.runtimeMetrics.executed}}</td>
+            </tr>
+            <tr>
+              <td>Errors</td>
+              <td>{{query.runtimeMetrics.errors}}</td>
+            </tr>
+            <tr>
+              <td>Warnings</td>
+              <td>{{query.runtimeMetrics.warnings}}</td>
+            </tr>
+            <tr>
+              <td rowspan="3" class="stat-group">Time</td>
+              <td>Total</td>
+              <td>
+                <app-pico-view [duration]="query.runtimeMetrics.totalTime"></app-pico-view>
+              </td>
+            </tr>
+            <tr>
+              <td>Max</td>
+              <td>
+                <app-pico-view [duration]="query.runtimeMetrics.maxTime"></app-pico-view>
+              </td>
+            </tr>
+            <tr>
+              <td>Average</td>
+              <td>
+                <app-pico-view [duration]="query.runtimeMetrics.averageTime"></app-pico-view>
+              </td>
+            </tr>
+            <tr>
+              <td rowspan="4" class="stat-group">Rows</td>
+              <td>Total Sent</td>
+              <td>{{query.runtimeMetrics.rowsSent}}</td>
+            </tr>
+            <tr>
+              <td>Average Sent</td>
+              <td>{{query.runtimeMetrics.averageRowsSent}}</td>
+            </tr>
+            <tr>
+              <td>Total Scanned</td>
+              <td>{{query.runtimeMetrics.rowsScanned}}</td>
+            </tr>
+            <tr>
+              <td>Average Scanned</td>
+              <td>{{query.runtimeMetrics.averageRowsScanned}}</td>
+            </tr>
+            <tr>
+              <td rowspan="2" class="stat-group">Temp Tables</td>
+              <td>Count</td>
+              <td>{{query.runtimeMetrics.tempTables}}</td>
+            </tr>
+            <tr>
+              <td>Disk</td>
+              <td>{{query.runtimeMetrics.tempDiskTables}}</td>
+            </tr>
+            <tr>
+              <td rowspan="2" class="stat-group">Sorting</td>
+              <td>Rows Sorted</td>
+              <td>{{query.runtimeMetrics.rowsSorted}}</td>
+            </tr>
+            <tr>
+              <td>Sort Merge Passes</td>
+              <td>{{query.runtimeMetrics.sortMergePasses}}</td>
+            </tr>
+            <tr>
+              <td rowspan="2" class="stat-group">Digests</td>
+              <td>Normalized</td>
+              <td class="text-metric">{{query.digest}}</td>
+            </tr>
+            <tr>
+              <td>Performance Schema</td>
+              <td>
+                <ul class="list-unstyled">
+                  <li *ngFor="let digest of query.perfDigests">{{digest}}</li>
+                </ul>
+              </td>
+            </tr>
+            <!--<tr *ngIf="query.perfDigests">
+              <td class="stat-group">Other Metrics</td>
+              <td>Grafana</td>
+              &lt;!&ndash; todo refactor into a grafana integration plugin &ndash;&gt;
+              <td><a href="https://grafana.local/d/dvUfZxpZk/sql-analysis?orgId=1&var-digest={{query.perfDigests.join('|')}}&var-instance=All&var-interval=$__auto_interval_interval">SQL Analysis</a></td>
+            </tr>-->
+          </table>
+        </div>
+      </div>
+      <div class="col query-breakdown">
+        <div class="tables">
+          <span class="title">Tables:</span>
+          <div class="query-reference">
+            <ul class="tables query-reference">
+              <li *ngFor="let table of query.tables">
+                <app-table-link linkClass="btn btn-primary" [defaultSchema]="query.schema" [tableReference]="table"></app-table-link>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <hr>
+        <div class="join-columns">
+          <span class="title">Join Columns:</span>
+          <div class="join-columns query-reference">
+            <div *ngFor="let join of query.joinColumns">
+              <ul class="join-columns query-reference">
+                <li *ngFor="let joinColumn of join">
+                  <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schema" [columnReference]="joinColumn"></app-column-link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <hr>
+        <div class="criteria-columns">
+          <span class="title">Criteria Columns:</span>
+          <div class="criteria-columns query-reference">
+            <ul class="criteria-columns query-reference">
+              <li *ngFor="let column of query.criteriaColumns">
+                <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schema" [columnReference]="column"></app-column-link>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <hr>
+        <div class="table-indices" *ngIf="tables">
+          <app-small-table-view *ngFor="let table of tables" [table]="table"></app-small-table-view>
+        </div>
+        <div *ngIf="query.mismatchedJoins.length > 0">
+          <hr>
+          <div>Mismatched Joins:</div>
+          <ul class="list-unstyled">
+            <li *ngFor="let join of query.mismatchedJoins">
+              <div class="alert alert-danger">
+                <div>
+                  <app-column-link [schema]="query.schema" [columnReference]="join[0]"></app-column-link>
+                </div>
+                <div>
+                  <app-column-link [schema]="query.schema" [columnReference]="join[1]"></app-column-link>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+</div>

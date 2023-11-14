@@ -1,0 +1,89 @@
+@import "~bootstrap/dist/css/bootstrap.css";
+
+body {
+  background-color: #333;
+  color: #ffffff;
+}
+
+a {
+  color: #333333;
+}
+
+a:hover {
+  color: #555555;
+  text-decoration: none;
+}
+
+app-root {
+  display: block;
+  background-color: #ffffff;
+  color: #333333;
+  padding: 5px 20px;
+}
+
+.table {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.table-sm {
+  font-size: smaller;
+  margin-bottom: .05rem;
+}
+
+ul.query-reference {
+  padding-left: 0.5em;
+  display: inline-block;
+}
+
+ul.query-reference a.btn {
+  font-size: .75rem;
+  margin-bottom: .25em;
+}
+
+.query-breakdown {
+  font-size: .75rem;
+}
+
+ul.query-reference > li {
+  list-style: none;
+  display: inline;
+  padding-right: 0.25em;
+}
+
+ul.criteria-columns > li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  float: left;
+  padding-right: 0;
+  padding-left: 0.5em;
+}
+
+ul.join-columns {
+  margin-bottom: 0.5rem;
+  /*display: flex;*/
+}
+
+.note-view a {
+  color:blue;
+  text-underline: blue;
+}
+
+
+.note-view a:hover {
+  color:blue;
+  text-decoration: underline;
+}
+
+ul.pill-cloud {
+  padding-left: 0.5em;
+  display: inline-block;
+}
+ul.pill-cloud > li {
+  list-style: none;
+  display: inline;
+  padding-right: 0.25em;
+}
+
+#table-structure.table-sm td, #table-structure.table-sm th{
+  padding: .1rem;
+}

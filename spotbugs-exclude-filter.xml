@@ -1,0 +1,25 @@
+<FindBugsFilter>
+	<Match>
+		<Class name="com.github.safetytrick.sqlexplorer.core.AnalyzedSql" />
+		<Bug code="Eq" />
+	</Match>
+
+	<Match>
+		<!-- false positives from spotbugs picking up try with resources -->
+		<Or>
+			<Bug code="RCN" />
+			<Bug code="EI" />
+			<Bug code="EI2" />
+			<Bug code="UuF" />
+		</Or>
+	</Match>
+	<Match>
+		<Class name="com.github.safetytrick.sqlexplorer.SqlExplorerTest" />
+		<Bug code="OS" />
+	</Match>
+	<Match>
+		<Class name="com.github.safetytrick.sqlexplorer.PerformanceSchemaFileLoader" />
+		<Method name="getSqlSources" />
+		<Bug code="NP" />
+	</Match>
+</FindBugsFilter>

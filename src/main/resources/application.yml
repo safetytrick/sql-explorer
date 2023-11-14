@@ -1,0 +1,23 @@
+# this config file is appropriate for configuration that should be the same for all environments, for instance setting
+# the location on the classpath to find translation files, or enabling a library feature you depend on in code
+
+server:
+  port: 8080
+  error:
+    include-exception: true
+    include-stacktrace: always
+
+
+spring:
+  application.name: "sql-explorer"
+  profiles:
+    include: secrets,override
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  liquibase:
+    change-log: "classpath:/db/migration/db.changelog-master.xml"
+  jpa:
+    open-in-view: true
+
+sql-explorer:
+  trace-errors: false

@@ -1,0 +1,148 @@
+<div *ngIf="table">
+
+  <h2>
+    <a routerLink="/table/{{table.schema}}/{{table.name}}">{{table.schema}}.{{table.name}}</a>
+  </h2>
+<!--  <div class="create-table" *ngIf="table.structure?.create">-->
+<!--    <pre><code highlight="{{table.structure.create}}"></code></pre>-->
+<!--  </div>-->
+  <pre *ngIf="table.remarks">{{table.remarks}}</pre>
+
+  <div class="row">
+    <div class="col">
+      <div>
+        <app-tag-view [path]="'/schema/' + table.schema + '/table/' + table.name"></app-tag-view>
+      </div>
+      <table class="table table-sm">
+        <thead class="thead-dark">
+        <tr>
+          <th>Number Of Queries</th>
+          <th>Total Query Time</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>{{table.numberOfQueries}}</td>
+          <td><app-pico-view [duration]="table.totalQueryTime"></app-pico-view></td>
+        </tr>
+        </tbody>
+      </table>
+      <!--<div>Grafana:
+      <ul class="query-reference">
+        &lt;!&ndash; todo refactor into a configurable plugin &ndash;&gt;
+        <li><a href="https://grafana.local/d/lB5SJ01Wz/mysql-table-size?orgId=1&var-Datasource=Prometheus&var-instance=dc1-pxc-04&var-schema={{table.schema}}&var-table={{table.name}}&var-interval=140d">Table Size</a>,</li>
+        <li><a href="https://grafana.local/d/XjzE6ZBGk/mysql-table-io-cross-server?orgId=1&var-Datasource=Prometheus&var-interval=$__auto_interval_interval&var-instance=del-mysql-02&var-instance=del-mysql-03&var-instance=dc1-pxc-03&var-instance=dc1-pxc-04&var-instance=dc1-pxc-05&var-schema={{table.schema}}&var-table={{table.name}}">Table IO</a></li>
+      </ul>
+      </div>-->
+    </div>
+
+    <div class="col">
+      <div *ngIf="table.joinTables" class="query-breakdown">
+        <span class="title">Joined Tables </span> <a routerLink="/table-graph/schema/{{table.schema}}/{{table.name}}">(Graph)</a>
+        <div class="query-reference">
+        <ul class="tables query-reference">
+          <li *ngFor="let tableRef of table.joinTables">
+            <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
+          </li>
+        </ul>
+        </div>
+      </div>
+      <div *ngIf="table.relatedTables" class="query-breakdown">
+        <span class="title">Tables in Queries </span> <a routerLink="/table-graph/schema/{{table.schema}}/{{table.name}}">(Graph)</a>
+        <div class="query-reference">
+          <ul class="tables query-reference">
+            <li *ngFor="let tableRef of table.relatedTables">
+              <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="table.structure">
+  <table id="table-structure" class="table table-sm table-hover">
+    <thead class="thead-dark">
+    <tr>
+      <th class="tab-col-wide-right">Name</th>
+      <th class="tab-col-md">Type</th>
+      <th class="tab-col-sm">Nullable</th>
+      <th class="tab-col-md">Char Set</th>
+      <th class="tab-col-md">Collation</th>
+      <th class="tab-col-sm">Precision</th>
+      <th class="tab-col-sm">Size</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr *ngFor="let col of table.structure.columns">
+      <th scope="row">
+        <a routerLink="/table/{{table.schema}}/{{table.name}}/{{col.columnName}}">{{col.columnName}}</a>
+        <span *ngIf="col.remarks" title="{{col.remarks}}">&nbsp;
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-chat-left-fill" viewBox="0 0 16 16">
+          <path d="M2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
+        </svg>
+        </span>
+      </th>
+      <td>{{col.typeName}} <span *ngIf="col.columnSize">({{col.columnSize}})</span></td>
+      <td>{{col.isNullable}}</td>
+      <td>{{col.characterSet}}</td>
+      <td>{{col.collation}}</td>
+      <td><span *ngIf="col.decimalDigits != 0">{{col.decimalDigits}}</span></td>
+      <td>{{col.columnSize}}</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <table id="table-indices" class="table table-sm table-hover" *ngIf="table.structure.indices.length > 1">
+    <thead class="thead-dark">
+    <tr>
+      <th class="tab-col-wide-right">Index</th>
+      <th class="tab-col-md">Columns</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr *ngFor="let index of table.structure.indices | callback: skipPrimary">
+      <td>{{index.name}}</td>
+      <td>{{index.columns.join(", ")}}</td>
+    </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <hr>
+
+  <div class="container">
+    <div *ngFor="let query of table.queries" class="row query-details">
+      <div class="col-8">
+        <a routerLink="/analyzed-sql/{{query.digest}}">{{query.id}} ({{query.type}})</a>
+        <pre><code highlight="{{query.query}}"></code></pre>
+      </div>
+      <div class="col-4">
+        <div>Summary:</div>
+        <app-sql-summary [query]="query"></app-sql-summary>
+        <div *ngIf="query.tables.length > 1"><br>Joins To:</div>
+        <ul class="list-group">
+          <li class="list-group-item" *ngFor="let otherTable of query.tables | callback: otherTables(table.name)">
+            <app-table-link [defaultSchema]="query.schema" [tableReference]="otherTable"></app-table-link>
+          </li>
+        </ul>
+        <div *ngIf="query.mismatchedJoins.length > 0">
+          <div><br>Mismatched Joins:</div>
+          <ul class="list-unstyled">
+            <li *ngFor="let join of query.mismatchedJoins">
+              <div class="alert alert-danger">
+                <div>
+                  <app-column-link [schema]="query.schema" [columnReference]="join[0]"></app-column-link>
+                </div>
+                <div>
+                  <app-column-link [schema]="query.schema" [columnReference]="join[1]"></app-column-link>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

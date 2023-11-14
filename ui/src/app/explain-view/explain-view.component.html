@@ -1,0 +1,62 @@
+
+
+<textarea name="textValue" [(ngModel)]='textValue'></textarea>
+
+<mat-table [dataSource]="dataSource" class="sql-explain table table-sm">
+  <ng-container matColumnDef="id">
+    <th class="num-cell" mat-header-cell *matHeaderCellDef>#</th>
+    <td class="num-cell" mat-cell *matCellDef="let row">{{row.id}}</td>
+  </ng-container>
+  <ng-container matColumnDef="select_type">
+    <th class="text-cell" mat-header-cell *matHeaderCellDef>select_type</th>
+    <td class="text-cell" mat-cell *matCellDef="let row">{{row.select_type}}</td>
+  </ng-container>
+  <ng-container matColumnDef="table">
+    <th class="text-cell" mat-header-cell *matHeaderCellDef>table</th>
+    <td class="text-cell" mat-cell *matCellDef="let row">{{row.table}}</td>
+  </ng-container>
+  <ng-container matColumnDef="partitions">
+    <th class="text-cell" mat-header-cell *matHeaderCellDef>partitions</th>
+    <td class="text-cell" mat-cell *matCellDef="let row">{{row.partitions}}</td>
+  </ng-container>
+  <ng-container matColumnDef="type">
+    <th class="text-cell" mat-header-cell *matHeaderCellDef>type</th>
+    <td class="text-cell" mat-cell *matCellDef="let row">{{row.type}}</td>
+  </ng-container>
+  <ng-container matColumnDef="possible_keys">
+    <th class="text-cell" mat-header-cell *matHeaderCellDef>possible_keys</th>
+    <td class="text-cell" mat-cell *matCellDef="let row">
+      <ul *ngIf="row.possible_keys">
+        <li *ngFor="let key of row.possible_keys.split(',')">{{key}}</li>
+      </ul>
+    </td>
+  </ng-container>
+  <ng-container matColumnDef="key">
+    <th class="text-cell" mat-header-cell *matHeaderCellDef>key</th>
+    <td class="text-cell index-key" mat-cell *matCellDef="let row">{{row.key}}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="ref">
+    <th class="num-cell" mat-header-cell *matHeaderCellDef>ref</th>
+    <td class="num-cell" mat-cell *matCellDef="let row">{{row.ref}}</td>
+  </ng-container>
+  <ng-container matColumnDef="rows">
+    <th class="num-cell" mat-header-cell *matHeaderCellDef>rows</th>
+    <td class="num-cell" mat-cell *matCellDef="let row">{{row.rows}}</td>
+  </ng-container>
+  <ng-container matColumnDef="filtered">
+    <th class="num-cell" mat-header-cell *matHeaderCellDef>filtered</th>
+    <td class="num-cell" mat-cell *matCellDef="let row">{{row.filtered}}</td>
+  </ng-container>
+  <ng-container matColumnDef="key_len">
+    <th class="num-cell" mat-header-cell *matHeaderCellDef>key_len</th>
+    <td class="num-cell" mat-cell *matCellDef="let row">{{row.key_len}}</td>
+  </ng-container>
+  <ng-container matColumnDef="Extra">
+    <th class="text-cell" mat-header-cell *matHeaderCellDef>extra</th>
+    <td class="text-cell" mat-cell *matCellDef="let row">{{row.Extra}}</td>
+  </ng-container>
+  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+  <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+</mat-table>

@@ -1,0 +1,7 @@
+<mat-selection-list #sourcesList>
+  <mat-list-option checkboxPosition="before" *ngFor="let source of all" [selected]="isActive(source)" [value]="source.sourceRef">
+    <span>{{source.sourceRef}} - Last Updated: {{source.createdOn | date: 'short'}}</span>
+  </mat-list-option>
+  <button class="btn btn-primary" (click)="applyChange(sourcesList)"> Apply </button>
+  <button class="btn btn-secondary" (click)="cancelChange(sourcesList)"> Cancel </button>
+</mat-selection-list>

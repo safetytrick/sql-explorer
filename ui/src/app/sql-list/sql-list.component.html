@@ -1,0 +1,17 @@
+<ol>
+<li *ngFor="let query of sqlList; index as i">
+  <div class="row">
+    <div class="col-sm-8">
+    <a *ngIf="query.digest" routerLink="/analyzed-sql/{{query.digest}}">{{query.id}}</a>
+    <a *ngIf="!query.digest" routerLink="/analyzed-sql/{{query.id}}">{{query.id}}</a>
+
+    <div *ngIf="query.analysisFailed && query.analysisFailureReason" class="bg-warning"><pre style="max-height: 40px">{{query.analysisFailureReason}}</pre></div>
+
+    <pre><code highlight="{{query.query}}"></code></pre>
+    </div>
+    <div class="col-sm-4">
+      <app-sql-summary [query]="query"></app-sql-summary>
+    </div>
+  </div>
+</li>
+</ol>

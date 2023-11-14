@@ -1,0 +1,20 @@
+server:
+  port: 18180
+
+datasources:
+  metadata:
+    jdbcUrl: "jdbc:mysql://localhost:3336"
+  explorer:
+    jdbcUrl: "jdbc:mysql://localhost:3999/explorer"
+
+performance-schema-file-loader:
+  directory: src/main/docker-local/config/statement-analysis
+
+x-statement-analysis:
+  enabled: true
+  hosts:
+    staging-db-primary:
+      jdbcUrl: ${datasources.metadata.jdbcUrl}
+
+
+

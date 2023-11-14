@@ -1,0 +1,18 @@
+
+datasources:
+  metadata:
+    jdbcUrl: "jdbc:mysql://host.docker.internal:3336"
+  explorer:
+    jdbcUrl: "jdbc:mysql://explorer-mysql:3306/explorer"
+
+x-statement-analysis:
+  enabled: true
+  hosts:
+    staging-db-primary:
+      jdbcUrl: ${datasources.metadata.jdbcUrl}
+
+performance-schema-file-loader:
+  enabled: false
+  directory: /etc/sql-explorer/config/statement-analysis
+  pattern: "(?<id>(dc\\d)-cl0\\d-0[1-9])-(?<date>\\d{8})\\.tsv"
+  date-format: "yyyyMMdd"

@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="SqlExplorerApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <option name="ACTIVE_PROFILES" />
+    <module name="sql-explorer.main" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.cmt.sqlexplorer.SqlExplorerApplication" />
+    <option name="VM_PARAMETERS" value="-Dspring.config.additional-location=src/main/docker-local/config/ -Dspring.profiles.include=local" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

@@ -1,0 +1,8 @@
+<tag-input [ngModel]="tags"
+           [identifyBy]="'id'"
+           [displayBy]="'name'"
+           (onAdd)="addTag($event)"
+           (onRemove)="removeTag($event)"
+           theme='bootstrap'>
+  <tag-input-dropdown [autocompleteObservable]="this.autocompleteTags"></tag-input-dropdown>
+</tag-input>

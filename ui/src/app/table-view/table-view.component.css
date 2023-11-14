@@ -1,0 +1,18 @@
+#table-structure tbody > td {
+  font-family: monospace;
+}
+
+.query-details {
+  border-bottom: 1px solid #AAA;
+  margin-bottom: 1em;
+}
+
+
+.title {
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.btn {
+  margin: .15em 0;
+}

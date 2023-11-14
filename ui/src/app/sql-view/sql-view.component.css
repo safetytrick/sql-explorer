@@ -1,0 +1,52 @@
+#full-table-scan {
+  font-size: xx-large;
+  color: #f34a32;
+}
+
+#runtime-metrics {
+
+}
+
+div.metric {
+  float: left;
+  padding: 8px;
+  text-align: center;
+  border-color: #555;
+  border-width: 3px;
+  border-style: solid;
+  background-color: #CCCCCC;
+  margin: 3px;
+}
+
+.title {
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+span.metric {
+  display: block;
+  text-align: center;
+  font-size: xx-large;
+  font-weight: lighter;
+}
+
+.stat-group {
+  font-weight: bold;
+  text-align: right;
+}
+
+#runtime-metrics-table tr>:last-child {
+  text-align: right;
+}
+
+#runtime-metrics-table td,th {
+  padding: .25em 1em;
+}
+
+#query-stats {
+  margin-top: 1em;
+}
+
+.btn {
+  margin: .15em 0;
+}

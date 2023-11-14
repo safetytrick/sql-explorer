@@ -1,0 +1,16 @@
+
+.rank-col {
+  max-width: 20px;
+}
+.schema-col {
+  max-width: 160px;
+  text-align: right;
+}
+
+.query-count {
+  text-align: center;
+}
+
+.total-time {
+  text-align: center;
+}

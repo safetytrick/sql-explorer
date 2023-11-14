@@ -1,0 +1,23 @@
+-- b70717403a8e7889f4fff11d91d4b4da
+SELECT `this_` . `id` AS `id1_94_0_` ,
+       `this_` . `customer_id` AS `customer_2_94_0_` , 
+       `this_` . `store_id` AS `store3_94_0_` , 
+       `this_` . `correspondence_date` AS `correspo4_94_0_` , 
+       `this_` . `correspondence_type` AS `correspo5_94_0_` , 
+       `this_` . `privacy_type` AS `privacy_6_94_0_` , 
+       `this_` . `customer_visit_id` AS `customer_7_94_0_` , 
+       `this_` . `additional_notes` AS `addition8_94_0_` , 
+       `this_` . `created_by` AS `created_9_94_0_` , 
+       `this_` . `created_on` AS `created10_94_0_` , 
+       `this_` . `deleted_by` AS `deleted11_94_0_` , 
+       `this_` . `deleted_on` AS `deleted12_94_0_` , 
+       `this_` . `data_source` AS `data_so13_94_0_` , 
+       `this_` . `meeting` AS `meeting14_94_0_` ,
+       `this_` . `called` AS `called15_94_0_` ,
+       `this_` . `guidelines` AS `guideli16_94_0_` ,
+       `this_` . `referred` AS `referre17_94_0_` ,
+       `this_` . `letter` AS `letter18_94_0_` ,
+       `this_` . `other_date` AS `other_d19_94_0_` ,
+       `this_` . `pcp_notified` AS `pcp_not20_94_0_` ,
+       CASE `this_` . `correspondence_type` WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? ELSE ? END AS `formula0_0_`
+FROM `customer_correspondence` `this_` WHERE `this_` . `customer_id` = ?

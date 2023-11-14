@@ -1,0 +1,12 @@
+
+<pre *ngIf="result"><code highlight="{{result}}"></code></pre>
+<form id="query-utility">
+  <div>
+    <div>
+      <label for="input">Query:</label>
+    </div>
+    <textarea id="input" [formControl]="inputControl"></textarea>
+  </div>
+  <button class="btn btn-secondary" id="clean" (click)="doClean()">Clean</button>
+  <button class="btn btn-secondary" id="normalize" (click)="doNormalize()">Normalize</button>
+</form>

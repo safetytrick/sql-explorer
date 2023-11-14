@@ -1,0 +1,49 @@
+version: '3'
+
+services:
+  sql-explorer:
+    build: build/docker
+    container_name: sql-explorer
+    image: sql-explorer/sql-explorer
+    ports:
+       - "18185:5005"
+       - "18180:8080"
+    env_file: ./src/main/docker-local/local.env
+    volumes:
+      - ./src/main/docker-local/config:/etc/sql-explorer/config
+      - ./src/main/docker-local/ssl:/etc/sql-explorer/ssl
+
+  explorer-ui:
+    build: ui/
+    container_name: explorer-ui
+    ports:
+      - "4200:80"
+
+  schema-mysql:
+    image: mysql
+    container_name: schema-mysql
+    profiles: [ "remote-metadata" ]
+    ports:
+      - "3939:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - ./schemas:/docker-entrypoint-initdb.d
+
+  explorer-mysql:
+    image: mysql
+    container_name: explorer-mysql
+    ports:
+      - "3999:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: explorer
+
+  explorer-shared-tags:
+    build: shared-tags/src/main/docker
+    image: explorer-shared-tags
+    volumes:
+      - ./shared-tags/src/main/docker-local/workspace:/workspace
+    command: sh -c "until liquibase status > /dev/null 2>&1; do sleep 10; echo 'Waiting for DB to be ready...'; done && liquibase update;"
+    depends_on:
+      - explorer-mysql

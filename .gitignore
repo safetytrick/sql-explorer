@@ -1,0 +1,17 @@
+.gradle
+/*/build/*
+build/
+
+*.class
+*.jar
+hs_err_pid*
+
+src/main/docker-local/config/application-override.yml
+.~lock.*
+
+!gradle-wrapper.jar
+
+src/main/docker-local/config/statement-analysis/*
+src/main/docker-local/config/statement-analysis/legacy
+
+!.idea/runConfigurations/

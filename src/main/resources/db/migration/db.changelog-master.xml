@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+  http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+	<changeSet id="create-users-table" author="michael.nielson">
+		<sql>
+			create table users
+			(
+				id           int primary key not null auto_increment,
+				email        varchar(255)    not null,
+				created_on   timestamp       not null default current_timestamp,
+				last_updated timestamp                default now() on update now(),
+				unique(email)
+			)
+		</sql>
+	</changeSet>
+
+	<changeSet id="create-notes-table" author="michael.nielson">
+		<sql>
+			create table notes
+			(
+				id         int primary key not null auto_increment,
+				path       varchar(512)    not null,
+				text       longtext character set utf8mb4 not null,
+				created_on timestamp       not null default current_timestamp,
+				author_id  int,
+				index(path),
+				index(author_id),
+			    foreign key (author_id) references users (id)
+				  on update cascade on delete restrict
+			);
+		</sql>
+	</changeSet>
+
+	<changeSet id="create-tags-table" author="michael.nielson">
+		<sql>
+			create table tags
+			(
+				id         int primary key not null auto_increment,
+				path       varchar(512)    not null,
+				name       varchar(255) character set utf8mb4 collate utf8mb4_general_ci not null ,
+				created_on timestamp       not null default current_timestamp,
+				author_id  int,
+				index(name),
+				index(author_id),
+				unique (path, name),
+				foreign key (author_id) references users (id)
+				  on update cascade on delete restrict
+			);
+		</sql>
+	</changeSet>
+
+	<changeSet id="create-default-author" author="michael.nielson">
+		<sql>
+			insert into users (email) values ('admin');
+		</sql>
+	</changeSet>
+
+	<changeSet id="add-types-to-tags" author="michael.nielson">
+		<sql>
+			alter table tags add column type varchar(255);
+		</sql>
+	</changeSet>
+
+	<changeSet id="populate-tags.type" author="michael.nielson">
+		<sql>
+			update tags set type = substring_index(substring_index(path, '/', -2), '/', 1);
+		</sql>
+	</changeSet>
+
+	<changeSet id="make-tags.type-non-null" author="michael.nielson">
+		<sql>
+			alter table tags modify type varchar(255) not null;
+		</sql>
+	</changeSet>
+
+	<changeSet id="index-types-for-tags" author="michael.nielson">
+		<sql>
+			create index tags_type on tags (type);
+		</sql>
+	</changeSet>
+
+	<changeSet id="create-sql_source" author="michael.nielson">
+		<sql>
+			create table sql_source (
+				id int primary key not null auto_increment,
+				creator_id int not null,
+				created_on timestamp not null default current_timestamp,
+				type varchar(20) not null,
+				environment_type varchar(20),
+				source_ref varchar(255),
+				source_url varchar(1024),
+				index(source_ref, created_on)
+			);
+		</sql>
+	</changeSet>
+
+	<changeSet id="create-sql_source_content" author="michael.nielson">
+		<sql>
+			create table sql_source_content (
+				id int primary key not null,
+				content longblob not null,
+				foreign key (id) references sql_source (id) on update cascade on delete cascade
+			) row_format = compressed;
+		</sql>
+	</changeSet>
+
+	<changeSet id="add-md5_hash-to-sql_source" author="michael.nielson">
+		<sql>
+			alter table sql_source add column md5_hash char(32) null;
+		</sql>
+	</changeSet>
+
+	<changeSet id="index-sql_source.source_url" author="michael.nielson">
+		<sql>
+			alter table sql_source add index (source_url(255));
+		</sql>
+	</changeSet>
+
+	<changeSet id="index-sql_source.md5_hash" author="michael.nielson">
+		<sql>
+			alter table sql_source add index (md5_hash);
+		</sql>
+	</changeSet>
+
+	<changeSet id="create-source_ref" author="michael.nielson">
+		<sql>
+			select distinct source_ref as name, environment_type, 1, now()
+			from sql_source
+			order by name
+		</sql>
+	</changeSet>
+
+	<changeSet id="alter-sql_source-type-size" author="michael.nielson">
+		<sql>
+			alter table sql_source modify type varchar(50) not null;
+		</sql>
+	</changeSet>
+
+	<changeSet id="fix-environmentType-enum" author="michael.nielson">
+		<sql>
+			update sql_source set environment_type = 'PRODUCTION' where environment_type = '0';
+		</sql>
+	</changeSet>
+
+	<changeSet id="fix-sourceType-enum" author="michael.nielson">
+		<sql>
+			update sql_source set type = 'PERFORMANCE_SCHEMA_DUMP' where type = '0';
+		</sql>
+	</changeSet>
+
+	<changeSet id="drop-environment_type-and-source_type" author="michael.nielson">
+		<sql>
+			alter table sql_source drop column environment_type, drop column type;
+		</sql>
+	</changeSet>
+
+</databaseChangeLog>

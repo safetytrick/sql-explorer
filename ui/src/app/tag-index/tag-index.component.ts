@@ -1,0 +1,33 @@
+import { Component, OnInit } from '@angular/core';
+import {AnalyzedSqlService} from '../analyzed-sql.service';
+import {Title} from '@angular/platform-browser';
+
+@Component({
+  selector: 'app-tag-index',
+  templateUrl: './tag-index.component.html',
+  styleUrls: ['./tag-index.component.scss']
+})
+export class TagIndexComponent implements OnInit {
+
+  public queryTags: [];
+  public tableTags: [];
+
+  constructor(public sqlService: AnalyzedSqlService,
+              private titleService: Title) { }
+
+  ngOnInit() {
+    this.titleService.setTitle('::: tags :::');
+    this.sqlService.getTagsByType('query').subscribe(
+      (data: []) => {
+        this.queryTags = data;
+      }
+    );
+
+    this.sqlService.getTagsByType('table').subscribe(
+      (data: []) => {
+        this.tableTags = data;
+      }
+    );
+  }
+
+}
