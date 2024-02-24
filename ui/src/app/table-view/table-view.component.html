@@ -2,10 +2,19 @@
 
   <h2>
     <a routerLink="/table/{{table.schema}}/{{table.name}}">{{table.schema}}.{{table.name}}</a>
+    <a *ngIf="column" routerLink="/table/{{table.schema}}/{{table.name}}/{{column}}">.{{column}}</a> &nbsp;
+    <button class="btn btn-outline-dark" routerLink="/table-graph/schema/{{table.schema}}/{{table.name}}" title="Graph">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-diagram-3-fill" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5zm-6 8A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5zm6 0A1.5 1.5 0 0 1 7.5 10h1a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5zm6 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5z"/>
+      </svg>
+    </button>
+    <button *ngIf="column" style="margin-left:5px" class="btn btn-outline-dark" routerLink="/tables/with-column/{{column}}" title="Tables with {{column}}">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-asterisk" viewBox="0 0 16 16">
+        <path d="M8 0a1 1 0 0 1 1 1v5.268l4.562-2.634a1 1 0 1 1 1 1.732L10 8l4.562 2.634a1 1 0 1 1-1 1.732L9 9.732V15a1 1 0 1 1-2 0V9.732l-4.562 2.634a1 1 0 1 1-1-1.732L6 8 1.438 5.366a1 1 0 0 1 1-1.732L7 6.268V1a1 1 0 0 1 1-1"/>
+      </svg>
+    </button>
   </h2>
-<!--  <div class="create-table" *ngIf="table.structure?.create">-->
-<!--    <pre><code highlight="{{table.structure.create}}"></code></pre>-->
-<!--  </div>-->
+
   <pre *ngIf="table.remarks">{{table.remarks}}</pre>
 
   <div class="row">
@@ -37,8 +46,18 @@
     </div>
 
     <div class="col">
-      <div *ngIf="table.joinTables" class="query-breakdown">
-        <span class="title">Joined Tables </span> <a routerLink="/table-graph/schema/{{table.schema}}/{{table.name}}">(Graph)</a>
+      <div *ngIf="table.foreignKeys && table.foreignKeys.length" class="query-breakdown">
+        <span class="title">FK Tables </span>
+        <div class="query-reference">
+          <ul class="tables query-reference">
+            <li *ngFor="let tableRef of table.foreignKeys">
+              <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div *ngIf="table.joinTables && table.joinTables.length" class="query-breakdown">
+        <span class="title">Joined Tables </span>
         <div class="query-reference">
         <ul class="tables query-reference">
           <li *ngFor="let tableRef of table.joinTables">
@@ -47,8 +66,8 @@
         </ul>
         </div>
       </div>
-      <div *ngIf="table.relatedTables" class="query-breakdown">
-        <span class="title">Tables in Queries </span> <a routerLink="/table-graph/schema/{{table.schema}}/{{table.name}}">(Graph)</a>
+      <div *ngIf="table.relatedTables && table.relatedTables.length" class="query-breakdown">
+        <span class="title">Tables in Queries </span>
         <div class="query-reference">
           <ul class="tables query-reference">
             <li *ngFor="let tableRef of table.relatedTables">
@@ -60,7 +79,15 @@
     </div>
   </div>
 
-  <div *ngIf="table.structure">
+  <div *ngIf="table.structure" class="clearfix">
+    <div *ngIf="showCreate && table.structure.create then createStatement else tableStructure"></div>
+    <button class="btn btn-secondary btn-sm float-right" (click)="showCreate = !showCreate">{{ showCreate ? 'Table View' : 'Create View' }}</button>
+  </div>
+  <ng-template #createStatement>
+    <pre><code style="margin-top: 20px; margin-bottom: 20px" highlight="{{table.structure.create}}"></code></pre>
+  </ng-template>
+  <ng-template #tableStructure>
+
   <table id="table-structure" class="table table-sm table-hover">
     <thead class="thead-dark">
     <tr>
@@ -107,7 +134,7 @@
     </tr>
     </tbody>
   </table>
-  </div>
+  </ng-template>
 
   <hr>
 
@@ -117,12 +144,12 @@
         <a routerLink="/analyzed-sql/{{query.digest}}">{{query.id}} ({{query.type}})</a>
         <pre><code highlight="{{query.query}}"></code></pre>
       </div>
-      <div class="col-4">
+      <div class="col-4" style="margin-bottom:10px">
         <div>Summary:</div>
         <app-sql-summary [query]="query"></app-sql-summary>
         <div *ngIf="query.tables.length > 1"><br>Joins To:</div>
         <ul class="list-group">
-          <li class="list-group-item" *ngFor="let otherTable of query.tables | callback: otherTables(table.name)">
+          <li class="list-group-item" *ngFor="let otherTable of query.tables | callback: otherTables(table)">
             <app-table-link [defaultSchema]="query.schema" [tableReference]="otherTable"></app-table-link>
           </li>
         </ul>

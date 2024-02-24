@@ -30,8 +30,8 @@ public class JoinColumnsSerde {
         @Override
         public void serialize(JoinColumns value, JsonGenerator gen, SerializerProvider provider) throws IOException {
             gen.writeStartArray();
-            gen.writeString(value.getLeft().getNormalizedReference());
-            gen.writeString(value.getRight().getNormalizedReference());
+            gen.writeString(value.left().getNormalizedReference());
+            gen.writeString(value.right().getNormalizedReference());
             gen.writeEndArray();
         }
     }

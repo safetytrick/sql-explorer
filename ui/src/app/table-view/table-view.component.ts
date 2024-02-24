@@ -11,6 +11,8 @@ import {Title} from '@angular/platform-browser';
 export class TableViewComponent implements OnInit {
 
   table: any = null;
+  showCreate = false;
+  column: string = null;
 
 
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,
@@ -18,6 +20,7 @@ export class TableViewComponent implements OnInit {
 
   ngOnInit() {
     this.route.params.subscribe((params) => {
+      this.column = null;
       if (params['joinSchema'] && params['joinTable']) {
         this.getSqlForTableAndJoin(params['schema'],
           params['name'],
@@ -27,6 +30,7 @@ export class TableViewComponent implements OnInit {
         this.getSqlForTable(params['schema'],
           params['name'],
           params['column']);
+        this.column = params['column'];
       }
 
       this.updateTitle(params);
@@ -63,10 +67,10 @@ export class TableViewComponent implements OnInit {
     );
   }
 
-  otherTables(originalTableName: string) {
+  otherTables(table: any) {
     return (tableName: string) => {
-      return tableName !== originalTableName;
-    };
+      return tableName !== table.name && tableName !== (table.schema + '.' + table.name);
+    }
   }
 
   skipPrimary(table: any) {

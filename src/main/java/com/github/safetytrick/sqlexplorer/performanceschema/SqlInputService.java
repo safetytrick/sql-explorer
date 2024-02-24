@@ -373,7 +373,7 @@ public class SqlInputService {
         List<String> allColumns = new ArrayList<>();
         if (joinColumns != null) {
             joinColumns.stream()
-                    .flatMap(join -> Stream.of(join.getRight().getColumn(), join.getLeft().getColumn()))
+                    .flatMap(join -> Stream.of(join.right().getColumn(), join.left().getColumn()))
                     .forEach(allColumns::add);
         }
         if (criteriaColumns != null) {

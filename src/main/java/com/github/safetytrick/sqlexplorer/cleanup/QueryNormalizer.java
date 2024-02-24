@@ -44,64 +44,40 @@ public class QueryNormalizer {
     private static class NormalizerVisitor extends StatementVisitorAdapter implements SelectVisitor, SelectItemVisitor {
 
         @Override
-        public void visit(Commit commit) {
-
-        }
+        public void visit(Commit commit) { }
 
         @Override
-        public void visit(Delete delete) {
-
-        }
+        public void visit(Delete delete) { }
 
         @Override
-        public void visit(Update update) {
-
-        }
+        public void visit(Update update) { }
 
         @Override
-        public void visit(Insert insert) {
-
-        }
+        public void visit(Insert insert) { }
 
         @Override
-        public void visit(Replace replace) {
-
-        }
+        public void visit(Replace replace) { }
 
         @Override
-        public void visit(Drop drop) {
-
-        }
+        public void visit(Drop drop) { }
 
         @Override
-        public void visit(Truncate truncate) {
-
-        }
+        public void visit(Truncate truncate) { }
 
         @Override
-        public void visit(CreateIndex createIndex) {
-
-        }
+        public void visit(CreateIndex createIndex) { }
 
         @Override
-        public void visit(CreateTable createTable) {
-
-        }
+        public void visit(CreateTable createTable) { }
 
         @Override
-        public void visit(CreateView createView) {
-
-        }
+        public void visit(CreateView createView) { }
 
         @Override
-        public void visit(AlterView alterView) {
-
-        }
+        public void visit(AlterView alterView) { }
 
         @Override
-        public void visit(Alter alter) {
-
-        }
+        public void visit(Alter alter) { }
 
         @Override
         public void visit(Statements stmts) {
@@ -114,19 +90,13 @@ public class QueryNormalizer {
         }
 
         @Override
-        public void visit(Execute execute) {
-
-        }
+        public void visit(Execute execute) { }
 
         @Override
-        public void visit(SetStatement set) {
-
-        }
+        public void visit(SetStatement set) { }
 
         @Override
-        public void visit(Merge merge) {
-
-        }
+        public void visit(Merge merge) { }
 
         @Override
         public void visit(Select select) {
@@ -134,14 +104,10 @@ public class QueryNormalizer {
         }
 
         @Override
-        public void visit(Upsert upsert) {
-
-        }
+        public void visit(Upsert upsert) { }
 
         @Override
-        public void visit(UseStatement use) {
-
-        }
+        public void visit(UseStatement use) { }
 
         @Override
         public void visit(PlainSelect plainSelect) {
@@ -154,24 +120,16 @@ public class QueryNormalizer {
         }
 
         @Override
-        public void visit(SetOperationList setOpList) {
-
-        }
+        public void visit(SetOperationList setOpList) { }
 
         @Override
-        public void visit(WithItem withItem) {
-
-        }
+        public void visit(WithItem withItem) { }
 
         @Override
-        public void visit(AllColumns allColumns) {
-
-        }
+        public void visit(AllColumns allColumns) { }
 
         @Override
-        public void visit(AllTableColumns allTableColumns) {
-
-        }
+        public void visit(AllTableColumns allTableColumns) { }
 
         @Override
         public void visit(SelectExpressionItem selectExpressionItem) {

@@ -50,37 +50,16 @@ public class SqlCleaner {
         return sql;
     }
 
-    public static class CleanedSql {
-        private final String sql;
-        private final boolean truncated;
-        private final boolean modified;
-
-        public CleanedSql(String sql, boolean truncated, boolean modified) {
-            this.sql = sql;
-            this.truncated = truncated;
-            this.modified = modified;
-        }
-
-        public String getSql() {
-            return sql;
-        }
-
-        public boolean isTruncated() {
-            return truncated;
-        }
-
-        public boolean isModified() {
-            return modified;
-        }
+    public record CleanedSql(String sql, boolean truncated, boolean modified) {
 
         @Override
-        public String toString() {
-            return "CleanedSql{" +
+            public String toString() {
+                return "CleanedSql{" +
                     "sql='" + sql + '\'' +
                     ", truncated=" + truncated +
                     ", modified=" + modified +
                     '}';
+            }
         }
-    }
 
 }

@@ -15,7 +15,7 @@ export class SqlViewComponent implements OnInit {
   public tables: any[] = null;
 
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,
-              private router: Router, private changeDetectorRef: ChangeDetectorRef,
+              private changeDetectorRef: ChangeDetectorRef,
               private titleService: Title
   ) { }
 

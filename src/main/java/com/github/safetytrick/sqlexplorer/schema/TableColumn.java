@@ -2,120 +2,23 @@ package com.github.safetytrick.sqlexplorer.schema;
 
 import java.sql.JDBCType;
 
-public class TableColumn {
-    private final String schema;
-    private final String table;
-    private final String columnName;
-    private final JDBCType type;
-    private final String typeName;
-    private final int columnSize;
-    private final int decimalDigits;
-    private final int radix;
-    private final String remarks;
-    private final String columnDefault;
-    private final int octetLength;
-    private final int ordinal;
-    private final String isNullable;
-    private final String isAutoIncrement;
-    private final String isGenerated;
-    private final String characterSet;
-    private final String collation;
-
-    private TableColumn(String schema,
-                        String table,
-                        String columnName,
-                        JDBCType type,
-                        String typeName,
-                        int columnSize,
-                        int decimalDigits,
-                        int radix,
-                        String remarks,
-                        String columnDefault,
-                        int octetLength,
-                        int ordinal,
-                        String isNullable, String isAutoIncrement, String isGenerated, String characterSet, String collation) {
-        this.schema = schema;
-        this.table = table;
-        this.columnName = columnName;
-        this.type = type;
-        this.typeName = typeName;
-        this.columnSize = columnSize;
-        this.decimalDigits = decimalDigits;
-        this.radix = radix;
-        this.remarks = remarks;
-        this.columnDefault = columnDefault;
-        this.octetLength = octetLength;
-        this.ordinal = ordinal;
-        this.isNullable = isNullable;
-        this.isAutoIncrement = isAutoIncrement;
-        this.isGenerated = isGenerated;
-        this.characterSet = characterSet;
-        this.collation = collation;
-    }
-
-    public String getSchema() {
-        return schema;
-    }
-
-    public String getColumnName() {
-        return columnName;
-    }
-
-    public JDBCType getType() {
-        return type;
-    }
-
-    public String getTypeName() {
-        return typeName;
-    }
-
-    public int getColumnSize() {
-        return columnSize;
-    }
-
-    public int getDecimalDigits() {
-        return decimalDigits;
-    }
-
-    public int getRadix() {
-        return radix;
-    }
-
-    public String getRemarks() {
-        return remarks;
-    }
-
-    public String getColumnDefault() {
-        return columnDefault;
-    }
-
-    public int getOctetLength() {
-        return octetLength;
-    }
-
-    public int getOrdinal() {
-        return ordinal;
-    }
-
-    public String getIsNullable() {
-        return isNullable;
-    }
-
-    public String getIsAutoIncrement() {
-        return isAutoIncrement;
-    }
-
-    public String getIsGenerated() {
-        return isGenerated;
-    }
-
-    public String getCharacterSet() {
-        return characterSet;
-    }
-
-    public String getCollation() {
-        return collation;
-    }
+public record TableColumn(String schema,
+                          String table,
+                          String columnName,
+                          JDBCType type,
+                          String typeName,
+                          int columnSize,
+                          int decimalDigits,
+                          int radix,
+                          String remarks,
+                          String columnDefault,
+                          int octetLength,
+                          int ordinal,
+                          String isNullable,
+                          String isAutoIncrement,
+                          String isGenerated,
+                          String characterSet,
+                          String collation) {
 
     @Override
     public String toString() {

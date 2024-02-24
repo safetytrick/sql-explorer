@@ -106,7 +106,7 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
         if (derivedTables == null) {
             derivedTables = new HashMap<>(2);
         }
-        derivedTables.put(NameNormalizer.normalize(derivedTable.getAlias()), derivedTable);
+        derivedTables.put(NameNormalizer.normalize(derivedTable.alias()), derivedTable);
     }
 
     private String resolveTableName(String aliasOrName) {

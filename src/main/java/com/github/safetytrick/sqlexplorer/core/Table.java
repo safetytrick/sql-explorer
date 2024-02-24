@@ -4,68 +4,15 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 
-public class Table {
-    private final String name;
-    private final int numberOfQueries;
-    private final double totalQueryTime;
-    private final List<AnalyzedSql> queries;
-    private final TableStructure structure;
-    private final String schema;
-
-
-    private final List<TableReference> joinTables;
-    private final List<TableReference> relatedTables;
-
-    private Table(String name,
-                  int numberOfQueries,
-                  double totalQueryTime,
-                  List<AnalyzedSql> queries,
-                  TableStructure structure,
-                  String schema,
-                  List<TableReference> joinTables,
-                  List<TableReference> relatedTables) {
-        this.name = name;
-        this.numberOfQueries = numberOfQueries;
-        this.totalQueryTime = totalQueryTime;
-        this.queries = queries;
-        this.structure = structure;
-        this.schema = schema;
-        this.joinTables = joinTables;
-        this.relatedTables = relatedTables;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public int getNumberOfQueries() {
-        return numberOfQueries;
-    }
-
-    public double getTotalQueryTime() {
-        return totalQueryTime;
-    }
-
-    public List<AnalyzedSql> getQueries() {
-        return queries;
-    }
-
-    public String getSchema() {
-        return schema;
-    }
-
-    public TableStructure getStructure() {
-        return structure;
-    }
-
-    public List<TableReference> getJoinTables() {
-        return joinTables;
-    }
-
-    public List<TableReference> getRelatedTables() {
-        return relatedTables;
-    }
-
+public record Table(String name,
+                   int numberOfQueries,
+                   double totalQueryTime,
+                   List<AnalyzedSql> queries,
+                   TableStructure structure,
+                   String schema,
+                   List<TableReference> foreignKeys,
+                   List<TableReference> joinTables,
+                   List<TableReference> relatedTables) {
     public static Builder builder() {
         return new Builder();
     }
@@ -77,6 +24,7 @@ public class Table {
         private List<AnalyzedSql> queries;
         private TableStructure structure;
         private String schema;
+        private List<TableReference> foreignKeys;
         private List<TableReference> joinTables;
         private List<TableReference> relatedTables;
 
@@ -105,6 +53,11 @@ public class Table {
             return this;
         }
 
+        public Builder foreignKeys(List<TableReference> foreignKeys) {
+            this.foreignKeys = foreignKeys;
+            return this;
+        }
+
         public Builder joinTables(List<TableReference> joinTables) {
             this.joinTables = joinTables;
             return this;
@@ -121,8 +74,7 @@ public class Table {
         }
 
         public Table build() {
-            return new Table(name, numberOfQueries, totalQueryTime, queries, structure, schema, joinTables, relatedTables);
+            return new Table(name, numberOfQueries, totalQueryTime, queries, structure, schema, foreignKeys, joinTables, relatedTables);
         }
-
     }
 }

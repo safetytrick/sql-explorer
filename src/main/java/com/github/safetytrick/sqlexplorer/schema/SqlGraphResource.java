@@ -20,29 +20,29 @@ public class SqlGraphResource {
     }
 
     @GetMapping("/api/sql-explorer/graph/all")
-    public Stream<TableRelationships> getTableForeignKeys(@RequestParam(name = "threshold", defaultValue = "5") int threshold) {
-        return sqlGraphService.getTableForeignKeys(threshold);
+    public Stream<TableRelationships> getTableRelationships(@RequestParam(name = "threshold", defaultValue = "5") int threshold) {
+        return sqlGraphService.getTableRelationships(threshold);
     }
 
     @GetMapping("/api/sql-explorer/graph/schema/{schema}")
-    public Stream<TableRelationships> getTableForeignKeysForSchema(@PathVariable("schema") String schema,
-                                                                   @RequestParam(name = "threshold", defaultValue = "5") int threshold) {
-        return sqlGraphService.getTableForeignKeysForSchema(threshold, schema);
+    public Stream<TableRelationships> getTableRelationshipsForSchema(@PathVariable("schema") String schema,
+                                                                     @RequestParam(name = "threshold", defaultValue = "5") int threshold) {
+        return sqlGraphService.getTableRelationshipsForSchema(threshold, schema);
     }
 
     @GetMapping("/api/sql-explorer/graph/schema/{schema}/table/{table}")
-    public Stream<TableRelationships> getTableForeignKeysForSchemaAndTable(@PathVariable("schema") String schema,
-                                                                           @PathVariable("table") String table,
-                                                                           @RequestParam(name = "depth", defaultValue = "0") int depth,
-                                                                           @RequestParam(name = "threshold", defaultValue = "5") int threshold) {
-        return sqlGraphService.getTableForeignKeysForSchemaAndTable(threshold, depth, schema, table);
+    public Stream<TableRelationships> getTableRelationshipsForSchemaAndTable(@PathVariable("schema") String schema,
+                                                                             @PathVariable("table") String table,
+                                                                             @RequestParam(name = "depth", defaultValue = "0") int depth,
+                                                                             @RequestParam(name = "threshold", defaultValue = "5") int threshold) {
+        return sqlGraphService.getTableRelationshipsForSchemaAndTable(threshold, depth, schema, table);
     }
 
     @GetMapping("/api/sql-explorer/graph/by-tag/{tag}")
-    public Stream<GroupedTableRelationships> getTableForeignKeysForTag(@PathVariable("tag") String tag,
-                                                                @RequestParam(name = "depth", defaultValue = "0") int depth,
-                                                                @RequestParam(name = "threshold", defaultValue = "5") int threshold) {
-        return sqlGraphService.getTableForeignKeysForTag(threshold, depth, tag);
+    public Stream<GroupedTableRelationships> getTableRelationshipsForTag(@PathVariable("tag") String tag,
+                                                                         @RequestParam(name = "depth", defaultValue = "0") int depth,
+                                                                         @RequestParam(name = "threshold", defaultValue = "5") int threshold) {
+        return sqlGraphService.getTableRelationshipsForTag(threshold, depth, tag);
     }
 
 

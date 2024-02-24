@@ -1,25 +1,10 @@
 package com.github.safetytrick.sqlexplorer.core;
 
-public class JoinColumns {
-    private final ColumnReference left;
-    private final ColumnReference right;
-
-    public JoinColumns(ColumnReference left, ColumnReference right) {
-        this.left = left;
-        this.right = right;
-    }
-
-    public ColumnReference getLeft() {
-        return left;
-    }
-
-    public ColumnReference getRight() {
-        return right;
-    }
+public record JoinColumns(ColumnReference left, ColumnReference right) {
 
     public static JoinColumns fromReferences(String left, String right) {
         return new JoinColumns(ColumnReference.fromString(left),
-                               ColumnReference.fromString(right));
+            ColumnReference.fromString(right));
     }
 
     public boolean contains(ColumnReference columnReference) {

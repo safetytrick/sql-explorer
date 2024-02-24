@@ -1,4 +1,4 @@
-FROM amazoncorretto:17
+FROM amazoncorretto:21
 
 ENV ARTIFACT sql-explorer.jar
 ENV APP_PROP_CONFIG_DIR /etc/sql-explorer/config/,optional:/etc/sql-explorer/secrets/

@@ -4,41 +4,11 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.anno.Tag;
 
-public class TableRollup {
-    private final String name;
-    private final int numberOfQueries;
-    private final double totalQueryTime;
-    private final String schema;
-    private final List<Tag> tags;
-
-    private TableRollup(String name, int numberOfQueries, double totalQueryTime, String schema, List<Tag> tags) {
-        this.name = name;
-        this.numberOfQueries = numberOfQueries;
-        this.totalQueryTime = totalQueryTime;
-        this.schema = schema;
-        this.tags = tags;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public int getNumberOfQueries() {
-        return numberOfQueries;
-    }
-
-    public double getTotalQueryTime() {
-        return totalQueryTime;
-    }
-
-    public String getSchema() {
-        return schema;
-    }
-
-    public List<Tag> getTags() {
-        return tags;
-    }
-
+public record TableRollup(String name,
+                         int numberOfQueries,
+                         double totalQueryTime,
+                         String schema,
+                         List<Tag> tags) {
     public static Builder builder() {
         return new Builder();
     }

@@ -71,10 +71,6 @@ export class AnalyzedSqlService {
     return this.http.get(endpoint + 'tables/tag/' + tag);
   }
 
-  getAllJoinedTables() {
-    return this.http.get(endpoint + 'metadata/all-join-pairs');
-  }
-
   getTableGraph() {
     return this.http.get(endpoint + 'graph/all');
   }

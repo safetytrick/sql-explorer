@@ -7,16 +7,16 @@ import com.github.safetytrick.sqlexplorer.core.CrossSchemaTable;
 
 public interface GraphService {
 
-    Stream<TableRelationships> getTableForeignKeys(int threshold);
+    Stream<TableRelationships> getTableRelationships(int threshold);
 
-    Stream<TableRelationships> getTableForeignKeysForSchema(int threshold, String schema);
+    Stream<TableRelationships> getTableRelationshipsForSchema(int threshold, String schema);
 
-    Stream<TableRelationships> getTableForeignKeysForSchemaAndTable(int threshold,
-                                                                    int depth,
-                                                                    String schema,
-                                                                    String tableName);
+    Stream<TableRelationships> getTableRelationshipsForSchemaAndTable(int threshold,
+                                                                      int depth,
+                                                                      String schema,
+                                                                      String tableName);
 
-    Stream<GroupedTableRelationships> getTableForeignKeysForTag(int threshold, int depth, String tag);
+    Stream<GroupedTableRelationships> getTableRelationshipsForTag(int threshold, int depth, String tag);
 
     List<CrossSchemaTable> getInfoForCrossSchemaJoins(String schema,
                                                       String tag,

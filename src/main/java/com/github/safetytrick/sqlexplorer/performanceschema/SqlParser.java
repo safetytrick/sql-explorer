@@ -16,9 +16,9 @@ public class SqlParser {
         CleanedStatement statement;
         SqlCleaner.CleanedSql cleanSql = sqlCleaner.cleanSql(sql);
         try {
-            statement = new CleanedStatement(CCJSqlParserUtil.parse(cleanSql.getSql()), cleanSql.isTruncated(), cleanSql.isModified());
+            statement = new CleanedStatement(CCJSqlParserUtil.parse(cleanSql.sql()), cleanSql.truncated(), cleanSql.modified());
         } catch (JSQLParserException e) {
-            throw new JSQLParserException("[[[" + cleanSql.getSql() + "]]]", e);
+            throw new JSQLParserException("[[[" + cleanSql.sql() + "]]]", e);
         }
 
         return statement;

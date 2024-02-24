@@ -23,6 +23,11 @@ export class TableGraphComponent {
       const tableJoinsArray = tableJoins as any[];
       tableJoinsArray.forEach(tableJoin => {
         groups.addTableJoins(tableJoin);
+        tableJoin.foreignKeys.forEach(relatedTable => {
+          groups.addTable(relatedTable);
+          this.createLink(tableJoin.table, relatedTable, 'fk');
+        });
+
         tableJoin.joinTables.forEach(relatedTable => {
           groups.addTable(relatedTable);
           this.createLink(tableJoin.table, relatedTable, 'joins');

@@ -10,8 +10,8 @@ public class Assertions {
 
     public static void assertContainsJoinColumns(List<JoinColumns> joinColumns, String first, String second) {
         for (JoinColumns pair : joinColumns) {
-            if (pair.getLeft().equals(ColumnReference.fromString(first)) && pair.getRight().equals(ColumnReference.fromString(second)) ||
-                pair.getRight().equals(ColumnReference.fromString(first)) && pair.getLeft().equals(ColumnReference.fromString(second))
+            if (pair.left().equals(ColumnReference.fromString(first)) && pair.right().equals(ColumnReference.fromString(second)) ||
+                pair.right().equals(ColumnReference.fromString(first)) && pair.left().equals(ColumnReference.fromString(second))
             ) {
                 return;
             }

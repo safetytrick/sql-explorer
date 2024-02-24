@@ -30,7 +30,7 @@ public class SqlTagsService {
     public Stream<TableRollup> getTablesByTag(String name) {
         return tagsService.findAllByNameAndType(name, "table")
             .stream().map(this::buildTaggedTable)
-            .sorted(comparing(TableRollup::getTotalQueryTime)
+            .sorted(comparing(TableRollup::totalQueryTime)
                         .reversed());
     }
 

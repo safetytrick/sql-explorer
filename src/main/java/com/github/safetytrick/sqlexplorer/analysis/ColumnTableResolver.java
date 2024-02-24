@@ -46,8 +46,8 @@ public class ColumnTableResolver {
                 missingTable = table;
                 continue;
             }
-            tableStructure.getColumns().stream()
-                .filter(x -> x.getColumnName().equalsIgnoreCase(column))
+            tableStructure.columns().stream()
+                .filter(x -> x.columnName().equalsIgnoreCase(column))
                 .findFirst().ifPresent(x -> matchedTables.add(tableReference));
 
         }
@@ -67,9 +67,9 @@ public class ColumnTableResolver {
 
     public List<String> getAllColumnNamesForTable(String schema, String table) {
         return sqlMetadataService.getTable(new TableReference(schema, table))
-            .getColumns()
+            .columns()
             .stream()
-            .map(TableColumn::getColumnName)
+            .map(TableColumn::columnName)
             .collect(Collectors.toList());
     }
 

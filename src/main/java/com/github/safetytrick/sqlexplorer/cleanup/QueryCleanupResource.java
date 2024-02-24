@@ -34,7 +34,7 @@ public class QueryCleanupResource {
         try {
             if (clean) {
                 SqlCleaner.CleanedSql cleanedSql = sqlCleaner.cleanSql(query);
-                statement = CCJSqlParserUtil.parse(cleanedSql.getSql());
+                statement = CCJSqlParserUtil.parse(cleanedSql.sql());
             } else {
                 statement = CCJSqlParserUtil.parse(query);
             }
@@ -47,16 +47,6 @@ public class QueryCleanupResource {
 
     }
 
-    static class NormalizedQuery {
-        private final String text;
-
-        NormalizedQuery(String text) {
-            this.text = text;
-        }
-
-        public String getText() {
-            return text;
-        }
-    }
+    public record NormalizedQuery(String text) { }
 
 }

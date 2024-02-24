@@ -6,79 +6,16 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
-public class TableIndex {
-    private final String schema;
-    private final boolean unique;
-    private final String identifier;
-    private final String name;
-    private final IndexType indexType;
-    private final IndexDirection direction;
-    private final long cardinality;
-    private final long pages;
-    private final String filterCondition;
-    private final List<String> columns;
-
-    public String getSchema() {
-        return schema;
-    }
-
-    public boolean isUnique() {
-        return unique;
-    }
-
-    public String getIdentifier() {
-        return identifier;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public IndexType getIndexType() {
-        return indexType;
-    }
-
-    public IndexDirection getDirection() {
-        return direction;
-    }
-
-    public long getCardinality() {
-        return cardinality;
-    }
-
-    public long getPages() {
-        return pages;
-    }
-
-    public String getFilterCondition() {
-        return filterCondition;
-    }
-
-    public List<String> getColumns() {
-        return columns;
-    }
-
-    private TableIndex(String schema,
-                       boolean unique,
-                       String identifier,
-                       String name,
-                       IndexType indexType,
-                       IndexDirection direction,
-                       long cardinality,
-                       long pages,
-                       String filterCondition,
-                       List<String> columns) {
-        this.schema = schema;
-        this.unique = unique;
-        this.identifier = identifier;
-        this.name = name;
-        this.indexType = indexType;
-        this.direction = direction;
-        this.cardinality = cardinality;
-        this.pages = pages;
-        this.filterCondition = filterCondition;
-        this.columns = columns;
-    }
+public record TableIndex(String schema,
+                         boolean unique,
+                         String identifier,
+                         String name,
+                         IndexType indexType,
+                         IndexDirection direction,
+                         long cardinality,
+                         long pages,
+                         String filterCondition,
+                         List<String> columns) {
 
     public static Builder builder() {
         return new Builder();
@@ -94,7 +31,7 @@ public class TableIndex {
         private long cardinality;
         private long pages;
         private String filterCondition;
-        private NavigableMap<Integer, String> columns = new TreeMap<>();
+        private final NavigableMap<Integer, String> columns = new TreeMap<>();
 
         public Builder schema(String schema) {
             this.schema = schema;

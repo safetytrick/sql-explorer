@@ -101,7 +101,7 @@ public class JoinColumnAnalyzer implements SqlAnalyzer {
 
         @Override
         public void visit(Select select) {
-            if (select.getWithItemsList() != null && select.getWithItemsList().size() > 0) {
+            if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
                 throw new UnsupportedSqlException("with items list");
             }
             if (select.getSelectBody() != null) {
@@ -338,7 +338,7 @@ public class JoinColumnAnalyzer implements SqlAnalyzer {
             }
         }
 
-        private class TableNamesInFromItemVisitor extends FromItemVisitorAdapter {
+        private static class TableNamesInFromItemVisitor extends FromItemVisitorAdapter {
             List<String> tableNames;
             public List<String> getTableNames(FromItem fromItem) {
                 tableNames = new ArrayList<>();

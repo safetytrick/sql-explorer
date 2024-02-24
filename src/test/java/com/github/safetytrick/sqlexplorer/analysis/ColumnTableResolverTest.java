@@ -5,6 +5,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.github.safetytrick.sqlexplorer.core.ColumnReference;
+import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import org.junit.jupiter.api.Test;
 
 import com.github.safetytrick.sqlexplorer.core.TableReference;
@@ -13,6 +15,7 @@ import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.JSQLParserException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -23,8 +26,7 @@ class ColumnTableResolverTest {
     ColumnTableResolver columnTableResolver = new ColumnTableResolver(sqlMetadataService);
 
     @Test
-    void qualified_schema_and_default() throws SQLException, JSQLParserException {
-
+    void qualified_schema_and_default() throws JSQLParserException {
 
         String customerRefCreate = """
             CREATE TABLE `customer_ref` (
@@ -111,5 +113,62 @@ class ColumnTableResolverTest {
         String table = columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("store_config"), "store_id");
 
         assertEquals("store_config", table);
+    }
+
+    @Test
+    void foreign_key_parsing() throws JSQLParserException {
+        String addressTable = """
+            CREATE TABLE address (
+              address_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+              address VARCHAR(50) NOT NULL,
+              address2 VARCHAR(50) DEFAULT NULL,
+              district VARCHAR(20) NOT NULL,
+              city_id SMALLINT UNSIGNED NOT NULL,
+              postal_code VARCHAR(10) DEFAULT NULL,
+              phone VARCHAR(20) NOT NULL,
+              last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY  (address_id),
+              KEY idx_fk_city_id (city_id),
+              CONSTRAINT `fk_address_city` FOREIGN KEY (city_id) REFERENCES city (city_id) ON DELETE RESTRICT ON UPDATE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """;
+
+        TableStructure address_table = TableStructure.fromCreateTable(addressTable).build();
+        assertFalse(address_table.foreignKeys().isEmpty());
+        for (ForeignKey foreignKey : address_table.foreignKeys()) {
+            ColumnReference from_city_id = foreignKey.from().get(0);
+            ColumnReference to_city_id = foreignKey.to().get(0);
+            assertEquals("address.city_id", from_city_id.toString());
+
+            assertEquals("city.city_id", to_city_id.toString());
+        }
+    }
+
+    @Test
+    void foreign_key_parsing_with_default_schema() throws JSQLParserException {
+        String addressTable = """
+            CREATE TABLE address (
+              address_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+              address VARCHAR(50) NOT NULL,
+              address2 VARCHAR(50) DEFAULT NULL,
+              district VARCHAR(20) NOT NULL,
+              city_id SMALLINT UNSIGNED NOT NULL,
+              postal_code VARCHAR(10) DEFAULT NULL,
+              phone VARCHAR(20) NOT NULL,
+              last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY  (address_id),
+              KEY idx_fk_city_id (city_id),
+              CONSTRAINT `fk_address_city` FOREIGN KEY (city_id) REFERENCES city (city_id) ON DELETE RESTRICT ON UPDATE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """;
+
+        TableStructure address_table = TableStructure.fromCreateTable(addressTable, "some_schema").build();
+        assertFalse(address_table.foreignKeys().isEmpty());
+        for (ForeignKey foreignKey : address_table.foreignKeys()) {
+            ColumnReference from_city_id = foreignKey.from().get(0);
+            ColumnReference to_city_id = foreignKey.to().get(0);
+            assertEquals("some_schema.address.city_id", from_city_id.toString());
+            assertEquals("some_schema.city.city_id", to_city_id.toString());
+        }
     }
 }

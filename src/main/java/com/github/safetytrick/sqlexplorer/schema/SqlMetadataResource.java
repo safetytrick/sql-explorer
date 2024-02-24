@@ -14,24 +14,13 @@ import com.github.safetytrick.sqlexplorer.core.TableReference;
 public class SqlMetadataResource {
 
     private final SqlMetadataService sqlMetadataService;
-    private final SqlMetadataAnalysisService sqlMetadataAnalysisService;
 
-    public SqlMetadataResource(SqlMetadataService sqlMetadataService, SqlMetadataAnalysisService sqlMetadataAnalysisService) {
+    public SqlMetadataResource(SqlMetadataService sqlMetadataService) {
         this.sqlMetadataService = sqlMetadataService;
-        this.sqlMetadataAnalysisService = sqlMetadataAnalysisService;
     }
 
     @GetMapping("/api/sql-explorer/metadata/table/{schema}/{name}")
     public TableStructure getTableStructure(@PathVariable("schema") String schema, @PathVariable("name") String tableName) {
         return sqlMetadataService.getTable(new TableReference(schema, tableName));
-    }
-
-    @GetMapping("/api/sql-explorer/metadata/all-join-pairs")
-    public Set<List<String>> getAllJoinPairs(@RequestParam(name = "threshold", defaultValue = "5") Integer threshold){
-        if (threshold == null) {
-            threshold = 5;
-        }
-
-        return sqlMetadataAnalysisService.getAllJoinPairs(threshold);
     }
 }

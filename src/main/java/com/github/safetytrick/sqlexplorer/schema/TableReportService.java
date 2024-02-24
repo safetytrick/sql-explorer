@@ -20,9 +20,9 @@ public class TableReportService {
 
     public Stream<TableRollup> getTablesWithColumn(String columnName) {
         return sqlMetadataService.getTables().stream().filter(
-            tableStructure -> tableStructure.getColumns().stream().anyMatch(column -> column.getColumnName().equalsIgnoreCase(columnName))
-        ).map(table -> sqlRepositoryService.getTableRollup(table.getTableReference()))
-         .sorted(comparing(TableRollup::getTotalQueryTime)
+            tableStructure -> tableStructure.columns().stream().anyMatch(column -> column.columnName().equalsIgnoreCase(columnName))
+        ).map(table -> sqlRepositoryService.getTableRollup(table.tableReference()))
+         .sorted(comparing(TableRollup::totalQueryTime)
                     .reversed());
     }
 }

@@ -33,7 +33,7 @@ public class JoinAcrossTypesAnalyzer {
         }
         return joinColumns.stream()
             .map(joinPair -> {
-                if (doColumnTypesMatch(schema, joinPair.getLeft(), joinPair.getRight())) {
+                if (doColumnTypesMatch(schema, joinPair.left(), joinPair.right())) {
                     return null;
                 }
                 return joinPair;
@@ -51,13 +51,13 @@ public class JoinAcrossTypesAnalyzer {
             return false;
         }
 
-        if (!Objects.equals(leftColumn.getCharacterSet(), rightColumn.getCharacterSet())) {
+        if (!Objects.equals(leftColumn.characterSet(), rightColumn.characterSet())) {
             return false;
         }
 
-        return leftColumn.getType() == rightColumn.getType() ||
-            leftColumn.getType() == JDBCType.CHAR && rightColumn.getType() == JDBCType.VARCHAR ||
-            leftColumn.getType() == JDBCType.VARCHAR && rightColumn.getType() == JDBCType.CHAR || haveCompatibleIntegerTypes(leftColumn.getType(), rightColumn.getType());
+        return leftColumn.type() == rightColumn.type() ||
+            leftColumn.type() == JDBCType.CHAR && rightColumn.type() == JDBCType.VARCHAR ||
+            leftColumn.type() == JDBCType.VARCHAR && rightColumn.type() == JDBCType.CHAR || haveCompatibleIntegerTypes(leftColumn.type(), rightColumn.type());
     }
 
     private boolean haveCompatibleIntegerTypes(JDBCType left, JDBCType right) {
@@ -84,7 +84,7 @@ public class JoinAcrossTypesAnalyzer {
         if (table == null) {
             return Optional.empty();
         }
-        return table.getColumns().stream().filter(x -> x.getColumnName().equalsIgnoreCase(reference.getNormalizedColumn()))
+        return table.columns().stream().filter(x -> x.columnName().equalsIgnoreCase(reference.getNormalizedColumn()))
             .findFirst();
     }
 }

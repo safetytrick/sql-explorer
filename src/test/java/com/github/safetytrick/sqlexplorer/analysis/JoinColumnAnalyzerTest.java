@@ -48,8 +48,8 @@ public class JoinColumnAnalyzerTest {
 
         assertNotNull(builder.view().getJoinColumns());
         JoinColumns joinPair = builder.view().getJoinColumns().get(0);
-        assertEquals(joinPair.getLeft(), ColumnReference.fromString("store.id"));
-        assertEquals(joinPair.getRight(), ColumnReference.fromString("store_config.store_id"));
+        assertEquals(joinPair.left(), ColumnReference.fromString("store.id"));
+        assertEquals(joinPair.right(), ColumnReference.fromString("store_config.store_id"));
     }
 
     @Test
@@ -62,8 +62,8 @@ public class JoinColumnAnalyzerTest {
         assertEquals(1, builder.view().getJoinColumns().size());
         JoinColumns joinPair = builder.view().getJoinColumns().get(0);
 
-        assertEquals(joinPair.getLeft(), ColumnReference.fromString("store.id"));
-        assertEquals(joinPair.getRight(), ColumnReference.fromString("store_config.store_id"));
+        assertEquals(joinPair.left(), ColumnReference.fromString("store.id"));
+        assertEquals(joinPair.right(), ColumnReference.fromString("store_config.store_id"));
     }
 
     @Test
@@ -124,16 +124,16 @@ public class JoinColumnAnalyzerTest {
 
         assertNotNull(builder.view().getJoinColumns());
         JoinColumns joinPair = builder.view().getJoinColumns().get(0);
-        assertEquals(joinPair.getLeft(), ColumnReference.fromString("current_customer_demographics.customer_id"));
-        assertEquals(joinPair.getRight(), ColumnReference.fromString("customer.id"));
+        assertEquals(joinPair.left(), ColumnReference.fromString("current_customer_demographics.customer_id"));
+        assertEquals(joinPair.right(), ColumnReference.fromString("customer.id"));
         JoinColumns andJoin = builder.view().getJoinColumns().get(1);
 
-        assertEquals(andJoin.getLeft(), ColumnReference.fromString("customer_name.customer_id"));
-        assertEquals(andJoin.getRight(), ColumnReference.fromString("customer.id"));
+        assertEquals(andJoin.left(), ColumnReference.fromString("customer_name.customer_id"));
+        assertEquals(andJoin.right(), ColumnReference.fromString("customer.id"));
 
         JoinColumns secondHalf = builder.view().getJoinColumns().get(2);
-        assertEquals(secondHalf.getLeft(), ColumnReference.fromString("customer_name.id"));
-        assertEquals(secondHalf.getRight(), ColumnReference.fromString("current_customer_demographics.customer_name_id"));
+        assertEquals(secondHalf.left(), ColumnReference.fromString("customer_name.id"));
+        assertEquals(secondHalf.right(), ColumnReference.fromString("current_customer_demographics.customer_name_id"));
     }
 
     @Test
@@ -190,18 +190,18 @@ public class JoinColumnAnalyzerTest {
         assertNotNull(builder.view().getJoinColumns());
         JoinColumns joinPair = builder.view().getJoinColumns().get(0);
 
-        assertEquals(joinPair.getLeft(), ColumnReference.fromString("customer_name.customer_id"));
-        assertEquals(joinPair.getRight(), ColumnReference.fromString("customer.id"));
+        assertEquals(joinPair.left(), ColumnReference.fromString("customer_name.customer_id"));
+        assertEquals(joinPair.right(), ColumnReference.fromString("customer.id"));
 
         JoinColumns andJoin = builder.view().getJoinColumns().get(1);
 
-        assertEquals(andJoin.getLeft(), ColumnReference.fromString("customer_ident.customer_id"));
-        assertEquals(andJoin.getRight(), ColumnReference.fromString("customer_name.customer_id"));
+        assertEquals(andJoin.left(), ColumnReference.fromString("customer_ident.customer_id"));
+        assertEquals(andJoin.right(), ColumnReference.fromString("customer_name.customer_id"));
 
         JoinColumns secondHalf = builder.view().getJoinColumns().get(2);
 
-        assertEquals(secondHalf.getLeft(), ColumnReference.fromString("customer_ident.customer_id"));
-        assertEquals(secondHalf.getRight(), ColumnReference.fromString("customer_address.customer_id"));
+        assertEquals(secondHalf.left(), ColumnReference.fromString("customer_ident.customer_id"));
+        assertEquals(secondHalf.right(), ColumnReference.fromString("customer_address.customer_id"));
     }
 
     @Test

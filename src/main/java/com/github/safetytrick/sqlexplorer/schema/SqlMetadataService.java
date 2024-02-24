@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -44,7 +43,7 @@ public class SqlMetadataService {
             } else {
                 return "";
             }
-        }).distinct().collect(Collectors.toList());
+        }).distinct().toList();
 
         if (schemaFromTableReferences.size() == 1 && !schemaFromTableReferences.contains("")) {
             return schemaFromTableReferences.get(0);
@@ -54,14 +53,14 @@ public class SqlMetadataService {
         for (TableReference table : tables) {
             List<TableStructure> withDuplicates = loader.getAllByTableName(table.getNormalizedTableName());
             if (withDuplicates.size() == 1) {
-                return withDuplicates.get(0).getSchema();
+                return withDuplicates.get(0).schema();
             }
             allTables.addAll(withDuplicates);
         }
 
         Map<String, List<TableStructure>> bySchema = allTables.stream()
-            .filter(x -> x.getSchema() != null)
-            .collect(groupingBy(TableStructure::getSchema));
+            .filter(x -> x.schema() != null)
+            .collect(groupingBy(TableStructure::schema));
 
         for (Map.Entry<String, List<TableStructure>> entry : bySchema.entrySet()) {
             List<TableStructure> structures = entry.getValue();
@@ -81,8 +80,8 @@ public class SqlMetadataService {
                     throw new UnsupportedSqlException("could not find table for column: " + column);
                 }
 
-                return structures.stream().anyMatch(table -> (tableName == null || table.getName().equalsIgnoreCase(tableName)) &&
-                    table.getColumns().stream().anyMatch(cols -> cols.getColumnName().equalsIgnoreCase(columnName))
+                return structures.stream().anyMatch(table -> (tableName == null || table.name().equalsIgnoreCase(tableName)) &&
+                    table.columns().stream().anyMatch(cols -> cols.columnName().equalsIgnoreCase(columnName))
                 );
             });
 

@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.core;
 
+import javax.annotation.Nullable;
 import java.util.Objects;
 
 import com.github.safetytrick.sqlexplorer.cleanup.NameNormalizer;
@@ -14,6 +15,27 @@ public class ColumnReference {
         this.table = Objects.requireNonNull(table);
         this.column = Objects.requireNonNull(column);
         this.columnLowerCase = NameNormalizer.normalize(column);
+    }
+
+    /**
+     *
+     * @param reference Either a two or three part column reference, table.column, or schema.table.column
+     * @return a ColumnReference object from components
+     * @throws IllegalArgumentException if the string is not a two or three part reference
+     */
+    public static ColumnReference fromString(String reference) {
+        String[] split = reference.split("\\.");
+        if (split.length == 2) {
+            return ColumnReference.fromComponents(null, split[0], split[1]);
+        } else if (split.length == 3) {
+            return ColumnReference.fromComponents(split[0], split[1], split[2]);
+        } else {
+            throw new IllegalArgumentException("invalid column reference: " + reference);
+        }
+    }
+
+    public static ColumnReference fromComponents(@Nullable String schema, String table, String column) {
+        return new ColumnReference(new TableReference(schema, table), column);
     }
 
     public TableReference getTable() {
@@ -40,17 +62,6 @@ public class ColumnReference {
     @Override
     public int hashCode() {
         return Objects.hash(table, columnLowerCase);
-    }
-
-    public static ColumnReference fromString(String reference) {
-        String[] split = reference.split("\\.");
-        if (split.length == 2) {
-            return new ColumnReference(new TableReference(null, split[0]), split[1]);
-        } else if (split.length == 3) {
-            return new ColumnReference(new TableReference(split[0], split[1]), split[2]);
-        } else {
-            throw new IllegalArgumentException("invalid column reference: " + reference);
-        }
     }
 
     public String getNormalizedReference() {

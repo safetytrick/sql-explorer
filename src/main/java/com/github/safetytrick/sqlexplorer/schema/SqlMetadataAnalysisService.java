@@ -26,7 +26,7 @@ public class SqlMetadataAnalysisService {
             .filter(query -> query.getRuntimeMetrics() == null || query.getRuntimeMetrics().getErrors() != query.getRuntimeMetrics().getExecuted())
             .filter(query -> query.getRuntimeMetrics() == null || query.getRuntimeMetrics().getExecuted() > threshold)
             .flatMap(sql -> sql.getJoinColumns().stream().map(
-                joinPairs -> Stream.of(joinPairs.getLeft(), joinPairs.getRight()).map(ColumnReference::getNormalizedReference).sorted().collect(Collectors.toList())
+                joinPairs -> Stream.of(joinPairs.left(), joinPairs.right()).map(ColumnReference::getNormalizedReference).sorted().collect(Collectors.toList())
             )).collect(this::stringComparableTreeSet, Set::add, Set::addAll);
     }
 

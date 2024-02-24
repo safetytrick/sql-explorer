@@ -79,7 +79,7 @@ public class WhereClauseAnalyzer implements SqlAnalyzer {
 
         @Override
         public void visit(Select select) {
-            if (select.getWithItemsList() != null && select.getWithItemsList().size() > 0) {
+            if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
                 throw new UnsupportedSqlException("item list parsing not supported");
             }
             TableAliasResolver previousAliasResolver = aliasResolver;
@@ -174,9 +174,7 @@ public class WhereClauseAnalyzer implements SqlAnalyzer {
             }
 
             @Override
-            public void visit(SubJoin subjoin) {
-
-            }
+            public void visit(SubJoin subjoin) { }
 
             @Override
             public void visit(LateralSubSelect lateralSubSelect) {
@@ -219,7 +217,7 @@ public class WhereClauseAnalyzer implements SqlAnalyzer {
                     }
                     String tableName = aliasResolver.resolveTableName(column);
 
-                    builder.criteriaColumn(new ColumnReference(new TableReference(null, tableName), column.getColumnName()));
+                    builder.criteriaColumn(ColumnReference.fromComponents(null, tableName, column.getColumnName()));
                 }
 
                 @Override

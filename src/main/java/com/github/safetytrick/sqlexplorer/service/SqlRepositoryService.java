@@ -1,9 +1,11 @@
 package com.github.safetytrick.sqlexplorer.service;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.anno.TagLoader;
+import com.github.safetytrick.sqlexplorer.anno.TagsService;
 import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
 import com.github.safetytrick.sqlexplorer.core.ColumnReference;
 import com.github.safetytrick.sqlexplorer.core.JoinColumns;
@@ -11,12 +13,10 @@ import com.github.safetytrick.sqlexplorer.core.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.core.Table;
 import com.github.safetytrick.sqlexplorer.core.TableReference;
 import com.github.safetytrick.sqlexplorer.core.TableRollup;
+import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
-
-import com.github.safetytrick.sqlexplorer.anno.TagLoader;
-import com.github.safetytrick.sqlexplorer.anno.TagsService;
 
 import static java.util.Comparator.comparing;
 
@@ -40,19 +40,19 @@ public class SqlRepositoryService {
     // todo refactor threshold into a predicate to filter AnalyzedSql
     public Table getTable(int threshold, TableReference table) {
         return buildTableWithQueries(threshold, table, sqlRepositoryManager.getSqlRepository().getTableQueries(table)
-            .collect(Collectors.toList()));
+            .toList());
     }
 
     public Table getQueriesForColumn(int threshold, TableReference table, String column) {
         return buildTableWithQueries(threshold, table, sqlRepositoryManager.getSqlRepository().getQueriesForColumn(table, column)
-            .collect(Collectors.toList()));
+            .toList());
     }
 
 
     public Table getQueriesForTableJoin(int threshold, TableReference table, TableReference otherTable) {
         List<AnalyzedSql> tableQueries = sqlRepositoryManager.getSqlRepository().getTableQueries(table)
             .filter(analyzedSql -> analyzedSql.getTables().contains(otherTable))
-            .collect(Collectors.toList());
+            .toList();
 
         return buildTableWithQueries(threshold, table, tableQueries);
     }
@@ -61,15 +61,20 @@ public class SqlRepositoryService {
 
         TableStructure tableStructure = sqlMetadataService.getTable(table);
 
-        List<TableReference> joinTables = deriveJoinTables(threshold, table, sqlList);
-        List<TableReference> relatedTables = relatedTablesFromQueries(threshold, table, sqlList);
+        List<TableReference> foreignKeys = getForeignKeysTables(tableStructure);
+        List<TableReference> joinTables = new ArrayList<>(deriveJoinTables(threshold, table, sqlList));
+        List<TableReference> relatedTables = new ArrayList<>(relatedTablesFromQueries(threshold, table, sqlList));
+        // todo, describe these multiple relationships instead of discarding them
         relatedTables.removeAll(joinTables);
+        relatedTables.removeAll(foreignKeys);
+        joinTables.removeAll(foreignKeys);
 
         return Table.builder().name(table.getNormalizedTableName())
             .schema(table.getNormalizedSchema())
             .queries(sqlList)
             .structure(tableStructure)
             .numberOfQueries(sqlList.size())
+            .foreignKeys(foreignKeys)
             .joinTables(joinTables)
             .relatedTables(relatedTables)
             .sumOfQueryTime(sqlList.stream()
@@ -80,24 +85,36 @@ public class SqlRepositoryService {
             .build();
     }
 
+    private List<TableReference> getForeignKeysTables(TableStructure tableStructure) {
+        return tableStructure.foreignKeys().stream()
+            .map(ForeignKey::to)
+            .map(list -> list.get(0))
+            .map(ColumnReference::getTable)
+            .distinct()
+            .toList();
+    }
+
+    /**
+     * Does *NOT* return self-joins
+     */
     private List<TableReference> deriveJoinTables(int threshold, TableReference table, List<AnalyzedSql> sqlList) {
         return getAllJoinColumnsFromQueries(threshold, sqlList)
             .filter(join -> isExternalReference(table, join))
-            .flatMap(join -> Stream.of(join.getLeft(), join.getRight()))
+            .flatMap(join -> Stream.of(join.left(), join.right()))
             .map(ColumnReference::getTable)
             .filter(joinTable -> !table.equals(joinTable))
             .distinct()
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private List<TableReference> relatedTablesFromQueries(int threshold, TableReference table, List<AnalyzedSql> sqlList) {
         return getAllJoinColumnsFromQueries(threshold, sqlList)
             .filter(join -> !isExternalReference(table, join))
-            .flatMap(join -> Stream.of(join.getLeft(), join.getRight()))
+            .flatMap(join -> Stream.of(join.left(), join.right()))
             .map(ColumnReference::getTable)
             .filter(joinTable -> !table.equals(joinTable))
             .distinct()
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private Stream<JoinColumns> getAllJoinColumnsFromQueries(int threshold, List<AnalyzedSql> sqlList) {
@@ -110,20 +127,20 @@ public class SqlRepositoryService {
     }
 
     private boolean isExternalReference(TableReference table, JoinColumns join) {
-        if (join.getLeft().getTable().equals(join.getRight().getTable())) {
+        if (join.left().getTable().equals(join.right().getTable())) {
             return false;
         }
 
         ColumnReference columnReference;
-        if (join.getLeft().getTable().equals(table)) {
-            columnReference = join.getRight();
-        } else if (join.getRight().getTable().equals(table)) {
-            columnReference = join.getLeft();
+        if (join.left().getTable().equals(table)) {
+            columnReference = join.right();
+        } else if (join.right().getTable().equals(table)) {
+            columnReference = join.left();
         } else {
             // this is a join that doesn't involve the table we are interested in
             return false;
         }
-        // todo, check that the pk for the table is named id
+        // todo, check that the pk for the table is named id !!!!!!! eff
         return !columnReference.getNormalizedColumn().equals("id");
     }
 
@@ -137,7 +154,7 @@ public class SqlRepositoryService {
 
         return sqlRepositoryManager.getSqlRepository().getAllTableReferences().map(
             reference -> getTableRollup(reference, tagLoader)
-        ).sorted(comparing(TableRollup::getTotalQueryTime).reversed());
+        ).sorted(comparing(TableRollup::totalQueryTime).reversed());
     }
 
     public Stream<TableRollup> getTablesForSchemaWithRollup(String schema) {
@@ -146,12 +163,12 @@ public class SqlRepositoryService {
         return sqlRepositoryManager.getSqlRepository().getAllTableReferences()
             .filter(table -> table.getNormalizedSchema() != null && table.getNormalizedSchema().equalsIgnoreCase(schema)).map(
                 reference -> getTableRollup(reference, tagLoader)
-        ).sorted(comparing(TableRollup::getTotalQueryTime).reversed());
+        ).sorted(comparing(TableRollup::totalQueryTime).reversed());
     }
 
     public TableRollup getTableRollup(TableReference reference, TagLoader tagLoader) {
         List<AnalyzedSql> sqlList = sqlRepositoryManager.getSqlRepository().getTableQueries(reference)
-            .collect(Collectors.toList());
+            .toList();
 
         double totalQueryTime = sqlList.stream()
             .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics().getTotalTime().doubleValue())

@@ -1,9 +1,9 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.cleanup.NameNormalizer;
+import com.github.safetytrick.sqlexplorer.core.ColumnReference;
 import com.github.safetytrick.sqlexplorer.core.TableReference;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
@@ -12,61 +12,22 @@ import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.StatementVisitorAdapter;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.create.table.ForeignKeyIndex;
 
-public class TableStructure {
-
-    private final String schema;
-    private final String name;
-    private final String type;
-
-    public String getCreate() {
-        return create;
-    }
-
-    private final String create;
-    private final String remarks;
-    private final List<TableIndex> indices;
-    private final List<TableColumn> columns;
-
-    private TableStructure(String schema, String name, String type, String create, String remarks, List<TableIndex> indices, List<TableColumn> columns) {
-        this.schema = schema;
-        this.name = name;
-        this.type = type;
-        this.create = create;
-        this.remarks = remarks;
-        this.indices = indices;
-        this.columns = columns;
-    }
-
-    public String getSchema() {
-        return schema;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getRemarks() {
-        return remarks;
-    }
-
-    public List<TableIndex> getIndices() {
-        return indices;
-    }
-
-    public List<TableColumn> getColumns() {
-        return columns;
-    }
+public record TableStructure(String schema,
+                             String name,
+                             String type,
+                             String create,
+                             String remarks,
+                             List<ForeignKey> foreignKeys,
+                             List<TableIndex> indices,
+                             List<TableColumn> columns) {
 
     public static Builder builder() {
         return new Builder();
     }
 
-    public TableReference getTableReference() {
+    public TableReference tableReference() {
         return new TableReference(schema, name);
     }
 
@@ -76,6 +37,7 @@ public class TableStructure {
         private String name;
         private String type;
         private String remarks;
+        private List<ForeignKey> foreignKeys;
         private List<TableIndex> indices;
         private List<TableColumn> columns;
         private String create;
@@ -99,6 +61,10 @@ public class TableStructure {
             this.remarks = remarks;
             return this;
         }
+        public Builder foreignKeys(List<ForeignKey> foreignKeys) {
+            this.foreignKeys = foreignKeys;
+            return this;
+        }
 
         public Builder indices(List<TableIndex> indices) {
             this.indices = indices;
@@ -116,11 +82,16 @@ public class TableStructure {
         }
 
         public TableStructure build() {
-            return new TableStructure(schema, name, type, create, remarks, indices, columns);
+            return new TableStructure(schema, name, type, create, remarks, foreignKeys, indices, columns);
         }
+
     }
 
     public static TableStructure.Builder fromCreateTable(String create) throws JSQLParserException {
+        return fromCreateTable(create, null);
+    }
+
+    public static TableStructure.Builder fromCreateTable(String create, String defaultSchema) throws JSQLParserException {
         Statement createStatement = CCJSqlParserUtil.parse(create);
         Builder builder = builder();
 
@@ -128,6 +99,9 @@ public class TableStructure {
             @Override
             public void visit(CreateTable createTable) {
                 Table table = createTable.getTable();
+                if (table.getSchemaName() == null) {
+                    table.setSchemaName(defaultSchema);
+                }
                 builder.name(table.getName())
                     .schema(table.getSchemaName())
                     .create(create);
@@ -143,25 +117,50 @@ public class TableStructure {
 
                     // todo implement type, direction, unique, etc.
                     return indexBuilder.build();
-                }).collect(Collectors.toList()));
+                }).toList());
+
+                builder.foreignKeys(
+                    createTable.getIndexes()
+                        .stream()
+                        .filter(index -> index instanceof ForeignKeyIndex)
+                        .map(index -> toForeignKey(table, (ForeignKeyIndex) index))
+                        .toList()
+                );
 
                 builder.columns(createTable.getColumnDefinitions().stream().map(column -> {
                     ColDataType dt = column.getColDataType();
-
 
                     // todo implement ... all of the rest of the attributes
                     TableColumn.Builder columnBuilder = TableColumn.builder();
                     columnBuilder.columnName(NameNormalizer.normalize(column.getColumnName()))
                         .typeName(dt.getDataType())
-                        .characterSet(dt.getCharacterSet())
-                    ;
+                        .characterSet(dt.getCharacterSet());
 
                     return columnBuilder.build();
-                }).collect(Collectors.toList()));
-
+                }).toList());
             }
         });
 
         return builder;
+    }
+
+    private static ForeignKey toForeignKey(Table table, ForeignKeyIndex fkIndex) {
+        TableReference fromTable = new TableReference(table.getSchemaName(), table.getName());
+        Table fkTable = fkIndex.getTable();
+        if (fkTable.getSchemaName() == null) {
+            fkTable.setSchemaName(table.getSchemaName());
+        }
+
+        TableReference toTable = new TableReference(fkTable.getSchemaName(), fkTable.getName());
+
+        ForeignKey.Builder builder = new ForeignKey.Builder();
+        for (int i = 0; i < fkIndex.getColumnsNames().size(); i++) {
+            String fromColumn = fkIndex.getColumnsNames().get(i);
+            String toColumn = fkIndex.getReferencedColumnNames().get(i);
+            builder.addFromColumn(new ColumnReference(fromTable, fromColumn))
+                .addToColumn(new ColumnReference(toTable, toColumn));
+        }
+
+        return builder.build();
     }
 }

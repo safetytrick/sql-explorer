@@ -37,7 +37,7 @@ public class SqlCleanerTest {
                     \
             """;
 
-        assertFalse(new SqlCleaner().cleanSql(sql).getSql().contains("WHERE"));
+        assertFalse(new SqlCleaner().cleanSql(sql).sql().contains("WHERE"));
     }
 
     @Test
@@ -54,9 +54,9 @@ public class SqlCleanerTest {
             """;
 
         SqlCleaner.CleanedSql cleanedSql = new SqlCleaner().cleanSql(sql);
-        assertFalse(cleanedSql.getSql().matches(".*\\?\\s+\\?"));
-        assertTrue(cleanedSql.isModified());
-        assertFalse(cleanedSql.isTruncated());
+        assertFalse(cleanedSql.sql().matches(".*\\?\\s+\\?"));
+        assertTrue(cleanedSql.modified());
+        assertFalse(cleanedSql.truncated());
     }
 
     @Test
@@ -65,9 +65,9 @@ public class SqlCleanerTest {
 
         SqlCleaner.CleanedSql cleanedSql = new SqlCleaner().cleanSql(sql);
 
-        assertTrue(cleanedSql.isModified());
-        assertEquals(cleanedSql.getSql().indexOf("IF ( `f` . `type` = ?"),
-                cleanedSql.getSql().lastIndexOf("IF ( `f` . `type` = ?"),
+        assertTrue(cleanedSql.modified());
+        assertEquals(cleanedSql.sql().indexOf("IF ( `f` . `type` = ?"),
+                cleanedSql.sql().lastIndexOf("IF ( `f` . `type` = ?"),
                 "only one instance should be left");
     }
 

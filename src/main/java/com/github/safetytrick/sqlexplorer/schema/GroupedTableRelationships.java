@@ -1,15 +1,17 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
-public class GroupedTableRelationships extends TableRelationships {
-    private final String group;
+import java.util.List;
 
-    public GroupedTableRelationships(String group, TableRelationships tableRelationships) {
-        super(tableRelationships.getTable(), tableRelationships.getJoinTables(), tableRelationships.getRelatedTables());
+import com.github.safetytrick.sqlexplorer.core.TableReference;
 
-        this.group = group;
-    }
-
-    public String getGroup() {
-        return group;
+public record GroupedTableRelationships(
+    String group,
+    TableReference table,
+    List<TableReference> foreignKeys,
+    List<TableReference> joinTables,
+    List<TableReference> relatedTables
+) {
+    public GroupedTableRelationships(String group, TableRelationships relationships) {
+        this(group, relationships.table(), relationships.foreignKeys(), relationships.joinTables(), relationships.relatedTables());
     }
 }

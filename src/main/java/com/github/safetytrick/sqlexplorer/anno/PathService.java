@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.anno;
 import org.springframework.stereotype.Service;
 
 /**
+ * TODO, move this into documentation and/or make this class useful
  * Examples:
  *
  * schema/tdb

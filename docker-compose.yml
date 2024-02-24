@@ -12,6 +12,8 @@ services:
     volumes:
       - ./src/main/docker-local/config:/etc/sql-explorer/config
       - ./src/main/docker-local/ssl:/etc/sql-explorer/ssl
+    depends_on:
+      - explorer-mysql
 
   explorer-ui:
     build: ui/

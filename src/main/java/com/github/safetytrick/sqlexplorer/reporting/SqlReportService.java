@@ -18,8 +18,6 @@ import com.github.safetytrick.sqlexplorer.service.SqlRepositoryService;
 
 @Service
 public class SqlReportService {
-    private static final Logger log = LoggerFactory.getLogger(SqlReportService.class);
-
     private final SqlRepositoryService sqlRepositoryService;
 
     private static final BigDecimal ONE_THOUSAND = new BigDecimal(1000);
