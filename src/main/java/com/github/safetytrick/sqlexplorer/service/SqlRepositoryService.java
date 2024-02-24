@@ -61,20 +61,20 @@ public class SqlRepositoryService {
 
         TableStructure tableStructure = sqlMetadataService.getTable(table);
 
-        List<TableReference> foreignKeys = getForeignKeysTables(tableStructure);
+        List<TableReference> foreignKeyTables = getForeignKeysTables(tableStructure);
         List<TableReference> joinTables = new ArrayList<>(deriveJoinTables(threshold, table, sqlList));
         List<TableReference> relatedTables = new ArrayList<>(relatedTablesFromQueries(threshold, table, sqlList));
         // todo, describe these multiple relationships instead of discarding them
         relatedTables.removeAll(joinTables);
-        relatedTables.removeAll(foreignKeys);
-        joinTables.removeAll(foreignKeys);
+        relatedTables.removeAll(foreignKeyTables);
+        joinTables.removeAll(foreignKeyTables);
 
         return Table.builder().name(table.getNormalizedTableName())
             .schema(table.getNormalizedSchema())
             .queries(sqlList)
             .structure(tableStructure)
             .numberOfQueries(sqlList.size())
-            .foreignKeys(foreignKeys)
+            .foreignKeyTables(foreignKeyTables)
             .joinTables(joinTables)
             .relatedTables(relatedTables)
             .sumOfQueryTime(sqlList.stream()

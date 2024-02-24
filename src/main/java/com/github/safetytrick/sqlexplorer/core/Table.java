@@ -10,7 +10,7 @@ public record Table(String name,
                    List<AnalyzedSql> queries,
                    TableStructure structure,
                    String schema,
-                   List<TableReference> foreignKeys,
+                   List<TableReference> foreignKeyTables,
                    List<TableReference> joinTables,
                    List<TableReference> relatedTables) {
     public static Builder builder() {
@@ -24,7 +24,7 @@ public record Table(String name,
         private List<AnalyzedSql> queries;
         private TableStructure structure;
         private String schema;
-        private List<TableReference> foreignKeys;
+        private List<TableReference> foreignKeyTables;
         private List<TableReference> joinTables;
         private List<TableReference> relatedTables;
 
@@ -53,8 +53,8 @@ public record Table(String name,
             return this;
         }
 
-        public Builder foreignKeys(List<TableReference> foreignKeys) {
-            this.foreignKeys = foreignKeys;
+        public Builder foreignKeyTables(List<TableReference> foreignKeyTables) {
+            this.foreignKeyTables = foreignKeyTables;
             return this;
         }
 
@@ -74,7 +74,7 @@ public record Table(String name,
         }
 
         public Table build() {
-            return new Table(name, numberOfQueries, totalQueryTime, queries, structure, schema, foreignKeys, joinTables, relatedTables);
+            return new Table(name, numberOfQueries, totalQueryTime, queries, structure, schema, foreignKeyTables, joinTables, relatedTables);
         }
     }
 }

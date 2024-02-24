@@ -23,16 +23,14 @@ public record TableStructure(String schema,
                              List<TableIndex> indices,
                              List<TableColumn> columns) {
 
+    public TableReference tableReference() {
+        return new TableReference(schema, name);
+    }
     public static Builder builder() {
         return new Builder();
     }
 
-    public TableReference tableReference() {
-        return new TableReference(schema, name);
-    }
-
     public static class Builder {
-
         private String schema;
         private String name;
         private String type;
@@ -157,8 +155,8 @@ public record TableStructure(String schema,
         for (int i = 0; i < fkIndex.getColumnsNames().size(); i++) {
             String fromColumn = fkIndex.getColumnsNames().get(i);
             String toColumn = fkIndex.getReferencedColumnNames().get(i);
-            builder.addFromColumn(new ColumnReference(fromTable, fromColumn))
-                .addToColumn(new ColumnReference(toTable, toColumn));
+            builder.addFromAndTo(new ColumnReference(fromTable, fromColumn),
+                                 new ColumnReference(toTable, toColumn));
         }
 
         return builder.build();

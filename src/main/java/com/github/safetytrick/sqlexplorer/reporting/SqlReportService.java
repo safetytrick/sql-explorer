@@ -9,8 +9,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;

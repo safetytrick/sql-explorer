@@ -1,4 +1,4 @@
-package com.github.safetytrick.sqlexplorer.schema;
+package com.github.safetytrick.sqlexplorer.graph;
 
 import java.util.List;
 import java.util.stream.Stream;

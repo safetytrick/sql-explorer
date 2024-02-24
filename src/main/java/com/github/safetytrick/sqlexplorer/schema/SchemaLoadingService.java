@@ -189,9 +189,8 @@ public class SchemaLoadingService {
                 String toSchema = keys.getString("PKTABLE_CAT");
                 String toTable = keys.getString("PKTABLE_NAME");
                 String toColumn = keys.getString("PKCOLUMN_NAME");
-                builder.addFromColumn(
-                    ColumnReference.fromComponents(fromSchema, fromTable, fromColumn)
-                ).addToColumn(
+                builder.addFromAndTo(
+                    ColumnReference.fromComponents(fromSchema, fromTable, fromColumn),
                     ColumnReference.fromComponents(toSchema, toTable, toColumn)
                 );
             }
@@ -465,21 +464,4 @@ public class SchemaLoadingService {
             return indices;
         }
     }
-
-
-
-    /*
-    select TABLE_SCHEMA,
-           TABLE_NAME,
-           NON_UNIQUE,
-           INDEX_SCHEMA,
-           INDEX_NAME,
-           SEQ_IN_INDEX,
-           COLUMN_NAME,
-           COLLATION,
-           CARDINALITY,
-           NULLABLE,
-           INDEX_TYPE
-    from information_schema.STATISTICS;
-     */
 }

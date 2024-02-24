@@ -47,7 +47,7 @@ public class JoinColumnsSerde {
         }
 
         @Override
-        public JoinColumns deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+        public JoinColumns deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
             String[] cols = ctxt.readValue(p, String[].class);
             if (cols.length != 2) {
                 ctxt.reportInputMismatch(this, "invalid input, expected two args: " + cols.length);

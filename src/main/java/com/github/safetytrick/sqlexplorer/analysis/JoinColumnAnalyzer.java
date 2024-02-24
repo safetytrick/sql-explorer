@@ -184,7 +184,7 @@ public class JoinColumnAnalyzer implements SqlAnalyzer {
             private final ColumnAliasResolver columnAliasResolver;
 
             private JoinInSelectExpressionVisitor() {
-                this.columnAliasResolver = new SimpleColumnAliasResolver(tableAliasResolver);;
+                this.columnAliasResolver = new SimpleColumnAliasResolver(tableAliasResolver);
             }
 
             @Override

@@ -29,7 +29,7 @@ export class TableGraphLoaderComponent implements OnInit {
       this.tag = params['tag'];
       this.table = params['table'];
 
-      let title = '';
+      let title: string;
       if (this.tag) {
         title = this.tag;
       } else if (this.table) {
@@ -43,7 +43,7 @@ export class TableGraphLoaderComponent implements OnInit {
       this.titleService.setTitle('graph: ' + title);
 
       this.query = this.loadGraph();
-    })
+    });
 
   }
 

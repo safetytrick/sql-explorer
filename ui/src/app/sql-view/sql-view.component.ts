@@ -1,6 +1,6 @@
 import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {ActivatedRoute, Router} from '@angular/router';
+import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
@@ -22,8 +22,7 @@ export class SqlViewComponent implements OnInit {
   ngOnInit() {
     this.route.params.subscribe(params => {
       this.getSql(params['id']);
-    })
-
+    });
   }
 
   getSql(id) {

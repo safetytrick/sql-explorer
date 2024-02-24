@@ -46,11 +46,11 @@
     </div>
 
     <div class="col">
-      <div *ngIf="table.foreignKeys && table.foreignKeys.length" class="query-breakdown">
+      <div *ngIf="table.foreignKeyTables && table.foreignKeyTables.length" class="query-breakdown">
         <span class="title">FK Tables </span>
         <div class="query-reference">
           <ul class="tables query-reference">
-            <li *ngFor="let tableRef of table.foreignKeys">
+            <li *ngFor="let tableRef of table.foreignKeyTables">
               <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
             </li>
           </ul>

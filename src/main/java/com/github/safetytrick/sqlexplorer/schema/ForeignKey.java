@@ -10,20 +10,13 @@ public record ForeignKey(
     List<ColumnReference> from,
     List<ColumnReference> to) {
 
-    public ForeignKey reversed() {
-        return new ForeignKey(to, from);
-    }
-
     public static class Builder {
         private final List<ColumnReference> from = new ArrayList<>();
         private final List<ColumnReference> to = new ArrayList<>();
 
-        public Builder addFromColumn(ColumnReference columnReference) {
-            this.from.add(columnReference);
-            return this;
-        }
-        public Builder addToColumn(ColumnReference columnReference) {
-            this.to.add(columnReference);
+        public Builder addFromAndTo(ColumnReference from, ColumnReference to) {
+            this.from.add(from);
+            this.to.add(to);
             return this;
         }
         public ForeignKey build() {

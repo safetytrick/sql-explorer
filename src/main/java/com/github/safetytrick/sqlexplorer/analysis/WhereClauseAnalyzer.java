@@ -5,7 +5,6 @@ import javax.inject.Inject;
 import com.github.safetytrick.sqlexplorer.analysis.exception.UnsupportedSqlException;
 import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
 import com.github.safetytrick.sqlexplorer.core.ColumnReference;
-import com.github.safetytrick.sqlexplorer.core.TableReference;
 import com.github.safetytrick.sqlexplorer.qualifier.SchemaAwareTableAliasResolver;
 import com.github.safetytrick.sqlexplorer.qualifier.SimpleColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.qualifier.TableAliasResolver;

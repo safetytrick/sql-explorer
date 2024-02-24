@@ -1,4 +1,4 @@
-package com.github.safetytrick.sqlexplorer.schema;
+package com.github.safetytrick.sqlexplorer.graph;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,6 +16,8 @@ import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
 import com.github.safetytrick.sqlexplorer.core.CrossSchemaTable;
 import com.github.safetytrick.sqlexplorer.core.Table;
 import com.github.safetytrick.sqlexplorer.core.TableReference;
+import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import com.github.safetytrick.sqlexplorer.service.SqlRepositoryService;
 import org.springframework.stereotype.Service;
 
@@ -46,13 +48,13 @@ public class SqlGraphService implements GraphService {
     @Override
     public Stream<TableRelationships> getTableRelationships(int threshold) {
         return sqlMetadataService.getTables().stream()
-            .filter(table -> !ignored(table.schema())).map(table -> getForeignKeys(threshold, table));
+            .filter(table -> !ignored(table.schema())).map(table -> getTableRelationships(threshold, table));
     }
 
     @Override
     public Stream<TableRelationships> getTableRelationshipsForSchema(int threshold, String schema) {
         return sqlMetadataService.getTables().stream()
-            .filter(table -> schema.equalsIgnoreCase(table.schema())).map(table -> getForeignKeys(threshold, table));
+            .filter(table -> schema.equalsIgnoreCase(table.schema())).map(table -> getTableRelationships(threshold, table));
     }
 
     @Override
@@ -92,9 +94,9 @@ public class SqlGraphService implements GraphService {
                                                              int graphServiceThreshold,
                                                              int graphServiceDepth,
                                                              int threshold) {
-        final Stream<GroupedTableRelationships> tableForeignKeysForTag = getTableRelationshipsForTag(
+        final Stream<GroupedTableRelationships> tableRelationshipsForTag = getTableRelationshipsForTag(
                 graphServiceThreshold, graphServiceDepth, tag);
-        final List<GroupedTableRelationships> groupedTableRelationships = tableForeignKeysForTag.toList();
+        final List<GroupedTableRelationships> groupedTableRelationships = tableRelationshipsForTag.toList();
 
         Map<String, CrossSchemaTable> queryToTables = new HashMap<>();
         final List<String> tablesWithinSameSchema = groupedTableRelationships.stream()
@@ -102,7 +104,7 @@ public class SqlGraphService implements GraphService {
                 .toList();
         for(GroupedTableRelationships groupedTableRelationship : groupedTableRelationships){
             String table = groupedTableRelationship.table().getNormalizedTableName();
-            final List<TableReference> tableReferences = Stream.concat(groupedTableRelationship.foreignKeys().stream(),
+            final List<TableReference> tableReferences = Stream.concat(groupedTableRelationship.foreignKeyTables().stream(),
                                                              Stream.concat(groupedTableRelationship.joinTables().stream(),
                                                                  groupedTableRelationship.relatedTables().stream()))
                     .filter(query -> !tablesWithinSameSchema.contains(query.getNormalizedTableName()))
@@ -155,10 +157,10 @@ public class SqlGraphService implements GraphService {
         return String.format(LIST_FORMAT, currentList, addition.replaceAll("`", ""));
     }
 
-    private TableRelationships getForeignKeys(int threshold, TableStructure tableStructure) {
+    private TableRelationships getTableRelationships(int threshold, TableStructure tableStructure) {
         TableReference reference = new TableReference(tableStructure.schema(), tableStructure.name());
         Table table = sqlRepositoryService.getTable(threshold, reference);
-        return new TableRelationships(reference, table.foreignKeys(), table.joinTables(), table.relatedTables());
+        return new TableRelationships(reference, table.foreignKeyTables(), table.joinTables(), table.relatedTables());
     }
 
     private boolean ignored(String schema) {
@@ -173,11 +175,11 @@ public class SqlGraphService implements GraphService {
         visited.add(tableReference);
         Table table = sqlRepositoryService.getTable(threshold, tableReference);
 
-        TableRelationships relationships = new TableRelationships(tableReference, table.foreignKeys(), table.joinTables(), table.relatedTables());
+        TableRelationships relationships = new TableRelationships(tableReference, table.foreignKeyTables(), table.joinTables(), table.relatedTables());
 
         if (depth > 0) {
             return Stream.concat(Stream.of(relationships),
-                Stream.concat(relationships.foreignKeys().stream(), relationships.joinTables().stream())
+                Stream.concat(relationships.foreignKeyTables().stream(), relationships.joinTables().stream())
                     .flatMap(related -> visitRelated(visited, related, threshold, depth - 1)));
         }
 

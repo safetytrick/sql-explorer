@@ -15,3 +15,6 @@ src/main/docker-local/config/statement-analysis/*
 src/main/docker-local/config/statement-analysis/legacy
 
 !.idea/runConfigurations/
+
+.env
+.ssh.pid

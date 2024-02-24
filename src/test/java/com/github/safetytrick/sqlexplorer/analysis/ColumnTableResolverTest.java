@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;

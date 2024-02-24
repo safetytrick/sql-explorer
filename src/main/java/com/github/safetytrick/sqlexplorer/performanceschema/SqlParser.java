@@ -29,11 +29,6 @@ public class SqlParser {
         private final boolean truncated;
         private final boolean modified;
 
-        public CleanedStatement(Statement statement) {
-            this(statement, false, false);
-
-        }
-
         public CleanedStatement(Statement statement, boolean truncated, boolean modified) {
             this.statement = statement;
             this.truncated = truncated;
