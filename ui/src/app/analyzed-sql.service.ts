@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import {Injectable} from '@angular/core';
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs/internal/Observable';
 
@@ -99,5 +99,9 @@ export class AnalyzedSqlService {
 
   getTablesWithColumn(column: string) {
       return this.http.get(endpoint + 'tables/with-column/' + column);
+  }
+
+  getSchemas() {
+    return this.http.get(endpoint + 'schemas');
   }
 }

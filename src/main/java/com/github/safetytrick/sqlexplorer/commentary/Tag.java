@@ -24,7 +24,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Table(name="tags")
 @EntityListeners(AuditingEntityListener.class)
 public class Tag {
-    private static final Pattern PATH_ELEMENTS = Pattern.compile("/(?<key>\\w+)/(?<value>\\w+)");
+    private static final Pattern PATH_ELEMENTS = Pattern.compile("/(?<key>[^/]+)/(?<value>[^/]+)");
 
     @Id
     @GeneratedValue(strategy= GenerationType.AUTO, generator="native")

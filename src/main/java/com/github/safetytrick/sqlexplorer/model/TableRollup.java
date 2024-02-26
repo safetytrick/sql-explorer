@@ -30,7 +30,7 @@ public record TableRollup(String name,
             return this;
         }
 
-        public Builder sumOfQueryTime(double totalQueryTime) {
+        public Builder totalQueryTime(double totalQueryTime) {
             this.totalQueryTime = totalQueryTime;
             return this;
         }

@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.profiles;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
+import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.Table;
 import com.github.safetytrick.sqlexplorer.model.TableReference;
@@ -31,6 +32,8 @@ class SqlProfileResource {
         }
         return sqlProfile;
     }
+    @GetMapping("/api/sql-explorer/schemas")
+    public Stream<SchemaRollup> getSchemas() { return sqlRepositoryService.getAllSchemasWithRollup(); }
 
     @GetMapping("/api/sql-explorer/tables")
     public Stream<TableRollup> getTableNames() {

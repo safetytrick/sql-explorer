@@ -1,14 +1,18 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagLoader;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
 import com.github.safetytrick.sqlexplorer.model.ColumnReference;
 import com.github.safetytrick.sqlexplorer.model.JoinColumns;
 import com.github.safetytrick.sqlexplorer.model.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.Table;
 import com.github.safetytrick.sqlexplorer.model.TableReference;
@@ -148,6 +152,30 @@ public class SqlRepositoryService {
         return sqlRepositoryManager.getSqlRepository().getAllAnalyzedSql();
     }
 
+    public Stream<SchemaRollup> getAllSchemasWithRollup() {
+        Map<String, SchemaRollup.Builder> result = new HashMap<>();
+        sqlRepositoryManager.getSqlRepository().getAllTableReferences().forEach(
+            table -> {
+                SchemaRollup.Builder builder = result.computeIfAbsent(
+                    table.getNormalizedSchema(), schemaName ->
+                    SchemaRollup.builder().name(schemaName)
+                );
+                List<SqlProfile> sqlList = sqlRepositoryManager.getSqlRepository().getTableQueries(table)
+                    .toList();
+
+                double totalQueryTime = sqlList.stream()
+                    .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics().getTotalTime().doubleValue())
+                    .sum();
+                builder.addQueries(sqlList.size(), totalQueryTime);
+            }
+        );
+
+        return result.values().stream().map(builder-> {
+            List<Tag> schemaTags = tagsService.findAllByPath("/schema/" + builder.getName());
+            return builder.tags(schemaTags).build();
+        }).sorted(comparing(SchemaRollup::totalQueryTime).reversed());
+    }
+
     public Stream<TableRollup> getAllTablesWithRollup() {
 
         TagLoader tagLoader = tagsService.getBulkTagLoaderByType("table");
@@ -179,11 +207,12 @@ public class SqlRepositoryService {
             .schema(reference.getNormalizedSchema())
             .tags(tagLoader.findAllByPath("/schema/" + reference.getNormalizedSchema() + "/table/" + reference.getNormalizedTableName()))
             .numberOfQueries(sqlList.size())
-            .sumOfQueryTime(totalQueryTime)
+            .totalQueryTime(totalQueryTime)
             .build();
     }
 
     public TableRollup getTableRollup(TableReference reference) {
         return getTableRollup(reference, tagsService);
     }
+
 }

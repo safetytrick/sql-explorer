@@ -1,54 +1,60 @@
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { HttpClientModule } from '@angular/common/http';
+import {BrowserModule} from '@angular/platform-browser';
+import {NgModule} from '@angular/core';
+import {HttpClientModule} from '@angular/common/http';
 
-import { RouterModule, Routes } from '@angular/router';
-import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { MatTableModule } from '@angular/material/table';
-import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import {RouterModule, Routes} from '@angular/router';
+import {FormsModule, ReactiveFormsModule} from '@angular/forms';
+import {MatTableModule} from '@angular/material/table';
+import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 
-import { AppComponent } from './app.component';
-import { TableNamesComponent } from './table-names/table-names.component';
-import { TableViewComponent } from './table-view/table-view.component';
-import { AnalyzedSqlService } from './analyzed-sql.service';
-import { SqlListComponent } from './sql-list/sql-list.component';
-import { SqlViewComponent } from './sql-view/sql-view.component';
+import {AppComponent} from './app.component';
+import {TableNamesComponent} from './table-names/table-names.component';
+import {TableViewComponent} from './table-view/table-view.component';
+import {AnalyzedSqlService} from './analyzed-sql.service';
+import {SqlListComponent} from './sql-list/sql-list.component';
+import {SqlViewComponent} from './sql-view/sql-view.component';
 
-import { HighlightModule } from 'ngx-highlightjs';
+import {HighlightModule} from 'ngx-highlightjs';
 
-import { MomentModule } from 'ngx-moment';
+import {MomentModule} from 'ngx-moment';
 
 import sql from 'highlight.js/lib/languages/sql';
 import xml from 'highlight.js/lib/languages/xml';
-import { PicoViewComponent } from './pico-view/pico-view.component';
-import { CallbackPipePipe } from './callback-pipe.pipe';
-import { ColumnLinkComponent } from './column-link/column-link.component';
-import { NavBarComponent } from './nav-bar/nav-bar.component';
-import { ExplainViewComponent } from './explain-view/explain-view.component';
-import { SmallTableViewComponent } from './small-table-view/small-table-view.component';
-import { NoteViewComponent } from './note-view/note-view.component';
-import { MarkdownToHtmlModule } from 'markdown-to-html-pipe';
-import { TableLinkComponent } from './table-link/table-link.component';
-import { QueryUtilitiesComponent } from './query-utilities/query-utilities.component';
-import { TableGraphComponent } from './table-graph/table-graph.component';
-import { TagViewComponent } from './tag-view/tag-view.component';
-import { TagInputModule } from 'ngx-chips';
-import { NgxGraphModule } from '@swimlane/ngx-graph';
-import { TaggedTableViewComponent } from './tagged-table-view/tagged-table-view.component';
-import { TaggedSqlViewComponent } from './tagged-sql-view/tagged-sql-view.component';
-import { SmallSqlViewComponent } from './small-sql-view/small-sql-view.component';
-import { TagIndexComponent } from './tag-index/tag-index.component';
-import { TableListComponent } from './table-list-component/table-list.component';
-import { TableGraphLoaderComponent } from './table-graph-loader/table-graph-loader.component';
-import { TooltipModule, TooltipOptions } from '@teamhive/ngx-tooltip';
-import { SqlSummaryComponent } from './sql-summary/sql-summary.component';
-import { AdminSourceListComponent } from './admin-source-list/admin-source-list.component';
-import { MatListModule} from '@angular/material/list';
-import { MAT_SNACK_BAR_DEFAULT_OPTIONS, MatSnackBarModule } from '@angular/material';
-import { TablesWithColumnComponent } from './tables-with-column/tables-with-column.component';
+import {PicoViewComponent} from './pico-view/pico-view.component';
+import {CallbackPipePipe} from './callback-pipe.pipe';
+import {ColumnLinkComponent} from './column-link/column-link.component';
+import {NavBarComponent} from './nav-bar/nav-bar.component';
+import {ExplainViewComponent} from './explain-view/explain-view.component';
+import {SmallTableViewComponent} from './small-table-view/small-table-view.component';
+import {NoteViewComponent} from './note-view/note-view.component';
+import {MarkdownToHtmlModule} from 'markdown-to-html-pipe';
+import {TableLinkComponent} from './table-link/table-link.component';
+import {QueryUtilitiesComponent} from './query-utilities/query-utilities.component';
+import {TableGraphComponent} from './table-graph/table-graph.component';
+import {TagViewComponent} from './tag-view/tag-view.component';
+import {TagInputModule} from 'ngx-chips';
+import {NgxGraphModule} from '@swimlane/ngx-graph';
+import {TaggedTableViewComponent} from './tagged-table-view/tagged-table-view.component';
+import {TaggedSqlViewComponent} from './tagged-sql-view/tagged-sql-view.component';
+import {SmallSqlViewComponent} from './small-sql-view/small-sql-view.component';
+import {TagIndexComponent} from './tag-index/tag-index.component';
+import {TableListComponent} from './table-list-component/table-list.component';
+import {TableGraphLoaderComponent} from './table-graph-loader/table-graph-loader.component';
+import {TooltipModule, TooltipOptions} from '@teamhive/ngx-tooltip';
+import {SqlSummaryComponent} from './sql-summary/sql-summary.component';
+import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
+import {MatListModule} from '@angular/material/list';
+import {MAT_SNACK_BAR_DEFAULT_OPTIONS, MatSnackBarModule} from '@angular/material';
+import {TablesWithColumnComponent} from './tables-with-column/tables-with-column.component';
+import {SchemaListComponent} from './schema-list/schema-list.component';
 
 
 const appRoutes: Routes = [
+  {
+    path: 'schemas',
+    component: SchemaListComponent,
+    data: { title: 'Schemas' }
+  },
   {
     path: 'tables/:schema',
     component: TableNamesComponent,
@@ -215,7 +221,8 @@ export function hljsLanguages() {
     TableGraphLoaderComponent,
     SqlSummaryComponent,
     AdminSourceListComponent,
-    TablesWithColumnComponent
+    TablesWithColumnComponent,
+    SchemaListComponent
   ],
     imports: [
         RouterModule.forRoot(appRoutes, {
