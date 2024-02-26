@@ -2,9 +2,9 @@ package com.github.safetytrick.sqlexplorer.schema;
 
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.cleanup.NameNormalizer;
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
-import com.github.safetytrick.sqlexplorer.core.TableReference;
+import com.github.safetytrick.sqlexplorer.analysis.NameNormalizer;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Table;

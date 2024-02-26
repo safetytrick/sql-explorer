@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
 
 public record ForeignKey(
     List<ColumnReference> from,

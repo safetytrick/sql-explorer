@@ -4,23 +4,23 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
+import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
-import com.github.safetytrick.sqlexplorer.core.TableReference;
-import net.sf.jsqlparser.JSQLParserException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class TableNameAnalyzerTest {
 
-    SqlExplorer sqlExplorer;
-    private AnalyzedSql.Builder builder;
+    SqlAnalysisService sqlAnalysisService;
+    private SqlProfile.Builder builder;
 
     @BeforeEach
     public void setUp() {
-        sqlExplorer = new SqlExplorer(new TableNameAnalyzer());
-        builder = AnalyzedSql.builder();
+        sqlAnalysisService = new SqlAnalysisService(new TableNameAnalyzer());
+        builder = SqlProfile.builder();
     }
 
     @Test
@@ -32,7 +32,7 @@ public class TableNameAnalyzerTest {
             "AND `pvd` . `checkin_date` >= SUBDATE ( NOW ( ) , `IFNULL` ( `fc` . `value` , ? ) ) " +
             "AND `f` . `type` IN (?) GROUP BY `pvd` . `store_id` ";
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
         List<String> tableNames = builder.view().getTables().stream().map(TableReference::getNormalizedTableName).collect(Collectors.toList());
         assertEquals(Arrays.asList("customer_visit", "store", "store_config"), tableNames);
 

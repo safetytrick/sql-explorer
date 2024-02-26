@@ -12,8 +12,13 @@ SQL Explorer can analyze sql from multiple MySQL nodes in a clustered environmen
 from one source. SQL Explorer is generally forgiving about mismatches between the metadata it knows about and the 
 structure of queries it is asked to analyze.  
 
-### SQL Pattern Merging
+SQL Explorer attempts to provide insights into a SQL schema based on the queries that are run against the schema.
+Queries are parsed and the columns and tables that they reference are used to organize and provide navigation throughout
+the schema. Declared foreign keys and undeclared foreign keys are discovered through a combination of schema reflection
+and parsing of queries. Transitive queried-with relationships between tables are also discovered (two tables may not be
+directly joined but are used together in one query).
 
+### SQL Pattern Merging
 
 SQL Explorer attempts to merge metrics from query patterns that it considers to be similar. For instance these three 
 queries are considered identical within SQL Explorer:

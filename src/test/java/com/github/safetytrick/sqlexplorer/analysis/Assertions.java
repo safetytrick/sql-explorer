@@ -2,8 +2,9 @@ package com.github.safetytrick.sqlexplorer.analysis;
 
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
-import com.github.safetytrick.sqlexplorer.core.JoinColumns;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.JoinColumns;
+
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class Assertions {

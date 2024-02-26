@@ -7,24 +7,34 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
-import com.github.safetytrick.sqlexplorer.core.JoinColumns;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.JoinColumns;
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
+import net.sf.jsqlparser.statement.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 // todo this misses column comparison in where clause
+@Order(20000) // last!
 @Component
-public class JoinAcrossTypesAnalyzer {
+public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(JoinAcrossTypesAnalyzer.class);
 
     private final SqlMetadataService sqlMetadataService;
 
     public JoinAcrossTypesAnalyzer(SqlMetadataService sqlMetadataService) {
         this.sqlMetadataService = sqlMetadataService;
+    }
+
+    @Override
+    public void analyze(Statement statement, SqlProfile.Builder builder) {
+        List<JoinColumns> mismatchedJoins = mismatchedJoins(builder.view().getSchema(), builder.view().getJoinColumns());
+        builder.mismatchedJoins(mismatchedJoins);
     }
 
     public List<JoinColumns> mismatchedJoins(String schema, List<JoinColumns> joinColumns) {

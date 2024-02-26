@@ -1,12 +1,12 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
-import com.github.safetytrick.sqlexplorer.core.TableReference;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class SqlMetadataResource {
+class SqlMetadataResource {
 
     private final SqlMetadataService sqlMetadataService;
 

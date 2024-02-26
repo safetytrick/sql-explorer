@@ -1,6 +1,6 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {ActivatedRoute, Router} from '@angular/router';
+import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
@@ -16,7 +16,7 @@ export class TableNamesComponent implements OnInit {
   tables: any = [];
 
   constructor(public sqlService: AnalyzedSqlService, private route: ActivatedRoute,
-              private router: Router, private titleService: Title) { }
+              private titleService: Title) { }
 
   ngOnInit() {
     this.route.params.subscribe(params => {

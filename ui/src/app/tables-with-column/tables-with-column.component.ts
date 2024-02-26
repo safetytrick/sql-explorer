@@ -1,7 +1,7 @@
-import { Component, OnInit } from '@angular/core';
-import {AnalyzedSqlService} from "../analyzed-sql.service";
-import {ActivatedRoute, Router} from "@angular/router";
-import {Title} from "@angular/platform-browser";
+import {Component, OnInit} from '@angular/core';
+import {AnalyzedSqlService} from '../analyzed-sql.service';
+import {ActivatedRoute} from '@angular/router';
+import {Title} from '@angular/platform-browser';
 
 @Component({
   selector: 'app-tables-with-column',
@@ -16,7 +16,6 @@ export class TablesWithColumnComponent implements OnInit {
 
     constructor(public sqlService: AnalyzedSqlService,
                 private route: ActivatedRoute,
-                private router: Router,
                 private titleService: Title) { }
 
     ngOnInit() {

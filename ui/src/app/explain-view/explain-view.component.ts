@@ -1,5 +1,5 @@
-import {Component, Input, OnInit, ViewChild} from '@angular/core';
-import { MatTable, MatTableDataSource } from '@angular/material/table';
+import {Component, OnInit, ViewChild} from '@angular/core';
+import {MatTable, MatTableDataSource} from '@angular/material/table';
 import {TSV} from 'tsv';
 
 @Component({

@@ -2,14 +2,14 @@ package com.github.safetytrick.sqlexplorer.schema;
 
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
+import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import org.springframework.stereotype.Service;
 
-import com.github.safetytrick.sqlexplorer.core.TableRollup;
-import com.github.safetytrick.sqlexplorer.service.SqlRepositoryService;
 import static java.util.Comparator.comparing;
 
 @Service
-public class TableReportService {
+class TableReportService {
     private final SqlMetadataService sqlMetadataService;
     private final SqlRepositoryService sqlRepositoryService;
 

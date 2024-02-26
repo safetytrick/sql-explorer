@@ -2,9 +2,9 @@ package com.github.safetytrick.sqlexplorer.graph;
 
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.core.TableReference;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
 
-public record GroupedTableRelationships(
+record GroupedTableRelationships(
     String group,
     TableReference table,
     List<TableReference> foreignKeyTables,

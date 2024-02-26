@@ -4,15 +4,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
-import org.junit.jupiter.api.Test;
-
-import com.github.safetytrick.sqlexplorer.core.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SchemaLoadingService;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.JSQLParserException;
+import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;

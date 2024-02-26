@@ -1,5 +1,4 @@
 import {Component, Input, OnInit} from '@angular/core';
-import {AnalyzedSqlService} from '../analyzed-sql.service';
 
 @Component({
   selector: 'app-small-table-view',

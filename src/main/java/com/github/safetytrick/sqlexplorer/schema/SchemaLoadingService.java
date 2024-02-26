@@ -19,8 +19,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
-import com.github.safetytrick.sqlexplorer.core.TableReference;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import org.slf4j.Logger;
@@ -80,8 +80,6 @@ public class SchemaLoadingService {
     public List<TableStructure> getAllByTableName(String table) {
         return byTableName.get(table.toLowerCase());
     }
-
-
 
     @PostConstruct
     private void initializeTableStructures() {

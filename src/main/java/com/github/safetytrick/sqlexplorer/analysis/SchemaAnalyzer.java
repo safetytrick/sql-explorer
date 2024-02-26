@@ -1,18 +1,17 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
-import com.github.safetytrick.sqlexplorer.core.TableReference;
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
+import net.sf.jsqlparser.statement.Statement;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import net.sf.jsqlparser.statement.Statement;
-
 @Order(2)
 @Component
-public class SchemaAnalyzer implements SqlAnalyzer {
+class SchemaAnalyzer implements SqlAnalyzer {
     @Override
-    public void analyze(Statement statement, AnalyzedSql.Builder builder) {
-        AnalyzedSql.Builder.View view = builder.view();
+    public void analyze(Statement statement, SqlProfile.Builder builder) {
+        SqlProfile.Builder.View view = builder.view();
         if (!view.getSchemas().isEmpty()) {
             boolean isMultiSchema = false;
             String referencedSchema = null;

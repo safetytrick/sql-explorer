@@ -4,9 +4,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
-import com.github.safetytrick.sqlexplorer.core.JoinColumns;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.JoinColumns;
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
@@ -16,21 +17,24 @@ import org.junit.jupiter.api.Test;
 
 import static com.github.safetytrick.sqlexplorer.analysis.Assertions.assertContainsColumnReferences;
 import static com.github.safetytrick.sqlexplorer.analysis.Assertions.assertContainsJoinColumns;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WhereClauseAnalyzerTest {
-    private SqlExplorer sqlExplorer;
+    private SqlAnalysisService sqlAnalysisService;
     private ColumnTableResolver columnTableResolver;
-    private AnalyzedSql.Builder builder;
+    private SqlProfile.Builder builder;
 
     @BeforeEach
     public void setUp() {
         columnTableResolver = mock(ColumnTableResolver.class);
-        sqlExplorer = new SqlExplorer(new WhereClauseAnalyzer(columnTableResolver));
-        builder = AnalyzedSql.builder();
+        sqlAnalysisService = new SqlAnalysisService(new WhereClauseAnalyzer(columnTableResolver));
+        builder = SqlProfile.builder();
     }
 
     @Test
@@ -40,7 +44,7 @@ public class WhereClauseAnalyzerTest {
             "VALUE , `created_on` AS `createdOn` , `created_by` AS `createdBy` , `deleted_on` AS `deletedOn` , " +
             "`deleted_by` AS `deletedBy` FROM `report_column_config_field`";
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertNotNull(criteriaColumns);
@@ -55,7 +59,7 @@ public class WhereClauseAnalyzerTest {
             "`deleted_by` AS `deletedBy` FROM `report_column_config_field` " +
             "WHERE `report_column_id` = ?";
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertNotNull(criteriaColumns);
@@ -72,7 +76,7 @@ public class WhereClauseAnalyzerTest {
             "AND `cn` . `request_time` > NOW ( ) - INTERVAL 0 SQL_TSI_HOUR " +
             "AND `cn` . `sent_to_store_id` IN (?)";
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertNotNull(criteriaColumns);
@@ -94,7 +98,7 @@ public class WhereClauseAnalyzerTest {
             GROUP BY `pvd`.`store_id`
             """;
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertNotNull(criteriaColumns);
@@ -127,7 +131,7 @@ public class WhereClauseAnalyzerTest {
         when(columnTableResolver.selectTableNameFromCandidates(eq(Arrays.asList("customer_identifier", "customer_store_relationship")), eq("effective_on")))
             .thenReturn("customer_store_relationship");
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertNotNull(criteriaColumns);
@@ -176,7 +180,7 @@ public class WhereClauseAnalyzerTest {
                         AND `pcg1` . `created_on` = `pcg2` . `created_on` \
             """;
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_care_guideline.customer_id")));
@@ -237,7 +241,7 @@ public class WhereClauseAnalyzerTest {
             //  it's certainly not valid sql but handling partial sql is a goal of this tool
             ;
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<JoinColumns> joinColumns = builder.view().getJoinColumns();
         assertContainsJoinColumns(joinColumns, "customer_visit.id", "customer_visit_membership.customer_visit_id");
@@ -654,11 +658,11 @@ public class WhereClauseAnalyzerTest {
 
         assertFalse(builder.view().isAnalysisFailed());
 
-        AnalyzedSql analyzedSql = builder.build();
+        SqlProfile sqlProfile = builder.build();
 
-        assertTrue(analyzedSql.getCriteriaColumns().contains(ColumnReference.fromString("report_config_field.report_id")));
+        assertTrue(sqlProfile.getCriteriaColumns().contains(ColumnReference.fromString("report_config_field.report_id")));
 
-        List<JoinColumns> joinColumns = analyzedSql.getJoinColumns();
+        List<JoinColumns> joinColumns = sqlProfile.getJoinColumns();
 
         assertContainsJoinColumns(joinColumns, "report_config_field.report_id", "report.id");
         assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.client.id");
@@ -680,7 +684,7 @@ public class WhereClauseAnalyzerTest {
               AND `nd`.`enabled_on` <= ?""";
 
         builder.schema("tdb");
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
 
@@ -726,7 +730,7 @@ public class WhereClauseAnalyzerTest {
         when(columnTableResolver.selectTableNameFromCandidates(Arrays.asList("store_config", "client"), "store_id"))
             .thenReturn("store_config");
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertContainsColumnReferences(criteriaColumns, "store_config.store_id");
@@ -774,7 +778,7 @@ public class WhereClauseAnalyzerTest {
                     `c` . `contributor_id`\
             """;
 
-        sqlExplorer.analyzeSql(sql, builder);
+        sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
         assertContainsColumnReferences(criteriaColumns, "insights.contribution.contributor_id");

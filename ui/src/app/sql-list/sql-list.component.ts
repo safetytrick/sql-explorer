@@ -1,6 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {ActivatedRoute, Router} from '@angular/router';
+import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
@@ -15,7 +15,9 @@ export class SqlListComponent implements OnInit {
   private limit = 10;
   private name: string = null;
 
-  constructor(public sqlService: AnalyzedSqlService, private route: ActivatedRoute, private router: Router, private titleService: Title) {
+  constructor(public sqlService: AnalyzedSqlService,
+              private route: ActivatedRoute,
+              private titleService: Title) {
     this.route.params.subscribe(params => {
       this.name = params['name'] || 'all';
       this.limit = params['limit'] || 50;

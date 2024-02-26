@@ -3,9 +3,7 @@ package com.github.safetytrick.sqlexplorer.graph;
 import java.util.List;
 import java.util.stream.Stream;
 
-import com.github.safetytrick.sqlexplorer.core.CrossSchemaTable;
-
-public interface GraphService {
+interface GraphService {
 
     Stream<TableRelationships> getTableRelationships(int threshold);
 

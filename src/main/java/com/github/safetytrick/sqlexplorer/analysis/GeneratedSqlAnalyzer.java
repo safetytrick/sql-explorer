@@ -1,18 +1,17 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
-
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.util.TablesNamesFinder;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
 
 @Order(4)
 @Component
-public class GeneratedSqlAnalyzer implements SqlAnalyzer {
+class GeneratedSqlAnalyzer implements SqlAnalyzer {
     @Override
-    public void analyze(Statement statement, AnalyzedSql.Builder builder) {
+    public void analyze(Statement statement, SqlProfile.Builder builder) {
         GeneratedSqlStatementVisitor visitor = new GeneratedSqlStatementVisitor();
         visitor.getTableList(statement);
 

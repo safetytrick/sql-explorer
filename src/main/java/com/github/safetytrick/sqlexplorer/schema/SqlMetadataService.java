@@ -5,10 +5,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.github.safetytrick.sqlexplorer.model.TableReference;
 import org.springframework.stereotype.Service;
 
-import com.github.safetytrick.sqlexplorer.analysis.exception.UnsupportedSqlException;
-import com.github.safetytrick.sqlexplorer.core.TableReference;
 import static java.util.stream.Collectors.groupingBy;
 
 @Service
@@ -77,7 +76,7 @@ public class SqlMetadataService {
                     tableName = split[0];
                     columnName = split[1];
                 } else {
-                    throw new UnsupportedSqlException("could not find table for column: " + column);
+                    throw new UnknownColumnException("could not find table for column: " + column);
                 }
 
                 return structures.stream().anyMatch(table -> (tableName == null || table.name().equalsIgnoreCase(tableName)) &&
@@ -93,6 +92,10 @@ public class SqlMetadataService {
         return null;
     }
 
-
+    public static class UnknownColumnException extends RuntimeException {
+        public UnknownColumnException(String message) {
+            super(message);
+        }
+    }
 
 }

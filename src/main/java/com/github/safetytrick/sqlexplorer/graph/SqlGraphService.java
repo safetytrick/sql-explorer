@@ -11,18 +11,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import com.github.safetytrick.sqlexplorer.anno.SqlTagsService;
-import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
-import com.github.safetytrick.sqlexplorer.core.CrossSchemaTable;
-import com.github.safetytrick.sqlexplorer.core.Table;
-import com.github.safetytrick.sqlexplorer.core.TableReference;
+import com.github.safetytrick.sqlexplorer.commentary.SqlTagsService;
+import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.model.Table;
+import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
-import com.github.safetytrick.sqlexplorer.service.SqlRepositoryService;
 import org.springframework.stereotype.Service;
 
 @Service
-public class SqlGraphService implements GraphService {
+class SqlGraphService implements GraphService {
 
     private final SqlRepositoryService sqlRepositoryService;
     private final SqlMetadataService sqlMetadataService;
@@ -125,31 +124,31 @@ public class SqlGraphService implements GraphService {
 
     private void populateTablesFromQueries(Map<String, CrossSchemaTable> queryToTables,
                                            String tableValue,
-                                           List<AnalyzedSql> queries) {
-        for(AnalyzedSql analyzedSql : queries) {
-            if(analyzedSql.getQueryActivityStatus().isActive()){
-                String query = analyzedSql.getQuery().replaceAll("`", "").replaceAll("\\n\\s*", " ");
+                                           List<SqlProfile> queries) {
+        for(SqlProfile sqlProfile : queries) {
+            if(sqlProfile.getQueryActivityStatus().isActive()){
+                String query = sqlProfile.getQuery().replaceAll("`", "").replaceAll("\\n\\s*", " ");
                 final CrossSchemaTable currentTableValues = queryToTables.get(query);
-                queryToTables.put(query, createCrossSchemaTable(tableValue, query, analyzedSql, currentTableValues));
+                queryToTables.put(query, createCrossSchemaTable(tableValue, query, sqlProfile, currentTableValues));
             }
         }
     }
 
-    private CrossSchemaTable createCrossSchemaTable(String tableValue, String query, AnalyzedSql analyzedSql, CrossSchemaTable existingTableValues){
-        final String grafanaUrl = String.format(GRAFANA_URL, analyzedSql.getPerfDigests().get(0));
-        Matcher matcher = serverPattern.matcher(analyzedSql.getId());
+    private CrossSchemaTable createCrossSchemaTable(String tableValue, String query, SqlProfile sqlProfile, CrossSchemaTable existingTableValues){
+        final String grafanaUrl = String.format(GRAFANA_URL, sqlProfile.getPerfDigests().get(0));
+        Matcher matcher = serverPattern.matcher(sqlProfile.getId());
         String server = matcher.find() ? matcher.group(1) : "";
-        final String rundeckQuery = String.format(RUNDECK_QUERY, analyzedSql.getPerfDigests().get(0), server);
-        final String analysisUrl = BASE_URL + analyzedSql.getDigest();
+        final String rundeckQuery = String.format(RUNDECK_QUERY, sqlProfile.getPerfDigests().get(0), server);
+        final String analysisUrl = BASE_URL + sqlProfile.getDigest();
         if(existingTableValues == null){
             return new CrossSchemaTable(
-                    query, analyzedSql.getId(),
+                    query, sqlProfile.getId(),
                     analysisUrl, grafanaUrl, rundeckQuery, tableValue);
         }
         return new CrossSchemaTable(
-                query, concatenate(existingTableValues.analysisUrl(), analyzedSql.getId()),
+                query, concatenate(existingTableValues.analysisUrl(), sqlProfile.getId()),
                 analysisUrl, concatenate(existingTableValues.grafanaUrl(), grafanaUrl),
-                concatenate(existingTableValues.rundeckQuery(),rundeckQuery),
+                concatenate(existingTableValues.rundeckQuery(), rundeckQuery),
                 concatenate(existingTableValues.tables(), tableValue));
     }
 

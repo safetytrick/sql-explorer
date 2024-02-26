@@ -1,23 +1,19 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
+import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.inject.Inject;
-
-import com.github.safetytrick.sqlexplorer.analysis.exception.UnsupportedSqlException;
-import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
-import com.github.safetytrick.sqlexplorer.core.JoinColumns;
-import com.github.safetytrick.sqlexplorer.qualifier.ColumnAliasResolver;
-import com.github.safetytrick.sqlexplorer.qualifier.DerivedTable;
-import com.github.safetytrick.sqlexplorer.qualifier.SchemaAwareTableAliasResolver;
-import com.github.safetytrick.sqlexplorer.qualifier.SimpleColumnAliasResolver;
-import com.github.safetytrick.sqlexplorer.qualifier.TableAliasResolver;
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
-
+import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnAliasResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.DerivedTable;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
+import com.github.safetytrick.sqlexplorer.model.JoinColumns;
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
@@ -52,10 +48,12 @@ import net.sf.jsqlparser.statement.select.ValuesList;
 import net.sf.jsqlparser.statement.select.WithItem;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.upsert.Upsert;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
 
 @Order(2)
 @Component
-public class JoinColumnAnalyzer implements SqlAnalyzer {
+class JoinColumnAnalyzer implements SqlAnalyzer {
 
     private final ColumnTableResolver columnTableResolver;
 
@@ -69,7 +67,7 @@ public class JoinColumnAnalyzer implements SqlAnalyzer {
     }
 
     @Override
-    public void analyze(Statement statement, AnalyzedSql.Builder builder) {
+    public void analyze(Statement statement, SqlProfile.Builder builder) {
         JoinColumnVisitor joinColumnVisitor = new JoinColumnVisitor(builder.view().getSchema());
 
         List<JoinColumns> joinColumns = joinColumnVisitor.getJoinColumns(statement);

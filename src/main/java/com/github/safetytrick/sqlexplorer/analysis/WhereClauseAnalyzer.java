@@ -2,15 +2,12 @@ package com.github.safetytrick.sqlexplorer.analysis;
 
 import javax.inject.Inject;
 
-import com.github.safetytrick.sqlexplorer.analysis.exception.UnsupportedSqlException;
-import com.github.safetytrick.sqlexplorer.core.AnalyzedSql;
-import com.github.safetytrick.sqlexplorer.core.ColumnReference;
-import com.github.safetytrick.sqlexplorer.qualifier.SchemaAwareTableAliasResolver;
-import com.github.safetytrick.sqlexplorer.qualifier.SimpleColumnAliasResolver;
-import com.github.safetytrick.sqlexplorer.qualifier.TableAliasResolver;
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
-
+import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
+import com.github.safetytrick.sqlexplorer.model.ColumnReference;
+import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
@@ -40,10 +37,12 @@ import net.sf.jsqlparser.statement.select.WithItem;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.upsert.Upsert;
 import net.sf.jsqlparser.statement.values.ValuesStatement;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
 
 @Order(3)
 @Component
-public class WhereClauseAnalyzer implements SqlAnalyzer {
+class WhereClauseAnalyzer implements SqlAnalyzer {
 
     private final ColumnTableResolver columnTableResolver;
 
@@ -57,16 +56,16 @@ public class WhereClauseAnalyzer implements SqlAnalyzer {
     }
 
     @Override
-    public void analyze(Statement statement, AnalyzedSql.Builder builder) {
+    public void analyze(Statement statement, SqlProfile.Builder builder) {
         new WhereClauseVisitor(builder).visit(statement);
     }
 
     private class WhereClauseVisitor extends StatementVisitorAdapter {
-        private final AnalyzedSql.Builder builder;
+        private final SqlProfile.Builder builder;
         private TableAliasResolver aliasResolver;
         private final WhereColumnColumnSelectVisitor visitor = new WhereColumnColumnSelectVisitor();
 
-        private WhereClauseVisitor(AnalyzedSql.Builder builder) {
+        private WhereClauseVisitor(SqlProfile.Builder builder) {
             super();
             this.builder = builder;
         }
