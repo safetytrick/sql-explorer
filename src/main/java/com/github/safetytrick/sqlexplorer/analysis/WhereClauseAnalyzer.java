@@ -1,13 +1,12 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import javax.inject.Inject;
-
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
 import com.github.safetytrick.sqlexplorer.model.ColumnReference;
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import jakarta.inject.Inject;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;

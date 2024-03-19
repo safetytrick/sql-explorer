@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
-import javax.ws.rs.core.HttpHeaders;
 import java.sql.SQLException;
 import java.util.Comparator;
 import java.util.List;
@@ -11,6 +10,7 @@ import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.ImportedSqlSource;
 import com.google.common.base.Strings;
+import jakarta.ws.rs.core.HttpHeaders;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
@@ -39,12 +39,12 @@ class SqlSourceResource {
     }
 
     @GetMapping("/api/sql-explorer/sources/{id}")
-    public SqlSourceEntity getSqlSource(@PathVariable("id") Integer id) {
+    public SqlSourceEntity getSqlSource(@PathVariable Integer id) {
         return sqlSourceEntityRepository.findById(id).orElseThrow();
     }
 
     @GetMapping("/api/sql-explorer/sources/{id}/body")
-    public ResponseEntity<Resource> getSqlSourceBody(@PathVariable("id") Integer id) throws SQLException {
+    public ResponseEntity<Resource> getSqlSourceBody(@PathVariable Integer id) throws SQLException {
 
         SqlSourceEntity entity = sqlSourceEntityRepository.findById(id).orElseThrow();
         Resource resource = new InputStreamResource(entity.getContent().getBinaryStream());

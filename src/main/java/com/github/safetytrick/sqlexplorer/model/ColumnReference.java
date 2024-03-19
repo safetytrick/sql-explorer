@@ -1,10 +1,10 @@
 package com.github.safetytrick.sqlexplorer.model;
 
-import javax.annotation.Nullable;
 import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.safetytrick.sqlexplorer.analysis.NameNormalizer;
+import jakarta.annotation.Nullable;
 
 public class ColumnReference {
     private final TableReference table;

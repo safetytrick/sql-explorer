@@ -28,7 +28,7 @@ class QueryCleanupResource {
     }
 
     @PostMapping(path ="/api/sql-explorer/util/normalize", consumes = "text/plain", produces = "application/json")
-    public NormalizedQuery normalizeQuery(@RequestBody String query, @RequestParam(name="clean", defaultValue = "true") boolean clean){
+    public NormalizedQuery normalizeQuery(@RequestBody String query, @RequestParam(defaultValue = "true") boolean clean){
         Statement statement;
         try {
             if (clean) {

@@ -9,9 +9,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface SqlSourceEntityRepository extends CrudRepository<SqlSourceEntity, Integer> {
 
-    @Query("SELECT ss FROM SqlSourceEntity ss WHERE ss.createdOn = " +
-            "(SELECT max(child.createdOn) FROM SqlSourceEntity child WHERE child.sourceRef = :sourceRef) " +
-            "AND ss.sourceRef = :sourceRef")
+    @Query("""
+            SELECT ss FROM SqlSourceEntity ss WHERE ss.createdOn = \
+            (SELECT max(child.createdOn) FROM SqlSourceEntity child WHERE child.sourceRef = :sourceRef) \
+            AND ss.sourceRef = :sourceRef\
+            """)
     Optional<SqlSourceEntity> findLatestBySourceRef(@Param("sourceRef")String sourceRef);
 
     Optional<SqlSourceEntity> findByMd5Hash(String md5);

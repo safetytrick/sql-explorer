@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +13,7 @@ import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasRes
 import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
 import com.github.safetytrick.sqlexplorer.model.JoinColumns;
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import jakarta.inject.Inject;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;

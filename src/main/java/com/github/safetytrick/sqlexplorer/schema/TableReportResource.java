@@ -17,7 +17,7 @@ class TableReportResource {
     }
 
     @GetMapping("/api/sql-explorer/tables/with-column/{name}")
-    public Stream<TableRollup> getTablesWithColumn(@PathVariable("name") String name) {
+    public Stream<TableRollup> getTablesWithColumn(@PathVariable String name) {
         return tableReportService.getTablesWithColumn(name);
     }
 

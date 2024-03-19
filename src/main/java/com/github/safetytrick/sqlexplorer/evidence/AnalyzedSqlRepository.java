@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
-import javax.validation.constraints.NotNull;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +15,7 @@ import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
+import jakarta.validation.constraints.NotNull;
 
 class AnalyzedSqlRepository implements SqlRepository {
 

@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.evidence.fileloader;
 
-import javax.annotation.PostConstruct;
 import java.io.File;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -22,6 +21,7 @@ import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceEntity;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceEntityService;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -82,8 +82,7 @@ class PerformanceSchemaFileLoader {
             .collect(Collectors.groupingBy(SqlSource::getSourceRef))
             .values()
             .stream().map(list -> list.stream().max(Comparator.comparing(SqlSource::getCreatedOn)))
-            .filter(Optional::isPresent)
-            .map(Optional::get)
+            .flatMap(Optional::stream)
             .collect(Collectors.toList());
 
     }

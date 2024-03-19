@@ -22,17 +22,17 @@ class NotesResource {
     }
 
     @GetMapping("/api/sql-explorer/notes/path")
-    public List<Note> notesForPath(@RequestParam(name="path") String path) {
+    public List<Note> notesForPath(@RequestParam String path) {
         return noteRepository.findAllByPath(path);
     }
 
     @GetMapping("/api/sql-explorer/note/{id}")
-    public Note noteById(@PathVariable(name="id") int id) {
+    public Note noteById(@PathVariable int id) {
         return noteRepository.findById(id).orElseThrow();
     }
 
     @PostMapping("/api/sql-explorer/notes")
-    public Note createNote(@RequestParam("text") String text, @RequestParam("path") String path) {
+    public Note createNote(@RequestParam String text, @RequestParam String path) {
         Objects.requireNonNull(text, "text is required");
         Objects.requireNonNull(path, "path is required");
 

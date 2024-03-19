@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
-import javax.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -10,6 +9,7 @@ import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.TableReference;
+import jakarta.validation.constraints.NotNull;
 
 class CompositeSqlRepository implements SqlRepository {
 

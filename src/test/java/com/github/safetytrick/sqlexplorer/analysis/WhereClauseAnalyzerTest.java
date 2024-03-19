@@ -39,10 +39,12 @@ public class WhereClauseAnalyzerTest {
 
     @Test
     public void testNoCriteria() throws JSQLParserException {
-        String sql = "SELECT `id` , `report_column_id` AS `reportColumnId` , `report_column_config_field_type` AS `reportColumnConfigFieldType` , " +
-            "`report_column_config_field_option` AS `columnConfigFieldOption` , " +
-            "VALUE , `created_on` AS `createdOn` , `created_by` AS `createdBy` , `deleted_on` AS `deletedOn` , " +
-            "`deleted_by` AS `deletedBy` FROM `report_column_config_field`";
+        String sql = """
+            SELECT `id` , `report_column_id` AS `reportColumnId` , `report_column_config_field_type` AS `reportColumnConfigFieldType` , \
+            `report_column_config_field_option` AS `columnConfigFieldOption` , \
+            VALUE , `created_on` AS `createdOn` , `created_by` AS `createdBy` , `deleted_on` AS `deletedOn` , \
+            `deleted_by` AS `deletedBy` FROM `report_column_config_field`\
+            """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
@@ -53,11 +55,13 @@ public class WhereClauseAnalyzerTest {
 
     @Test
     public void testNoJoins() throws JSQLParserException {
-        String sql = "SELECT `id` , `report_column_id` AS `reportColumnId` , `report_column_config_field_type` AS `reportColumnConfigFieldType` , " +
-            "`report_column_config_field_option` AS `columnConfigFieldOption` , " +
-            "VALUE , `created_on` AS `createdOn` , `created_by` AS `createdBy` , `deleted_on` AS `deletedOn` , " +
-            "`deleted_by` AS `deletedBy` FROM `report_column_config_field` " +
-            "WHERE `report_column_id` = ?";
+        String sql = """
+            SELECT `id` , `report_column_id` AS `reportColumnId` , `report_column_config_field_type` AS `reportColumnConfigFieldType` , \
+            `report_column_config_field_option` AS `columnConfigFieldOption` , \
+            VALUE , `created_on` AS `createdOn` , `created_by` AS `createdBy` , `deleted_on` AS `deletedOn` , \
+            `deleted_by` AS `deletedBy` FROM `report_column_config_field` \
+            WHERE `report_column_id` = ?\
+            """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
@@ -68,13 +72,15 @@ public class WhereClauseAnalyzerTest {
 
     @Test
     public void testBigOlQuery() throws JSQLParserException {
-        String sql = "SELECT `cn` . `id` , `cnc` . `binary_content` FROM `client_notification` `cn` " +
-            "INNER JOIN `client_notification_content` `cnc` ON `cn` . `id` = `cnc` . `id` " +
-            "WHERE `cn` . `completed_on` IS NULL " +
-            "AND `cn` . `begin_processing` IS NULL " +
-            "AND `cn` . `type` = ? AND `cn` . `event_time` > NOW ( ) - INTERVAL 6 SQL_TSI_DAY " +
-            "AND `cn` . `request_time` > NOW ( ) - INTERVAL 0 SQL_TSI_HOUR " +
-            "AND `cn` . `sent_to_store_id` IN (?)";
+        String sql = """
+            SELECT `cn` . `id` , `cnc` . `binary_content` FROM `client_notification` `cn` \
+            INNER JOIN `client_notification_content` `cnc` ON `cn` . `id` = `cnc` . `id` \
+            WHERE `cn` . `completed_on` IS NULL \
+            AND `cn` . `begin_processing` IS NULL \
+            AND `cn` . `type` = ? AND `cn` . `event_time` > NOW ( ) - INTERVAL 6 SQL_TSI_DAY \
+            AND `cn` . `request_time` > NOW ( ) - INTERVAL 0 SQL_TSI_HOUR \
+            AND `cn` . `sent_to_store_id` IN (?)\
+            """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
 

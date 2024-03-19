@@ -1,11 +1,11 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import javax.inject.Inject;
 import java.util.Collections;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import jakarta.inject.Inject;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.statement.Statement;
 import org.slf4j.Logger;

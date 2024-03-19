@@ -17,7 +17,7 @@ public class Assertions {
                 return;
             }
         }
-        fail(String.format("join pair=%s=%s not found in pairs=%s", first, second, joinColumns));
+        fail("join pair=%s=%s not found in pairs=%s".formatted(first, second, joinColumns));
     }
 
     public static void assertContainsColumnReferences(List<ColumnReference> criteriaColumns, String... columns) {

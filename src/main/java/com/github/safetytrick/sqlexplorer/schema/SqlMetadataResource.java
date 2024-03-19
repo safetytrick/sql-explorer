@@ -15,7 +15,7 @@ class SqlMetadataResource {
     }
 
     @GetMapping("/api/sql-explorer/metadata/table/{schema}/{name}")
-    public TableStructure getTableStructure(@PathVariable("schema") String schema, @PathVariable("name") String tableName) {
+    public TableStructure getTableStructure(@PathVariable String schema, @PathVariable("name") String tableName) {
         return sqlMetadataService.getTable(new TableReference(schema, tableName));
     }
 }

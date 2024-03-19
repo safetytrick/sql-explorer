@@ -1,7 +1,5 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Named;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -23,10 +21,14 @@ import com.github.safetytrick.sqlexplorer.model.ColumnReference;
 import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.stereotype.Service;
 
+@DependsOnDatabaseInitialization
 @Service
 public class SchemaLoadingService {
 
@@ -312,13 +314,15 @@ public class SchemaLoadingService {
         from information_schema.COLUMNS
         where table_name = ?;
         */
-        String sql = "select TABLE_SCHEMA, " +
-            "   TABLE_NAME, " +
-            "   COLUMN_NAME, " +
-            "   CHARACTER_SET_NAME, " +
-            "   COLLATION_NAME " +
-            " from information_schema.COLUMNS " +
-            " where table_name = ? and table_schema = ?;";
+        String sql = """
+            select TABLE_SCHEMA, \
+               TABLE_NAME, \
+               COLUMN_NAME, \
+               CHARACTER_SET_NAME, \
+               COLLATION_NAME \
+             from information_schema.COLUMNS \
+             where table_name = ? and table_schema = ?;\
+            """;
 
         Map<String, List<String>> characterSetCollationMap = new HashMap<>();
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {

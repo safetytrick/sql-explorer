@@ -1,10 +1,10 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.QueryParam;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.QueryParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,7 +19,7 @@ class SqlProfileReportResource {
     }
 
     @GetMapping("/api/sql-explorer/analyzed-sql/reports/{name}")
-    public Stream<SqlProfile> getNamedReport(@PathVariable("name") String name,
+    public Stream<SqlProfile> getNamedReport(@PathVariable String name,
                                              @QueryParam("limit") @DefaultValue("10") Integer limit) {
         if (limit == null) {
             limit = 10; // not sure why default isn't working, wrong annotation?

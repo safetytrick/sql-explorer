@@ -1,12 +1,5 @@
 package com.github.safetytrick.sqlexplorer.commentary;
 
-import javax.persistence.Entity;
-import javax.persistence.EntityListeners;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.ManyToOne;
-import javax.persistence.Table;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -14,6 +7,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.auth.User;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import lombok.Data;
 import org.hibernate.annotations.GenericGenerator;
 import org.springframework.data.annotation.CreatedDate;

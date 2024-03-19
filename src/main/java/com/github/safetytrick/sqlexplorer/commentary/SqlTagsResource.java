@@ -18,12 +18,12 @@ class SqlTagsResource {
     }
 
     @GetMapping("/api/sql-explorer/tables/tag/{name}")
-    public Stream<TableRollup> getTablesByTag(@PathVariable("name") String name) {
+    public Stream<TableRollup> getTablesByTag(@PathVariable String name) {
         return sqlTagsService.getTablesByTag(name);
     }
 
     @GetMapping("/api/sql-explorer/analyzed-sql/tag/{name}")
-    public Stream<SqlProfile> getSqlByTag(@PathVariable("name") String name) {
+    public Stream<SqlProfile> getSqlByTag(@PathVariable String name) {
         return sqlTagsService.getSqlByTag(name);
     }
 }

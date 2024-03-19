@@ -30,7 +30,7 @@ class TagsResource {
     }
 
     @GetMapping("/api/sql-explorer/tags/names")
-    public List<String> tagAutocomplete(@RequestParam(name="value") String value) {
+    public List<String> tagAutocomplete(@RequestParam String value) {
         String escapedValue = value.replaceAll("\\\\", "\\\\")
             .replaceAll("_", "\\_")
             .replaceAll("%", "\\%");
@@ -39,12 +39,12 @@ class TagsResource {
     }
 
     @GetMapping("/api/sql-explorer/tags/type/{type}")
-    public List<String> tagsByType(@PathVariable("type") String type) {
+    public List<String> tagsByType(@PathVariable String type) {
         return tagRepository.findTagNamesByType(type);
     }
 
     @GetMapping("/api/sql-explorer/tags/path")
-    public List<Tag> tagsForPath(@RequestParam(name="path") String path) {
+    public List<Tag> tagsForPath(@RequestParam String path) {
         return tagRepository.findAllByPath(path);
     }
 
@@ -89,7 +89,7 @@ class TagsResource {
     }
 
     @DeleteMapping("/api/sql-explorer/tag/{id}")
-    public void deleteTag(@PathVariable("id") int id) {
+    public void deleteTag(@PathVariable int id) {
         tagRepository.deleteById(id);
     }
 

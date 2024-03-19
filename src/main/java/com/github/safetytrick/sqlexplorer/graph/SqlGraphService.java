@@ -135,10 +135,10 @@ class SqlGraphService implements GraphService {
     }
 
     private CrossSchemaTable createCrossSchemaTable(String tableValue, String query, SqlProfile sqlProfile, CrossSchemaTable existingTableValues){
-        final String grafanaUrl = String.format(GRAFANA_URL, sqlProfile.getPerfDigests().get(0));
+        final String grafanaUrl = GRAFANA_URL.formatted(sqlProfile.getPerfDigests().get(0));
         Matcher matcher = serverPattern.matcher(sqlProfile.getId());
         String server = matcher.find() ? matcher.group(1) : "";
-        final String rundeckQuery = String.format(RUNDECK_QUERY, sqlProfile.getPerfDigests().get(0), server);
+        final String rundeckQuery = RUNDECK_QUERY.formatted(sqlProfile.getPerfDigests().get(0), server);
         final String analysisUrl = BASE_URL + sqlProfile.getDigest();
         if(existingTableValues == null){
             return new CrossSchemaTable(
@@ -153,7 +153,7 @@ class SqlGraphService implements GraphService {
     }
 
     private String concatenate(String currentList, String addition){
-        return String.format(LIST_FORMAT, currentList, addition.replaceAll("`", ""));
+        return LIST_FORMAT.formatted(currentList, addition.replaceAll("`", ""));
     }
 
     private TableRelationships getTableRelationships(int threshold, TableStructure tableStructure) {

@@ -35,11 +35,13 @@ public class JoinColumnAnalyzerTest {
 
     @Test
     public void testNoJoins() throws JSQLParserException {
-        String sql = "SELECT `id` , `report_column_id` AS `reportColumnId` , `report_column_config_field_type` AS `reportColumnConfigFieldType` , " +
-            "`report_column_config_field_option` AS `columnConfigFieldOption` , " +
-            "VALUE , `created_on` AS `createdOn` , `created_by` AS `createdBy` , `deleted_on` AS `deletedOn` , " +
-            "`deleted_by` AS `deletedBy` FROM `report_column_config_field` " +
-            "WHERE `report_column_id` = ? AND `report_column_config_field_type` = ? AND `deleted_on` IS NULL AND `deleted_by` IS NULL";
+        String sql = """
+            SELECT `id` , `report_column_id` AS `reportColumnId` , `report_column_config_field_type` AS `reportColumnConfigFieldType` , \
+            `report_column_config_field_option` AS `columnConfigFieldOption` , \
+            VALUE , `created_on` AS `createdOn` , `created_by` AS `createdBy` , `deleted_on` AS `deletedOn` , \
+            `deleted_by` AS `deletedBy` FROM `report_column_config_field` \
+            WHERE `report_column_id` = ? AND `report_column_config_field_type` = ? AND `deleted_on` IS NULL AND `deleted_by` IS NULL\
+            """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
         assertEquals(Collections.emptyList(), builder.view().getJoinColumns());

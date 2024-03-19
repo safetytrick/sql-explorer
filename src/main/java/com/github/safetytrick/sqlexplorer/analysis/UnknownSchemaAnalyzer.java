@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -10,6 +9,7 @@ import com.github.safetytrick.sqlexplorer.model.JoinColumns;
 import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import jakarta.inject.Inject;
 import net.sf.jsqlparser.statement.Statement;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;

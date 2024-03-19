@@ -1,7 +1,5 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
-import javax.persistence.EntityManager;
-import javax.transaction.Transactional;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -14,8 +12,10 @@ import java.util.Optional;
 
 import com.github.safetytrick.sqlexplorer.auth.UserService;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.AbstractTsvSqlSource;
-import org.hibernate.Hibernate;
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
 import org.hibernate.engine.jdbc.LobCreator;
+import org.hibernate.engine.jdbc.env.internal.StandardLobCreator;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -64,7 +64,7 @@ public class SqlSourceEntityService {
 
             SessionImplementor hibernateSession = entityManager.unwrap(SessionImplementor.class);
 
-            LobCreator lobCreator = Hibernate.getLobCreator(hibernateSession);
+            LobCreator lobCreator = new StandardLobCreator(hibernateSession);
             Blob content = lobCreator.createBlob(resource.getInputStream(), resource.contentLength());
 
             entity.setContent(content);

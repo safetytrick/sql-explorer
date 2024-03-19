@@ -14,8 +14,8 @@ PIDFILE=.ssh.pid
 if [ -f $PIDFILE ]
 then
   PID=$(cat $PIDFILE)
-  ps -p $PID > /dev/null 2>&1
-  if [ $? -eq 0 ]
+
+  if ps -p $PID | grep "ssh -N -L" > /dev/null 2>&1;
   then
     echo "Killing pre-existing ssh session $PID"
     kill "$PID"
@@ -25,7 +25,6 @@ fi
 
 docker compose up -d explorer-mysql
 
-#
 ssh -N -L 3336:"$DB_HOST":3306 "$SSH_URL" &
 
 echo $! > $PIDFILE
