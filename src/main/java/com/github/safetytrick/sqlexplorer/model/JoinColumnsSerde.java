@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+
 @Configuration
 class JoinColumnsSerde {
 
@@ -28,8 +30,8 @@ class JoinColumnsSerde {
         @Override
         public void serialize(JoinColumns value, JsonGenerator gen, SerializerProvider provider) throws IOException {
             gen.writeStartArray();
-            gen.writeString(value.left().getNormalizedReference());
-            gen.writeString(value.right().getNormalizedReference());
+            gen.writeString(value.getLeft().toStringNormalized());
+            gen.writeString(value.getRight().toStringNormalized());
             gen.writeEndArray();
         }
     }

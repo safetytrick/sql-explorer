@@ -150,7 +150,7 @@
         <div *ngIf="query.tables.length > 1"><br>Joins To:</div>
         <ul class="list-group">
           <li class="list-group-item" *ngFor="let otherTable of query.tables | callback: otherTables(table)">
-            <app-table-link [defaultSchema]="query.schema" [tableReference]="otherTable"></app-table-link>
+            <app-table-link [defaultSchema]="query.schemaName" [tableReference]="otherTable"></app-table-link>
           </li>
         </ul>
         <div *ngIf="query.mismatchedJoins.length > 0">
@@ -159,10 +159,10 @@
             <li *ngFor="let join of query.mismatchedJoins">
               <div class="alert alert-danger">
                 <div>
-                  <app-column-link [schema]="query.schema" [columnReference]="join[0]"></app-column-link>
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
                 </div>
                 <div>
-                  <app-column-link [schema]="query.schema" [columnReference]="join[1]"></app-column-link>
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
                 </div>
               </div>
             </li>

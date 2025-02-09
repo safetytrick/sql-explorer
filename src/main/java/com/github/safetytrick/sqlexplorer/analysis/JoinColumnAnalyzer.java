@@ -11,8 +11,8 @@ import com.github.safetytrick.sqlexplorer.analysis.resolver.DerivedTable;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
-import com.github.safetytrick.sqlexplorer.model.JoinColumns;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
@@ -68,11 +68,11 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder) {
-        JoinColumnVisitor joinColumnVisitor = new JoinColumnVisitor(builder.view().getSchema());
+        JoinColumnVisitor joinColumnVisitor = new JoinColumnVisitor(builder.getSchemaName());
 
         List<JoinColumns> joinColumns = joinColumnVisitor.getJoinColumns(statement);
 
-        builder.joinColumns(joinColumns);
+        builder.setJoinColumns(joinColumns);
     }
 
     private class JoinColumnVisitor extends StatementVisitorAdapter {

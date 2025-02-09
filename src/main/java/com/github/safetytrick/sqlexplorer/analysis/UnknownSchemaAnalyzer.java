@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.JoinColumns;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.statement.Statement;
@@ -26,9 +26,9 @@ public class UnknownSchemaAnalyzer implements SqlAnalyzer {
 
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder) {
-        if (builder.view().getSchema() == null) {
-            String schema = deriveSchemaFrom(builder.view().getTables(), builder.view().getJoinColumns(), builder.view().getCriteriaColumns());
-            builder.schema(schema);
+        if (builder.getSchemaName() == null) {
+            String schema = deriveSchemaFrom(builder.getTables(), builder.getJoinColumns(), builder.getCriteriaColumns());
+            builder.setSchemaName(schema);
         }
     }
 
@@ -36,7 +36,7 @@ public class UnknownSchemaAnalyzer implements SqlAnalyzer {
         List<String> allColumns = new ArrayList<>();
         if (joinColumns != null) {
             joinColumns.stream()
-                .flatMap(join -> Stream.of(join.right().getColumn(), join.left().getColumn()))
+                .flatMap(join -> Stream.of(join.getRight().getNormalizedColumn(), join.getLeft().getNormalizedColumn()))
                 .forEach(allColumns::add);
         }
         if (criteriaColumns != null) {

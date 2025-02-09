@@ -6,16 +6,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagLoader;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.JoinColumns;
-import com.github.safetytrick.sqlexplorer.model.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.Table;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
@@ -74,7 +74,7 @@ public class SqlRepositoryService {
         joinTables.removeAll(foreignKeyTables);
 
         return Table.builder().name(table.getNormalizedTableName())
-            .schema(table.getNormalizedSchema())
+            .schema(table.getNormalizedSchemaName())
             .queries(sqlList)
             .structure(tableStructure)
             .numberOfQueries(sqlList.size())
@@ -92,7 +92,7 @@ public class SqlRepositoryService {
     private List<TableReference> getForeignKeysTables(TableStructure tableStructure) {
         return tableStructure.foreignKeys().stream()
             .map(ForeignKey::to)
-            .map(list -> list.get(0))
+            .map(list -> list.getFirst())
             .map(ColumnReference::getTable)
             .distinct()
             .toList();
@@ -104,7 +104,7 @@ public class SqlRepositoryService {
     private List<TableReference> deriveJoinTables(int threshold, TableReference table, List<SqlProfile> sqlList) {
         return getAllJoinColumnsFromQueries(threshold, sqlList)
             .filter(join -> isExternalReference(table, join))
-            .flatMap(join -> Stream.of(join.left(), join.right()))
+            .flatMap(join -> Stream.of(join.getLeft(), join.getRight()))
             .map(ColumnReference::getTable)
             .filter(joinTable -> !table.equals(joinTable))
             .distinct()
@@ -114,7 +114,7 @@ public class SqlRepositoryService {
     private List<TableReference> relatedTablesFromQueries(int threshold, TableReference table, List<SqlProfile> sqlList) {
         return getAllJoinColumnsFromQueries(threshold, sqlList)
             .filter(join -> !isExternalReference(table, join))
-            .flatMap(join -> Stream.of(join.left(), join.right()))
+            .flatMap(join -> Stream.of(join.getLeft(), join.getRight()))
             .map(ColumnReference::getTable)
             .filter(joinTable -> !table.equals(joinTable))
             .distinct()
@@ -131,19 +131,20 @@ public class SqlRepositoryService {
     }
 
     private boolean isExternalReference(TableReference table, JoinColumns join) {
-        if (join.left().getTable().equals(join.right().getTable())) {
+        if (join.getLeft().getTable().equals(join.getRight().getTable())) {
             return false;
         }
 
         ColumnReference columnReference;
-        if (join.left().getTable().equals(table)) {
-            columnReference = join.right();
-        } else if (join.right().getTable().equals(table)) {
-            columnReference = join.left();
+        if (join.getLeft().getTable().equals(table)) {
+            columnReference = join.getRight();
+        } else if (join.getRight().getTable().equals(table)) {
+            columnReference = join.getLeft();
         } else {
             // this is a join that doesn't involve the table we are interested in
             return false;
         }
+
         // todo, check that the pk for the table is named id !!!!!!! eff
         return !columnReference.getNormalizedColumn().equals("id");
     }
@@ -157,7 +158,7 @@ public class SqlRepositoryService {
         sqlRepositoryManager.getSqlRepository().getAllTableReferences().forEach(
             table -> {
                 SchemaRollup.Builder builder = result.computeIfAbsent(
-                    table.getNormalizedSchema(), schemaName ->
+                    table.getNormalizedSchemaName(), schemaName ->
                     SchemaRollup.builder().name(schemaName)
                 );
                 List<SqlProfile> sqlList = sqlRepositoryManager.getSqlRepository().getTableQueries(table)
@@ -189,7 +190,7 @@ public class SqlRepositoryService {
         TagLoader tagLoader = tagsService.getBulkTagLoaderByTypeAndPathPrefix("table", "/schema/" + schema + "/");
 
         return sqlRepositoryManager.getSqlRepository().getAllTableReferences()
-            .filter(table -> table.getNormalizedSchema() != null && table.getNormalizedSchema().equalsIgnoreCase(schema)).map(
+            .filter(table -> table.getNormalizedSchemaName() != null && table.getNormalizedSchemaName().equalsIgnoreCase(schema)).map(
                 reference -> getTableRollup(reference, tagLoader)
         ).sorted(comparing(TableRollup::totalQueryTime).reversed());
     }
@@ -204,8 +205,8 @@ public class SqlRepositoryService {
 
         return TableRollup.builder()
             .name(reference.getNormalizedTableName())
-            .schema(reference.getNormalizedSchema())
-            .tags(tagLoader.findAllByPath("/schema/" + reference.getNormalizedSchema() + "/table/" + reference.getNormalizedTableName()))
+            .schema(reference.getNormalizedSchemaName())
+            .tags(tagLoader.findAllByPath("/schema/" + reference.getNormalizedSchemaName() + "/table/" + reference.getNormalizedTableName()))
             .numberOfQueries(sqlList.size())
             .totalQueryTime(totalQueryTime)
             .build();

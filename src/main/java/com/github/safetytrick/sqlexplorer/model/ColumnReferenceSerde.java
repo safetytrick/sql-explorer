@@ -4,12 +4,12 @@ import java.io.IOException;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -28,7 +28,7 @@ class ColumnReferenceSerde {
 
         @Override
         public void serialize(ColumnReference value, JsonGenerator gen, SerializerProvider provider) throws IOException {
-            gen.writeString(value.getNormalizedReference());
+            gen.writeString(value.toStringNormalized());
         }
     }
 
@@ -43,7 +43,7 @@ class ColumnReferenceSerde {
         }
 
         @Override
-        public ColumnReference deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+        public ColumnReference deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
             return ColumnReference.fromString(p.getText());
         }
     }

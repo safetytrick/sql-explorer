@@ -3,6 +3,8 @@ package com.github.safetytrick.sqlexplorer.model;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 
 public record Table(String name,
                    int numberOfQueries,

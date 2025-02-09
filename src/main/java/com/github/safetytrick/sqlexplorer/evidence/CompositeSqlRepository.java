@@ -5,10 +5,11 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import extensions.com.github.safetytrick.sqlexplorer.avro.SqlProfile.SqlProfileExtension;
 import jakarta.validation.constraints.NotNull;
 
 class CompositeSqlRepository implements SqlRepository {
@@ -52,14 +53,14 @@ class CompositeSqlRepository implements SqlRepository {
     @Override
     public SqlSource getSource() {
         // todo implement composite source
-        return sources.get(0).getSource();
+        return sources.getFirst().getSource();
     }
 
     private SqlProfile merge(List<SqlProfile> items) {
         if (items.isEmpty()) {
             return null;
         } else if (items.size() == 1) {
-            return items.get(0);
+            return items.getFirst();
         } else {
             return new MergedSqlProfile(items);
         }
@@ -71,7 +72,7 @@ class CompositeSqlRepository implements SqlRepository {
             Collectors.groupingBy(sql -> sql.getNormalizedDigest() != null ? sql.getNormalizedDigest() : sql.getDigest() != null ? sql.getDigest() : sql.getId()))
             .values()
             .stream()
-            .map(this::merge).sorted();
+            .map(this::merge).sorted(SqlProfileExtension.comparator);
     }
 
     @Override

@@ -9,8 +9,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import extensions.com.github.safetytrick.sqlexplorer.avro.SqlProfile.SqlProfileExtension;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -74,36 +75,36 @@ class SqlProfileReportService {
 
     public Stream<SqlProfile> getAnalysisFailures() {
         return sqlRepositoryService.getAllAnalyzedSql()
-            .filter(SqlProfile::isAnalysisFailed)
-            .filter(sql -> !sql.isTruncated())
+            .filter(SqlProfile::getAnalysisFailed)
+            .filter(sql -> !sql.getTruncated())
             .filter(sql -> sql.getAnalysisFailureReason() != null && sql.getAnalysisFailureReason().startsWith("Failure on:"))
-            .sorted();
+            .sorted(SqlProfileExtension.comparator);
     }
 
     public Stream<SqlProfile> getParseFailures() {
         return sqlRepositoryService.getAllAnalyzedSql()
-            .filter(SqlProfile::isAnalysisFailed)
-            .filter(sql -> !sql.isTruncated())
+            .filter(SqlProfile::getAnalysisFailed)
+            .filter(sql -> !sql.getTruncated())
             .filter(sql -> sql.getAnalysisFailureReason() != null && !sql.getAnalysisFailureReason().startsWith("Failure on:"))
-            .sorted();
+            .sorted(SqlProfileExtension.comparator);
     }
 
 
     public Stream<SqlProfile> getTruncatedSql() {
         return sqlRepositoryService.getAllAnalyzedSql()
-            .filter(SqlProfile::isTruncated)
-            .sorted();
+            .filter(SqlProfile::getTruncated)
+            .sorted(SqlProfileExtension.comparator);
     }
 
     public Stream<SqlProfile> getFullScanSql() {
         return sqlRepositoryService.getAllAnalyzedSql()
-            .filter(sql -> sql.getRuntimeMetrics() != null && sql.getRuntimeMetrics().isFullTableScan())
-            .sorted();
+            .filter(sql -> sql.getRuntimeMetrics() != null && sql.getRuntimeMetrics().getFullTableScan())
+            .sorted(SqlProfileExtension.comparator);
     }
 
     public Stream<SqlProfile> getMultiSchema() {
         return sqlRepositoryService.getAllAnalyzedSql()
-            .filter(SqlProfile::isMultiSchema)
-            .sorted();
+            .filter(SqlProfile::getIsMultiSchema)
+            .sorted(SqlProfileExtension.comparator);
     }
 }

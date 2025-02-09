@@ -7,9 +7,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.JoinColumns;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
@@ -33,8 +33,8 @@ public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
 
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder) {
-        List<JoinColumns> mismatchedJoins = mismatchedJoins(builder.view().getSchema(), builder.view().getJoinColumns());
-        builder.mismatchedJoins(mismatchedJoins);
+        List<JoinColumns> mismatchedJoins = mismatchedJoins(builder.getSchemaName(), builder.getJoinColumns());
+        builder.setMismatchedJoins(mismatchedJoins);
     }
 
     public List<JoinColumns> mismatchedJoins(String schema, List<JoinColumns> joinColumns) {
@@ -43,7 +43,7 @@ public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
         }
         return joinColumns.stream()
             .map(joinPair -> {
-                if (doColumnTypesMatch(schema, joinPair.left(), joinPair.right())) {
+                if (doColumnTypesMatch(schema, joinPair.getLeft(), joinPair.getRight())) {
                     return null;
                 }
                 return joinPair;

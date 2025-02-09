@@ -123,7 +123,7 @@
           <div class="query-reference">
             <ul class="tables query-reference">
               <li *ngFor="let table of query.tables">
-                <app-table-link linkClass="btn btn-primary" [defaultSchema]="query.schema" [tableReference]="table"></app-table-link>
+                <app-table-link linkClass="btn btn-primary" [defaultSchema]="query.schemaName" [tableReference]="table"></app-table-link>
               </li>
             </ul>
           </div>
@@ -135,7 +135,7 @@
             <div *ngFor="let join of query.joinColumns">
               <ul class="join-columns query-reference">
                 <li *ngFor="let joinColumn of join">
-                  <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schema" [columnReference]="joinColumn"></app-column-link>
+                  <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schemaName" [columnReference]="joinColumn"></app-column-link>
                 </li>
               </ul>
             </div>
@@ -147,7 +147,7 @@
           <div class="criteria-columns query-reference">
             <ul class="criteria-columns query-reference">
               <li *ngFor="let column of query.criteriaColumns">
-                <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schema" [columnReference]="column"></app-column-link>
+                <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schemaName" [columnReference]="column"></app-column-link>
               </li>
             </ul>
           </div>
@@ -163,10 +163,10 @@
             <li *ngFor="let join of query.mismatchedJoins">
               <div class="alert alert-danger">
                 <div>
-                  <app-column-link [schema]="query.schema" [columnReference]="join[0]"></app-column-link>
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
                 </div>
                 <div>
-                  <app-column-link [schema]="query.schema" [columnReference]="join[1]"></app-column-link>
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
                 </div>
               </div>
             </li>

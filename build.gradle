@@ -2,7 +2,7 @@ import org.springframework.boot.gradle.plugin.SpringBootPlugin
 
 buildscript {
     ext {
-        springBootVersion = '3.2.3'
+        springBootVersion = '3.4.2'
     }
     dependencies {
         classpath 'org.owasp:dependency-check-gradle:7.1.0.1'
@@ -12,7 +12,10 @@ buildscript {
 
 plugins {
     id "com.gorylenko.gradle-git-properties" version "2.4.1"
-    id "com.github.spotbugs" version "5.0.7"
+    id "com.github.spotbugs" version "6.1.3"
+    id "com.github.davidmc24.gradle.plugin.avro" version "1.9.1"
+    // todo, get this working, it depends on being able to startup the application within the build process
+    // id "org.springdoc.openapi-gradle-plugin" version "1.9.0"
 }
 
 apply plugin: 'java'
@@ -38,7 +41,7 @@ allprojects {
 
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(17)
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
 
@@ -56,28 +59,28 @@ allprojects {
     }
     spotbugsMain {
         reports {
-            xml.enabled false
-            html.enabled true
+            xml.required = false
+            html.required = true
         }
     }
     spotbugsTest {
         reports {
-            xml.enabled false
-            html.enabled true
+            xml.required = false
+            html.required = true
         }
     }
 
 
     tasks.register('dockerSourceCopy', Copy) {
         from "src/main/docker"
-        into "${project.buildDir}/docker"
+        into project.layout.buildDirectory.dir('docker')
         dependsOn "assemble"
     }
 
     tasks.register('dockerLibCopy', Copy) {
         from "build"
         include "libs/*"
-        into "${project.buildDir}/docker"
+        into project.layout.buildDirectory.dir('docker')
         dependsOn "assemble"
     }
 
@@ -108,6 +111,8 @@ dependencies {
     implementation 'org.liquibase:liquibase-core'
     implementation 'com.fasterxml.jackson.module:jackson-module-jakarta-xmlbind-annotations'
 
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
+
     implementation 'javax.inject:javax.inject:1'
     implementation("org.glassfish.jersey.core:jersey-server")
 
@@ -127,9 +132,27 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
     testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.2"
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation("org.assertj:assertj-core:3.27.2")
+
+    implementation project(':models')
+    implementation 'org.apache.avro:avro:1.12.0'
+    implementation 'org.apache.parquet:parquet-common:1.15.0'
+    implementation 'org.apache.parquet:parquet-encoding:1.15.0'
+    implementation 'org.apache.parquet:parquet-column:1.15.0'
+    implementation 'org.apache.parquet:parquet-avro:1.15.0'
+    implementation 'org.apache.parquet:parquet-hadoop:1.15.0'
+
+    implementation 'systems.manifold:manifold-ext-rt:2024.1.54'
+    annotationProcessor group: 'systems.manifold', name: 'manifold-ext', version: '2024.1.54'
+    testAnnotationProcessor group: 'systems.manifold', name: 'manifold-ext', version: '2024.1.54'
 }
 
 bootJar {
     archiveFileName = "sql-explorer.jar"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // If you DO NOT define a module-info.java file:
+    options.compilerArgs += ['-Xplugin:Manifold', '-implicit:class']
 }
 

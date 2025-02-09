@@ -14,13 +14,13 @@ import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static com.github.safetytrick.sqlexplorer.analysis.Assertions.assertContainsColumnReferences;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,31 +66,32 @@ public class SqlAnalysisServiceTest {
                     `performance_schema` . `events_waits_summary_global_by_event_name` . `SUM_TIMER_WAIT` DESC
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        SqlProfile sqlProfile = builder.build();
-        assertEquals("performance_schema", sqlProfile.getSchema());
-        assertEquals(Collections.singletonList(TableReference.fromString("events_waits_summary_global_by_event_name")
-                                                   .withDefaultSchema(sqlProfile.getSchema())),
-                     sqlProfile.getTables());
+        builder.complete("some_other_schema");
+
+        assertEquals("performance_schema", builder.getSchemaName());
+        assertThat(builder.getTables())
+            .hasSize(1)
+            .anyMatch(table -> table.equalsNormalized("performance_schema.events_waits_summary_global_by_event_name"));
     }
 
     @Test
     void insertValues() throws JSQLParserException {
         String sql = """
             INSERT INTO
-                    `notif_criteria_met` (
-                        `created_on` , `customer_id` , `store_id` , `notif_criteria_id` , `notif_destination_id` , `client_notification_id` , `customer_visit_id` , `data_id` , `evaluation_event_id` , `event_type` , `evaluation_time` , `id`)
+                    `some_table` (
+                        `created_on`, `id`)
                 VALUES
                     (...)
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
 
     }
 
@@ -128,10 +129,10 @@ public class SqlAnalysisServiceTest {
                     AND `deleted_by` IS NULL
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -155,10 +156,10 @@ public class SqlAnalysisServiceTest {
                     AND `pr` . `type` = ?
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -190,10 +191,10 @@ public class SqlAnalysisServiceTest {
                 WHERE
                     `store0_` .""";
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -240,10 +241,10 @@ public class SqlAnalysisServiceTest {
                     ? ) ) ) ) AS ? ,
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Disabled("jsql parser failure")
@@ -297,10 +298,10 @@ public class SqlAnalysisServiceTest {
                     AND `pv` . `dx_descriptions` NOT LIKE ?
                     AND `pv` . `dx_descriptions` NOT LIKE""";
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Disabled("I think we could work around this")
@@ -371,10 +372,10 @@ public class SqlAnalysisServiceTest {
                                     AND
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -406,11 +407,11 @@ public class SqlAnalysisServiceTest {
                     AND `customerdia2_` . `customer_visit_id` = \s
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
-        assertTrue(builder.build().isTruncated());
+        assertFalse(builder.getAnalysisFailed());
+        assertTrue(builder.getTruncated());
     }
 
     @Test
@@ -441,10 +442,10 @@ public class SqlAnalysisServiceTest {
                     AND (
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -475,10 +476,10 @@ public class SqlAnalysisServiceTest {
                     AND (
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -522,10 +523,10 @@ public class SqlAnalysisServiceTest {
                     `pv` . `checkin_date` DESC
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -541,10 +542,10 @@ public class SqlAnalysisServiceTest {
                     )
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -572,10 +573,10 @@ public class SqlAnalysisServiceTest {
                     ) LIMIT ?, ...
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -617,14 +618,14 @@ public class SqlAnalysisServiceTest {
                         AND `m_ccl` . `latest_created_on` = `ccl` . `created_on`
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
 
         when(columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("client_change_log"), "created_on"))
             .thenReturn("client_change_log");
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed(), builder.build().getAnalysisFailureReason());
+        assertFalse(builder.getAnalysisFailed(), builder.getAnalysisFailureReason());
     }
 
     @Test
@@ -657,10 +658,10 @@ public class SqlAnalysisServiceTest {
                     AND `c` . `last_login` BETWEEN DATE_SUB ( NOW ( ) , INTERVAL ? + ? SQL_TSI_DAY ) AND DATE_SUB ( NOW ( ) , INTERVAL ? SQL_TSI_DAY )
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Disabled("no idea what the = ? IN statement here means")
@@ -702,10 +703,10 @@ public class SqlAnalysisServiceTest {
                     AND `re` . `transferred_on` IS NULL
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -722,10 +723,10 @@ public class SqlAnalysisServiceTest {
                     `state`
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -772,10 +773,10 @@ public class SqlAnalysisServiceTest {
 
         when(columnTableResolver.selectTableNameFromCandidates(Arrays.asList("customer_diagnosis", "customer_visit"), "code")).thenReturn("customer_diagnosis");
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -818,10 +819,10 @@ public class SqlAnalysisServiceTest {
                     `checkin_date` DESC LIMIT ?
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -870,12 +871,12 @@ public class SqlAnalysisServiceTest {
                         AND `pal` .
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertFalse(builder.build().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
 
-        assertFalse(builder.view().getJoinColumns().stream().anyMatch(column -> column.toString().contains("content_id.content_id")));
+        assertFalse(builder.getJoinColumns().stream().anyMatch(column -> column.toString().contains("content_id.content_id")));
 
     }
 
@@ -924,11 +925,11 @@ public class SqlAnalysisServiceTest {
                         AND `pal` .
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
-        builder.schema("tdb");
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
+        builder.setSchemaName("tdb");
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertTrue(builder.view().isMultiSchema());
+        assertTrue(builder.getIsMultiSchema());
     }
 
     // i don't know why this is failing, may 27, 2022
@@ -973,10 +974,10 @@ public class SqlAnalysisServiceTest {
                     `f` . `id`
             """;
 
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(),
+        assertContainsColumnReferences(builder.getCriteriaColumns(),
                                        "customer_visit.billing_account_number",
                                        "customer_visit.account_number",
                                        "customer_visit.major_class",
@@ -988,7 +989,7 @@ public class SqlAnalysisServiceTest {
     void parse_slow_resources() throws JSQLParserException {
         for (String slowParsed : new String[]{"1cf", "50e", "419", "b70", "c51", "928"}) {
             String sqlResource = getSqlResource("slow-parse-" + slowParsed + ".sql");
-            SqlProfile.Builder builder = SqlProfile.builder();
+            SqlProfile.Builder builder = SqlProfile.newBuilder();
             sqlAnalysisService.analyzeSql(sqlResource, builder);
         }
     }

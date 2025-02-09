@@ -2,8 +2,8 @@ package com.github.safetytrick.sqlexplorer.analysis;
 
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -11,8 +11,8 @@ public class Assertions {
 
     public static void assertContainsJoinColumns(List<JoinColumns> joinColumns, String first, String second) {
         for (JoinColumns pair : joinColumns) {
-            if (pair.left().equals(ColumnReference.fromString(first)) && pair.right().equals(ColumnReference.fromString(second)) ||
-                pair.right().equals(ColumnReference.fromString(first)) && pair.left().equals(ColumnReference.fromString(second))
+            if (pair.getLeft().equalsNormalized(ColumnReference.fromString(first)) && pair.getRight().equalsNormalized(ColumnReference.fromString(second)) ||
+                pair.getRight().equalsNormalized(ColumnReference.fromString(first)) && pair.getLeft().equalsNormalized(ColumnReference.fromString(second))
             ) {
                 return;
             }
@@ -22,7 +22,7 @@ public class Assertions {
 
     public static void assertContainsColumnReferences(List<ColumnReference> criteriaColumns, String... columns) {
         for (String column : columns) {
-            boolean found = criteriaColumns.stream().anyMatch(ref -> ref.getNormalizedReference().equals(column));
+            boolean found = criteriaColumns.stream().anyMatch(ref -> ref.toStringNormalized().equals(column));
             if (!found) {
                 fail(column + " not found in: " + criteriaColumns);
             }

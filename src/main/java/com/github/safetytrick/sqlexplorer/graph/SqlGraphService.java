@@ -11,11 +11,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.SqlTagsService;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.Table;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
@@ -62,7 +63,7 @@ class SqlGraphService implements GraphService {
                                                                              String schema,
                                                                              String tableName) {
         Set<TableReference> visited = new HashSet<>();
-        TableReference tableReference = new TableReference(schema, tableName);
+        TableReference tableReference = TableReference.newTableReference(schema, tableName);
 
         return visitRelated(visited, tableReference, threshold, depth);
     }
@@ -71,11 +72,11 @@ class SqlGraphService implements GraphService {
     public Stream<GroupedTableRelationships> getTableRelationshipsForTag(int threshold, int depth, String tag) {
         return sqlTagsService.getTablesByTag(tag)
             .flatMap(table -> {
-                        TableReference tableReference = new TableReference(table.schema(), table.name());
+                        TableReference tableReference = TableReference.newTableReference(table.schema(), table.name());
                          return getTableRelationshipsForSchemaAndTable(threshold, depth, table.schema(), table.name())
                              .map(tableRelationships -> tableRelationships.table().equals(tableReference)
                                  ? new GroupedTableRelationships(tag, tableRelationships)
-                                 : new GroupedTableRelationships(tableReference.getSchema(), tableRelationships));
+                                 : new GroupedTableRelationships(tableReference.getSchemaName(), tableRelationships));
 
                      }
 
@@ -111,9 +112,9 @@ class SqlGraphService implements GraphService {
             for (TableReference tableReference : tableReferences) {
                 String other = tableReference.getNormalizedTableName();
                 final Table queriesForTableJoin = sqlRepositoryService.getQueriesForTableJoin(threshold,
-                                                                                              new TableReference(schema,
+                                                                                              TableReference.newTableReference(schema,
                                                                                                                  table),
-                                                                                              new TableReference(otherSchema,
+                                                                                              TableReference.newTableReference(otherSchema,
                                                                                                                  other));
                 final String tableValue = other + "|" + table;
                 populateTablesFromQueries(queryToTables, tableValue, queriesForTableJoin.queries());
@@ -126,19 +127,18 @@ class SqlGraphService implements GraphService {
                                            String tableValue,
                                            List<SqlProfile> queries) {
         for(SqlProfile sqlProfile : queries) {
-            if(sqlProfile.getQueryActivityStatus().isActive()){
+            if(sqlProfile.getQueryActivityStatus() == QueryActivityStatus.ACTIVE){
                 String query = sqlProfile.getQuery().replaceAll("`", "").replaceAll("\\n\\s*", " ");
-                final CrossSchemaTable currentTableValues = queryToTables.get(query);
-                queryToTables.put(query, createCrossSchemaTable(tableValue, query, sqlProfile, currentTableValues));
+                queryToTables.compute(query, (k, currentTableValues) -> createCrossSchemaTable(tableValue, query, sqlProfile, currentTableValues));
             }
         }
     }
 
     private CrossSchemaTable createCrossSchemaTable(String tableValue, String query, SqlProfile sqlProfile, CrossSchemaTable existingTableValues){
-        final String grafanaUrl = GRAFANA_URL.formatted(sqlProfile.getPerfDigests().get(0));
+        final String grafanaUrl = GRAFANA_URL.formatted(sqlProfile.getPerfDigests().getFirst());
         Matcher matcher = serverPattern.matcher(sqlProfile.getId());
         String server = matcher.find() ? matcher.group(1) : "";
-        final String rundeckQuery = RUNDECK_QUERY.formatted(sqlProfile.getPerfDigests().get(0), server);
+        final String rundeckQuery = RUNDECK_QUERY.formatted(sqlProfile.getPerfDigests().getFirst(), server);
         final String analysisUrl = BASE_URL + sqlProfile.getDigest();
         if(existingTableValues == null){
             return new CrossSchemaTable(
@@ -157,7 +157,7 @@ class SqlGraphService implements GraphService {
     }
 
     private TableRelationships getTableRelationships(int threshold, TableStructure tableStructure) {
-        TableReference reference = new TableReference(tableStructure.schema(), tableStructure.name());
+        TableReference reference = TableReference.newTableReference(tableStructure.schema(), tableStructure.name());
         Table table = sqlRepositoryService.getTable(threshold, reference);
         return new TableRelationships(reference, table.foreignKeyTables(), table.joinTables(), table.relatedTables());
     }

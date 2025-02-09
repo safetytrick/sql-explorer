@@ -2,18 +2,27 @@ package com.github.safetytrick.sqlexplorer.model;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
+import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 
 public class MergedSqlProfile extends SqlProfile {
 
-    private final List<SqlProfile> sourceList;
+    private List<SqlProfile> sourceList;
     private RuntimeMetrics merged;
 
     public MergedSqlProfile(List<SqlProfile> sourceList) {
         this.sourceList = sourceList;
     }
 
+    public MergedSqlProfile() {
+    }
+
     private SqlProfile first() {
-        return sourceList.get(0);
+        return sourceList.getFirst();
     }
 
     @Override
@@ -52,28 +61,28 @@ public class MergedSqlProfile extends SqlProfile {
     }
 
     @Override
-    public boolean isTruncated() {
-        return first().isTruncated();
+    public boolean getTruncated() {
+        return first().getTruncated();
     }
 
     @Override
-    public boolean isAnalysisFailed() {
-        return first().isAnalysisFailed();
+    public boolean getAnalysisFailed() {
+        return first().getAnalysisFailed();
     }
 
     @Override
-    public boolean isAnalysisSkipped() {
-        return first().isAnalysisSkipped();
+    public boolean getAnalysisSkipped() {
+        return first().getAnalysisSkipped();
     }
 
     @Override
-    public boolean isModifiedForAnalysis() {
-        return sourceList.stream().anyMatch(SqlProfile::isModifiedForAnalysis);
+    public boolean getModifiedForAnalysis() {
+        return sourceList.stream().anyMatch(SqlProfile::getModifiedForAnalysis);
     }
 
     @Override
-    public boolean isDml() {
-        return first().isDml();
+    public boolean getIsDml() {
+        return first().getIsDml();
     }
 
     @Override
@@ -97,12 +106,12 @@ public class MergedSqlProfile extends SqlProfile {
     }
 
     @Override
-    public String getSchema() {
-        return first().getSchema();
+    public String getSchemaName() {
+        return first().getSchemaName();
     }
 
     @Override
-    public int getLineNumber() {
+    public Integer getLineNumber() {
         return sourceList.stream().mapToInt(SqlProfile::getLineNumber).min()
             .orElse(Integer.MAX_VALUE);
     }

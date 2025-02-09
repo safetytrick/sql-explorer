@@ -1,0 +1,8 @@
+
+apply plugin: 'java'
+apply plugin: 'com.github.davidmc24.gradle.plugin.avro'
+apply plugin: 'com.gorylenko.gradle-git-properties'
+
+dependencies {
+    implementation 'org.apache.avro:avro:1.12.0'
+}

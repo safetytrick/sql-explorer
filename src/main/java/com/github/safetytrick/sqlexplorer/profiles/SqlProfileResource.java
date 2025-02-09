@@ -4,9 +4,9 @@ import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.model.Table;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,7 +49,7 @@ class SqlProfileResource {
     public Table getTable(@PathVariable String schema,
                           @PathVariable("name") String tableName,
                           @RequestParam(defaultValue = "0") int threshold) {
-        return sqlRepositoryService.getTable(threshold, new TableReference(schema, tableName));
+        return sqlRepositoryService.getTable(threshold, TableReference.newTableReference(schema, tableName));
     }
 
     @GetMapping("/api/sql-explorer/table/{schema}/{name}/column/{column}")
@@ -57,7 +57,7 @@ class SqlProfileResource {
                                      @PathVariable("name") String tableName,
                                      @PathVariable String column,
                                      @RequestParam(defaultValue = "0") int threshold) {
-        return sqlRepositoryService.getQueriesForColumn(threshold, new TableReference(schema, tableName), column);
+        return sqlRepositoryService.getQueriesForColumn(threshold, TableReference.newTableReference(schema, tableName), column);
     }
 
     @GetMapping("/api/sql-explorer/table/{schema}/{table}/join/{otherSchema}/{otherTable}")
@@ -66,7 +66,7 @@ class SqlProfileResource {
                                      @PathVariable String otherSchema,
                                      @PathVariable String otherTable,
                                      @RequestParam(defaultValue = "0") int threshold) {
-        return sqlRepositoryService.getQueriesForTableJoin(threshold, new TableReference(schema, tableName), new TableReference(otherSchema, otherTable));
+        return sqlRepositoryService.getQueriesForTableJoin(threshold, TableReference.newTableReference(schema, tableName), TableReference.newTableReference(otherSchema, otherTable));
     }
 
 

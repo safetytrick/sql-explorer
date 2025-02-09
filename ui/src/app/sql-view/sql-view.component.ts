@@ -30,7 +30,7 @@ export class SqlViewComponent implements OnInit {
       this.query = data;
       this.tables = [];
       // todo handle queries with cross-schema joins (table is like newt.tag_map)
-      this.query.tables.forEach(table => (table.indexOf('.') === -1 ? this.sqlService.getTableStructure(this.query.schema, table)
+      this.query.tables.forEach(table => (table.indexOf('.') === -1 ? this.sqlService.getTableStructure(this.query.schemaName, table)
         : this.sqlService.getTableStructure(table.split('.')[0], table.split('.')[1]))
         .subscribe((tableStructure: {}) => {
           this.tables.push(tableStructure);

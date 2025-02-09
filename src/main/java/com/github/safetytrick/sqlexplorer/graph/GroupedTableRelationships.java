@@ -2,7 +2,7 @@ package com.github.safetytrick.sqlexplorer.graph;
 
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 
 record GroupedTableRelationships(
     String group,

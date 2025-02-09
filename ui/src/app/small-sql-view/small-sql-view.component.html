@@ -28,10 +28,10 @@
       <li *ngFor="let join of query.mismatchedJoins">
         <div class="alert alert-danger">
           <div>
-            <app-column-link [schema]="query.schema" [columnReference]="join[0]"></app-column-link>
+            <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
           </div>
           <div>
-            <app-column-link [schema]="query.schema" [columnReference]="join[1]"></app-column-link>
+            <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
           </div>
         </div>
       </li>

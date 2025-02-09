@@ -5,9 +5,9 @@ import java.util.Collections;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.JoinColumns;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
@@ -17,10 +17,10 @@ import org.junit.jupiter.api.Test;
 
 import static com.github.safetytrick.sqlexplorer.analysis.Assertions.assertContainsColumnReferences;
 import static com.github.safetytrick.sqlexplorer.analysis.Assertions.assertContainsJoinColumns;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -34,7 +34,7 @@ public class WhereClauseAnalyzerTest {
     public void setUp() {
         columnTableResolver = mock(ColumnTableResolver.class);
         sqlAnalysisService = new SqlAnalysisService(new WhereClauseAnalyzer(columnTableResolver));
-        builder = SqlProfile.builder();
+        builder = SqlProfile.newBuilder();
     }
 
     @Test
@@ -48,9 +48,9 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
-        assertNotNull(criteriaColumns);
-        assertEquals(Collections.emptyList(), criteriaColumns);
+        assertFalse(builder.getAnalysisFailed());
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
+        assertNull(criteriaColumns);
     }
 
     @Test
@@ -65,9 +65,12 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
-        assertEquals(Collections.singletonList(ColumnReference.fromString("report_column_config_field.report_column_id")), criteriaColumns);
+
+        assertThat(criteriaColumns)
+            .hasSize(1)
+            .anyMatch(column -> column.equalsNormalized("report_column_config_field.report_column_id"));
     }
 
     @Test
@@ -84,10 +87,10 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
 
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("client_notification.completed_on")));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("client_notification.completed_on"));
 
     }
 
@@ -106,13 +109,13 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
 
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("store.type")));
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_visit.customer_id")));
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_visit.checkin_date")));
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("store_config.value")));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("store.type"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_visit.customer_id"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_visit.checkin_date"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("store_config.value"));
     }
 
     @Test
@@ -139,11 +142,11 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
 
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_identifier.customer_id")));
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_store_relationship.effective_on")));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_identifier.customer_id"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_store_relationship.effective_on"));
     }
 
     @Test
@@ -188,10 +191,10 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_care_guideline.customer_id")));
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_care_guideline.content_action")));
-        assertTrue(criteriaColumns.contains(ColumnReference.fromString("customer_care_guideline.store_id")));
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_care_guideline.customer_id"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_care_guideline.content_action"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_care_guideline.store_id"));
     }
 
     @Test
@@ -249,7 +252,7 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<JoinColumns> joinColumns = builder.view().getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
         assertContainsJoinColumns(joinColumns, "customer_visit.id", "customer_visit_membership.customer_visit_id");
     }
 
@@ -300,7 +303,7 @@ public class WhereClauseAnalyzerTest {
         whereClauseAnalyzer.analyze(statement, builder);
         joinColumnAnalyzer.analyze(statement, builder);
 
-        List<JoinColumns> joinColumns = builder.view().getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
         assertContainsJoinColumns(joinColumns, "notif_criteria_met.customer_id", "notif_criteria_met.customer_id");
     }
 
@@ -327,7 +330,8 @@ public class WhereClauseAnalyzerTest {
 
         whereClauseAnalyzer.analyze(statement, builder);
 
-        assertTrue(builder.view().getCriteriaColumns().contains(ColumnReference.fromString("customer_referral.id")));
+        assertThat(builder.getCriteriaColumns())
+            .anyMatch(other -> ColumnReference.fromString("customer_referral.id").equalsNormalized(other));
     }
 
     @Test
@@ -357,11 +361,11 @@ public class WhereClauseAnalyzerTest {
 
         whereClauseAnalyzer.analyze(statement, builder);
 
-        assertFalse(builder.view().isAnalysisFailed(), builder.view().getAnalysisFailureReason());
+        assertFalse(builder.getAnalysisFailed(), builder.getAnalysisFailureReason());
 
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(), "customer_visit.checkin_date");
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(), "customer_visit.customer_id");
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(), "customer_referral.managing_store_id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(), "customer_visit.checkin_date");
+        assertContainsColumnReferences(builder.getCriteriaColumns(), "customer_visit.customer_id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(), "customer_referral.managing_store_id");
 
     }
 
@@ -399,8 +403,9 @@ public class WhereClauseAnalyzerTest {
 
         whereClauseAnalyzer.analyze(statement, builder);
 
-        assertTrue(builder.view().getCriteriaColumns().contains(ColumnReference.fromString("customer_identifier.store_id")));
-        assertTrue(builder.view().getCriteriaColumns().contains(ColumnReference.fromString("customer_identifier.type")));
+        assertThat(builder.getCriteriaColumns())
+            .contains(ColumnReference.fromString("customer_identifier.store_id"))
+            .contains(ColumnReference.fromString("customer_identifier.type"));
     }
 
     @Test
@@ -445,10 +450,10 @@ public class WhereClauseAnalyzerTest {
 
         whereClauseAnalyzer.analyze(statement, builder);
 
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(),"store_identifier.type");
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(),"customer_visit.store_id");
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(),"customer_visit.id");
-        assertContainsColumnReferences(builder.view().getCriteriaColumns(),"customer_visit.checkin_date");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"store_identifier.type");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"customer_visit.store_id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"customer_visit.id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"customer_visit.checkin_date");
     }
 
     @Test
@@ -521,8 +526,8 @@ public class WhereClauseAnalyzerTest {
         whereClauseAnalyzer.analyze(statement, builder);
         // todo implement me: joinColumnAnalyzer.analyze(statement, builder);
 
-        assertTrue(builder.view().getCriteriaColumns().contains(ColumnReference.fromString("notif_criteria_met.created_on")));
-        assertTrue(builder.view().getCriteriaColumns().contains(ColumnReference.fromString("notif_criteria_met.customer_id")));
+        assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("notif_criteria_met.created_on"));
+        assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("notif_criteria_met.customer_id"));
     }
 
     @Disabled
@@ -615,7 +620,7 @@ public class WhereClauseAnalyzerTest {
 
         whereClauseAnalyzer.analyze(statement, builder);
 
-        assertFalse(builder.view().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
     }
 
     @Test
@@ -662,13 +667,12 @@ public class WhereClauseAnalyzerTest {
         whereClauseAnalyzer.analyze(statement, builder);
         joinColumnAnalyzer.analyze(statement, builder);
 
-        assertFalse(builder.view().isAnalysisFailed());
+        assertFalse(builder.getAnalysisFailed());
 
-        SqlProfile sqlProfile = builder.build();
 
-        assertTrue(sqlProfile.getCriteriaColumns().contains(ColumnReference.fromString("report_config_field.report_id")));
+        assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("report_config_field.report_id"));
 
-        List<JoinColumns> joinColumns = sqlProfile.getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
 
         assertContainsJoinColumns(joinColumns, "report_config_field.report_id", "report.id");
         assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.client.id");
@@ -689,10 +693,10 @@ public class WhereClauseAnalyzerTest {
               AND `nd`.`enabled` = TRUE
               AND `nd`.`enabled_on` <= ?""";
 
-        builder.schema("tdb");
+        builder.setSchemaName("tdb");
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
 
         // [notif_criteria_destination.notif_criteria_id, notif_criteria_destination.deleted_on, notif_destination.deleted_on, notif_destination.enabled, notif_destination.enabled_on]
 
@@ -738,7 +742,7 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertContainsColumnReferences(criteriaColumns, "store_config.store_id");
     }
 
@@ -786,7 +790,7 @@ public class WhereClauseAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<ColumnReference> criteriaColumns = builder.view().getCriteriaColumns();
+        List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertContainsColumnReferences(criteriaColumns, "insights.contribution.contributor_id");
     }
 

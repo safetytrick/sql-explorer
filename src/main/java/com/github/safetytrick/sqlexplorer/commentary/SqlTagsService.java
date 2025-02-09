@@ -4,8 +4,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import org.springframework.stereotype.Service;
 
@@ -38,10 +38,9 @@ public class SqlTagsService {
         Map<String, String> elements = tag.getPathElements();
         String schema = elements.get("schema");
         String table = elements.get("table");
-        TableReference reference = new TableReference(schema, table);
+        TableReference reference = TableReference.newTableReference(schema, table);
         return sqlRepositoryService.getTableRollup(reference, tagsService);
     }
-
 
     private SqlProfile buildTaggedAnalyzedSql(Tag tag) {
         String queryId = tag.getPathElements().get(tag.getType());

@@ -8,6 +8,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,8 +18,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import jakarta.annotation.PostConstruct;
@@ -75,7 +76,7 @@ public class SchemaLoadingService {
     public TableStructure getTable(TableReference table) {
         Objects.requireNonNull(table);
 
-        return byTableReference.get(table);
+        return byTableReference.get(table.normalized());
     }
 
 
@@ -85,6 +86,8 @@ public class SchemaLoadingService {
 
     @PostConstruct
     private void initializeTableStructures() {
+        log.info("Initializing table structures");
+        long start = System.nanoTime();
         try (Connection connection = getConnection()) {
             try (ResultSet tables = connection.getMetaData().getTables(null, null, null, null)) {
                 List<TableStructure> tableStructures = new ArrayList<>();
@@ -93,6 +96,7 @@ public class SchemaLoadingService {
                     String schema = tables.getString("TABLE_CAT");
 
                     String tableName = tables.getString("TABLE_NAME");
+                    log.trace("Reading structure for table {}", tableName);
                     if (schema == null) {
                         log.warn("null schema for table {}", tableName);
                     }
@@ -105,7 +109,7 @@ public class SchemaLoadingService {
                     String refGeneration = tables.getString("REF_GENERATION");
                     String create = getCreateStatement(schema, tableName);
 
-                    TableReference table = new TableReference(schema, tableName);
+                    TableReference table = TableReference.newTableReference(schema, tableName).normalized();
                     TableStructure structure = TableStructure.builder()
                         .schema(schema)
                         .name(tableName)
@@ -131,6 +135,7 @@ public class SchemaLoadingService {
             tableStructures = Collections.emptyList();
             throw new IllegalArgumentException(e);
         }
+        log.info("Completed read of table structure in {}", Duration.ofNanos(System.nanoTime() - start));
 
     }
 
@@ -166,8 +171,9 @@ public class SchemaLoadingService {
     private List<ForeignKey> getForeignKeys(Connection connection, TableReference table) throws SQLException {
         ForeignKey.Builder builder = null;
         List<ForeignKey> result = new ArrayList<>();
+        log.trace("Reading foreign keys for {}", table.toStringNormalized());
         try (ResultSet keys = connection.getMetaData()
-            .getImportedKeys(table.getSchema(), table.getSchema(), table.getTableName())) {
+            .getImportedKeys(table.getSchemaName(), table.getSchemaName(), table.getTableName())) {
 
             while (keys.next()) {
                 int sequence = keys.getInt("KEY_SEQ");
@@ -216,7 +222,7 @@ public class SchemaLoadingService {
     }
 
     private void addTableStructure(TableReference reference, TableStructure structure) {
-        byTableReference.put(reference, structure);
+        byTableReference.put(reference.normalized(), structure);
         byTableName.put(structure.name().toLowerCase(), structure);
 
     }
@@ -324,10 +330,11 @@ public class SchemaLoadingService {
              where table_name = ? and table_schema = ?;\
             """;
 
+        log.trace("Reading columns characters and collations for {}", table.toStringNormalized());
         Map<String, List<String>> characterSetCollationMap = new HashMap<>();
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
             preparedStatement.setString(1, table.getTableName());
-            preparedStatement.setString(2, table.getSchema());
+            preparedStatement.setString(2, table.getSchemaName());
 
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
                 while (resultSet.next()) {
@@ -338,7 +345,8 @@ public class SchemaLoadingService {
             }
         }
 
-        try (ResultSet columns = connection.getMetaData().getColumns(table.getSchema(), table.getSchema(), table.getTableName(), null)) {
+        log.trace("Reading columns for {}", table.toStringNormalized());
+        try (ResultSet columns = connection.getMetaData().getColumns(table.getSchemaName(), table.getSchemaName(), table.getTableName(), null)) {
             List<TableColumn> tableColumns = new ArrayList<>();
             while (columns.next()) {
                 // mysql sends over schema in the catalog column
@@ -424,8 +432,9 @@ public class SchemaLoadingService {
      *  <LI><B>FILTER_CONDITION</B> String {@code =>} Filter condition, if any.
      */
     private List<TableIndex> getIndexesForTable(Connection connection, TableReference table) throws SQLException {
+        log.trace("Reading indexes for {}", table.toStringNormalized());
         DatabaseMetaData metaData = connection.getMetaData();
-        try (ResultSet indexInfo = metaData.getIndexInfo(table.getSchema(), null, table.getTableName(), false, false)) {
+        try (ResultSet indexInfo = metaData.getIndexInfo(table.getSchemaName(), null, table.getNormalizedTableName(), false, false)) {
             List<TableIndex> indices = new ArrayList<>();
             TableIndex.Builder builder = null;
             String prevIndexName = null;
