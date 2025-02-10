@@ -136,8 +136,23 @@ public record TableColumn(String schema,
         }
 
         public TableColumn build() {
-            return new TableColumn(schema, table, columnName, type, typeName, columnSize, decimalDigits,
-                                   radix, remarks, columnDefault, octetLength, ordinal, isNullable, isAutoIncrement, isGenerated, characterSet, collation);
+            return new TableColumn(schema,
+                table,
+                columnName,
+                type,
+                typeName,
+                columnSize,
+                decimalDigits,
+                radix,
+                remarks,
+                columnDefault,
+                octetLength,
+                ordinal,
+                isNullable,
+                isAutoIncrement,
+                isGenerated,
+                characterSet,
+                collation);
         }
 
 
