@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +38,7 @@ public class TableColumnService {
     }
 
     public List<TableColumn> getColumns(TableReference table) {
-        return tableColumnsMap.get(table.normalized());
+        return tableColumnsMap.getOrDefault(table.normalized(), Collections.emptyList());
     }
 
 

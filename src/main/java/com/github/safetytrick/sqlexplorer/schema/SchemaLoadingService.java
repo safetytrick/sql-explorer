@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -33,6 +32,7 @@ public class SchemaLoadingService {
     private final DataSource metadataDataSource;
     private final TableColumnService tableColumnService;
     private final IndexLoadingService indexLoadingService;
+    private final ForeignKeyLoadingService foreignKeyLoadingService;
 
     // todo remove this global scope and reference this as an environment
     private volatile List<TableStructure> tableStructures;
@@ -40,10 +40,13 @@ public class SchemaLoadingService {
     private final ListMultimap<String, TableStructure> byTableName = ArrayListMultimap.create();
 
     public SchemaLoadingService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource,
-                                TableColumnService tableColumnService, IndexLoadingService indexLoadingService) {
+                                TableColumnService tableColumnService,
+                                IndexLoadingService indexLoadingService,
+                                ForeignKeyLoadingService foreignKeyLoadingService) {
         this.metadataDataSource = metadataDataSource;
         this.tableColumnService = tableColumnService;
         this.indexLoadingService = indexLoadingService;
+        this.foreignKeyLoadingService = foreignKeyLoadingService;
     }
 
     private Connection getConnection() throws SQLException {
@@ -89,48 +92,35 @@ public class SchemaLoadingService {
         log.info("Initializing table structures");
         long start = System.nanoTime();
         try (Connection connection = getConnection()) {
+
+            long startTables = System.nanoTime();
+            List<Map.Entry<TableReference, TableStructure.Builder>> tableBuilders = new ArrayList<>();
             try (ResultSet tables = connection.getMetaData().getTables(null, null, null, null)) {
-                List<TableStructure> tableStructures = new ArrayList<>();
                 while (tables.next()) {
-                    // the jdbc driver sends the schema column over in the catalog field
-                    String schema = tables.getString("TABLE_CAT");
-
-                    String tableName = tables.getString("TABLE_NAME");
-                    log.trace("Reading structure for table {}", tableName);
-                    if (schema == null) {
-                        log.warn("null schema for table {}", tableName);
-                    }
-                    String tableType = tables.getString("TABLE_TYPE");
-                    String remarks = tables.getString("REMARKS");
-                    String typesCatalog = tables.getString("TYPE_CAT");
-                    String typesSchema = tables.getString("TYPE_SCHEM");
-                    String typeName = tables.getString("TYPE_NAME");
-                    String selfReferencingColumnName = tables.getString("SELF_REFERENCING_COL_NAME");
-                    String refGeneration = tables.getString("REF_GENERATION");
-                    String create = getCreateStatement(schema, tableName);
-
-                    TableReference table = TableReference.newTableReference(schema, tableName).normalized();
-                    TableStructure structure = TableStructure.builder()
-                        .schema(schema)
-                        .name(tableName)
-                        .create(create)
-                        .type(tableType)
-                        .remarks(remarks)
-                        .foreignKeys(
-                            getForeignKeys(connection, table)
-                        )
-                        .columns(
-                            tableColumnService.getColumns(table)
-                        )
-                        .indices(
-                            indexLoadingService.getIndexes(table)
-                        ).build();
-
-                    tableStructures.add(structure);
-                    addTableStructure(table, structure);
+                    var entry = tableStructureEntry(tables);
+                    tableBuilders.add(entry);
                 }
-                this.tableStructures = tableStructures;
             }
+            log.info("Completed reading table metadata in {}", Duration.ofNanos(System.nanoTime() - startTables));
+
+
+            long startCreateTables = System.nanoTime();
+            List<TableStructure> tableStructures = new ArrayList<>();
+            for (var entry : tableBuilders) {
+                TableReference table = entry.getKey();
+                String create = getCreateStatement(connection,
+                    table.getSchemaName(),
+                    table.getTableName());
+                entry.getValue().create(create);
+
+                TableStructure structure = entry.getValue().build();
+                tableStructures.add(structure);
+                addTableStructure(table, structure);
+            }
+            log.info("Completed reading create statements in {}", Duration.ofNanos(System.nanoTime() - startCreateTables));
+
+            this.tableStructures = tableStructures;
+
         } catch (SQLException e) {
             tableStructures = Collections.emptyList();
             throw new IllegalArgumentException(e);
@@ -139,85 +129,54 @@ public class SchemaLoadingService {
 
     }
 
-    /*
-     *  PKTABLE_CAT String => primary key table catalog being imported (may be null)
-     *  PKTABLE_SCHEM String => primary key table schema being imported (may be null)
-     *  PKTABLE_NAME String => primary key table name being imported
-     *  PKCOLUMN_NAME String => primary key column name being imported
-     *  FKTABLE_CAT String => foreign key table catalog (may be null)
-     *  FKTABLE_SCHEM String => foreign key table schema (may be null)
-     *  FKTABLE_NAME String => foreign key table name
-     *  FKCOLUMN_NAME String => foreign key column name
-     *  KEY_SEQ short => sequence number within a foreign key( a value of 1 represents the first column of the foreign key, a value of 2 would represent the second column within the foreign key).
-     *  UPDATE_RULE short => What happens to a foreign key when the primary key is updated:
-     *      importedNoAction - do not allow update of primary key if it has been imported
-     *      importedKeyCascade - change imported key to agree with primary key update
-     *      importedKeySetNull - change imported key to NULL if its primary key has been updated
-     *      importedKeySetDefault - change imported key to default values if its primary key has been updated
-     *      importedKeyRestrict - same as importedKeyNoAction (for ODBC 2.x compatibility)
-     *  DELETE_RULE short => What happens to the foreign key when primary is deleted.
-     *      importedKeyNoAction - do not allow delete of primary key if it has been imported
-     *      importedKeyCascade - delete rows that import a deleted key
-     *      importedKeySetNull - change imported key to NULL if its primary key has been deleted
-     *      importedKeyRestrict - same as importedKeyNoAction (for ODBC 2.x compatibility)
-     *      importedKeySetDefault - change imported key to default if its primary key has been deleted
-     *  FK_NAME String => foreign key name (may be null)
-     *  PK_NAME String => primary key name (may be null)
-     *  DEFERRABILITY short => can the evaluation of foreign key constraints be deferred until commit
-     *      importedKeyInitiallyDeferred - see SQL92 for definition
-     *      importedKeyInitiallyImmediate - see SQL92 for definition
-     *      importedKeyNotDeferrable - see SQL92 for definition
-     */
-    private List<ForeignKey> getForeignKeys(Connection connection, TableReference table) throws SQLException {
-        ForeignKey.Builder builder = null;
-        List<ForeignKey> result = new ArrayList<>();
-        log.trace("Reading foreign keys for {}", table.toStringNormalized());
-        try (ResultSet keys = connection.getMetaData()
-            .getImportedKeys(table.getSchemaName(), table.getSchemaName(), table.getTableName())) {
+    private Map.Entry<TableReference, TableStructure.Builder> tableStructureEntry(ResultSet tables) throws SQLException {
+        String schema = tables.getString("TABLE_CAT");
 
-            while (keys.next()) {
-                int sequence = keys.getInt("KEY_SEQ");
-
-                if (sequence == 1) {
-                    if (builder != null) {
-                        result.add(builder.build());
-                    }
-                    builder = new ForeignKey.Builder();
-                }
-                if (builder == null) {
-                    throw new NullPointerException("invalid key sequence");
-                }
-
-                // the jdbc driver sends the schema column over in the catalog field
-                String fromSchema = keys.getString("FKTABLE_CAT");
-                String fromTable = keys.getString("FKTABLE_NAME");
-                String fromColumn = keys.getString("FKCOLUMN_NAME");
-                String toSchema = keys.getString("PKTABLE_CAT");
-                String toTable = keys.getString("PKTABLE_NAME");
-                String toColumn = keys.getString("PKCOLUMN_NAME");
-                builder.addFromAndTo(
-                    ColumnReference.fromComponents(fromSchema, fromTable, fromColumn),
-                    ColumnReference.fromComponents(toSchema, toTable, toColumn)
-                );
-            }
+        String tableName = tables.getString("TABLE_NAME");
+        log.trace("Reading structure for table {}", tableName);
+        if (schema == null) {
+            log.warn("null schema for table {}", tableName);
         }
-        if (builder != null) {
-            result.add(builder.build());
-        }
-        return result;
+        String tableType = tables.getString("TABLE_TYPE");
+        String remarks = tables.getString("REMARKS");
+        String typesCatalog = tables.getString("TYPE_CAT");
+        String typesSchema = tables.getString("TYPE_SCHEM");
+        String typeName = tables.getString("TYPE_NAME");
+        String selfReferencingColumnName = tables.getString("SELF_REFERENCING_COL_NAME");
+        String refGeneration = tables.getString("REF_GENERATION");
+
+        TableReference table = TableReference.newTableReference(schema, tableName);
+        return Map.entry(table, TableStructure.builder()
+            .schema(schema)
+            .name(tableName)
+            .type(tableType)
+            .remarks(remarks)
+            .foreignKeys(
+                foreignKeyLoadingService.getForeignKeys(table)
+            )
+            .columns(
+                tableColumnService.getColumns(table)
+            )
+            .indices(
+                indexLoadingService.getIndexes(table)
+            ));
     }
 
-    private String getCreateStatement(String schema, String tableName) {
-        try (Connection connection = getConnection()) {
-            try (Statement statement = connection.createStatement()) {
-                try (ResultSet resultSet = statement.executeQuery("show create table `" + schema + "`.`" + tableName+"`")) {
-                    resultSet.next();
+    private String getCreateStatement(Connection connection, String schema, String tableName) throws SQLException {
+        if ("performance_schema".equals(schema)
+            || "sys".equals(schema)
+            || "mysql".equals(schema)
+            || "information_schema".equals(schema)) {
+            return "system table";
+        } else if (true) {
+            return "skipped this stuff";
+        }
+        try (Statement statement = connection.createStatement()) {
+            try (ResultSet resultSet = statement.executeQuery("show create table `" + schema + "`.`" + tableName+"`")) {
+                resultSet.next();
 
-                    return resultSet.getString(2);
-                }
+                return resultSet.getString(2);
             }
-        } catch (SQLException e) {
-            throw new IllegalStateException(e);
         }
     }
 
