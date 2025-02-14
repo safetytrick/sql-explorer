@@ -92,7 +92,7 @@ public class SqlRepositoryService {
     private List<TableReference> getForeignKeysTables(TableStructure tableStructure) {
         return tableStructure.foreignKeys().stream()
             .map(ForeignKey::to)
-            .map(list -> list.getFirst())
+            .map(List::getFirst)
             .map(ColumnReference::getTable)
             .distinct()
             .toList();

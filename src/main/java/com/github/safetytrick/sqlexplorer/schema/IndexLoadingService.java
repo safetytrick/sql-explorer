@@ -7,13 +7,12 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,14 +25,9 @@ public class IndexLoadingService {
     private static final Logger log = LoggerFactory.getLogger(IndexLoadingService.class);
 
     private final DataSource metadataDataSource;
-    private final Map<TableReference, List<TableIndex>> indexes = new ConcurrentHashMap<>();
 
     public IndexLoadingService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource) {
         this.metadataDataSource = metadataDataSource;
-    }
-
-    public List<TableIndex> getIndexes(TableReference tableReference) {
-        return indexes.getOrDefault(tableReference.normalized(), Collections.emptyList());
     }
 
     /*
@@ -71,13 +65,13 @@ public class IndexLoadingService {
      *      is the number of pages used for the current index.
      *  <LI><B>FILTER_CONDITION</B> String {@code =>} Filter condition, if any.
      */
-    @PostConstruct
-    private void initialize() {
+    IndicesFetcher getIndicesFetcher() {
+        Map<TableReference, List<TableIndex>> indices = new HashMap<>();
         log.info("Reading Indexes from database...");
         long start = System.nanoTime();
         try (Connection connection = metadataDataSource.getConnection()) {
             TableReference table = null;
-            List<TableIndex> indices = new ArrayList<>();
+            List<TableIndex> tableIndices = new ArrayList<>();
             try (ResultSet indexInfo = connection.getMetaData().getIndexInfo(null, null, null, false, false)) {
                 TableIndex.Builder builder = null;
                 String prevIndexName = null;
@@ -89,8 +83,8 @@ public class IndexLoadingService {
                             table.getNormalizedTableName().equalsIgnoreCase(tableName)
                     )) {
                         if (table != null) {
-                            indexes.put(table, indices);
-                            indices = new ArrayList<>();
+                            indices.put(table, tableIndices);
+                            tableIndices = new ArrayList<>();
                         }
                         table = TableReference.newTableReference(schema, tableName).normalized();
                     }
@@ -101,7 +95,7 @@ public class IndexLoadingService {
 
                     if (builder == null || !Objects.equals(prevIndexName, indexName)) {
                         if (builder != null) {
-                            indices.add(builder.build());
+                            tableIndices.add(builder.build());
                         }
                         prevIndexName = indexName;
 
@@ -124,10 +118,10 @@ public class IndexLoadingService {
 
                 }
                 if (builder != null) {
-                    indices.add(builder.build());
+                    tableIndices.add(builder.build());
                 }
                 if (table != null) {
-                    indexes.put(table, indices);
+                    indices.put(table, tableIndices);
                 }
             }
         } catch (SQLException e) {
@@ -135,6 +129,10 @@ public class IndexLoadingService {
         }
 
         log.info("Completed read of indexes in {}", Duration.ofNanos(System.nanoTime() - start));
+        return table -> indices.getOrDefault(table.normalized(), Collections.emptyList());
+    }
 
+    interface IndicesFetcher {
+        List<TableIndex> getIndices(TableReference tableReference);
     }
 }

@@ -89,6 +89,9 @@ public class SchemaLoadingService {
 
     @PostConstruct
     private void initializeTableStructures() {
+        TableColumnService.TableColumnsFetcher columnFetcher = tableColumnService.getColumnFetcher();
+        ForeignKeyLoadingService.ForeignKeysFetcher foreignKeysFetcher = foreignKeyLoadingService.getForeignKeysFetcher();
+        IndexLoadingService.IndicesFetcher indicesFetcher = indexLoadingService.getIndicesFetcher();
         log.info("Initializing table structures");
         long start = System.nanoTime();
         try (Connection connection = getConnection()) {
@@ -97,7 +100,7 @@ public class SchemaLoadingService {
             List<Map.Entry<TableReference, TableStructure.Builder>> tableBuilders = new ArrayList<>();
             try (ResultSet tables = connection.getMetaData().getTables(null, null, null, null)) {
                 while (tables.next()) {
-                    var entry = tableStructureEntry(tables);
+                    var entry = tableStructureEntry(tables, columnFetcher, foreignKeysFetcher, indicesFetcher);
                     tableBuilders.add(entry);
                 }
             }
@@ -129,7 +132,9 @@ public class SchemaLoadingService {
 
     }
 
-    private Map.Entry<TableReference, TableStructure.Builder> tableStructureEntry(ResultSet tables) throws SQLException {
+    private Map.Entry<TableReference, TableStructure.Builder> tableStructureEntry(ResultSet tables,
+                                                                                  TableColumnService.TableColumnsFetcher columnsFetcher,
+                                                                                  ForeignKeyLoadingService.ForeignKeysFetcher foreignKeysFetcher, IndexLoadingService.IndicesFetcher indicesFetcher) throws SQLException {
         String schema = tables.getString("TABLE_CAT");
 
         String tableName = tables.getString("TABLE_NAME");
@@ -152,13 +157,13 @@ public class SchemaLoadingService {
             .type(tableType)
             .remarks(remarks)
             .foreignKeys(
-                foreignKeyLoadingService.getForeignKeys(table)
+                foreignKeysFetcher.getForeignKeys(table)
             )
             .columns(
-                tableColumnService.getColumns(table)
+                columnsFetcher.getColumns(table)
             )
             .indices(
-                indexLoadingService.getIndexes(table)
+                indicesFetcher.getIndices(table)
             ));
     }
 

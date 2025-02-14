@@ -8,13 +8,12 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,16 +26,10 @@ public class ForeignKeyLoadingService {
     private static final Logger log = LoggerFactory.getLogger(ForeignKeyLoadingService.class);
 
     private final DataSource metadataDataSource;
-    private final Map<TableReference, List<ForeignKey>> foreignKeyMap = new ConcurrentHashMap<>();
 
     public ForeignKeyLoadingService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource) {
         this.metadataDataSource = metadataDataSource;
     }
-
-    public List<ForeignKey> getForeignKeys(TableReference table) {
-        return foreignKeyMap.getOrDefault(table.normalized(), Collections.emptyList());
-    }
-
 
     /*
      *  PKTABLE_CAT String => primary key table catalog being imported (may be null)
@@ -67,8 +60,8 @@ public class ForeignKeyLoadingService {
      *      importedKeyInitiallyImmediate - see SQL92 for definition
      *      importedKeyNotDeferrable - see SQL92 for definition
      */
-    @PostConstruct
-    private void initialize() {
+    ForeignKeysFetcher getForeignKeysFetcher() {
+        Map<TableReference, List<ForeignKey>> foreignKeyMap = new HashMap<>();
         log.info("Reading Foreign keys from database...");
         long start = System.nanoTime();
         try (Connection connection = metadataDataSource.getConnection()) {
@@ -134,6 +127,8 @@ public class ForeignKeyLoadingService {
             throw new RuntimeException(e);
         }
         log.info("Completed read of foreign keys in {}", Duration.ofNanos(System.nanoTime() - start));
+
+        return table -> foreignKeyMap.getOrDefault(table.normalized(), Collections.emptyList());
     }
 
     private ResultSet getImportedKeys(Connection connection) throws SQLException {
@@ -178,5 +173,9 @@ public class ForeignKeyLoadingService {
         }
 
         return statement.executeQuery();
+    }
+
+    interface ForeignKeysFetcher {
+        List<ForeignKey> getForeignKeys(TableReference table);
     }
 }

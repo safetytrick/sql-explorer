@@ -6,12 +6,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,19 +23,14 @@ public class ColumnEncodingService {
     private static final Logger log = LoggerFactory.getLogger(ColumnEncodingService.class);
 
     private final DataSource metadataDataSource;
-    private final Map<ColumnReference, ColumnEncoding> columnEncodings = new ConcurrentHashMap<>();
 
     public ColumnEncodingService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource) {
         this.metadataDataSource = metadataDataSource;
     }
 
 
-    public ColumnEncoding getEncoding(ColumnReference column) {
-        return columnEncodings.get(column.normalized());
-    }
-
-    @PostConstruct
-    private void initialize() {
+    ColumnEncodingFetcher getColumnEncodingFetcher() {
+        Map<ColumnReference, ColumnEncoding> columnEncodings = new HashMap<>();
         log.info("Reading ColumnEncodings from database...");
         long start = System.nanoTime();
         try (Connection connection = metadataDataSource.getConnection()) {
@@ -98,7 +92,12 @@ public class ColumnEncodingService {
             throw new RuntimeException(e);
         }
         log.info("Completed read of column encodings in {}", Duration.ofNanos(System.nanoTime() - start));
+        return column -> columnEncodings.get(column.normalized());
     }
 
     public record ColumnEncoding(String characterSet, String collation) { }
+
+    interface ColumnEncodingFetcher {
+        ColumnEncoding getEncoding(ColumnReference column);
+    }
 }

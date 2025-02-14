@@ -8,13 +8,12 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,15 +29,10 @@ public class TableColumnService {
     private final DataSource metadataDataSource;
     private final ColumnEncodingService columnEncodingService;
 
-    private final Map<TableReference, List<TableColumn>> tableColumnsMap = new ConcurrentHashMap<>();
-
-    public TableColumnService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource, ColumnEncodingService columnEncodingService) {
+    public TableColumnService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource,
+                              ColumnEncodingService columnEncodingService) {
         this.metadataDataSource = metadataDataSource;
         this.columnEncodingService = columnEncodingService;
-    }
-
-    public List<TableColumn> getColumns(TableReference table) {
-        return tableColumnsMap.getOrDefault(table.normalized(), Collections.emptyList());
     }
 
 
@@ -113,8 +107,9 @@ public class TableColumnService {
      * this is the length in bytes. Null is returned for data types where the
      * column size is not applicable.
      */
-    @PostConstruct
-    private void initialize() {
+    TableColumnsFetcher getColumnFetcher() {
+        Map<TableReference, List<TableColumn>> tableColumnsMap = new HashMap<>();
+        ColumnEncodingService.ColumnEncodingFetcher columnEncodingFetcher = columnEncodingService.getColumnEncodingFetcher();
         log.info("Reading Columns from database...");
         long start = System.nanoTime();
         try (Connection connection = metadataDataSource.getConnection()) {
@@ -153,7 +148,7 @@ public class TableColumnService {
                     String isGenerated = columns.getString("IS_GENERATEDCOLUMN");
 
                     ColumnEncodingService.ColumnEncoding encoding =
-                        columnEncodingService.getEncoding(ColumnReference.newColumnReference(table, columnName));
+                        columnEncodingFetcher.getEncoding(ColumnReference.newColumnReference(table, columnName));
 
                     TableColumn tableColumn = TableColumn.builder()
                         .schema(schema)
@@ -187,5 +182,11 @@ public class TableColumnService {
         }
 
         log.info("Completed read of columns in {}", Duration.ofNanos(System.nanoTime() - start));
+        return table -> tableColumnsMap.getOrDefault(table, Collections.emptyList());
+    }
+
+    @FunctionalInterface
+    interface TableColumnsFetcher {
+        List<TableColumn> getColumns(TableReference table);
     }
 }
