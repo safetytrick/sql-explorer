@@ -166,13 +166,13 @@ public class ForeignKeyLoadingService {
            """;
 
 
-        PreparedStatement statement = connection.prepareStatement(sql);
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            if (statement.getMaxRows() != 0) {
+                statement.setMaxRows(0);
+            }
 
-        if (statement.getMaxRows() != 0) {
-            statement.setMaxRows(0);
+            return statement.executeQuery();
         }
-
-        return statement.executeQuery();
     }
 
     interface ForeignKeysFetcher {

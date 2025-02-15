@@ -18,4 +18,8 @@
 		<Method name="getSqlSources" />
 		<Bug code="NP" />
 	</Match>
+	<Match>
+		<Package name="com.github.safetytrick.sqlexplorer.schema"/>
+		<Bug code="DLS"/>
+	</Match>
 </FindBugsFilter>

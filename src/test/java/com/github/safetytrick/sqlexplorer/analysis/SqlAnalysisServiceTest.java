@@ -67,6 +67,7 @@ public class SqlAnalysisServiceTest {
             """;
 
         SqlProfile.Builder builder = SqlProfile.newBuilder();
+        builder.setQuery(sql);
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
