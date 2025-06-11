@@ -17,3 +17,6 @@ performance-schema-file-loader:
   directory: /etc/sql-explorer/config/statement-analysis
   pattern: "(?<id>(dc\\d)-cl0\\d-0[1-9])-(?<date>\\d{8})\\.tsv"
   date-format: "yyyyMMdd"
+
+parquet-sink:
+  filename: /parquet/sql-repository.parquet

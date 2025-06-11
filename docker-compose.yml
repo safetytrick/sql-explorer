@@ -11,6 +11,7 @@ services:
     volumes:
       - ./src/main/docker-local/config:/etc/sql-explorer/config
       - ./src/main/docker-local/ssl:/etc/sql-explorer/ssl
+      - ./src/main/docker-local/parquet:/parquet
     depends_on:
       - explorer-mysql
 

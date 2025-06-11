@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -27,6 +26,7 @@ import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.AbstractTsvSqlSource;
+import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSink;
 import com.github.safetytrick.sqlexplorer.evidence.source.MeteredSql;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
@@ -58,6 +58,7 @@ public class SqlEvidenceInputService {
     private final Map<String, Boolean> currentlyProcessing = new ConcurrentHashMap<>();
 
     private final boolean traceErrors;
+    private final ParquetSink parquetSink;
     private final SqlAnalysisService sqlAnalysisService;
     private final NormalizedQueryDigest normalizedQueryDigest;
     private final Timer performanceSchemaRowTimer;
@@ -89,11 +90,12 @@ public class SqlEvidenceInputService {
 
     private static final Set<String> dmlTokens = Set.of("INSERT", "UPDATE", "DELETE");
 
-    public SqlEvidenceInputService(@Value("${sql-explorer.trace-errors}") boolean traceErrors,
+    public SqlEvidenceInputService(@Value("${sql-explorer.trace-errors}") boolean traceErrors, ParquetSink parquetSink,
                                    SqlAnalysisService sqlAnalysisService,
                                    NormalizedQueryDigest normalizedQueryDigest,
                                    MeterRegistry meterRegistry) {
         this.traceErrors = traceErrors;
+        this.parquetSink = parquetSink;
         this.sqlAnalysisService = sqlAnalysisService;
         this.normalizedQueryDigest = normalizedQueryDigest;
         performanceSchemaRowTimer = meterRegistry.timer("performance_schema_process_row");
@@ -141,7 +143,7 @@ public class SqlEvidenceInputService {
         );
 
         int iteration = 0;
-        while (futures.stream().anyMatch(((Predicate<Future<?>>) Future::isDone).negate())) {
+        while (!futures.stream().allMatch(Future::isDone)) {
             iteration++;
             long completed = futures.stream().filter(Future::isDone).count();
             if (iteration % 5 == 0) {
@@ -277,6 +279,8 @@ public class SqlEvidenceInputService {
         }
 
         SqlProfile sqlProfile = builder.completeBuild(row.getSchemaName());
+        parquetSink.write(sqlProfile);
+
         repository.addToIndex(sqlProfile);
     }
 

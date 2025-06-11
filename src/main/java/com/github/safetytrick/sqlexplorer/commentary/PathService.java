@@ -8,11 +8,11 @@ import org.springframework.stereotype.Service;
  *
  * schema/tdb
  *
- * schema/tdb/table/customer_visit
+ * schema/tdb/table/some_table
  *
- * schema/tdb/table/customer_visit/column/customer_id
+ * schema/tdb/table/some_table/column/some_id
  *
- * schema/tdb/table/customer_visit/index/customer_visit__an_fid_pid_vt_mc_idx
+ * schema/tdb/table/some_table/index/some_table__an_fid_pid_vt_mc_idx
  *
  * query/{digest|normalized_digest}
  *
