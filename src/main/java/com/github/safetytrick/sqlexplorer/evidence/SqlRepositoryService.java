@@ -55,7 +55,7 @@ public class SqlRepositoryService {
 
     public Table getQueriesForTableJoin(int threshold, TableReference table, TableReference otherTable) {
         List<SqlProfile> tableQueries = sqlRepositoryManager.getSqlRepository().getTableQueries(table)
-            .filter(analyzedSql -> analyzedSql.getTables().contains(otherTable))
+            .filter(analyzedSql -> analyzedSql.getTables().stream().anyMatch(otherTable::equalsNormalized))
             .toList();
 
         return buildTableWithQueries(threshold, table, tableQueries);

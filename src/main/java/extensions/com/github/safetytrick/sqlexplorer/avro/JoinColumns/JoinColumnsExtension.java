@@ -14,6 +14,19 @@ public class JoinColumnsExtension {
             || ColumnReferenceExtension.comparator.compare(column, joinColumns.getRight()) == 0;
     }
 
+
+    public static boolean equalsNormalized(@This JoinColumns thiz, JoinColumns other) {
+        if (thiz == other) {
+            return true;
+        }
+        if (other == null || thiz.getClass() != other.getClass()) {
+            return false;
+        }
+        return ColumnReferenceExtension.comparator.compare(thiz.getLeft(), other.getLeft()) == 0
+            && ColumnReferenceExtension.comparator.compare(thiz.getRight(), other.getRight()) == 0;
+    }
+
+
     @Extension
     public static JoinColumns fromReferences(String left, String right) {
         return new JoinColumns(ColumnReferenceExtension.fromString(left),

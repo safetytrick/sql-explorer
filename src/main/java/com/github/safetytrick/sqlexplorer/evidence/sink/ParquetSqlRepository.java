@@ -43,7 +43,7 @@ public class ParquetSqlRepository implements SqlRepository {
 
     @Override
     public Stream<SqlProfile> getTableQueries(TableReference table) {
-        return getAllAnalyzedSql().filter(profile -> profile.getTables().contains(table));
+        return getAllAnalyzedSql().filter(profile -> profile.getTables().stream().anyMatch(table::equalsNormalized));
     }
 
     @Override

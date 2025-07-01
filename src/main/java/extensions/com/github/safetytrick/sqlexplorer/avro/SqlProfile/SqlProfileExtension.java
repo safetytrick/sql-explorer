@@ -64,7 +64,7 @@ public class SqlProfileExtension {
             if (thiz.getJoinColumns() == null) {
                 thiz.setJoinColumns(new ArrayList<>());
                 thiz.getJoinColumns().add(joinPair);
-            } else if (!thiz.getJoinColumns().contains(joinPair)) {
+            } else if (thiz.getJoinColumns().stream().noneMatch(joinPair::equalsNormalized)) {
                 thiz.getJoinColumns().add(joinPair);
             }
             return thiz;
@@ -78,7 +78,7 @@ public class SqlProfileExtension {
             if (thiz.getCriteriaColumns() == null) {
               thiz.setCriteriaColumns(new ArrayList<>());
               thiz.getCriteriaColumns().add(column);
-            } else if (!thiz.getCriteriaColumns().contains(column)) {
+            } else if (thiz.getCriteriaColumns().stream().noneMatch(column::equalsNormalized)) {
                 thiz.getCriteriaColumns().add(column);
             }
             return thiz;

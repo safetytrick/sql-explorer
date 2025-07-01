@@ -63,7 +63,7 @@ class SqlGraphService implements GraphService {
                                                                              String schema,
                                                                              String tableName) {
         Set<TableReference> visited = new HashSet<>();
-        TableReference tableReference = TableReference.newTableReference(schema, tableName);
+        TableReference tableReference = TableReference.newTableReference(schema, tableName).normalized();
 
         return visitRelated(visited, tableReference, threshold, depth);
     }
@@ -167,11 +167,11 @@ class SqlGraphService implements GraphService {
     }
 
     private Stream<TableRelationships> visitRelated(Set<TableReference> visited, TableReference tableReference, int threshold, int depth) {
-        if (visited.contains(tableReference)) {
+        if (visited.contains(tableReference.normalized())) {
             return Stream.empty();
         }
 
-        visited.add(tableReference);
+        visited.add(tableReference.normalized());
         Table table = sqlRepositoryService.getTable(threshold, tableReference);
 
         TableRelationships relationships = new TableRelationships(tableReference, table.foreignKeyTables(), table.joinTables(), table.relatedTables());
