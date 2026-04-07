@@ -1,6 +1,6 @@
 import {Component, Input} from '@angular/core';
 import {ClusterNode, Edge, Layout, Node} from '@swimlane/ngx-graph';
-import {Observable} from 'rxjs/internal/Observable';
+import {Observable} from 'rxjs';
 
 @Component({
   selector: 'app-table-graph',

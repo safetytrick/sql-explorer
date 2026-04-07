@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
-import {Observable} from 'rxjs/internal/Observable';
+import {Observable} from 'rxjs';
 import {Title} from '@angular/platform-browser';
 
 @Component({

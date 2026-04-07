@@ -2,5 +2,5 @@
 
   <span *ngIf="duration / 100000000 < 10000">{{duration / 1000000000 | number: '1.0-1'}}ms</span>
   <span *ngIf="duration / 100000000 < 1200000 && duration / 100000000 > 10000">{{duration / 1000000000000 | number: '1.0-1'}}s</span>
-  <span *ngIf="duration / 100000000 > 1200000">{{duration / 1000000000 | amDuration:'milliseconds'}}</span>
+  <span *ngIf="duration / 100000000 > 1200000">{{duration / 1000000000 | duration}}</span>
 </span>

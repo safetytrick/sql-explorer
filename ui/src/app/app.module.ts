@@ -16,7 +16,7 @@ import {SqlViewComponent} from './sql-view/sql-view.component';
 
 import {HighlightModule} from 'ngx-highlightjs';
 
-import {MomentModule} from 'ngx-moment';
+import {DurationPipe} from './duration.pipe';
 
 import sql from 'highlight.js/lib/languages/sql';
 import xml from 'highlight.js/lib/languages/xml';
@@ -32,7 +32,6 @@ import {TableLinkComponent} from './table-link/table-link.component';
 import {QueryUtilitiesComponent} from './query-utilities/query-utilities.component';
 import {TableGraphComponent} from './table-graph/table-graph.component';
 import {TagViewComponent} from './tag-view/tag-view.component';
-import {TagInputModule} from 'ngx-chips';
 import {NgxGraphModule} from '@swimlane/ngx-graph';
 import {TaggedTableViewComponent} from './tagged-table-view/tagged-table-view.component';
 import {TaggedSqlViewComponent} from './tagged-sql-view/tagged-sql-view.component';
@@ -40,7 +39,11 @@ import {SmallSqlViewComponent} from './small-sql-view/small-sql-view.component';
 import {TagIndexComponent} from './tag-index/tag-index.component';
 import {TableListComponent} from './table-list-component/table-list.component';
 import {TableGraphLoaderComponent} from './table-graph-loader/table-graph-loader.component';
-import {TooltipModule, TooltipOptions} from '@teamhive/ngx-tooltip';
+import {MatChipsModule} from '@angular/material/chips';
+import {MatAutocompleteModule} from '@angular/material/autocomplete';
+import {MatFormFieldModule} from '@angular/material/form-field';
+import {MatInputModule} from '@angular/material/input';
+import {MatIconModule} from '@angular/material/icon';
 import {SqlSummaryComponent} from './sql-summary/sql-summary.component';
 import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
 import {MatListModule} from '@angular/material/list';
@@ -222,7 +225,8 @@ export function hljsLanguages() {
     SqlSummaryComponent,
     AdminSourceListComponent,
     TablesWithColumnComponent,
-    SchemaListComponent
+    SchemaListComponent,
+    DurationPipe
   ],
     imports: [
         RouterModule.forRoot(appRoutes, {
@@ -236,18 +240,14 @@ export function hljsLanguages() {
         HttpClientModule,
         HighlightModule.forRoot({languages: hljsLanguages}),
         MatTableModule,
-        MomentModule,
         MarkdownToHtmlModule,
         ReactiveFormsModule,
-        TagInputModule,
         NgxGraphModule,
-        TooltipModule.forRoot({
-            placement: 'top',
-            arrow: 'true',
-            arrowType: 'sharp',
-            allowHTML: true,
-            maxWidth: 400
-        } as unknown as TooltipOptions),
+        MatChipsModule,
+        MatAutocompleteModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatIconModule,
         MatListModule,
         MatSnackBarModule
     ],

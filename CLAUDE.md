@@ -1,0 +1,101 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What This Is
+
+SQL Explorer is a full-stack tool for analyzing MySQL performance. It reads queries from MySQL's Performance Schema (or CSV/Parquet files), parses and normalizes them, and surfaces insights about schema usage, query patterns, and performance impact ("Pain" metrics).
+
+- **Backend**: Java 21 + Spring Boot 3.4.2 (Gradle)
+- **Frontend**: Angular 8 + Material Design (`ui/`)
+- **Data models**: Apache Avro (`models/` subproject)
+- **Database**: MySQL 8.4.4, Liquibase migrations
+
+## Commands
+
+### Backend
+
+```bash
+./gradlew assemble          # Build the Java application
+./gradlew test              # Run all JUnit 5 tests
+./gradlew test --tests com.github.safetytrick.sqlexplorer.SomeTest  # Run a single test
+```
+
+### Frontend (`ui/`)
+
+```bash
+npm install                 # Install dependencies
+npm start                   # Dev server at http://localhost:4200
+npm run build               # Production build
+npm run lint                # Run tslint
+ng test                     # Run Karma/Jasmine unit tests
+ng e2e                      # Run Protractor e2e tests
+```
+
+### Docker (local dev)
+
+Start services in order — MySQL must be up before the backend:
+
+```bash
+docker compose up -d explorer-mysql
+docker compose up -d sql-explorer
+docker compose up -d explorer-ui
+docker compose up explorer-shared-tags   # Optional: load table/SQL tags
+```
+
+UI is accessible at `http://localhost:4200`. Backend runs on port 8080.
+
+## Architecture
+
+### Backend Modules (`src/main/java/com/github/safetytrick/sqlexplorer/`)
+
+The backend is organized by domain, not by layer. Code that changes together lives together.
+
+- **`analysis/`** — Core SQL parsing pipeline. `QueryParser` tokenizes SQL via jsqlparser; `QueryNormalizer` merges similar patterns; `SqlAnalyzer` extracts tables, columns, joins, aliases; `SqlAnalysisService` orchestrates the full flow. The `resolver/` subpackage handles column-to-table resolution including alias expansion.
+
+- **`schema/`** — Introspects the connected MySQL databases for tables, columns, indexes, and foreign keys. `SqlMetadataResource` is the REST endpoint.
+
+- **`evidence/`** — Wraps Performance Schema execution statistics and metrics (exec counts, latency, etc.).
+
+- **`profiles/`** — Aggregates analysis + evidence + tags into per-table/per-query profiles. `SqlProfileResource` is the primary REST API consumed by the frontend.
+
+- **`graph/`** — Builds table relationship graphs (join relationships, "queried with" co-occurrence). `SqlGraphResource` serves graph data.
+
+- **`commentary/`** — User tagging (`TagsResource`) and notes (`NotesResource`) for queries and tables.
+
+- **`model/`** — Shared domain objects.
+
+- **`spring/`** — Spring configuration classes.
+
+### Frontend (`ui/src/app/`)
+
+Components map directly to the URL hierarchy:
+
+| URL pattern | Component |
+|---|---|
+| `/tables/:schema` | SchemaListComponent → TableNamesComponent |
+| `/table/:schema/:name` | TableViewComponent |
+| `/analyzed-sql/:id` | SqlViewComponent |
+| `/table-graph/schema/:schema` | TableGraphLoaderComponent → TableGraphComponent |
+
+Key services: `AnalyzedSqlService` (query profiles), `SourceService` (data sources), `UserService` (auth).
+
+### Data Flow
+
+1. SQL loaded from Performance Schema or CSV/Parquet files
+2. `QueryNormalizer` deduplicates similar queries
+3. `SqlAnalyzer` extracts tables/columns/join patterns
+4. Results stored in the Explorer MySQL database via JPA
+5. Frontend fetches from REST endpoints and renders profile/graph views
+6. Users tag and annotate queries; tags are loaded via the `shared-tags` subproject
+
+### Subprojects
+
+- **`models/`** — Avro schema definitions, compiled to Java via the Avro Gradle plugin
+- **`shared-tags/`** — Liquibase migrations for the tagging schema
+
+### Configuration
+
+- `src/main/resources/application.yml` — Spring config; backend listens on port 8080
+- `src/main/docker-local/local.env` — Docker env vars (`ENVIRONMENT_PROFILE=localdev,override`, JVM flags)
+- `src/main/docker-local/config/` — TSV files for statement analysis classification

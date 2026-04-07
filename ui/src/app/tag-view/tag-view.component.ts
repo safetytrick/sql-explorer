@@ -1,6 +1,10 @@
 import {Component, Input, OnInit} from '@angular/core';
+import {Observable} from 'rxjs';
+import {debounceTime, switchMap} from 'rxjs/operators';
+import {FormControl} from '@angular/forms';
+import {MatChipInputEvent} from '@angular/material/chips';
+import {MatAutocompleteSelectedEvent} from '@angular/material/autocomplete';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {Observable} from 'rxjs/internal/Observable';
 
 @Component({
   selector: 'app-tag-view',
@@ -13,32 +17,38 @@ export class TagViewComponent implements OnInit {
   path: string;
 
   @Input()
-  tags: [] = null;
+  tags: any[] = null;
 
-  constructor(public sqlService: AnalyzedSqlService) { }
+  tagInputControl = new FormControl('');
+  filteredTags: Observable<any[]>;
+
+  constructor(public sqlService: AnalyzedSqlService) {}
 
   ngOnInit() {
     if (this.tags === null) {
-      this.sqlService.getTags(this.path).subscribe(
-        data => this.tags = data
-      );
+      this.sqlService.getTags(this.path).subscribe(data => this.tags = data);
     }
+    this.filteredTags = this.tagInputControl.valueChanges.pipe(
+      debounceTime(200),
+      switchMap((value: string) => this.sqlService.autoCompleteTags(value || ''))
+    ) as Observable<any[]>;
   }
 
-  public autocompleteTags = (text: string): Observable<any> => {
-    return this.sqlService.autoCompleteTags(text);
+  addTag(event: MatChipInputEvent) {
+    event.input.value = '';
+    this.tagInputControl.setValue(null);
   }
 
-  addTag($event: any) {
-    // todo handle complete by updating list and error with a toast
-    this.sqlService.addTag($event.name, this.path).subscribe();
+  selectTag(event: MatAutocompleteSelectedEvent) {
+    const tag = event.option.value;
+    this.sqlService.addTag(tag.name, this.path).subscribe();
+    if (!this.tags) { this.tags = []; }
+    this.tags = [...this.tags, tag];
+    this.tagInputControl.setValue(null);
   }
 
-  removeTag($event: any) {
-    // todo handle complete by updating list and error with a toast
-    this.sqlService.removeTag($event.id).subscribe();
+  removeTag(tag: any) {
+    this.sqlService.removeTag(tag.id).subscribe();
+    this.tags = this.tags.filter(t => t.id !== tag.id);
   }
-
-
-
 }
