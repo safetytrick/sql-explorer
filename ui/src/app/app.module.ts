@@ -27,7 +27,7 @@ import {NavBarComponent} from './nav-bar/nav-bar.component';
 import {ExplainViewComponent} from './explain-view/explain-view.component';
 import {SmallTableViewComponent} from './small-table-view/small-table-view.component';
 import {NoteViewComponent} from './note-view/note-view.component';
-import {MarkdownToHtmlModule} from 'markdown-to-html-pipe';
+import {MarkdownToHtmlPipe} from './markdown-to-html.pipe';
 import {TableLinkComponent} from './table-link/table-link.component';
 import {QueryUtilitiesComponent} from './query-utilities/query-utilities.component';
 import {TableGraphComponent} from './table-graph/table-graph.component';
@@ -226,7 +226,8 @@ export function hljsLanguages() {
     AdminSourceListComponent,
     TablesWithColumnComponent,
     SchemaListComponent,
-    DurationPipe
+    DurationPipe,
+    MarkdownToHtmlPipe
   ],
     imports: [
         RouterModule.forRoot(appRoutes, {
@@ -240,7 +241,7 @@ export function hljsLanguages() {
         HttpClientModule,
         HighlightModule.forRoot({languages: hljsLanguages}),
         MatTableModule,
-        MarkdownToHtmlModule,
+
         ReactiveFormsModule,
         NgxGraphModule,
         MatChipsModule,

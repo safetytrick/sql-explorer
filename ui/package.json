@@ -28,7 +28,7 @@
     "core-js": "^2.5.7",
     "highlight.js": ">=9.0.0",
     "jquery": "^3.3.1",
-    "markdown-to-html-pipe": "^1.2.5",
+
     "ngx-highlightjs": "^3.0.0",
     "popper.js": "^1.16.1",
     "rxjs": "^6.5.5",
