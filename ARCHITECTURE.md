@@ -86,6 +86,17 @@ Evidence management tracks supporting information for analysis results, such as 
 Analysis, Evidence, Tagging and Graph output are combined in the SQL Profiles Resource, profiles provide aggregates over 
 tables, schemas, columns, and queries.
 
+### Database Connections
+
+Explorer connects to three different data sources.
+
+1. **SQL Explorer Database**: The application database that stores the application's metadata, including analyzed SQL profiles
+   and user-defined tags.
+2. **Metadata Database**: The SQL database being analyzed, which the schema that Explorer introspects.
+3. **Performance Schema**: A data source to extract performance metrics and query execution statistics, this data source 
+   can be the same as the metadata database or optional if the csv importer is used. 
+
+
 
 Code Structure
 -------------

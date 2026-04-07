@@ -24,6 +24,7 @@ class WebConfig implements WebMvcConfigurer {
         this.jacksonModules = jacksonModules;
     }
 
+    // todo, make this conditional on a development profile
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
