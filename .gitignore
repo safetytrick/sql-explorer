@@ -18,3 +18,5 @@ src/main/docker-local/config/statement-analysis/legacy
 
 .env
 .ssh.pid
+
+.claude/settings.local.json

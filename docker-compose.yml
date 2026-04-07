@@ -7,7 +7,9 @@ services:
     ports:
        - "18185:5005"
        - "18180:8080"
-    env_file: ./src/main/docker-local/local.env
+    env_file:
+      - ./src/main/docker-local/local.env
+      - .env
     volumes:
       - ./src/main/docker-local/config:/etc/sql-explorer/config
       - ./src/main/docker-local/ssl:/etc/sql-explorer/ssl
