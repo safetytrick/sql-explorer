@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { SqlListComponent } from './sql-list.component';
 
@@ -6,7 +6,7 @@ describe('SqlListComponent', () => {
   let component: SqlListComponent;
   let fixture: ComponentFixture<SqlListComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ SqlListComponent ]
     })

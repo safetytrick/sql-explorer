@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { SqlViewComponent } from './sql-view.component';
 
@@ -6,7 +6,7 @@ describe('SqlViewComponent', () => {
   let component: SqlViewComponent;
   let fixture: ComponentFixture<SqlViewComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ SqlViewComponent ]
     })

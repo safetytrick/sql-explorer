@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { TagIndexComponent } from './tag-index.component';
 
@@ -6,7 +6,7 @@ describe('TagIndexComponent', () => {
   let component: TagIndexComponent;
   let fixture: ComponentFixture<TagIndexComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ TagIndexComponent ]
     })

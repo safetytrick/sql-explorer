@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { TableGraphLoaderComponent } from './table-graph-loader.component';
 
@@ -6,7 +6,7 @@ describe('TableGraphLoaderComponent', () => {
   let component: TableGraphLoaderComponent;
   let fixture: ComponentFixture<TableGraphLoaderComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ TableGraphLoaderComponent ]
     })

@@ -231,10 +231,11 @@ export function hljsLanguages() {
   ],
     imports: [
         RouterModule.forRoot(appRoutes, {
-            // it would be nice to get this working: https://github.com/angular/angular/issues/24547
-            scrollPositionRestoration: 'enabled',
-            anchorScrolling: 'enabled'
-        }),
+    // it would be nice to get this working: https://github.com/angular/angular/issues/24547
+    scrollPositionRestoration: 'enabled',
+    anchorScrolling: 'enabled',
+    relativeLinkResolution: 'legacy'
+}),
         FormsModule,
         BrowserModule,
         BrowserAnimationsModule,
