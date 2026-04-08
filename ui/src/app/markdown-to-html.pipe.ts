@@ -16,7 +16,7 @@ export class MarkdownToHtmlPipe implements PipeTransform {
     let inUl = false;
 
     for (const raw of lines) {
-      const line = raw.trimRight();
+      const line = raw.replace(/\s+$/, '');
 
       // Ordered list item
       if (/^\d+\.\s/.test(line)) {

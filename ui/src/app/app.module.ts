@@ -47,7 +47,7 @@ import {MatIconModule} from '@angular/material/icon';
 import {SqlSummaryComponent} from './sql-summary/sql-summary.component';
 import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
 import {MatListModule} from '@angular/material/list';
-import {MAT_SNACK_BAR_DEFAULT_OPTIONS, MatSnackBarModule} from '@angular/material';
+import { MAT_SNACK_BAR_DEFAULT_OPTIONS, MatSnackBarModule } from '@angular/material/snack-bar';
 import {TablesWithColumnComponent} from './tables-with-column/tables-with-column.component';
 import {SchemaListComponent} from './schema-list/schema-list.component';
 
