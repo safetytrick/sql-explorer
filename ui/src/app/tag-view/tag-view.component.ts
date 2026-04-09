@@ -1,7 +1,7 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {Observable} from 'rxjs';
 import {debounceTime, switchMap} from 'rxjs/operators';
-import {FormControl} from '@angular/forms';
+import {UntypedFormControl} from '@angular/forms';
 import {MatChipInputEvent} from '@angular/material/chips';
 import {MatAutocompleteSelectedEvent} from '@angular/material/autocomplete';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
@@ -19,7 +19,7 @@ export class TagViewComponent implements OnInit {
   @Input()
   tags: any[] = null;
 
-  tagInputControl = new FormControl('');
+  tagInputControl = new UntypedFormControl('');
   filteredTags: Observable<any[]>;
 
   constructor(public sqlService: AnalyzedSqlService) {}

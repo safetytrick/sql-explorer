@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import {FormControl} from '@angular/forms';
+import {UntypedFormControl} from '@angular/forms';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 
 @Component({
@@ -9,7 +9,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 })
 export class QueryUtilitiesComponent implements OnInit {
   result: string;
-  inputControl = new FormControl('');
+  inputControl = new UntypedFormControl('');
 
   constructor(public sqlService: AnalyzedSqlService) { }
 
