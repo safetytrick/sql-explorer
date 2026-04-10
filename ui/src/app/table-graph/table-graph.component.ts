@@ -19,30 +19,31 @@ export class TableGraphComponent {
   set query(query: Observable<any>) {
     const groups = new GroupTracker();
 
-    query.subscribe(tableJoins => {
-      const tableJoinsArray = tableJoins as any[];
-      tableJoinsArray.forEach(tableJoin => {
-        groups.addTableJoins(tableJoin);
-        tableJoin.foreignKeyTables.forEach(relatedTable => {
-          groups.addTable(relatedTable);
-          this.createLink(tableJoin.table, relatedTable, 'fk');
+    query.subscribe({
+      next: tableJoins => {
+        const tableJoinsArray = tableJoins as any[];
+        tableJoinsArray.forEach(tableJoin => {
+          groups.addTableJoins(tableJoin);
+          tableJoin.foreignKeyTables.forEach(relatedTable => {
+            groups.addTable(relatedTable);
+            this.createLink(tableJoin.table, relatedTable, 'fk');
+          });
+
+          tableJoin.joinTables.forEach(relatedTable => {
+            groups.addTable(relatedTable);
+            this.createLink(tableJoin.table, relatedTable, 'joins');
+          });
+
+          tableJoin.relatedTables.forEach(relatedTable => {
+            groups.addTable(relatedTable);
+            this.createLink(tableJoin.table, relatedTable, 'queried with');
+          });
         });
 
-        tableJoin.joinTables.forEach(relatedTable => {
-          groups.addTable(relatedTable);
-          this.createLink(tableJoin.table, relatedTable, 'joins');
-        });
-
-        tableJoin.relatedTables.forEach(relatedTable => {
-          groups.addTable(relatedTable);
-          this.createLink(tableJoin.table, relatedTable, 'queried with');
-        });
-      });
-
-      this.createClusters(groups);
-
-    }, error => {
-    }, () => this.dataReceived = true);
+        this.createClusters(groups);
+      },
+      complete: () => this.dataReceived = true
+    });
   }
 
   constructor() {
