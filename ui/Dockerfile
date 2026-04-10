@@ -1,4 +1,4 @@
-FROM node:16 as builder
+FROM node:22 as builder
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ RUN npm install -ci --legacy-peer-deps
 
 COPY . .
 
-RUN node_modules/.bin/ng build --prod
+RUN NODE_OPTIONS=--openssl-legacy-provider node_modules/.bin/ng build --configuration production
 
 
 FROM nginx
