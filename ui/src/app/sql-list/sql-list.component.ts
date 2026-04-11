@@ -1,14 +1,16 @@
 import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {ActivatedRoute} from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { Highlight } from 'ngx-highlightjs';
+import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
 
 @Component({
     selector: 'app-sql-list',
     templateUrl: './sql-list.component.html',
     styleUrls: ['./sql-list.component.css'],
     providers: [AnalyzedSqlService],
-    standalone: false
+    imports: [RouterLink, Highlight, SqlSummaryComponent]
 })
 export class SqlListComponent implements OnInit {
 

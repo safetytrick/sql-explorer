@@ -1,10 +1,11 @@
 import {Component, Input, OnInit} from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 @Component({
     selector: 'app-column-link',
     templateUrl: './column-link.component.html',
     styleUrls: ['./column-link.component.scss'],
-    standalone: false
+    imports: [RouterLink]
 })
 export class ColumnLinkComponent implements OnInit {
 

@@ -8,8 +8,8 @@ describe('SmallSqlViewComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SmallSqlViewComponent ]
-    })
+    imports: [SmallSqlViewComponent]
+})
     .compileComponents();
   }));
 

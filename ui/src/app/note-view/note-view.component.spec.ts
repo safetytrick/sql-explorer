@@ -8,8 +8,8 @@ describe('NoteViewComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ NoteViewComponent ]
-    })
+    imports: [NoteViewComponent]
+})
     .compileComponents();
   }));
 

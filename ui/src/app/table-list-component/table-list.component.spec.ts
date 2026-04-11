@@ -8,8 +8,8 @@ describe('TableListComponentComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ TableListComponent ]
-    })
+    imports: [TableListComponent]
+})
     .compileComponents();
   }));
 

@@ -8,8 +8,8 @@ describe('SqlSummaryComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SqlSummaryComponent ]
-    })
+    imports: [SqlSummaryComponent]
+})
     .compileComponents();
   }));
 

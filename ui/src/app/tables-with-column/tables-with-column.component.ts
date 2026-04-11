@@ -2,12 +2,13 @@ import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { TableListComponent } from '../table-list-component/table-list.component';
 
 @Component({
     selector: 'app-tables-with-column',
     templateUrl: './tables-with-column.component.html',
     styleUrls: ['./tables-with-column.component.scss'],
-    standalone: false
+    imports: [TableListComponent]
 })
 export class TablesWithColumnComponent implements OnInit {
 

@@ -3,12 +3,13 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Observable} from 'rxjs';
 import {Title} from '@angular/platform-browser';
+import { TableGraphComponent } from '../table-graph/table-graph.component';
 
 @Component({
     selector: 'app-table-graph-loader',
     templateUrl: './table-graph-loader.component.html',
     styleUrls: ['./table-graph-loader.component.scss'],
-    standalone: false
+    imports: [TableGraphComponent]
 })
 export class TableGraphLoaderComponent implements OnInit {
 

@@ -4,10 +4,7 @@ import {Pipe, PipeTransform} from '@angular/core';
  * Formats a duration value (in milliseconds) to a human-readable string.
  * Replaces the ngx-moment amDuration pipe.
  */
-@Pipe({
-    name: 'duration',
-    standalone: false
-})
+@Pipe({ name: 'duration' })
 export class DurationPipe implements PipeTransform {
   transform(ms: number): string {
     if (!ms || ms <= 0) { return '0s'; }

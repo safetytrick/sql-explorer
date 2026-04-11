@@ -1,12 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import {SourceService} from '../source.service';
-import {MatSelectionList} from '@angular/material/list';
+import { MatSelectionList, MatListOption } from '@angular/material/list';
+import { DatePipe } from '@angular/common';
 
 @Component({
     selector: 'app-admin-source-list',
     templateUrl: './admin-source-list.component.html',
     styleUrls: ['./admin-source-list.component.scss'],
-    standalone: false
+    imports: [MatSelectionList, MatListOption, DatePipe]
 })
 export class AdminSourceListComponent implements OnInit {
 

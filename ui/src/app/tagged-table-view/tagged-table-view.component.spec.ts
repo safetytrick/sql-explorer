@@ -8,8 +8,8 @@ describe('TaggedTableViewComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ TaggedTableViewComponent ]
-    })
+    imports: [TaggedTableViewComponent]
+})
     .compileComponents();
   }));
 

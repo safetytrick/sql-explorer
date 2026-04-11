@@ -8,8 +8,8 @@ describe('TaggedSqlViewComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ TaggedSqlViewComponent ]
-    })
+    imports: [TaggedSqlViewComponent]
+})
     .compileComponents();
   }));
 

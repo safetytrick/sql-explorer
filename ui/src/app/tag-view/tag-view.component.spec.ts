@@ -8,8 +8,8 @@ describe('TagViewComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ TagViewComponent ]
-    })
+    imports: [TagViewComponent]
+})
     .compileComponents();
   }));
 

@@ -1,16 +1,18 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {Observable} from 'rxjs';
 import {debounceTime, switchMap} from 'rxjs/operators';
-import {UntypedFormControl} from '@angular/forms';
-import {MatChipInputEvent} from '@angular/material/chips';
-import {MatAutocompleteSelectedEvent} from '@angular/material/autocomplete';
+import { UntypedFormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { MatChipInputEvent, MatChipGrid, MatChipRow, MatChipRemove, MatChipInput } from '@angular/material/chips';
+import { MatAutocompleteSelectedEvent, MatAutocompleteTrigger, MatAutocomplete, MatOption } from '@angular/material/autocomplete';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
+import { MatIcon } from '@angular/material/icon';
+import { AsyncPipe } from '@angular/common';
 
 @Component({
     selector: 'app-tag-view',
     templateUrl: './tag-view.component.html',
     styleUrls: ['./tag-view.component.scss'],
-    standalone: false
+    imports: [MatChipGrid, MatChipRow, MatChipRemove, MatIcon, MatChipInput, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatAutocomplete, MatOption, AsyncPipe]
 })
 export class TagViewComponent implements OnInit {
 

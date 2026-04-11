@@ -8,8 +8,8 @@ describe('SchemaListComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SchemaListComponent ]
-    })
+    imports: [SchemaListComponent]
+})
     .compileComponents();
   }));
 

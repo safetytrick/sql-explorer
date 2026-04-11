@@ -1,10 +1,12 @@
 import {Component, Input, OnInit} from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { CallbackPipePipe } from '../callback-pipe.pipe';
 
 @Component({
     selector: 'app-small-table-view',
     templateUrl: './small-table-view.component.html',
     styleUrls: ['./small-table-view.component.scss'],
-    standalone: false
+    imports: [RouterLink, CallbackPipePipe]
 })
 export class SmallTableViewComponent implements OnInit {
 

@@ -2,13 +2,19 @@ import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { Highlight } from 'ngx-highlightjs';
+import { TagViewComponent } from '../tag-view/tag-view.component';
+import { PicoViewComponent } from '../pico-view/pico-view.component';
+import { TableLinkComponent } from '../table-link/table-link.component';
+import { ColumnLinkComponent } from '../column-link/column-link.component';
+import { SmallTableViewComponent } from '../small-table-view/small-table-view.component';
 
 @Component({
     selector: 'app-sql-view',
     templateUrl: './sql-view.component.html',
     styleUrls: ['./sql-view.component.css'],
     providers: [AnalyzedSqlService],
-    standalone: false
+    imports: [Highlight, TagViewComponent, PicoViewComponent, TableLinkComponent, ColumnLinkComponent, SmallTableViewComponent]
 })
 export class SqlViewComponent implements OnInit {
 

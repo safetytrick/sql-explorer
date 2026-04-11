@@ -1,12 +1,13 @@
 import {Component, OnInit, ViewChild} from '@angular/core';
-import {MatTable, MatTableDataSource} from '@angular/material/table';
+import { MatTable, MatTableDataSource, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from '@angular/material/table';
 import {TSV} from 'tsv';
+import { FormsModule } from '@angular/forms';
 
 @Component({
     selector: 'app-explain-view',
     templateUrl: './explain-view.component.html',
     styleUrls: ['./explain-view.component.scss'],
-    standalone: false
+    imports: [FormsModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ExplainViewComponent implements OnInit {
 

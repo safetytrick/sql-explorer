@@ -8,8 +8,8 @@ describe('TableGraphLoaderComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ TableGraphLoaderComponent ]
-    })
+    imports: [TableGraphLoaderComponent]
+})
     .compileComponents();
   }));
 

@@ -5,10 +5,7 @@ import {Pipe, PipeTransform} from '@angular/core';
  * Replaces the abandoned markdown-to-html-pipe library (Angular 2-7 only).
  * Handles: headings, ordered/unordered lists, inline code, bold, italic, links.
  */
-@Pipe({
-    name: 'MarkdownToHtml',
-    standalone: false
-})
+@Pipe({ name: 'MarkdownToHtml' })
 export class MarkdownToHtmlPipe implements PipeTransform {
   transform(value: string): string {
     if (!value) { return ''; }

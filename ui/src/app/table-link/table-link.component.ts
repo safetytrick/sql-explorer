@@ -1,10 +1,11 @@
 import {Component, Input, OnInit} from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 @Component({
     selector: 'app-table-link',
     templateUrl: './table-link.component.html',
     styleUrls: ['./table-link.component.scss'],
-    standalone: false
+    imports: [RouterLink]
 })
 export class TableLinkComponent implements OnInit {
 

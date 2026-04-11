@@ -8,8 +8,8 @@ describe('SmallTableViewComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SmallTableViewComponent ]
-    })
+    imports: [SmallTableViewComponent]
+})
     .compileComponents();
   }));
 

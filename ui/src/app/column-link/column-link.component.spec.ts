@@ -8,8 +8,8 @@ describe('ColumnLinkComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ ColumnLinkComponent ]
-    })
+    imports: [ColumnLinkComponent]
+})
     .compileComponents();
   }));
 

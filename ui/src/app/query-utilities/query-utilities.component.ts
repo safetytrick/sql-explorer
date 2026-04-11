@@ -1,12 +1,13 @@
 import { Component, OnInit } from '@angular/core';
-import {UntypedFormControl} from '@angular/forms';
+import { UntypedFormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
+import { Highlight } from 'ngx-highlightjs';
 
 @Component({
     selector: 'app-query-utilities',
     templateUrl: './query-utilities.component.html',
     styleUrls: ['./query-utilities.component.scss'],
-    standalone: false
+    imports: [Highlight, FormsModule, ReactiveFormsModule]
 })
 export class QueryUtilitiesComponent implements OnInit {
   result: string;

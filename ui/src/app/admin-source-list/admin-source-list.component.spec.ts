@@ -8,8 +8,8 @@ describe('AdminSourceListComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ AdminSourceListComponent ]
-    })
+    imports: [AdminSourceListComponent]
+})
     .compileComponents();
   }));
 

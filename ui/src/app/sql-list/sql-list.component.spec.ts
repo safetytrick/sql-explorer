@@ -8,8 +8,8 @@ describe('SqlListComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SqlListComponent ]
-    })
+    imports: [SqlListComponent]
+})
     .compileComponents();
   }));
 

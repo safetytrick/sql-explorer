@@ -2,12 +2,13 @@ import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { SmallSqlViewComponent } from '../small-sql-view/small-sql-view.component';
 
 @Component({
     selector: 'app-tagged-sql-view',
     templateUrl: './tagged-sql-view.component.html',
     styleUrls: ['./tagged-sql-view.component.scss'],
-    standalone: false
+    imports: [SmallSqlViewComponent]
 })
 export class TaggedSqlViewComponent implements OnInit {
   public taggedQueries: [];
