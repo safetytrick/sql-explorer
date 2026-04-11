@@ -1,10 +1,13 @@
 package com.github.safetytrick.sqlexplorer.spring;
 
+import java.util.Arrays;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
@@ -19,16 +22,19 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 class WebConfig implements WebMvcConfigurer {
 
     private final List<Module> jacksonModules;
+    private final Environment environment;
 
-    public WebConfig(List<Module> jacksonModules) {
+    public WebConfig(List<Module> jacksonModules, Environment environment) {
         this.jacksonModules = jacksonModules;
+        this.environment = environment;
     }
 
-    // todo, make this conditional on a development profile
     @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-            .allowedMethods("GET", "POST","PUT", "DELETE");
+    public void addCorsMappings(@NonNull CorsRegistry registry) {
+        if (Arrays.asList(environment.getActiveProfiles()).contains("local")) {
+            registry.addMapping("/**")
+                .allowedMethods("GET", "POST", "PUT", "DELETE");
+        }
     }
 
     @Override

@@ -97,5 +97,5 @@ Key services: `AnalyzedSqlService` (query profiles), `SourceService` (data sourc
 ### Configuration
 
 - `src/main/resources/application.yml` — Spring config; backend listens on port 8080
-- `src/main/docker-local/local.env` — Docker env vars (`ENVIRONMENT_PROFILE=localdev,override`, JVM flags)
+- `src/main/docker-local/local.env` — Docker env vars (`ENVIRONMENT_PROFILE=local,override`, JVM flags)
 - `src/main/docker-local/config/` — TSV files for statement analysis classification
