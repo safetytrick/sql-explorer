@@ -36,9 +36,7 @@
     "zone.js": "~0.14.10"
   },
   "overrides": {
-    "@swimlane/ngx-graph": {
-      "d3-selection": "^3.0.0"
-    }
+    "d3-selection": "^3.0.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^17.3.17",
