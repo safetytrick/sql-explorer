@@ -1,6 +1,6 @@
 import {BrowserModule} from '@angular/platform-browser';
 import {NgModule} from '@angular/core';
-import {HttpClientModule} from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 import {RouterModule, Routes} from '@angular/router';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
@@ -183,51 +183,47 @@ const appRoutes: Routes = [
 
 ];
 
-@NgModule({
-  declarations: [
-    AppComponent,
-    TableNamesComponent,
-    TableViewComponent,
-    SqlListComponent,
-    SqlViewComponent,
-    PicoViewComponent,
-    CallbackPipePipe,
-    ColumnLinkComponent,
-    NavBarComponent,
-    ExplainViewComponent,
-    SmallTableViewComponent,
-    NoteViewComponent,
-    TableLinkComponent,
-    QueryUtilitiesComponent,
-    TagViewComponent,
-    TaggedTableViewComponent,
-    TaggedSqlViewComponent,
-    SmallSqlViewComponent,
-    TagIndexComponent,
-    TableListComponent,
-    TableGraphComponent,
-    TagViewComponent,
-    TableGraphLoaderComponent,
-    SqlSummaryComponent,
-    AdminSourceListComponent,
-    TablesWithColumnComponent,
-    SchemaListComponent,
-    DurationPipe,
-    MarkdownToHtmlPipe
-  ],
-    imports: [
-        RouterModule.forRoot(appRoutes, {
-    // it would be nice to get this working: https://github.com/angular/angular/issues/24547
-    scrollPositionRestoration: 'enabled',
-    anchorScrolling: 'enabled'
-}),
+@NgModule({ declarations: [
+        AppComponent,
+        TableNamesComponent,
+        TableViewComponent,
+        SqlListComponent,
+        SqlViewComponent,
+        PicoViewComponent,
+        CallbackPipePipe,
+        ColumnLinkComponent,
+        NavBarComponent,
+        ExplainViewComponent,
+        SmallTableViewComponent,
+        NoteViewComponent,
+        TableLinkComponent,
+        QueryUtilitiesComponent,
+        TagViewComponent,
+        TaggedTableViewComponent,
+        TaggedSqlViewComponent,
+        SmallSqlViewComponent,
+        TagIndexComponent,
+        TableListComponent,
+        TableGraphComponent,
+        TagViewComponent,
+        TableGraphLoaderComponent,
+        SqlSummaryComponent,
+        AdminSourceListComponent,
+        TablesWithColumnComponent,
+        SchemaListComponent,
+        DurationPipe,
+        MarkdownToHtmlPipe
+    ],
+    bootstrap: [AppComponent], imports: [RouterModule.forRoot(appRoutes, {
+            // it would be nice to get this working: https://github.com/angular/angular/issues/24547
+            scrollPositionRestoration: 'enabled',
+            anchorScrolling: 'enabled'
+        }),
         FormsModule,
         BrowserModule,
         BrowserAnimationsModule,
-        HttpClientModule,
         HighlightModule,
         MatTableModule,
-
         ReactiveFormsModule,
         NgxGraphModule,
         MatChipsModule,
@@ -236,22 +232,19 @@ const appRoutes: Routes = [
         MatInputModule,
         MatIconModule,
         MatListModule,
-        MatSnackBarModule
-    ],
-  providers: [
-    AnalyzedSqlService,
-    {provide: MAT_SNACK_BAR_DEFAULT_OPTIONS, useValue: {duration: 250000, verticalPosition: 'top'}},
-    {
-      provide: HIGHLIGHT_OPTIONS,
-      useValue: {
-        coreLibraryLoader: () => import('highlight.js/lib/core'),
-        languages: {
-          sql: () => import('highlight.js/lib/languages/sql'),
-          xml: () => import('highlight.js/lib/languages/xml'),
-        }
-      }
-    }
-  ],
-  bootstrap: [AppComponent]
-})
+        MatSnackBarModule], providers: [
+        AnalyzedSqlService,
+        { provide: MAT_SNACK_BAR_DEFAULT_OPTIONS, useValue: { duration: 250000, verticalPosition: 'top' } },
+        {
+            provide: HIGHLIGHT_OPTIONS,
+            useValue: {
+                coreLibraryLoader: () => import('highlight.js/lib/core'),
+                languages: {
+                    sql: () => import('highlight.js/lib/languages/sql'),
+                    xml: () => import('highlight.js/lib/languages/xml'),
+                }
+            }
+        },
+        provideHttpClient(withInterceptorsFromDi())
+    ] })
 export class AppModule { }
