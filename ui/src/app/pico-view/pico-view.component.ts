@@ -11,7 +11,7 @@ import { DurationPipe } from '../duration.pipe';
 export class PicoViewComponent implements OnInit {
 
   @Input()
-  duration: number;
+  duration!: number;
 
   constructor() { }
 

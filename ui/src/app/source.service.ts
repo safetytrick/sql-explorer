@@ -19,7 +19,7 @@ export class SourceService {
     return this.http.get(endpoint + 'sources');
   }
 
-  loadSources(sources): Observable<any> {
+  loadSources(sources: any[]): Observable<any> {
     return this.http.post(endpoint + 'sources/load', sources);
   }
 }

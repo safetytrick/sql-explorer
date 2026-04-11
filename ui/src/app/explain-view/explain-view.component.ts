@@ -17,7 +17,7 @@ export class ExplainViewComponent implements OnInit {
 
   public text = '';
 
-  @ViewChild(MatTable, {static: true}) table: MatTable<any>;
+  @ViewChild(MatTable, {static: true}) table!: MatTable<any>;
 
 
   constructor() { }
@@ -35,9 +35,9 @@ export class ExplainViewComponent implements OnInit {
     this.text = textValue;
   }
 
-  private parseAndExtract(text) {
+  private parseAndExtract(text: string) {
     return TSV.parse(text)
-      .filter(item => item.hasOwnProperty('id') && item.id !== undefined && item.id !== '');
+      .filter((item: any) => item.hasOwnProperty('id') && item.id !== undefined && item.id !== '');
   }
 
 }

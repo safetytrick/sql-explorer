@@ -10,7 +10,7 @@ import { PicoViewComponent } from '../pico-view/pico-view.component';
 })
 export class TableListComponent implements OnInit {
   @Input()
-  tables: [];
+  tables!: any[];
 
   constructor() { }
 

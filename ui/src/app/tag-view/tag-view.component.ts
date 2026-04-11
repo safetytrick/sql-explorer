@@ -17,13 +17,13 @@ import { AsyncPipe } from '@angular/common';
 export class TagViewComponent implements OnInit {
 
   @Input()
-  path: string;
+  path!: string;
 
   @Input()
-  tags: any[] = null;
+  tags: any[] | null = null;
 
   tagInputControl = new UntypedFormControl('');
-  filteredTags: Observable<any[]>;
+  filteredTags!: Observable<any[]>;
 
   constructor(public sqlService: AnalyzedSqlService) {}
 
@@ -52,6 +52,6 @@ export class TagViewComponent implements OnInit {
 
   removeTag(tag: any) {
     this.sqlService.removeTag(tag.id).subscribe();
-    this.tags = this.tags.filter(t => t.id !== tag.id);
+    this.tags = this.tags!.filter(t => t.id !== tag.id);
   }
 }

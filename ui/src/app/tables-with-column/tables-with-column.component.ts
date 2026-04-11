@@ -12,8 +12,8 @@ import { TableListComponent } from '../table-list-component/table-list.component
 })
 export class TablesWithColumnComponent implements OnInit {
 
-    column: string;
-    tables: [];
+    column!: string;
+    tables!: any[];
 
 
     constructor(public sqlService: AnalyzedSqlService,
@@ -28,7 +28,7 @@ export class TablesWithColumnComponent implements OnInit {
 
     private getTablesWithColumn(tag: string) {
         this.sqlService.getTablesWithColumn(tag).subscribe(
-            (data: []) => {
+            (data: any) => {
                 this.tables = data;
             }
         );

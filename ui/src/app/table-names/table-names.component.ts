@@ -13,7 +13,7 @@ import { TableListComponent } from '../table-list-component/table-list.component
 export class TableNamesComponent implements OnInit {
 
   @Input()
-  schema: string;
+  schema!: string;
 
   tables: any = [];
 

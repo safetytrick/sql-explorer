@@ -13,12 +13,12 @@ import { TableGraphComponent } from '../table-graph/table-graph.component';
 })
 export class TableGraphLoaderComponent implements OnInit {
 
-  depth: number;
-  tag: string;
-  schema: string;
-  table: string;
+  depth!: number;
+  tag!: string;
+  schema!: string;
+  table!: string;
 
-  query: Observable<any>;
+  query!: Observable<any>;
 
   constructor(public sqlService: AnalyzedSqlService,
               private titleService: Title,

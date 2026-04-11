@@ -11,8 +11,8 @@ import { SmallSqlViewComponent } from '../small-sql-view/small-sql-view.componen
     imports: [SmallSqlViewComponent]
 })
 export class TaggedSqlViewComponent implements OnInit {
-  public taggedQueries: [];
-  public tag: string;
+  public taggedQueries!: any[];
+  public tag!: string;
 
   constructor(public sqlService: AnalyzedSqlService,
               private route: ActivatedRoute,
@@ -30,7 +30,7 @@ export class TaggedSqlViewComponent implements OnInit {
 
   private getSqlByTag(tag: string) {
     this.sqlService.getSqlByTag(tag).subscribe(
-      (data: []) => {
+      (data: any) => {
         this.taggedQueries = data;
       }
     );

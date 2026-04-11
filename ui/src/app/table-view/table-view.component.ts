@@ -20,7 +20,7 @@ export class TableViewComponent implements OnInit {
 
   table: any = null;
   showCreate = false;
-  column: string = null;
+  column: string | null = null;
 
 
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,

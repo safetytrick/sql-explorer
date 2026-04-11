@@ -25,17 +25,17 @@ export class TableGraphComponent {
         const tableJoinsArray = tableJoins as any[];
         tableJoinsArray.forEach(tableJoin => {
           groups.addTableJoins(tableJoin);
-          tableJoin.foreignKeyTables.forEach(relatedTable => {
+          tableJoin.foreignKeyTables.forEach((relatedTable: string) => {
             groups.addTable(relatedTable);
             this.createLink(tableJoin.table, relatedTable, 'fk');
           });
 
-          tableJoin.joinTables.forEach(relatedTable => {
+          tableJoin.joinTables.forEach((relatedTable: string) => {
             groups.addTable(relatedTable);
             this.createLink(tableJoin.table, relatedTable, 'joins');
           });
 
-          tableJoin.relatedTables.forEach(relatedTable => {
+          tableJoin.relatedTables.forEach((relatedTable: string) => {
             groups.addTable(relatedTable);
             this.createLink(tableJoin.table, relatedTable, 'queried with');
           });
@@ -74,7 +74,7 @@ export class TableGraphComponent {
         clusterNode = {id: pair.group, label: pair.group, childNodeIds: []};
         clusterNodeMap.set(pair.group, clusterNode);
       }
-      clusterNode.childNodeIds.push(pair.table);
+      clusterNode.childNodeIds!.push(pair.table);
     });
 
     clusterNodeMap.forEach((value: ClusterNode, key: string) => {
@@ -99,10 +99,10 @@ class GroupTracker {
   }
 
   getGroupedTables() {
-    const grouped = [];
+    const grouped: {table: string, group: string}[] = [];
     this.tables.forEach(table => {
       if (this.tableGroups.has(table)) {
-        grouped.push({table: table, group: this.tableGroups.get(table)});
+        grouped.push({table: table, group: this.tableGroups.get(table)!});
       } else if (table.indexOf('.') !== -1) {
         const schema = table.split('.')[0];
         grouped.push({table: table, group: schema});

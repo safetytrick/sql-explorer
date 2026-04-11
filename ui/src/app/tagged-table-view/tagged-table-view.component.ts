@@ -11,8 +11,8 @@ import { TableListComponent } from '../table-list-component/table-list.component
     imports: [RouterLink, TableListComponent]
 })
 export class TaggedTableViewComponent implements OnInit {
-  tag: string;
-  taggedTables: [];
+  tag!: string;
+  taggedTables!: any[];
 
 
   constructor(public sqlService: AnalyzedSqlService,
@@ -34,7 +34,7 @@ export class TaggedTableViewComponent implements OnInit {
 
   private getTablesByTag(tag: string) {
     this.sqlService.getTablesByTag(tag).subscribe(
-      (data: []) => {
+      (data: any) => {
         this.taggedTables = data;
       }
     );

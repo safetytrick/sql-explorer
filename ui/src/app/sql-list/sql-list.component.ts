@@ -16,7 +16,7 @@ export class SqlListComponent implements OnInit {
 
   public sqlList: any = [];
   private limit = 10;
-  private name: string = null;
+  private name: string | null = null;
 
   constructor(public sqlService: AnalyzedSqlService,
               private route: ActivatedRoute,
@@ -37,7 +37,7 @@ export class SqlListComponent implements OnInit {
 
   getReportSql() {
     this.sqlList = [];
-    this.sqlService.getReportSql(this.name, this.limit).subscribe((data: {}) => {
+    this.sqlService.getReportSql(this.name!, this.limit).subscribe((data: {}) => {
       this.sqlList = data;
     });
   }

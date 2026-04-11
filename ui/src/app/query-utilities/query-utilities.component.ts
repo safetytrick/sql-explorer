@@ -10,7 +10,7 @@ import { Highlight } from 'ngx-highlightjs';
     imports: [Highlight, FormsModule, ReactiveFormsModule]
 })
 export class QueryUtilitiesComponent implements OnInit {
-  result: string;
+  result!: string;
   inputControl = new UntypedFormControl('');
 
   constructor(public sqlService: AnalyzedSqlService) { }

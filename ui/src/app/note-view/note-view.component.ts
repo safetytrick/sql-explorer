@@ -12,10 +12,10 @@ import { MarkdownToHtmlPipe } from '../markdown-to-html.pipe';
 })
 export class NoteViewComponent implements OnInit, OnDestroy {
 
-  note: string = null;
-  createdOn: Date = null;
-  author: Author = null;
-  private sub: Subscription;
+  note: string | null = null;
+  createdOn: Date | null = null;
+  author: Author | null = null;
+  private sub!: Subscription;
 
   constructor(private route: ActivatedRoute) { }
 
