@@ -1,12 +1,17 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {Observable} from 'rxjs';
 import {debounceTime, switchMap} from 'rxjs/operators';
-import { UntypedFormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { MatChipInputEvent, MatChipGrid, MatChipRow, MatChipRemove, MatChipInput } from '@angular/material/chips';
-import { MatAutocompleteSelectedEvent, MatAutocompleteTrigger, MatAutocomplete, MatOption } from '@angular/material/autocomplete';
+import {FormsModule, ReactiveFormsModule, UntypedFormControl} from '@angular/forms';
+import {MatChipGrid, MatChipInput, MatChipInputEvent, MatChipRemove, MatChipRow} from '@angular/material/chips';
+import {
+  MatAutocomplete,
+  MatAutocompleteSelectedEvent,
+  MatAutocompleteTrigger,
+  MatOption
+} from '@angular/material/autocomplete';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import { MatIcon } from '@angular/material/icon';
-import { AsyncPipe } from '@angular/common';
+import {MatIcon} from '@angular/material/icon';
+import {AsyncPipe} from '@angular/common';
 
 @Component({
     selector: 'app-tag-view',
@@ -38,15 +43,23 @@ export class TagViewComponent implements OnInit {
   }
 
   addTag(event: MatChipInputEvent) {
-    event.input.value = '';
+    const value = (event.value || '').trim();
+    if (value) {
+      this.sqlService.addTag(value, this.path).subscribe((tag: any) => {
+        if (!this.tags) { this.tags = []; }
+        this.tags = [...this.tags, tag];
+      });
+    }
+    event.chipInput!.clear();
     this.tagInputControl.setValue(null);
   }
 
   selectTag(event: MatAutocompleteSelectedEvent) {
-    const tag = event.option.value;
-    this.sqlService.addTag(tag.name, this.path).subscribe();
-    if (!this.tags) { this.tags = []; }
-    this.tags = [...this.tags, tag];
+    const tagName: string = event.option.value;
+    this.sqlService.addTag(tagName, this.path).subscribe((tag: any) => {
+      if (!this.tags) { this.tags = []; }
+      this.tags = [...this.tags, tag];
+    });
     this.tagInputControl.setValue(null);
   }
 
