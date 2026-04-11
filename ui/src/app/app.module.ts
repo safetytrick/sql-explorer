@@ -14,12 +14,9 @@ import {AnalyzedSqlService} from './analyzed-sql.service';
 import {SqlListComponent} from './sql-list/sql-list.component';
 import {SqlViewComponent} from './sql-view/sql-view.component';
 
-import {HighlightModule} from 'ngx-highlightjs';
+import {HighlightModule, HIGHLIGHT_OPTIONS} from 'ngx-highlightjs';
 
 import {DurationPipe} from './duration.pipe';
-
-import sql from 'highlight.js/lib/languages/sql';
-import xml from 'highlight.js/lib/languages/xml';
 import {PicoViewComponent} from './pico-view/pico-view.component';
 import {CallbackPipePipe} from './callback-pipe.pipe';
 import {ColumnLinkComponent} from './column-link/column-link.component';
@@ -186,17 +183,6 @@ const appRoutes: Routes = [
 
 ];
 
-/**
- * Import every language you wish to highlight here
- * NOTE: The name of each language must match the file name its imported from
- */
-export function hljsLanguages() {
-  return [
-    {name: 'sql', func: sql},
-    {name: 'xml', func: xml}
-  ];
-}
-
 @NgModule({
   declarations: [
     AppComponent,
@@ -239,7 +225,7 @@ export function hljsLanguages() {
         BrowserModule,
         BrowserAnimationsModule,
         HttpClientModule,
-        HighlightModule.forRoot({languages: hljsLanguages}),
+        HighlightModule,
         MatTableModule,
 
         ReactiveFormsModule,
@@ -254,7 +240,17 @@ export function hljsLanguages() {
     ],
   providers: [
     AnalyzedSqlService,
-    {provide: MAT_SNACK_BAR_DEFAULT_OPTIONS, useValue: {duration: 250000, verticalPosition: 'top'}}
+    {provide: MAT_SNACK_BAR_DEFAULT_OPTIONS, useValue: {duration: 250000, verticalPosition: 'top'}},
+    {
+      provide: HIGHLIGHT_OPTIONS,
+      useValue: {
+        coreLibraryLoader: () => import('highlight.js/lib/core'),
+        languages: {
+          sql: () => import('highlight.js/lib/languages/sql'),
+          xml: () => import('highlight.js/lib/languages/xml'),
+        }
+      }
+    }
   ],
   bootstrap: [AppComponent]
 })
