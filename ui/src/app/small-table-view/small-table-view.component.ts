@@ -1,9 +1,10 @@
 import {Component, Input, OnInit} from '@angular/core';
 
 @Component({
-  selector: 'app-small-table-view',
-  templateUrl: './small-table-view.component.html',
-  styleUrls: ['./small-table-view.component.scss']
+    selector: 'app-small-table-view',
+    templateUrl: './small-table-view.component.html',
+    styleUrls: ['./small-table-view.component.scss'],
+    standalone: false
 })
 export class SmallTableViewComponent implements OnInit {
 

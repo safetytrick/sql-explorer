@@ -3,9 +3,10 @@ import {ClusterNode, Edge, Layout, Node} from '@swimlane/ngx-graph';
 import {Observable} from 'rxjs';
 
 @Component({
-  selector: 'app-table-graph',
-  templateUrl: './table-graph.component.html',
-  styleUrls: ['./table-graph.component.scss']
+    selector: 'app-table-graph',
+    templateUrl: './table-graph.component.html',
+    styleUrls: ['./table-graph.component.scss'],
+    standalone: false
 })
 export class TableGraphComponent {
   dataReceived = false;

@@ -4,9 +4,10 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-table-view',
-  templateUrl: './table-view.component.html',
-  styleUrls: ['./table-view.component.css']
+    selector: 'app-table-view',
+    templateUrl: './table-view.component.html',
+    styleUrls: ['./table-view.component.css'],
+    standalone: false
 })
 export class TableViewComponent implements OnInit {
 

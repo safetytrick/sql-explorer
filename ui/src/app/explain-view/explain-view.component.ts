@@ -3,9 +3,10 @@ import {MatTable, MatTableDataSource} from '@angular/material/table';
 import {TSV} from 'tsv';
 
 @Component({
-  selector: 'app-explain-view',
-  templateUrl: './explain-view.component.html',
-  styleUrls: ['./explain-view.component.scss']
+    selector: 'app-explain-view',
+    templateUrl: './explain-view.component.html',
+    styleUrls: ['./explain-view.component.scss'],
+    standalone: false
 })
 export class ExplainViewComponent implements OnInit {
 

@@ -5,9 +5,10 @@ import {Observable} from 'rxjs';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-table-graph-loader',
-  templateUrl: './table-graph-loader.component.html',
-  styleUrls: ['./table-graph-loader.component.scss']
+    selector: 'app-table-graph-loader',
+    templateUrl: './table-graph-loader.component.html',
+    styleUrls: ['./table-graph-loader.component.scss'],
+    standalone: false
 })
 export class TableGraphLoaderComponent implements OnInit {
 

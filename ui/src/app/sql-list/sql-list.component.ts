@@ -4,10 +4,11 @@ import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-sql-list',
-  templateUrl: './sql-list.component.html',
-  styleUrls: ['./sql-list.component.css'],
-  providers: [AnalyzedSqlService]
+    selector: 'app-sql-list',
+    templateUrl: './sql-list.component.html',
+    styleUrls: ['./sql-list.component.css'],
+    providers: [AnalyzedSqlService],
+    standalone: false
 })
 export class SqlListComponent implements OnInit {
 

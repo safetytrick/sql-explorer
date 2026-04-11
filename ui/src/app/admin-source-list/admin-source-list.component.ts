@@ -3,9 +3,10 @@ import {SourceService} from '../source.service';
 import {MatSelectionList} from '@angular/material/list';
 
 @Component({
-  selector: 'app-admin-source-list',
-  templateUrl: './admin-source-list.component.html',
-  styleUrls: ['./admin-source-list.component.scss']
+    selector: 'app-admin-source-list',
+    templateUrl: './admin-source-list.component.html',
+    styleUrls: ['./admin-source-list.component.scss'],
+    standalone: false
 })
 export class AdminSourceListComponent implements OnInit {
 

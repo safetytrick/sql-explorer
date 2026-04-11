@@ -4,9 +4,10 @@ import {ActivatedRoute} from '@angular/router';
 import {Subscription} from 'rxjs/internal/Subscription';
 
 @Component({
-  selector: 'app-note-view',
-  templateUrl: './note-view.component.html',
-  styleUrls: ['./note-view.component.css']
+    selector: 'app-note-view',
+    templateUrl: './note-view.component.html',
+    styleUrls: ['./note-view.component.css'],
+    standalone: false
 })
 export class NoteViewComponent implements OnInit, OnDestroy {
 

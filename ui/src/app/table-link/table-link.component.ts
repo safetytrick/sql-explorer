@@ -1,9 +1,10 @@
 import {Component, Input, OnInit} from '@angular/core';
 
 @Component({
-  selector: 'app-table-link',
-  templateUrl: './table-link.component.html',
-  styleUrls: ['./table-link.component.scss']
+    selector: 'app-table-link',
+    templateUrl: './table-link.component.html',
+    styleUrls: ['./table-link.component.scss'],
+    standalone: false
 })
 export class TableLinkComponent implements OnInit {
 

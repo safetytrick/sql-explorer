@@ -4,9 +4,10 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-tagged-sql-view',
-  templateUrl: './tagged-sql-view.component.html',
-  styleUrls: ['./tagged-sql-view.component.scss']
+    selector: 'app-tagged-sql-view',
+    templateUrl: './tagged-sql-view.component.html',
+    styleUrls: ['./tagged-sql-view.component.scss'],
+    standalone: false
 })
 export class TaggedSqlViewComponent implements OnInit {
   public taggedQueries: [];

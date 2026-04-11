@@ -3,9 +3,10 @@ import {UntypedFormControl} from '@angular/forms';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 
 @Component({
-  selector: 'app-query-utilities',
-  templateUrl: './query-utilities.component.html',
-  styleUrls: ['./query-utilities.component.scss']
+    selector: 'app-query-utilities',
+    templateUrl: './query-utilities.component.html',
+    styleUrls: ['./query-utilities.component.scss'],
+    standalone: false
 })
 export class QueryUtilitiesComponent implements OnInit {
   result: string;

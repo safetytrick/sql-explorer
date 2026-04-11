@@ -3,9 +3,10 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-tag-index',
-  templateUrl: './tag-index.component.html',
-  styleUrls: ['./tag-index.component.scss']
+    selector: 'app-tag-index',
+    templateUrl: './tag-index.component.html',
+    styleUrls: ['./tag-index.component.scss'],
+    standalone: false
 })
 export class TagIndexComponent implements OnInit {
 

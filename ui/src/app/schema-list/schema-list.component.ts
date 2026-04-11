@@ -3,9 +3,10 @@ import {AnalyzedSqlService} from "../analyzed-sql.service";
 import {Title} from "@angular/platform-browser";
 
 @Component({
-  selector: 'app-schema-list',
-  templateUrl: './schema-list.component.html',
-  styleUrls: ['./schema-list.component.scss']
+    selector: 'app-schema-list',
+    templateUrl: './schema-list.component.html',
+    styleUrls: ['./schema-list.component.scss'],
+    standalone: false
 })
 export class SchemaListComponent implements OnInit {
 

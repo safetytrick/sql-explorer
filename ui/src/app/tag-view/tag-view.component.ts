@@ -7,9 +7,10 @@ import {MatAutocompleteSelectedEvent} from '@angular/material/autocomplete';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 
 @Component({
-  selector: 'app-tag-view',
-  templateUrl: './tag-view.component.html',
-  styleUrls: ['./tag-view.component.scss']
+    selector: 'app-tag-view',
+    templateUrl: './tag-view.component.html',
+    styleUrls: ['./tag-view.component.scss'],
+    standalone: false
 })
 export class TagViewComponent implements OnInit {
 

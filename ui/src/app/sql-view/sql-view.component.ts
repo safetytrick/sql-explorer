@@ -4,10 +4,11 @@ import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-sql-view',
-  templateUrl: './sql-view.component.html',
-  styleUrls: ['./sql-view.component.css'],
-  providers: [AnalyzedSqlService]
+    selector: 'app-sql-view',
+    templateUrl: './sql-view.component.html',
+    styleUrls: ['./sql-view.component.css'],
+    providers: [AnalyzedSqlService],
+    standalone: false
 })
 export class SqlViewComponent implements OnInit {
 

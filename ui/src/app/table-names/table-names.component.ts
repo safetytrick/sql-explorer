@@ -4,9 +4,10 @@ import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-table-names',
-  templateUrl: './table-names.component.html',
-  styleUrls: ['./table-names.component.css']
+    selector: 'app-table-names',
+    templateUrl: './table-names.component.html',
+    styleUrls: ['./table-names.component.css'],
+    standalone: false
 })
 export class TableNamesComponent implements OnInit {
 

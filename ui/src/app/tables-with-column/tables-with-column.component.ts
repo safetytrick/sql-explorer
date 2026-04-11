@@ -4,9 +4,10 @@ import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-tables-with-column',
-  templateUrl: './tables-with-column.component.html',
-  styleUrls: ['./tables-with-column.component.scss']
+    selector: 'app-tables-with-column',
+    templateUrl: './tables-with-column.component.html',
+    styleUrls: ['./tables-with-column.component.scss'],
+    standalone: false
 })
 export class TablesWithColumnComponent implements OnInit {
 

@@ -4,9 +4,10 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 
 @Component({
-  selector: 'app-tagged-table-view',
-  templateUrl: './tagged-table-view.component.html',
-  styleUrls: ['./tagged-table-view.component.scss']
+    selector: 'app-tagged-table-view',
+    templateUrl: './tagged-table-view.component.html',
+    styleUrls: ['./tagged-table-view.component.scss'],
+    standalone: false
 })
 export class TaggedTableViewComponent implements OnInit {
   tag: string;
