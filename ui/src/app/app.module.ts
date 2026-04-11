@@ -4,7 +4,7 @@ import {HttpClientModule} from '@angular/common/http';
 
 import {RouterModule, Routes} from '@angular/router';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
-import {MatLegacyTableModule as MatTableModule} from '@angular/material/legacy-table';
+import {MatTableModule} from '@angular/material/table';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 
 import {AppComponent} from './app.component';
@@ -38,13 +38,13 @@ import {TableListComponent} from './table-list-component/table-list.component';
 import {TableGraphLoaderComponent} from './table-graph-loader/table-graph-loader.component';
 import {MatChipsModule} from '@angular/material/chips';
 import {MatAutocompleteModule} from '@angular/material/autocomplete';
-import {MatLegacyFormFieldModule as MatFormFieldModule} from '@angular/material/legacy-form-field';
-import {MatLegacyInputModule as MatInputModule} from '@angular/material/legacy-input';
+import {MatFormFieldModule} from '@angular/material/form-field';
+import {MatInputModule} from '@angular/material/input';
 import {MatIconModule} from '@angular/material/icon';
 import {SqlSummaryComponent} from './sql-summary/sql-summary.component';
 import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
-import {MatLegacyListModule as MatListModule} from '@angular/material/legacy-list';
-import { MAT_LEGACY_SNACK_BAR_DEFAULT_OPTIONS as MAT_SNACK_BAR_DEFAULT_OPTIONS, MatLegacySnackBarModule as MatSnackBarModule } from '@angular/material/legacy-snack-bar';
+import {MatListModule} from '@angular/material/list';
+import {MAT_SNACK_BAR_DEFAULT_OPTIONS, MatSnackBarModule} from '@angular/material/snack-bar';
 import {TablesWithColumnComponent} from './tables-with-column/tables-with-column.component';
 import {SchemaListComponent} from './schema-list/schema-list.component';
 

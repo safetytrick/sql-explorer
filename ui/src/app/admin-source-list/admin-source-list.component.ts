@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {SourceService} from '../source.service';
-import {MatLegacySelectionList as MatSelectionList} from '@angular/material/legacy-list';
+import {MatSelectionList} from '@angular/material/list';
 
 @Component({
   selector: 'app-admin-source-list',
