@@ -24,7 +24,7 @@ services:
       - "4200:80"
 
   schema-mysql:
-    image: mysql
+    image: mysql:8.4.4
     container_name: schema-mysql
     profiles: [ "remote-metadata" ]
     ports:
