@@ -1,175 +1,207 @@
-<div *ngIf="table">
-
-  <h2>
-    <a routerLink="/table/{{table.schema}}/{{table.name}}">{{table.schema}}.{{table.name}}</a>
-    <a *ngIf="column" routerLink="/table/{{table.schema}}/{{table.name}}/{{column}}">.{{column}}</a> &nbsp;
-    <button class="btn btn-outline-dark" routerLink="/table-graph/schema/{{table.schema}}/{{table.name}}" title="Graph">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-diagram-3-fill" viewBox="0 0 16 16">
-        <path fill-rule="evenodd" d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5zm-6 8A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5zm6 0A1.5 1.5 0 0 1 7.5 10h1a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5zm6 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5z"/>
-      </svg>
-    </button>
-    <button *ngIf="column" style="margin-left:5px" class="btn btn-outline-dark" routerLink="/tables/with-column/{{column}}" title="Tables with {{column}}">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-asterisk" viewBox="0 0 16 16">
-        <path d="M8 0a1 1 0 0 1 1 1v5.268l4.562-2.634a1 1 0 1 1 1 1.732L10 8l4.562 2.634a1 1 0 1 1-1 1.732L9 9.732V15a1 1 0 1 1-2 0V9.732l-4.562 2.634a1 1 0 1 1-1-1.732L6 8 1.438 5.366a1 1 0 0 1 1-1.732L7 6.268V1a1 1 0 0 1 1-1"/>
-      </svg>
-    </button>
-  </h2>
-
-  <pre *ngIf="table.remarks">{{table.remarks}}</pre>
-
-  <div class="row">
-    <div class="col">
-      <div>
-        <app-tag-view [path]="'/schema/' + table.schema + '/table/' + table.name"></app-tag-view>
-      </div>
-      <table class="table table-sm">
-        <thead class="thead-dark">
-        <tr>
-          <th>Number Of Queries</th>
-          <th>Total Query Time</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr>
-          <td>{{table.numberOfQueries}}</td>
-          <td><app-pico-view [duration]="table.totalQueryTime"></app-pico-view></td>
-        </tr>
-        </tbody>
-      </table>
-      <!--<div>Grafana:
-      <ul class="query-reference">
-        &lt;!&ndash; todo refactor into a configurable plugin &ndash;&gt;
-        <li><a href="https://grafana.local/d/lB5SJ01Wz/mysql-table-size?orgId=1&var-Datasource=Prometheus&var-instance=dc1-pxc-04&var-schema={{table.schema}}&var-table={{table.name}}&var-interval=140d">Table Size</a>,</li>
-        <li><a href="https://grafana.local/d/XjzE6ZBGk/mysql-table-io-cross-server?orgId=1&var-Datasource=Prometheus&var-interval=$__auto_interval_interval&var-instance=del-mysql-02&var-instance=del-mysql-03&var-instance=dc1-pxc-03&var-instance=dc1-pxc-04&var-instance=dc1-pxc-05&var-schema={{table.schema}}&var-table={{table.name}}">Table IO</a></li>
-      </ul>
-      </div>-->
-    </div>
-
-    <div class="col">
-      <div *ngIf="table.foreignKeyTables && table.foreignKeyTables.length" class="query-breakdown">
-        <span class="title">FK Tables </span>
-        <div class="query-reference">
-          <ul class="tables query-reference">
-            <li *ngFor="let tableRef of table.foreignKeyTables">
-              <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
-            </li>
+@if (table) {
+  <div>
+    <h2>
+      <a routerLink="/table/{{table.schema}}/{{table.name}}">{{table.schema}}.{{table.name}}</a>
+      @if (column) {
+        <a routerLink="/table/{{table.schema}}/{{table.name}}/{{column}}">.{{column}}</a>
+        } &nbsp;
+        <button class="btn btn-outline-dark" routerLink="/table-graph/schema/{{table.schema}}/{{table.name}}" title="Graph">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-diagram-3-fill" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5zm-6 8A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5zm6 0A1.5 1.5 0 0 1 7.5 10h1a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5zm6 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5z"/>
+          </svg>
+        </button>
+        @if (column) {
+          <button style="margin-left:5px" class="btn btn-outline-dark" routerLink="/tables/with-column/{{column}}" title="Tables with {{column}}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-asterisk" viewBox="0 0 16 16">
+              <path d="M8 0a1 1 0 0 1 1 1v5.268l4.562-2.634a1 1 0 1 1 1 1.732L10 8l4.562 2.634a1 1 0 1 1-1 1.732L9 9.732V15a1 1 0 1 1-2 0V9.732l-4.562 2.634a1 1 0 1 1-1-1.732L6 8 1.438 5.366a1 1 0 0 1 1-1.732L7 6.268V1a1 1 0 0 1 1-1"/>
+            </svg>
+          </button>
+        }
+      </h2>
+      @if (table.remarks) {
+        <pre>{{table.remarks}}</pre>
+      }
+      <div class="row">
+        <div class="col">
+          <div>
+            <app-tag-view [path]="'/schema/' + table.schema + '/table/' + table.name"></app-tag-view>
+          </div>
+          <table class="table table-sm">
+            <thead class="thead-dark">
+              <tr>
+                <th>Number Of Queries</th>
+                <th>Total Query Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{{table.numberOfQueries}}</td>
+                <td><app-pico-view [duration]="table.totalQueryTime"></app-pico-view></td>
+              </tr>
+            </tbody>
+          </table>
+          <!--<div>Grafana:
+          <ul class="query-reference">
+            &lt;!&ndash; todo refactor into a configurable plugin &ndash;&gt;
+            <li><a href="https://grafana.local/d/lB5SJ01Wz/mysql-table-size?orgId=1&var-Datasource=Prometheus&var-instance=dc1-pxc-04&var-schema={{table.schema}}&var-table={{table.name}}&var-interval=140d">Table Size</a>,</li>
+            <li><a href="https://grafana.local/d/XjzE6ZBGk/mysql-table-io-cross-server?orgId=1&var-Datasource=Prometheus&var-interval=$__auto_interval_interval&var-instance=del-mysql-02&var-instance=del-mysql-03&var-instance=dc1-pxc-03&var-instance=dc1-pxc-04&var-instance=dc1-pxc-05&var-schema={{table.schema}}&var-table={{table.name}}">Table IO</a></li>
           </ul>
-        </div>
+        </div>-->
       </div>
-      <div *ngIf="table.joinTables && table.joinTables.length" class="query-breakdown">
-        <span class="title">Joined Tables </span>
-        <div class="query-reference">
-        <ul class="tables query-reference">
-          <li *ngFor="let tableRef of table.joinTables">
-            <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
-          </li>
-        </ul>
-        </div>
-      </div>
-      <div *ngIf="table.relatedTables && table.relatedTables.length" class="query-breakdown">
-        <span class="title">Tables in Queries </span>
-        <div class="query-reference">
-          <ul class="tables query-reference">
-            <li *ngFor="let tableRef of table.relatedTables">
-              <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
-            </li>
-          </ul>
-        </div>
+      <div class="col">
+        @if (table.foreignKeyTables && table.foreignKeyTables.length) {
+          <div class="query-breakdown">
+            <span class="title">FK Tables </span>
+            <div class="query-reference">
+              <ul class="tables query-reference">
+                @for (tableRef of table.foreignKeyTables; track tableRef) {
+                  <li>
+                    <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        }
+        @if (table.joinTables && table.joinTables.length) {
+          <div class="query-breakdown">
+            <span class="title">Joined Tables </span>
+            <div class="query-reference">
+              <ul class="tables query-reference">
+                @for (tableRef of table.joinTables; track tableRef) {
+                  <li>
+                    <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        }
+        @if (table.relatedTables && table.relatedTables.length) {
+          <div class="query-breakdown">
+            <span class="title">Tables in Queries </span>
+            <div class="query-reference">
+              <ul class="tables query-reference">
+                @for (tableRef of table.relatedTables; track tableRef) {
+                  <li>
+                    <app-table-link linkClass="btn btn-primary" [defaultSchema]="table.schema" [tableReference]="tableRef" [join]="table.name"></app-table-link>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        }
       </div>
     </div>
-  </div>
-
-  <div *ngIf="table.structure" class="clearfix">
-    <div *ngIf="showCreate && table.structure.create then createStatement else tableStructure"></div>
-    <button class="btn btn-secondary btn-sm float-right" (click)="showCreate = !showCreate">{{ showCreate ? 'Table View' : 'Create View' }}</button>
-  </div>
-  <ng-template #createStatement>
-    <pre><code style="margin-top: 20px; margin-bottom: 20px" highlight="{{table.structure.create}}"></code></pre>
-  </ng-template>
-  <ng-template #tableStructure>
-
-  <table id="table-structure" class="table table-sm table-hover">
-    <thead class="thead-dark">
-    <tr>
-      <th class="tab-col-wide-right">Name</th>
-      <th class="tab-col-md">Type</th>
-      <th class="tab-col-sm">Nullable</th>
-      <th class="tab-col-md">Char Set</th>
-      <th class="tab-col-md">Collation</th>
-      <th class="tab-col-sm">Precision</th>
-      <th class="tab-col-sm">Size</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr *ngFor="let col of table.structure.columns">
-      <th scope="row">
-        <a routerLink="/table/{{table.schema}}/{{table.name}}/{{col.columnName}}">{{col.columnName}}</a>
-        <span *ngIf="col.remarks" title="{{col.remarks}}">&nbsp;
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-chat-left-fill" viewBox="0 0 16 16">
-          <path d="M2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
-        </svg>
-        </span>
-      </th>
-      <td>{{col.typeName}} <span *ngIf="col.columnSize">({{col.columnSize}})</span></td>
-      <td>{{col.isNullable}}</td>
-      <td>{{col.characterSet}}</td>
-      <td>{{col.collation}}</td>
-      <td><span *ngIf="col.decimalDigits != 0">{{col.decimalDigits}}</span></td>
-      <td>{{col.columnSize}}</td>
-    </tr>
-    </tbody>
-  </table>
-
-  <table id="table-indices" class="table table-sm table-hover" *ngIf="table.structure.indices.length > 1">
-    <thead class="thead-dark">
-    <tr>
-      <th class="tab-col-wide-right">Index</th>
-      <th class="tab-col-md">Columns</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr *ngFor="let index of table.structure.indices | callback: skipPrimary">
-      <td>{{index.name}}</td>
-      <td>{{index.columns.join(", ")}}</td>
-    </tr>
-    </tbody>
-  </table>
-  </ng-template>
-
-  <hr>
-
-  <div class="container">
-    <div *ngFor="let query of table.queries" class="row query-details">
-      <div class="col-8">
-        <a routerLink="/analyzed-sql/{{query.digest}}">{{query.id}} ({{query.type}})</a>
-        <pre><code highlight="{{query.query}}"></code></pre>
+    @if (table.structure) {
+      <div class="clearfix">
+        @if (showCreate && table.structure.create) {
+          <pre><code style="margin-top: 20px; margin-bottom: 20px" highlight="{{table.structure.create}}"></code></pre>
+        } @else {
+          <table id="table-structure" class="table table-sm table-hover">
+            <thead class="thead-dark">
+              <tr>
+                <th class="tab-col-wide-right">Name</th>
+                <th class="tab-col-md">Type</th>
+                <th class="tab-col-sm">Nullable</th>
+                <th class="tab-col-md">Char Set</th>
+                <th class="tab-col-md">Collation</th>
+                <th class="tab-col-sm">Precision</th>
+                <th class="tab-col-sm">Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (col of table.structure.columns; track col) {
+                <tr>
+                  <th scope="row">
+                    <a routerLink="/table/{{table.schema}}/{{table.name}}/{{col.columnName}}">{{col.columnName}}</a>
+                    @if (col.remarks) {
+                      <span title="{{col.remarks}}">&nbsp;
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-chat-left-fill" viewBox="0 0 16 16">
+                          <path d="M2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
+                        </svg>
+                      </span>
+                    }
+                  </th>
+                  <td>{{col.typeName}} @if (col.columnSize) {
+                    <span>({{col.columnSize}})</span>
+                  }</td>
+                  <td>{{col.isNullable}}</td>
+                  <td>{{col.characterSet}}</td>
+                  <td>{{col.collation}}</td>
+                  <td>@if (col.decimalDigits != 0) {
+                    <span>{{col.decimalDigits}}</span>
+                  }</td>
+                  <td>{{col.columnSize}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          @if (table.structure.indices.length > 1) {
+            <table id="table-indices" class="table table-sm table-hover">
+              <thead class="thead-dark">
+                <tr>
+                  <th class="tab-col-wide-right">Index</th>
+                  <th class="tab-col-md">Columns</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (index of table.structure.indices | callback: skipPrimary; track index) {
+                  <tr>
+                    <td>{{index.name}}</td>
+                    <td>{{index.columns.join(", ")}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        }
+        <button class="btn btn-secondary btn-sm float-right" (click)="showCreate = !showCreate">{{ showCreate ? 'Table View' : 'Create View' }}</button>
       </div>
-      <div class="col-4" style="margin-bottom:10px">
-        <div>Summary:</div>
-        <app-sql-summary [query]="query"></app-sql-summary>
-        <div *ngIf="query.tables.length > 1"><br>Joins To:</div>
-        <ul class="list-group">
-          <li class="list-group-item" *ngFor="let otherTable of query.tables | callback: otherTables(table)">
-            <app-table-link [defaultSchema]="query.schemaName" [tableReference]="otherTable"></app-table-link>
-          </li>
-        </ul>
-        <div *ngIf="query.mismatchedJoins.length > 0">
-          <div><br>Mismatched Joins:</div>
-          <ul class="list-unstyled">
-            <li *ngFor="let join of query.mismatchedJoins">
-              <div class="alert alert-danger">
+    }
+    <hr>
+      <div class="container">
+        @for (query of table.queries; track query) {
+          <div class="row query-details">
+            <div class="col-8">
+              <a routerLink="/analyzed-sql/{{query.digest}}">{{query.id}} ({{query.type}})</a>
+              <pre><code highlight="{{query.query}}"></code></pre>
+            </div>
+            <div class="col-4" style="margin-bottom:10px">
+              <div>Summary:</div>
+              <app-sql-summary [query]="query"></app-sql-summary>
+              @if (query.tables.length > 1) {
+                <div><br>Joins To:</div>
+              }
+              <ul class="list-group">
+                @for (otherTable of query.tables | callback: otherTables(table); track otherTable) {
+                  <li class="list-group-item">
+                    <app-table-link [defaultSchema]="query.schemaName" [tableReference]="otherTable"></app-table-link>
+                  </li>
+                }
+              </ul>
+              @if (query.mismatchedJoins.length > 0) {
                 <div>
-                  <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+                  <div><br>Mismatched Joins:</div>
+                  <ul class="list-unstyled">
+                    @for (join of query.mismatchedJoins; track join) {
+                      <li>
+                        <div class="alert alert-danger">
+                          <div>
+                            <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+                          </div>
+                          <div>
+                            <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
+                          </div>
+                        </div>
+                      </li>
+                    }
+                  </ul>
                 </div>
-                <div>
-                  <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
-                </div>
-              </div>
-            </li>
-          </ul>
-        </div>
+              }
+            </div>
+          </div>
+        }
       </div>
     </div>
-  </div>
-
-</div>
+  }

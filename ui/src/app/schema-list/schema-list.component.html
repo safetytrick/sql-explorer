@@ -6,15 +6,19 @@
     <th class="query-count"># of Queries</th>
     <th class="total-time">Total Query Time</th>
   </tr>
-  <tr *ngFor="let schema of schemas; index as i">
-    <td class="rank-col">{{i + 1}}</td>
-    <td class="schema-col"><a routerLink="/tables/{{schema.name}}">{{schema.name}}</a></td>
-    <td class="table-tags"><ng-container *ngFor="let tag of schema.tags; let last = last;">
-      {{tag.name}}<ng-container *ngIf="!last">, </ng-container>
-    </ng-container></td>
+  @for (schema of schemas; track schema; let i = $index) {
+    <tr>
+      <td class="rank-col">{{i + 1}}</td>
+      <td class="schema-col"><a routerLink="/tables/{{schema.name}}">{{schema.name}}</a></td>
+      <td class="table-tags">@for (tag of schema.tags; track tag; let last = $last) {
+        {{tag.name}}@if (!last) {
+        ,
+      }
+    }</td>
     <td class="query-count">{{schema.numberOfQueries}}</td>
     <td class="total-time">
       <app-pico-view [duration]="schema.totalQueryTime"></app-pico-view>
     </td>
   </tr>
+}
 </table>

@@ -1,6 +1,6 @@
-<ng-container *ngIf="joinTable">
-<a class="{{linkClass}}" routerLink="/table/{{schema}}/{{table}}/join/{{joinSchema}}/{{joinTable}}">{{name}}</a>
-</ng-container>
-<ng-container *ngIf="!joinTable">
+@if (joinTable) {
+  <a class="{{linkClass}}" routerLink="/table/{{schema}}/{{table}}/join/{{joinSchema}}/{{joinTable}}">{{name}}</a>
+}
+@if (!joinTable) {
   <a class="{{linkClass}}" routerLink="/table/{{schema}}/{{table}}">{{name}}</a>
-</ng-container>
+}

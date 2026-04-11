@@ -26,9 +26,13 @@
   <ng-container matColumnDef="possible_keys">
     <th class="text-cell" mat-header-cell *matHeaderCellDef>possible_keys</th>
     <td class="text-cell" mat-cell *matCellDef="let row">
-      <ul *ngIf="row.possible_keys">
-        <li *ngFor="let key of row.possible_keys.split(',')">{{key}}</li>
-      </ul>
+      @if (row.possible_keys) {
+        <ul>
+          @for (key of row.possible_keys.split(','); track key) {
+            <li>{{key}}</li>
+          }
+        </ul>
+      }
     </td>
   </ng-container>
   <ng-container matColumnDef="key">

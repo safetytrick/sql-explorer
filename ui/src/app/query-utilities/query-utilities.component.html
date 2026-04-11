@@ -1,5 +1,7 @@
 
-<pre *ngIf="result"><code highlight="{{result}}"></code></pre>
+@if (result) {
+  <pre><code highlight="{{result}}"></code></pre>
+}
 <form id="query-utility">
   <div>
     <div>

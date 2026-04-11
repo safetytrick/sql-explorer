@@ -1,17 +1,21 @@
 <h2>
   <a routerLink="/table/{{table.schema}}/{{table.name}}">{{table.schema}}.{{table.name}}</a>
 </h2>
-<table id="table-indices" class="table table-sm table-hover" *ngIf="table.indices && table.indices.length > 1">
-  <thead class="thead-dark">
-  <tr>
-    <th class="tab-col-wide-right">Index</th>
-    <th class="tab-col-md">Columns</th>
-  </tr>
-  </thead>
-  <tbody>
-  <tr *ngFor="let index of table.indices | callback: skipPrimary">
-    <td>{{index.name}}</td>
-    <td>{{index.columns.join(", ")}}</td>
-  </tr>
-  </tbody>
-</table>
+@if (table.indices && table.indices.length > 1) {
+  <table id="table-indices" class="table table-sm table-hover">
+    <thead class="thead-dark">
+      <tr>
+        <th class="tab-col-wide-right">Index</th>
+        <th class="tab-col-md">Columns</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (index of table.indices | callback: skipPrimary; track index) {
+        <tr>
+          <td>{{index.name}}</td>
+          <td>{{index.columns.join(", ")}}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
