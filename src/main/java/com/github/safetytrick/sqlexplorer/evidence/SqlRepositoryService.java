@@ -90,6 +90,9 @@ public class SqlRepositoryService {
     }
 
     private List<TableReference> getForeignKeysTables(TableStructure tableStructure) {
+        if (tableStructure == null) {
+            return List.of();
+        }
         return tableStructure.foreignKeys().stream()
             .map(ForeignKey::to)
             .map(List::getFirst)
