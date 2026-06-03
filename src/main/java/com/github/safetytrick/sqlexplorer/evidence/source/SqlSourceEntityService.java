@@ -15,7 +15,6 @@ import com.github.safetytrick.sqlexplorer.evidence.fileloader.AbstractTsvSqlSour
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.hibernate.engine.jdbc.LobCreator;
-import org.hibernate.engine.jdbc.env.internal.StandardLobCreator;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -64,7 +63,7 @@ public class SqlSourceEntityService {
 
             SessionImplementor hibernateSession = entityManager.unwrap(SessionImplementor.class);
 
-            LobCreator lobCreator = new StandardLobCreator(hibernateSession);
+            LobCreator lobCreator = hibernateSession.getLobCreator();
             Blob content = lobCreator.createBlob(resource.getInputStream(), resource.contentLength());
 
             entity.setContent(content);

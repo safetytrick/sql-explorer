@@ -1,5 +1,8 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.module.SimpleModule;
 import tools.jackson.databind.ser.std.StdSerializer;
@@ -22,7 +25,12 @@ class JacksonResourceSerde {
 
         @Override
         public void serialize(Resource resource, JsonGenerator gen, SerializationContext provider) {
-            String value = resource.isFile() ? resource.getURL().toString() : resource.getDescription();
+            String value;
+            try {
+                value = resource.isFile() ? resource.getURL().toString() : resource.getDescription();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             gen.writeString(value);
         }
     }
