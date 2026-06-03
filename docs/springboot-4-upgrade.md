@@ -151,13 +151,16 @@ mysql-connector-j 9.x, Gradle wrapper 8.14.5.
   endpoints, tag create+read+delete (Hibernate 7 write path), swagger UI, v3/api-docs,
   UI nginx proxy → backend
 
-### Known pre-existing issues (NOT regressions, observed during verification)
+### Pre-existing issues found during verification (both fixed as follow-ups on this branch)
 
-- `POST /api/sql-explorer/sources` multipart upload 500s: `calculateMd5Hash(resource.getURL())`
-  in `SqlSourceEntityService` — `MultipartFile` resources are never URL-resolvable. Code
-  unchanged since the Boot 3 migration; should hash from `getInputStream()` instead.
-- `/actuator/prometheus` is 404: `micrometer-registry-prometheus` is on the classpath but
-  `management.endpoints.web.exposure.include` was never configured anywhere.
+- `POST /api/sql-explorer/sources` multipart upload 500'd: `calculateMd5Hash(resource.getURL())`
+  in `SqlSourceEntityService` — `MultipartFile` resources are never URL-resolvable. Fixed to
+  hash from `getInputStream()`. Verified: upload returns 201, source persisted with md5
+  (also confirms the Hibernate 7 `getLobCreator()` blob path end-to-end).
+- `/actuator/prometheus` was 404: `micrometer-registry-prometheus` was on the classpath but
+  no `management.endpoints.web.exposure.include` was configured. Exposing it also required
+  a `ByteArrayHttpMessageConverter` in `WebConfig`, whose `configureMessageConverters`
+  replaces the default converter list (the endpoint writes `byte[]`).
 
 ## References
 

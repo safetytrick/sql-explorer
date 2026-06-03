@@ -20,5 +20,11 @@ spring:
       include-exception: true
       include-stacktrace: always
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 sql-explorer:
   trace-errors: false
