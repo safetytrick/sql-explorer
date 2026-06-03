@@ -1,7 +1,9 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import java.util.ArrayList;
+
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import net.sf.jsqlparser.statement.Statement;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -11,12 +13,22 @@ import org.springframework.stereotype.Component;
 class SchemaAnalyzer implements SqlAnalyzer {
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder) {
-        SqlProfile.Builder.View view = builder.view();
-        if (!view.getSchemas().isEmpty()) {
+        if (builder.getTables() == null) {
+            builder.setTables(new ArrayList<>());
+        }
+        if (builder.getSchemas() == null) {
+            builder.setSchemas(new ArrayList<>());
+        }
+
+        for (TableReference table : builder.getTables()) {
+            builder.addSchema(table.getNormalizedSchemaName());
+        }
+
+        if (builder.getSchemas() != null && !builder.getSchemas().isEmpty()) {
             boolean isMultiSchema = false;
             String referencedSchema = null;
-            for (TableReference table : view.getTables()) {
-                String tableRefSchema = table.getSchema() == null ? view.getSchema() : table.getNormalizedSchema();
+            for (TableReference table : builder.getTables()) {
+                String tableRefSchema = table.getSchemaName() == null ? builder.getSchemaName() : table.getNormalizedSchemaName();
 
                 if (referencedSchema == null) {
                     referencedSchema = tableRefSchema;
@@ -27,14 +39,14 @@ class SchemaAnalyzer implements SqlAnalyzer {
             }
 
             if (isMultiSchema) {
-                builder.isMultiSchema(true);
+                builder.setIsMultiSchema(true);
                 return;
             }
 
-            if (view.getSchemas().size() == 1) {
-                builder.schema(view.getSchemas().get(0));
+            if (builder.getSchemas().size() == 1) {
+                builder.setSchemaName(builder.getSchemas().getFirst());
             } else {
-                builder.isMultiSchema(true);
+                builder.setIsMultiSchema(true);
             }
         }
     }

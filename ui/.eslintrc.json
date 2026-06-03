@@ -1,0 +1,25 @@
+{
+  "root": true,
+  "ignorePatterns": ["build/**", "node_modules/**"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": ["src/tsconfig.app.json", "src/tsconfig.spec.json"],
+    "createDefaultProgram": true
+  },
+  "plugins": ["@typescript-eslint"],
+  "rules": {
+    "arrow-body-style": "error",
+    "curly": "error",
+    "eqeqeq": ["error", "always", {"null": "ignore"}],
+    "no-console": ["warn", {"allow": ["warn", "error"]}],
+    "no-debugger": "error",
+    "no-eval": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "semi": ["error", "always"],
+    "quotes": ["error", "single"],
+    "max-len": ["warn", {"code": 140}],
+    "@typescript-eslint/no-unused-expressions": "error",
+    "@typescript-eslint/no-shadow": "error"
+  }
+}

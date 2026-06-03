@@ -1,4 +1,3 @@
-version: '3'
 
 services:
   sql-explorer:
@@ -8,10 +7,13 @@ services:
     ports:
        - "18185:5005"
        - "18180:8080"
-    env_file: ./src/main/docker-local/local.env
+    env_file:
+      - ./src/main/docker-local/local.env
+      - .env
     volumes:
       - ./src/main/docker-local/config:/etc/sql-explorer/config
       - ./src/main/docker-local/ssl:/etc/sql-explorer/ssl
+      - ./src/main/docker-local/parquet:/parquet
     depends_on:
       - explorer-mysql
 
@@ -22,7 +24,7 @@ services:
       - "4200:80"
 
   schema-mysql:
-    image: mysql
+    image: mysql:8.4.4
     container_name: schema-mysql
     profiles: [ "remote-metadata" ]
     ports:
@@ -33,7 +35,7 @@ services:
       - ./schemas:/docker-entrypoint-initdb.d
 
   explorer-mysql:
-    image: mysql
+    image: mysql:8.4.4
     container_name: explorer-mysql
     ports:
       - "3999:3306"

@@ -1,16 +1,18 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {Title} from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
 
 @Component({
-  selector: 'app-tag-index',
-  templateUrl: './tag-index.component.html',
-  styleUrls: ['./tag-index.component.scss']
+    selector: 'app-tag-index',
+    templateUrl: './tag-index.component.html',
+    styleUrls: ['./tag-index.component.scss'],
+    imports: [RouterLink]
 })
 export class TagIndexComponent implements OnInit {
 
-  public queryTags: [];
-  public tableTags: [];
+  public queryTags!: any[];
+  public tableTags!: any[];
 
   constructor(public sqlService: AnalyzedSqlService,
               private titleService: Title) { }
@@ -18,13 +20,13 @@ export class TagIndexComponent implements OnInit {
   ngOnInit() {
     this.titleService.setTitle('::: tags :::');
     this.sqlService.getTagsByType('query').subscribe(
-      (data: []) => {
+      (data: any) => {
         this.queryTags = data;
       }
     );
 
     this.sqlService.getTagsByType('table').subscribe(
-      (data: []) => {
+      (data: any) => {
         this.tableTags = data;
       }
     );

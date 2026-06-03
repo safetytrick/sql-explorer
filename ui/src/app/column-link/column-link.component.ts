@@ -1,15 +1,17 @@
 import {Component, Input, OnInit} from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 @Component({
-  selector: 'app-column-link',
-  templateUrl: './column-link.component.html',
-  styleUrls: ['./column-link.component.scss']
+    selector: 'app-column-link',
+    templateUrl: './column-link.component.html',
+    styleUrls: ['./column-link.component.scss'],
+    imports: [RouterLink]
 })
 export class ColumnLinkComponent implements OnInit {
 
-  private _column: string;
-  private _table: string;
-  private _schema: string;
+  private _column!: string;
+  private _table!: string;
+  private _schema!: string;
 
   get column(): string {
     return this._column;
@@ -24,7 +26,7 @@ export class ColumnLinkComponent implements OnInit {
   }
 
   @Input()
-  linkClass: string;
+  linkClass!: string;
 
   @Input()
   set schema(schema: string) {

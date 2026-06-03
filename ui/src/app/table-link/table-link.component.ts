@@ -1,17 +1,19 @@
 import {Component, Input, OnInit} from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 @Component({
-  selector: 'app-table-link',
-  templateUrl: './table-link.component.html',
-  styleUrls: ['./table-link.component.scss']
+    selector: 'app-table-link',
+    templateUrl: './table-link.component.html',
+    styleUrls: ['./table-link.component.scss'],
+    imports: [RouterLink]
 })
 export class TableLinkComponent implements OnInit {
 
-  private _table: string;
-  private _schema: string;
-  private _defaultSchema: string;
-  private _joinSchema: string;
-  private _joinTable: string;
+  private _table!: string;
+  private _schema!: string;
+  private _defaultSchema!: string;
+  private _joinSchema!: string;
+  private _joinTable!: string;
 
   get table(): string {
     return this._table;
@@ -38,7 +40,7 @@ export class TableLinkComponent implements OnInit {
   }
 
   @Input()
-  linkClass: string;
+  linkClass!: string;
 
   @Input()
   set join(joinTable: string) {

@@ -1,17 +1,16 @@
 package com.github.safetytrick.sqlexplorer.model;
 
-import java.io.IOException;
-
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.deser.std.StdDeserializer;
+import tools.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.ser.std.StdSerializer;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.JacksonModule;
+import tools.jackson.databind.SerializationContext;
 
 @Configuration
 class ColumnReferenceSerde {
@@ -27,8 +26,8 @@ class ColumnReferenceSerde {
         }
 
         @Override
-        public void serialize(ColumnReference value, JsonGenerator gen, SerializerProvider provider) throws IOException {
-            gen.writeString(value.getNormalizedReference());
+        public void serialize(ColumnReference value, JsonGenerator gen, SerializationContext provider) {
+            gen.writeString(value.toStringNormalized());
         }
     }
 
@@ -43,13 +42,13 @@ class ColumnReferenceSerde {
         }
 
         @Override
-        public ColumnReference deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
-            return ColumnReference.fromString(p.getText());
+        public ColumnReference deserialize(JsonParser p, DeserializationContext ctxt) {
+            return ColumnReference.fromString(p.getString());
         }
     }
 
     @Bean
-    public com.fasterxml.jackson.databind.Module getColumnReferenceModule() {
+    public JacksonModule getColumnReferenceModule() {
         SimpleModule module = new SimpleModule("ColumnReferenceSerde");
         module.addDeserializer(ColumnReference.class, new Deserializer(ColumnReference.class));
         module.addSerializer(ColumnReference.class, new Serializer(ColumnReference.class));

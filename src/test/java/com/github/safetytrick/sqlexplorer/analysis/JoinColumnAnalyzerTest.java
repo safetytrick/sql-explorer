@@ -6,14 +6,15 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.JoinColumns;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static com.github.safetytrick.sqlexplorer.analysis.Assertions.assertContainsJoinColumns;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.atLeastOnce;
@@ -30,7 +31,7 @@ public class JoinColumnAnalyzerTest {
     public void setUp() {
         columnTableResolver = mock(ColumnTableResolver.class);
         sqlAnalysisService = new SqlAnalysisService(new JoinColumnAnalyzer(columnTableResolver));
-        builder = SqlProfile.builder();
+        builder = SqlProfile.newBuilder();
     }
 
     @Test
@@ -44,7 +45,7 @@ public class JoinColumnAnalyzerTest {
             """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
-        assertEquals(Collections.emptyList(), builder.view().getJoinColumns());
+        assertEquals(Collections.emptyList(), builder.getJoinColumns());
     }
 
     @Test
@@ -52,10 +53,10 @@ public class JoinColumnAnalyzerTest {
         String sql = "SELECT * FROM store join store_config ON store.id = store_config.store_id";
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        assertNotNull(builder.view().getJoinColumns());
-        JoinColumns joinPair = builder.view().getJoinColumns().get(0);
-        assertEquals(joinPair.left(), ColumnReference.fromString("store.id"));
-        assertEquals(joinPair.right(), ColumnReference.fromString("store_config.store_id"));
+        assertNotNull(builder.getJoinColumns());
+        JoinColumns joinPair = builder.getJoinColumns().getFirst();
+        assertEquals(joinPair.getLeft(), ColumnReference.fromString("store.id"));
+        assertEquals(joinPair.getRight(), ColumnReference.fromString("store_config.store_id"));
     }
 
     @Test
@@ -64,12 +65,12 @@ public class JoinColumnAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
 
-        assertNotNull(builder.view().getJoinColumns());
-        assertEquals(1, builder.view().getJoinColumns().size());
-        JoinColumns joinPair = builder.view().getJoinColumns().get(0);
+        assertNotNull(builder.getJoinColumns());
+        assertEquals(1, builder.getJoinColumns().size());
+        JoinColumns joinPair = builder.getJoinColumns().getFirst();
 
-        assertEquals(joinPair.left(), ColumnReference.fromString("store.id"));
-        assertEquals(joinPair.right(), ColumnReference.fromString("store_config.store_id"));
+        assertEquals(joinPair.getLeft(), ColumnReference.fromString("store.id"));
+        assertEquals(joinPair.getRight(), ColumnReference.fromString("store_config.store_id"));
     }
 
     @Test
@@ -128,18 +129,20 @@ public class JoinColumnAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
 
-        assertNotNull(builder.view().getJoinColumns());
-        JoinColumns joinPair = builder.view().getJoinColumns().get(0);
-        assertEquals(joinPair.left(), ColumnReference.fromString("current_customer_demographics.customer_id"));
-        assertEquals(joinPair.right(), ColumnReference.fromString("customer.id"));
-        JoinColumns andJoin = builder.view().getJoinColumns().get(1);
+        assertNotNull(builder.getJoinColumns());
+        JoinColumns joinPair = builder.getJoinColumns().getFirst();
 
-        assertEquals(andJoin.left(), ColumnReference.fromString("customer_name.customer_id"));
-        assertEquals(andJoin.right(), ColumnReference.fromString("customer.id"));
+        assertThat(joinPair.getLeft()).matches(left -> left.equalsNormalized("current_customer_demographics.customer_id"));
+        assertThat(joinPair.getRight()).matches(right -> right.equalsNormalized("customer.id"));
+        JoinColumns andJoin = builder.getJoinColumns().get(1);
 
-        JoinColumns secondHalf = builder.view().getJoinColumns().get(2);
-        assertEquals(secondHalf.left(), ColumnReference.fromString("customer_name.id"));
-        assertEquals(secondHalf.right(), ColumnReference.fromString("current_customer_demographics.customer_name_id"));
+        assertThat(andJoin.getLeft()).matches(left -> left.equalsNormalized("customer_name.customer_id"));
+        assertThat(andJoin.getRight()).matches(right -> right.equalsNormalized("customer.id"));
+
+        JoinColumns secondHalf = builder.getJoinColumns().get(2);
+
+        assertThat(secondHalf.getLeft()).matches(left -> left.equalsNormalized("customer_name.id"));
+        assertThat(secondHalf.getRight()).matches(right -> right.equalsNormalized("current_customer_demographics.customer_name_id"));
     }
 
     @Test
@@ -193,21 +196,22 @@ public class JoinColumnAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
 
-        assertNotNull(builder.view().getJoinColumns());
-        JoinColumns joinPair = builder.view().getJoinColumns().get(0);
+        assertNotNull(builder.getJoinColumns());
+        JoinColumns joinPair = builder.getJoinColumns().getFirst();
 
-        assertEquals(joinPair.left(), ColumnReference.fromString("customer_name.customer_id"));
-        assertEquals(joinPair.right(), ColumnReference.fromString("customer.id"));
+        assertThat(joinPair.getLeft()).matches(left -> left.equalsNormalized("customer_name.customer_id"));
+        assertThat(joinPair.getRight()).matches(right -> right.equalsNormalized("customer.id"));
 
-        JoinColumns andJoin = builder.view().getJoinColumns().get(1);
+        JoinColumns andJoin = builder.getJoinColumns().get(1);
 
-        assertEquals(andJoin.left(), ColumnReference.fromString("customer_ident.customer_id"));
-        assertEquals(andJoin.right(), ColumnReference.fromString("customer_name.customer_id"));
+        assertThat(andJoin.getLeft()).matches(left -> left.equalsNormalized("customer_ident.customer_id"));
+        assertThat(andJoin.getRight()).matches(right -> right.equalsNormalized("customer_name.customer_id"));
 
-        JoinColumns secondHalf = builder.view().getJoinColumns().get(2);
+        JoinColumns secondHalf = builder.getJoinColumns().get(2);
 
-        assertEquals(secondHalf.left(), ColumnReference.fromString("customer_ident.customer_id"));
-        assertEquals(secondHalf.right(), ColumnReference.fromString("customer_address.customer_id"));
+        assertThat(secondHalf.getLeft()).matches(left -> left.equalsNormalized("customer_ident.customer_id"));
+        assertThat(secondHalf.getRight()).matches(right -> right.equalsNormalized("customer_address.customer_id"));
+
     }
 
     @Test
@@ -260,7 +264,7 @@ public class JoinColumnAnalyzerTest {
                     mother_visit . customer_id = temp
             """;
 
-        builder.schema("tdb");
+        builder.setSchemaName("tdb");
         when(columnTableResolver.getAllColumnNamesForTable("tdb", "customer_visit"))
             .thenReturn(Arrays.asList("checkout_date", "checkin_date", "id", "customer_id"));
         sqlAnalysisService.analyzeSql(sql, builder);
@@ -269,7 +273,7 @@ public class JoinColumnAnalyzerTest {
             .getAllColumnNamesForTable("tdb", "customer_visit");
 
 
-        List<JoinColumns> joinColumns = builder.view().getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
 
         assertContainsJoinColumns(joinColumns, "customer_membership.customer_id", "customer_visit.customer_id");
 
@@ -301,11 +305,11 @@ public class JoinColumnAnalyzerTest {
                     `pvd` . `store_id`
             """;
 
-        builder.schema("tdb");
+        builder.setSchemaName("tdb");
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<JoinColumns> joinColumns = builder.view().getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
         assertContainsJoinColumns(joinColumns, "store.id", "store_config.id");
     }
 
@@ -330,10 +334,10 @@ public class JoinColumnAnalyzerTest {
                     `client_password` . `created_on` DESC LIMIT ?
             """;
 
-        builder.schema("tdb");
+        builder.setSchemaName("tdb");
         sqlAnalysisService.analyzeSql(sql, builder);
 
-        List<JoinColumns> joinColumns = builder.view().getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
 
         assertContainsJoinColumns(joinColumns, "CLIENT.id", "client_password.client_id");
     }
@@ -358,7 +362,7 @@ public class JoinColumnAnalyzerTest {
                         ON `pi` . `identifier` = `pfr` . `identifier`
                         AND `pi` . `store_id` = `pfr`""";
 
-        builder.schema("tdb");
+        builder.setSchemaName("tdb");
 
 
         when(columnTableResolver.selectTableNameFromCandidates(Arrays.asList("tdb.deleted_customer_store_relationship",
@@ -367,7 +371,7 @@ public class JoinColumnAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
 
-        List<JoinColumns> joinColumns = builder.view().getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
 
         assertContainsJoinColumns(joinColumns, "customer_identifier.identifier", "tdb.deleted_customer_store_relationship.identifier");
     }
@@ -402,7 +406,7 @@ public class JoinColumnAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
 
-        List<JoinColumns> joinColumns = builder.view().getJoinColumns();
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
         assertContainsJoinColumns(joinColumns, "customer_store_relationship.store_id", "store_config.store_id");
     }
 }

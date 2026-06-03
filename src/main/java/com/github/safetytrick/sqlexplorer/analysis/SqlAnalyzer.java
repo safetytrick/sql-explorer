@@ -1,6 +1,6 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import net.sf.jsqlparser.statement.Statement;
 
 @FunctionalInterface

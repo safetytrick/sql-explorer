@@ -1,22 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
-import {Observable} from 'rxjs/internal/Observable';
+import {Observable} from 'rxjs';
 import {Title} from '@angular/platform-browser';
+import { TableGraphComponent } from '../table-graph/table-graph.component';
 
 @Component({
-  selector: 'app-table-graph-loader',
-  templateUrl: './table-graph-loader.component.html',
-  styleUrls: ['./table-graph-loader.component.scss']
+    selector: 'app-table-graph-loader',
+    templateUrl: './table-graph-loader.component.html',
+    styleUrls: ['./table-graph-loader.component.scss'],
+    imports: [TableGraphComponent]
 })
 export class TableGraphLoaderComponent implements OnInit {
 
-  depth: number;
-  tag: string;
-  schema: string;
-  table: string;
+  depth!: number;
+  tag!: string;
+  schema!: string;
+  table!: string;
 
-  query: Observable<any>;
+  query!: Observable<any>;
 
   constructor(public sqlService: AnalyzedSqlService,
               private titleService: Title,

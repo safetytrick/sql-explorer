@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import org.springframework.stereotype.Service;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -37,22 +37,22 @@ public class SqlMetadataService {
         }
 
         List<String> schemaFromTableReferences = tables.stream().map(table -> {
-            if (table.getSchema() != null) {
-                return table.getSchema();
+            if (table.getSchemaName() != null) {
+                return table.getSchemaName();
             } else {
                 return "";
             }
         }).distinct().toList();
 
         if (schemaFromTableReferences.size() == 1 && !schemaFromTableReferences.contains("")) {
-            return schemaFromTableReferences.get(0);
+            return schemaFromTableReferences.getFirst();
         }
 
         List<TableStructure> allTables = new ArrayList<>();
         for (TableReference table : tables) {
             List<TableStructure> withDuplicates = loader.getAllByTableName(table.getNormalizedTableName());
             if (withDuplicates.size() == 1) {
-                return withDuplicates.get(0).schema();
+                return withDuplicates.getFirst().schema();
             }
             allTables.addAll(withDuplicates);
         }

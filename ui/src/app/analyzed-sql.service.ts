@@ -1,6 +1,6 @@
 import {Injectable} from '@angular/core';
-import {HttpClient, HttpParams} from '@angular/common/http';
-import {Observable} from 'rxjs/internal/Observable';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import {Observable} from 'rxjs';
 
 // todo, configure me
 const endpoint = '/api/sql-explorer/';

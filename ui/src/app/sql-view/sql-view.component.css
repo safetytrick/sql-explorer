@@ -1,45 +1,33 @@
 #full-table-scan {
   font-size: xx-large;
-  color: #f34a32;
-}
-
-#runtime-metrics {
-
-}
-
-div.metric {
-  float: left;
-  padding: 8px;
-  text-align: center;
-  border-color: #555;
-  border-width: 3px;
-  border-style: solid;
-  background-color: #CCCCCC;
-  margin: 3px;
+  color: #c62828;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin: 0.5em 0;
 }
 
 .title {
-  font-weight: bold;
+  font-weight: 500;
   text-transform: uppercase;
-}
-
-span.metric {
-  display: block;
-  text-align: center;
-  font-size: xx-large;
-  font-weight: lighter;
+  font-size: 0.75rem;
+  color: #666;
+  letter-spacing: 0.08em;
 }
 
 .stat-group {
-  font-weight: bold;
+  font-weight: 600;
+  text-align: right;
+  color: #555;
+  vertical-align: top;
+  padding-top: 0.5em;
+}
+
+#runtime-metrics-table tr > :last-child {
   text-align: right;
 }
 
-#runtime-metrics-table tr>:last-child {
-  text-align: right;
-}
-
-#runtime-metrics-table td,th {
+#runtime-metrics-table td,
+#runtime-metrics-table th {
   padding: .25em 1em;
 }
 
@@ -49,4 +37,10 @@ span.metric {
 
 .btn {
   margin: .15em 0;
+}
+
+.text-metric {
+  font-family: monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
 }

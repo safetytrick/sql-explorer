@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { TagViewComponent } from './tag-view.component';
 
@@ -6,10 +6,10 @@ describe('TagViewComponent', () => {
   let component: TagViewComponent;
   let fixture: ComponentFixture<TagViewComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ TagViewComponent ]
-    })
+    imports: [TagViewComponent]
+})
     .compileComponents();
   }));
 

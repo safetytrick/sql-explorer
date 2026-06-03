@@ -3,8 +3,8 @@ package com.github.safetytrick.sqlexplorer.evidence;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import jakarta.validation.constraints.NotNull;
 
 public interface SqlRepository {

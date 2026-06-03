@@ -2,15 +2,17 @@ import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { SmallSqlViewComponent } from '../small-sql-view/small-sql-view.component';
 
 @Component({
-  selector: 'app-tagged-sql-view',
-  templateUrl: './tagged-sql-view.component.html',
-  styleUrls: ['./tagged-sql-view.component.scss']
+    selector: 'app-tagged-sql-view',
+    templateUrl: './tagged-sql-view.component.html',
+    styleUrls: ['./tagged-sql-view.component.scss'],
+    imports: [SmallSqlViewComponent]
 })
 export class TaggedSqlViewComponent implements OnInit {
-  public taggedQueries: [];
-  public tag: string;
+  public taggedQueries!: any[];
+  public tag!: string;
 
   constructor(public sqlService: AnalyzedSqlService,
               private route: ActivatedRoute,
@@ -28,7 +30,7 @@ export class TaggedSqlViewComponent implements OnInit {
 
   private getSqlByTag(tag: string) {
     this.sqlService.getSqlByTag(tag).subscribe(
-      (data: []) => {
+      (data: any) => {
         this.taggedQueries = data;
       }
     );

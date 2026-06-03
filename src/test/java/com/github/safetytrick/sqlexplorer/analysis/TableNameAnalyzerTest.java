@@ -4,8 +4,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ public class TableNameAnalyzerTest {
     @BeforeEach
     public void setUp() {
         sqlAnalysisService = new SqlAnalysisService(new TableNameAnalyzer());
-        builder = SqlProfile.builder();
+        builder = SqlProfile.newBuilder();
     }
 
     @Test
@@ -35,7 +35,7 @@ public class TableNameAnalyzerTest {
             """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
-        List<String> tableNames = builder.view().getTables().stream().map(TableReference::getNormalizedTableName).collect(Collectors.toList());
+        List<String> tableNames = builder.getTables().stream().map(TableReference::getNormalizedTableName).collect(Collectors.toList());
         assertEquals(Arrays.asList("customer_visit", "store", "store_config"), tableNames);
 
     }

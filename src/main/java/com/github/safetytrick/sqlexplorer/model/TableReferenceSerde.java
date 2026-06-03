@@ -1,17 +1,16 @@
 package com.github.safetytrick.sqlexplorer.model;
 
-import java.io.IOException;
-
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.deser.std.StdDeserializer;
+import tools.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.ser.std.StdSerializer;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.JacksonModule;
+import tools.jackson.databind.SerializationContext;
 
 @Configuration
 class TableReferenceSerde {
@@ -27,8 +26,8 @@ class TableReferenceSerde {
         }
 
         @Override
-        public void serialize(TableReference value, JsonGenerator gen, SerializerProvider provider) throws IOException {
-            gen.writeString(value.getNormalizedName());
+        public void serialize(TableReference value, JsonGenerator gen, SerializationContext provider) {
+            gen.writeString(value.toStringNormalized());
         }
     }
 
@@ -43,13 +42,13 @@ class TableReferenceSerde {
         }
 
         @Override
-        public TableReference deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
-            return TableReference.fromString(p.getText());
+        public TableReference deserialize(JsonParser p, DeserializationContext ctxt) {
+            return TableReference.fromString(p.getString());
         }
     }
 
     @Bean
-    public com.fasterxml.jackson.databind.Module getTableReferenceModule() {
+    public JacksonModule getTableReferenceModule() {
         SimpleModule module = new SimpleModule("TableReferenceSerde");
         module.addDeserializer(TableReference.class, new Deserializer(TableReference.class));
         module.addSerializer(TableReference.class, new Serializer(TableReference.class));

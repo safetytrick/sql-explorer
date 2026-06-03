@@ -3,7 +3,7 @@ server:
 
 datasources:
   metadata:
-    jdbcUrl: "jdbc:mysql://localhost:3336"
+    jdbcUrl: "jdbc:mysql://${DB_HOST}:3306"
   explorer:
     jdbcUrl: "jdbc:mysql://localhost:3999/explorer"
 

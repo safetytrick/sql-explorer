@@ -1,17 +1,19 @@
 import { Component, OnInit } from '@angular/core';
 import {SourceService} from '../source.service';
-import {MatSelectionList} from '@angular/material/list';
+import { MatSelectionList, MatListOption } from '@angular/material/list';
+import { DatePipe } from '@angular/common';
 
 @Component({
-  selector: 'app-admin-source-list',
-  templateUrl: './admin-source-list.component.html',
-  styleUrls: ['./admin-source-list.component.scss']
+    selector: 'app-admin-source-list',
+    templateUrl: './admin-source-list.component.html',
+    styleUrls: ['./admin-source-list.component.scss'],
+    imports: [MatSelectionList, MatListOption, DatePipe]
 })
 export class AdminSourceListComponent implements OnInit {
 
-  sources: Array<any>;
-  active: Array<any>;
-  all: Array<any>;
+  sources!: Array<any>;
+  active!: Array<any>;
+  all!: Array<any>;
 
   constructor(private sourceService: SourceService) { }
 
@@ -22,7 +24,7 @@ export class AdminSourceListComponent implements OnInit {
       all => this.all = all);
   }
 
-  isActive(source) {
+  isActive(source: any) {
     return this.active.find((value => value.source.sourceRef === source.sourceRef));
   }
 

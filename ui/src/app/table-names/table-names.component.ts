@@ -2,16 +2,18 @@ import {Component, Input, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { TableListComponent } from '../table-list-component/table-list.component';
 
 @Component({
-  selector: 'app-table-names',
-  templateUrl: './table-names.component.html',
-  styleUrls: ['./table-names.component.css']
+    selector: 'app-table-names',
+    templateUrl: './table-names.component.html',
+    styleUrls: ['./table-names.component.css'],
+    imports: [TableListComponent]
 })
 export class TableNamesComponent implements OnInit {
 
   @Input()
-  schema: string;
+  schema!: string;
 
   tables: any = [];
 

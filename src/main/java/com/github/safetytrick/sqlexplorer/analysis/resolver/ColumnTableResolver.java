@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.analysis.UnsupportedSqlException;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
@@ -27,7 +27,7 @@ public class ColumnTableResolver {
     }
 
     public String selectTableNameFromCandidates(List<String> tables, String column) {
-        String schema = sqlMetadataService.findSchemaForTablesAndColumns(tables.stream().map(TableReference::fromString).collect(Collectors.toList()), Collections.singletonList(column));
+        String schema = sqlMetadataService.findSchemaForTablesAndColumns(tables.stream().map(reference -> TableReference.fromString(reference)).collect(Collectors.toList()), Collections.singletonList(column));
         return selectTableNameFromCandidates(schema, tables, column);
     }
 
@@ -66,7 +66,7 @@ public class ColumnTableResolver {
     }
 
     public List<String> getAllColumnNamesForTable(String schema, String table) {
-        return sqlMetadataService.getTable(new TableReference(schema, table))
+        return sqlMetadataService.getTable(TableReference.newTableReference(schema, table))
             .columns()
             .stream()
             .map(TableColumn::columnName)

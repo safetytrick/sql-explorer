@@ -12,18 +12,22 @@
     Average Scanned: {{query.runtimeMetrics.averageRowsScanned}}
   </li>
 </ul>
-<div *ngIf="query.mismatchedJoins.length > 0">
-  <div>Mismatched Joins:</div>
-  <ul class="list-unstyled">
-    <li *ngFor="let join of query.mismatchedJoins">
-      <div class="alert alert-danger">
-        <div>
-          <app-column-link [schema]="query.schema" [columnReference]="join[0]"></app-column-link>
-        </div>
-        <div>
-          <app-column-link [schema]="query.schema" [columnReference]="join[1]"></app-column-link>
-        </div>
-      </div>
-    </li>
-  </ul>
-</div>
+@if (query.mismatchedJoins.length > 0) {
+  <div>
+    <div>Mismatched Joins:</div>
+    <ul class="list-unstyled">
+      @for (join of query.mismatchedJoins; track join) {
+        <li>
+          <div class="alert alert-danger">
+            <div>
+              <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+            </div>
+            <div>
+              <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
+            </div>
+          </div>
+        </li>
+      }
+    </ul>
+  </div>
+}

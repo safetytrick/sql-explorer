@@ -5,8 +5,8 @@ import java.util.Collections;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import com.github.safetytrick.sqlexplorer.schema.SchemaLoadingService;
 import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
@@ -79,8 +79,8 @@ class ColumnTableResolverTest {
         when(schemaLoadingService.getAllByTableName("ccd")).thenReturn(Collections.singletonList(ccd));
         when(schemaLoadingService.getAllByTableName("customer_ref")).thenReturn(Collections.singletonList(customerRef));
 
-        when(sqlMetadataService.getTable(new TableReference("ccd", "ccd"))).thenReturn(ccd);
-        when(sqlMetadataService.getTable(new TableReference("tdb", "customer_ref"))).thenReturn(customerRef);
+        when(sqlMetadataService.getTable(TableReference.newTableReference("ccd", "ccd"))).thenReturn(ccd);
+        when(sqlMetadataService.getTable(TableReference.newTableReference("tdb", "customer_ref"))).thenReturn(customerRef);
 
         List<String> filteredNames = Arrays.asList("ccd.ccd", "customer_ref");
         String columnName = "customer_visit_id";
@@ -108,7 +108,7 @@ class ColumnTableResolverTest {
         TableStructure store_config_table = TableStructure.fromCreateTable(store_config_create).schema("tdb").build();
 
         when(schemaLoadingService.getAllByTableName("store_config")).thenReturn(Collections.singletonList(store_config_table));
-        when(sqlMetadataService.getTable(new TableReference("tdb", "store_config"))).thenReturn(store_config_table);
+        when(sqlMetadataService.getTable(TableReference.newTableReference("tdb", "store_config"))).thenReturn(store_config_table);
 
         String table = columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("store_config"), "store_id");
 
@@ -136,11 +136,11 @@ class ColumnTableResolverTest {
         TableStructure address_table = TableStructure.fromCreateTable(addressTable).build();
         assertFalse(address_table.foreignKeys().isEmpty());
         for (ForeignKey foreignKey : address_table.foreignKeys()) {
-            ColumnReference from_city_id = foreignKey.from().get(0);
-            ColumnReference to_city_id = foreignKey.to().get(0);
-            assertEquals("address.city_id", from_city_id.toString());
+            ColumnReference from_city_id = foreignKey.from().getFirst();
+            ColumnReference to_city_id = foreignKey.to().getFirst();
+            assertEquals("address.city_id", from_city_id.toStringNormalized());
 
-            assertEquals("city.city_id", to_city_id.toString());
+            assertEquals("city.city_id", to_city_id.toStringNormalized());
         }
     }
 
@@ -165,10 +165,10 @@ class ColumnTableResolverTest {
         TableStructure address_table = TableStructure.fromCreateTable(addressTable, "some_schema").build();
         assertFalse(address_table.foreignKeys().isEmpty());
         for (ForeignKey foreignKey : address_table.foreignKeys()) {
-            ColumnReference from_city_id = foreignKey.from().get(0);
-            ColumnReference to_city_id = foreignKey.to().get(0);
-            assertEquals("some_schema.address.city_id", from_city_id.toString());
-            assertEquals("some_schema.city.city_id", to_city_id.toString());
+            ColumnReference from_city_id = foreignKey.from().getFirst();
+            ColumnReference to_city_id = foreignKey.to().getFirst();
+            assertEquals("some_schema.address.city_id", from_city_id.toStringNormalized());
+            assertEquals("some_schema.city.city_id", to_city_id.toStringNormalized());
         }
     }
 }

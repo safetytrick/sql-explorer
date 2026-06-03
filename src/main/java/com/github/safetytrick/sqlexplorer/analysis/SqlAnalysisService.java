@@ -4,7 +4,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.statement.Statement;
@@ -34,15 +34,15 @@ public class SqlAnalysisService {
     public void analyzeSql(String sql, SqlProfile.Builder builder) throws JSQLParserException {
 
         SqlParser.CleanedStatement cleanedStatement = sqlParser.parseSql(sql);
-        builder.truncated(cleanedStatement.truncated());
-        builder.modifiedForAnalysis(cleanedStatement.modified());
+        builder.setTruncated(cleanedStatement.truncated());
+        builder.setModifiedForAnalysis(cleanedStatement.modified());
         Statement statement = cleanedStatement.statement();
 
         for (SqlAnalyzer analyzer : analyzers) {
             try {
                 analyzer.analyze(statement, builder);
             } catch (Exception e) {
-                builder.failureReason("Failure on: " + analyzer.getClass().getSimpleName() + " message: " + getRootCauseMessage(e));
+                builder.setAnalysisFailureReason("Failure on: " + analyzer.getClass().getSimpleName() + " message: " + getRootCauseMessage(e));
                 log.debug("Failure on: {}", analyzer.getClass().getSimpleName(), e);
             }
         }

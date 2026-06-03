@@ -9,18 +9,20 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 
 @Setter
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class MeteredSql {
 
     @JsonProperty("query")
     private String query;
 
     @JsonProperty("db")
-    private String schema;
+    private String schemaName;
 
     @JsonProperty("full_scan")
     private String fullTableScan;

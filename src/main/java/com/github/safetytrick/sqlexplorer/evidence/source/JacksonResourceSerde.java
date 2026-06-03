@@ -1,14 +1,16 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.ser.std.StdSerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import tools.jackson.databind.JacksonModule;
+import tools.jackson.databind.SerializationContext;
 
 @Configuration
 class JacksonResourceSerde {
@@ -22,14 +24,19 @@ class JacksonResourceSerde {
         }
 
         @Override
-        public void serialize(Resource resource, JsonGenerator gen, SerializerProvider provider) throws IOException {
-            String value = resource.isFile() ? resource.getURL().toString() : resource.getDescription();
+        public void serialize(Resource resource, JsonGenerator gen, SerializationContext provider) {
+            String value;
+            try {
+                value = resource.isFile() ? resource.getURL().toString() : resource.getDescription();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             gen.writeString(value);
         }
     }
 
     @Bean
-    public com.fasterxml.jackson.databind.Module jacksonReferenceModule() {
+    public JacksonModule jacksonReferenceModule() {
         SimpleModule module = new SimpleModule("JacksonResourceSerde");
         module.addSerializer(Resource.class, new Serializer(Resource.class));
 

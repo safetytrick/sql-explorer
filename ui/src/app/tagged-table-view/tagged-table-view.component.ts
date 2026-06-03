@@ -1,16 +1,18 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {ActivatedRoute, Router} from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { TableListComponent } from '../table-list-component/table-list.component';
 
 @Component({
-  selector: 'app-tagged-table-view',
-  templateUrl: './tagged-table-view.component.html',
-  styleUrls: ['./tagged-table-view.component.scss']
+    selector: 'app-tagged-table-view',
+    templateUrl: './tagged-table-view.component.html',
+    styleUrls: ['./tagged-table-view.component.scss'],
+    imports: [RouterLink, TableListComponent]
 })
 export class TaggedTableViewComponent implements OnInit {
-  tag: string;
-  taggedTables: [];
+  tag!: string;
+  taggedTables!: any[];
 
 
   constructor(public sqlService: AnalyzedSqlService,
@@ -32,7 +34,7 @@ export class TaggedTableViewComponent implements OnInit {
 
   private getTablesByTag(tag: string) {
     this.sqlService.getTablesByTag(tag).subscribe(
-      (data: []) => {
+      (data: any) => {
         this.taggedTables = data;
       }
     );

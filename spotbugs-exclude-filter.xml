@@ -1,16 +1,12 @@
 <FindBugsFilter>
 	<Match>
-		<Class name="com.github.safetytrick.sqlexplorer.model.SqlProfile" />
-		<Bug code="Eq" />
-	</Match>
-
-	<Match>
 		<!-- false positives from spotbugs picking up try with resources -->
 		<Or>
 			<Bug code="RCN" />
 			<Bug code="EI" />
 			<Bug code="EI2" />
 			<Bug code="UuF" />
+			<Bug code="MS" />
 		</Or>
 	</Match>
 	<Match>
@@ -21,5 +17,9 @@
 		<Class name="com.github.safetytrick.sqlexplorer.PerformanceSchemaFileLoader" />
 		<Method name="getSqlSources" />
 		<Bug code="NP" />
+	</Match>
+	<Match>
+		<Package name="com.github.safetytrick.sqlexplorer.schema"/>
+		<Bug code="DLS"/>
 	</Match>
 </FindBugsFilter>

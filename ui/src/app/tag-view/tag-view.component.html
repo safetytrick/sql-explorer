@@ -1,8 +1,24 @@
-<tag-input [ngModel]="tags"
-           [identifyBy]="'id'"
-           [displayBy]="'name'"
-           (onAdd)="addTag($event)"
-           (onRemove)="removeTag($event)"
-           theme='bootstrap'>
-  <tag-input-dropdown [autocompleteObservable]="this.autocompleteTags"></tag-input-dropdown>
-</tag-input>
+<div class="tag-view">
+  <mat-chip-grid #chipGrid>
+    @for (tag of tags; track tag) {
+      <mat-chip-row
+        (removed)="removeTag(tag)">
+        {{tag.name}}
+        <button matChipRemove>
+          <mat-icon>cancel</mat-icon>
+        </button>
+      </mat-chip-row>
+    }
+    <input
+      placeholder="Add tag..."
+      [matChipInputFor]="chipGrid"
+      [formControl]="tagInputControl"
+      [matAutocomplete]="auto"
+      (matChipInputTokenEnd)="addTag($event)">
+  </mat-chip-grid>
+  <mat-autocomplete #auto="matAutocomplete" (optionSelected)="selectTag($event)">
+    @for (tag of filteredTags | async; track tag) {
+      <mat-option [value]="tag">{{tag}}</mat-option>
+    }
+  </mat-autocomplete>
+</div>

@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { SmallTableViewComponent } from './small-table-view.component';
 
@@ -6,10 +6,10 @@ describe('SmallTableViewComponent', () => {
   let component: SmallTableViewComponent;
   let fixture: ComponentFixture<SmallTableViewComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SmallTableViewComponent ]
-    })
+    imports: [SmallTableViewComponent]
+})
     .compileComponents();
   }));
 

@@ -1,6 +1,6 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,6 +16,6 @@ class SqlMetadataResource {
 
     @GetMapping("/api/sql-explorer/metadata/table/{schema}/{name}")
     public TableStructure getTableStructure(@PathVariable String schema, @PathVariable("name") String tableName) {
-        return sqlMetadataService.getTable(new TableReference(schema, tableName));
+        return sqlMetadataService.getTable(TableReference.newTableReference(schema, tableName));
     }
 }

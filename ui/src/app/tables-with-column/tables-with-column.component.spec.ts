@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { TablesWithColumnComponent } from './tables-with-column.component';
 
@@ -6,10 +6,10 @@ describe('TablesWithColumnComponent', () => {
   let component: TablesWithColumnComponent;
   let fixture: ComponentFixture<TablesWithColumnComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ TablesWithColumnComponent ]
-    })
+    imports: [TablesWithColumnComponent]
+})
     .compileComponents();
   }));
 

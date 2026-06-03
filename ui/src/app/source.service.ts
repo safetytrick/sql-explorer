@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import {HttpClient} from '@angular/common/http';
-import {Observable} from 'rxjs/internal/Observable';
+import { HttpClient } from '@angular/common/http';
+import {Observable} from 'rxjs';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -19,7 +19,7 @@ export class SourceService {
     return this.http.get(endpoint + 'sources');
   }
 
-  loadSources(sources): Observable<any> {
+  loadSources(sources: any[]): Observable<any> {
     return this.http.post(endpoint + 'sources/load', sources);
   }
 }

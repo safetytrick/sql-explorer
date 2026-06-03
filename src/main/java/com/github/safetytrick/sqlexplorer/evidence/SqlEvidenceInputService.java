@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -23,23 +21,27 @@ import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
+import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.AbstractTsvSqlSource;
+import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSink;
 import com.github.safetytrick.sqlexplorer.evidence.source.MeteredSql;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
-import com.github.safetytrick.sqlexplorer.model.QueryActivityStatus;
-import com.github.safetytrick.sqlexplorer.model.RuntimeMetrics;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
+import extensions.com.github.safetytrick.sqlexplorer.avro.SqlProfile.SqlProfileExtension;
 import io.micrometer.core.annotation.Timed;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
+import manifold.util.concurrent.ConcurrentHashSet;
 import net.sf.jsqlparser.JSQLParserException;
+import org.apache.avro.AvroMissingFieldException;
 import org.hibernate.engine.jdbc.internal.BasicFormatterImpl;
 import org.hibernate.engine.jdbc.internal.Formatter;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,9 +58,11 @@ public class SqlEvidenceInputService {
     private final Map<String, Boolean> currentlyProcessing = new ConcurrentHashMap<>();
 
     private final boolean traceErrors;
+    private final ParquetSink parquetSink;
     private final SqlAnalysisService sqlAnalysisService;
     private final NormalizedQueryDigest normalizedQueryDigest;
     private final Timer performanceSchemaRowTimer;
+    private final Set<String> missingFieldExceptions = new ConcurrentHashSet<>();
 
     // an optimization to ignore parsing sql we likely can't and likely can't find useful data from.
     private static final Set<String> ignoredFirstTokens = Set.of("ALTER",
@@ -86,11 +90,12 @@ public class SqlEvidenceInputService {
 
     private static final Set<String> dmlTokens = Set.of("INSERT", "UPDATE", "DELETE");
 
-    public SqlEvidenceInputService(@Value("${sql-explorer.trace-errors}") boolean traceErrors,
+    public SqlEvidenceInputService(@Value("${sql-explorer.trace-errors}") boolean traceErrors, ParquetSink parquetSink,
                                    SqlAnalysisService sqlAnalysisService,
                                    NormalizedQueryDigest normalizedQueryDigest,
                                    MeterRegistry meterRegistry) {
         this.traceErrors = traceErrors;
+        this.parquetSink = parquetSink;
         this.sqlAnalysisService = sqlAnalysisService;
         this.normalizedQueryDigest = normalizedQueryDigest;
         performanceSchemaRowTimer = meterRegistry.timer("performance_schema_process_row");
@@ -124,6 +129,9 @@ public class SqlEvidenceInputService {
                             currentlyProcessing.put(rowName, true);
                             processRow(repository, sqlInput);
                         } catch (Exception e) {
+                            if (e instanceof AvroMissingFieldException) {
+                                missingFieldExceptions.add(e.toString());
+                            }
                             log.error("Row Processing failed: {}", sqlInput.row(), e);
                             throw e;
                         } finally {
@@ -135,7 +143,7 @@ public class SqlEvidenceInputService {
         );
 
         int iteration = 0;
-        while (futures.stream().anyMatch(((Predicate<Future<?>>) Future::isDone).negate())) {
+        while (!futures.stream().allMatch(Future::isDone)) {
             iteration++;
             long completed = futures.stream().filter(Future::isDone).count();
             if (iteration % 5 == 0) {
@@ -150,7 +158,7 @@ public class SqlEvidenceInputService {
         }
 
         repository.sqlProfiles = mergeByDigest(repository.sqlProfiles);
-        repository.sqlProfiles.sort(Comparator.naturalOrder());
+        repository.sqlProfiles.sort(SqlProfileExtension.comparator);
         for (SqlProfile sqlProfile : repository.sqlProfiles) {
             for (TableReference table : sqlProfile.getTables()) {
                 repository.tableNameAnalyzedSqlRepository.put(table, sqlProfile);
@@ -171,6 +179,10 @@ public class SqlEvidenceInputService {
         Map<String, Long> types = sqlRepository.getAllAnalyzedSql().collect(Collectors.groupingBy(SqlProfile::getType, Collectors.counting()));
         log.info("Types: {}", types);
 
+        for (String missingFieldException : missingFieldExceptions) {
+            log.info("AvroBuild Exceptions: {}", missingFieldException);
+        }
+
         return sqlRepository;
     }
 
@@ -189,26 +201,26 @@ public class SqlEvidenceInputService {
         }
         String firstToken = firstToken(row.getQuery());
         int lineNumber = toProcess.rank();
-        SqlProfile.Builder builder = SqlProfile.builder();
+        SqlProfile.Builder builder = SqlProfile.newBuilder();
 
         String query = sqlFormatter.format(row.getQuery());
-        RuntimeMetrics runtimeMetrics = RuntimeMetrics.builder()
+        RuntimeMetrics runtimeMetrics = RuntimeMetrics.newBuilder()
             .fromPerformanceSchemaRow(row)
-            .build();
+            .completeBuild();
 
         QueryActivityStatus status = runtimeMetrics.getLastSeen()
                 .isAfter(LocalDateTime.ofInstant(toProcess.source().getCreatedOn().minus(30, ChronoUnit.DAYS), ZoneId.systemDefault()))
                 && runtimeMetrics.getExecuted() > 1 ? QueryActivityStatus.ACTIVE : QueryActivityStatus.DORMANT;
 
-        builder.lineNumber(lineNumber)
-            .id(toProcess.source() + "-" + lineNumber)
-            .sourceFileName(toProcess.source() instanceof AbstractTsvSqlSource tsvSource ?  tsvSource.getResource().getFilename() : null)
-            .query(query)
-            .type(firstToken)
-            .schema(row.getSchema())
-            .runtimeMetrics(runtimeMetrics)
-            .queryActivityStatus(status)
-            .isDml(row.getRowsAffected() > 1 || dmlTokens.contains(firstToken));
+        builder.setLineNumber(lineNumber)
+            .setId(toProcess.source() + "-" + lineNumber)
+            .setSourceFileName(toProcess.source() instanceof AbstractTsvSqlSource tsvSource ?  tsvSource.getResource().getFilename() : null)
+            .setQuery(query)
+            .setType(firstToken)
+            .setSchemaName(row.getSchemaName() != null ? row.getSchemaName() : "dual")
+            .setRuntimeMetrics(runtimeMetrics)
+            .setQueryActivityStatus(status)
+            .setIsDml(row.getRowsAffected() > 1 || dmlTokens.contains(firstToken));
 
         if (row.getErrors() == row.getExecuted()) {
             //if the query always fails we might not be able to parse it and don't really care about it anyway
@@ -216,7 +228,7 @@ public class SqlEvidenceInputService {
         }
 
         if (ignoredFirstTokens.contains(firstToken)) {
-            builder.analysisSkipped(true);
+            builder.setAnalysisSkipped(true);
         } else {
             try {
                 int nestingLevel = getNestingLevel(query);
@@ -226,7 +238,7 @@ public class SqlEvidenceInputService {
 
                 int closedParens = getClosedParens(query);
                 if (nestingLevel - closedParens > 1) {
-                    builder.truncated(true);
+                    builder.setTruncated(true);
                     throw new JSQLParserException("Unclosed parens: " + (nestingLevel - closedParens));
                 }
 
@@ -235,7 +247,7 @@ public class SqlEvidenceInputService {
                 long startNormalization = System.nanoTime();
                 String normalizedDigest = normalizedQueryDigest.normalizedDigest(query);
                 if (normalizedDigest != null) {
-                    builder.normalizedDigest(normalizedDigest);
+                    builder.setNormalizedDigest(normalizedDigest);
                     if (repository.attemptMerge(normalizedDigest, builder)) {
                         return;
                     }
@@ -244,29 +256,31 @@ public class SqlEvidenceInputService {
                 Duration normalizedParseTime = Duration.ofNanos(System.nanoTime() - startNormalization);
                 if (normalizedParseTime.toSeconds() > 20) {
                     log.info("Parse time exceeded 20 second, aborting analysis");
-                    builder.failureReason("parse time exceeded 20 seconds");
+                    builder.setAnalysisFailureReason("parse time exceeded 20 seconds");
                 } else {
                     sqlAnalysisService.analyzeSql(query, builder);
                 }
 
             } catch (JSQLParserException e) {
                 if (containsEof(e)) {
-                    builder.truncated(true);
+                    builder.setTruncated(true);
                 } else {
-                    builder.failureReason(getRootCauseMessage(e));
+                    builder.setAnalysisFailureReason(getRootCauseMessage(e));
                 }
 
-                builder.tables(extractTablesByRegex(builder.view().getSchema(), query));
+                builder.setTables(extractTablesByRegex(builder.getSchemaName(), query));
 
                 if (traceErrors) {
                     log.info("Parse failed {}", row.getDigest(), e);
                 }
 
-                builder.analysisFailed(true);
+                builder.setAnalysisFailed(true);
             }
         }
 
-        SqlProfile sqlProfile = builder.build();
+        SqlProfile sqlProfile = builder.completeBuild(row.getSchemaName());
+        parquetSink.write(sqlProfile);
+
         repository.addToIndex(sqlProfile);
     }
 
@@ -281,7 +295,7 @@ public class SqlEvidenceInputService {
         while (matcher.find()) {
             String referencedSchema = matcher.group("schema");
             String table = matcher.group("table");
-            references.add(new TableReference(referencedSchema, table)
+            references.add(TableReference.newTableReference(referencedSchema, table)
                     .withDefaultSchema(schema));
 
         }
@@ -343,7 +357,7 @@ public class SqlEvidenceInputService {
     }
 
     private SqlProfile mergedSql(List<SqlProfile> alreadyGroupedList) {
-        return alreadyGroupedList.size() > 1 ? new MergedSqlProfile(alreadyGroupedList) : alreadyGroupedList.get(0);
+        return alreadyGroupedList.size() > 1 ? new MergedSqlProfile(alreadyGroupedList) : alreadyGroupedList.getFirst();
     }
 
 
@@ -389,19 +403,19 @@ public class SqlEvidenceInputService {
 
             statsBuilder.merged();
 
-            SqlProfile existingEntry = digestAnalyzedSqlRepository.get(normalizedDigest).get(0);
-            builder.joinColumns(existingEntry.getJoinColumns())
-                .analysisFailed(existingEntry.isAnalysisFailed())
-                .schema(existingEntry.getSchema())
-                .criteriaColumns(existingEntry.getCriteriaColumns())
-                .failureReason(existingEntry.getAnalysisFailureReason())
-                .isDml(existingEntry.isDml())
-                .mismatchedJoins(existingEntry.getMismatchedJoins())
-                .truncated(existingEntry.isTruncated())
-                .tables(existingEntry.getTables())
-                .type(existingEntry.getType());
+            SqlProfile existingEntry = digestAnalyzedSqlRepository.get(normalizedDigest).getFirst();
+            builder.setJoinColumns(existingEntry.getJoinColumns())
+                .setAnalysisFailed(existingEntry.getAnalysisFailed())
+                .setSchemaName(existingEntry.getSchemaName())
+                .setCriteriaColumns(existingEntry.getCriteriaColumns())
+                .setAnalysisFailureReason(existingEntry.getAnalysisFailureReason())
+                .setIsDml(existingEntry.getIsDml())
+                .setMismatchedJoins(existingEntry.getMismatchedJoins())
+                .setTruncated(existingEntry.getTruncated())
+                .setTables(existingEntry.getTables())
+                .setType(existingEntry.getType());
 
-            SqlProfile sqlProfile = builder.build();
+            SqlProfile sqlProfile = builder.completeBuild(existingEntry.getSchemaName());
             addToIndex(sqlProfile);
 
             return true;
@@ -422,18 +436,18 @@ public class SqlEvidenceInputService {
         }
 
         private void reportStatistics(SqlProfile sqlProfile) {
-            if (sqlProfile.isAnalysisSkipped()) {
+            if (sqlProfile.getAnalysisSkipped()) {
                 statsBuilder.analysisSkipped();
             }
-            if (sqlProfile.isAnalysisFailed()) {
+            if (sqlProfile.getAnalysisFailed()) {
                 statsBuilder.analysisFailed();
             }
 
-            if (sqlProfile.isTruncated()) {
+            if (sqlProfile.getTruncated()) {
                 statsBuilder.truncated();
             }
 
-            if (sqlProfile.isDml()) {
+            if (sqlProfile.getIsDml()) {
                 statsBuilder.dml();
             }
 

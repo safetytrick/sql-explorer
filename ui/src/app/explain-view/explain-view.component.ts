@@ -1,11 +1,13 @@
 import {Component, OnInit, ViewChild} from '@angular/core';
-import {MatTable, MatTableDataSource} from '@angular/material/table';
+import { MatTable, MatTableDataSource, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from '@angular/material/table';
 import {TSV} from 'tsv';
+import { FormsModule } from '@angular/forms';
 
 @Component({
-  selector: 'app-explain-view',
-  templateUrl: './explain-view.component.html',
-  styleUrls: ['./explain-view.component.scss']
+    selector: 'app-explain-view',
+    templateUrl: './explain-view.component.html',
+    styleUrls: ['./explain-view.component.scss'],
+    imports: [FormsModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ExplainViewComponent implements OnInit {
 
@@ -15,7 +17,7 @@ export class ExplainViewComponent implements OnInit {
 
   public text = '';
 
-  @ViewChild(MatTable, {static: true}) table: MatTable<any>;
+  @ViewChild(MatTable, {static: true}) table!: MatTable<any>;
 
 
   constructor() { }
@@ -33,9 +35,9 @@ export class ExplainViewComponent implements OnInit {
     this.text = textValue;
   }
 
-  private parseAndExtract(text) {
+  private parseAndExtract(text: string) {
     return TSV.parse(text)
-      .filter(item => item.hasOwnProperty('id') && item.id !== undefined && item.id !== '');
+      .filter((item: any) => item.hasOwnProperty('id') && item.id !== undefined && item.id !== '');
   }
 
 }

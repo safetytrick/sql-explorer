@@ -1,8 +1,8 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
 @Pipe({
-  name: 'callback',
-  pure: false
+    name: 'callback',
+    pure: false
 })
 export class CallbackPipePipe implements PipeTransform {
 

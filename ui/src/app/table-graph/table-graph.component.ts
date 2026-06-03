@@ -1,11 +1,12 @@
 import {Component, Input} from '@angular/core';
-import {ClusterNode, Edge, Layout, Node} from '@swimlane/ngx-graph';
-import {Observable} from 'rxjs/internal/Observable';
+import { ClusterNode, Edge, Layout, Node, GraphModule } from '@swimlane/ngx-graph';
+import {Observable} from 'rxjs';
 
 @Component({
-  selector: 'app-table-graph',
-  templateUrl: './table-graph.component.html',
-  styleUrls: ['./table-graph.component.scss']
+    selector: 'app-table-graph',
+    templateUrl: './table-graph.component.html',
+    styleUrls: ['./table-graph.component.scss'],
+    imports: [GraphModule]
 })
 export class TableGraphComponent {
   dataReceived = false;
@@ -19,30 +20,31 @@ export class TableGraphComponent {
   set query(query: Observable<any>) {
     const groups = new GroupTracker();
 
-    query.subscribe(tableJoins => {
-      const tableJoinsArray = tableJoins as any[];
-      tableJoinsArray.forEach(tableJoin => {
-        groups.addTableJoins(tableJoin);
-        tableJoin.foreignKeyTables.forEach(relatedTable => {
-          groups.addTable(relatedTable);
-          this.createLink(tableJoin.table, relatedTable, 'fk');
+    query.subscribe({
+      next: tableJoins => {
+        const tableJoinsArray = tableJoins as any[];
+        tableJoinsArray.forEach(tableJoin => {
+          groups.addTableJoins(tableJoin);
+          tableJoin.foreignKeyTables.forEach((relatedTable: string) => {
+            groups.addTable(relatedTable);
+            this.createLink(tableJoin.table, relatedTable, 'fk');
+          });
+
+          tableJoin.joinTables.forEach((relatedTable: string) => {
+            groups.addTable(relatedTable);
+            this.createLink(tableJoin.table, relatedTable, 'joins');
+          });
+
+          tableJoin.relatedTables.forEach((relatedTable: string) => {
+            groups.addTable(relatedTable);
+            this.createLink(tableJoin.table, relatedTable, 'queried with');
+          });
         });
 
-        tableJoin.joinTables.forEach(relatedTable => {
-          groups.addTable(relatedTable);
-          this.createLink(tableJoin.table, relatedTable, 'joins');
-        });
-
-        tableJoin.relatedTables.forEach(relatedTable => {
-          groups.addTable(relatedTable);
-          this.createLink(tableJoin.table, relatedTable, 'queried with');
-        });
-      });
-
-      this.createClusters(groups);
-
-    }, error => {
-    }, () => this.dataReceived = true);
+        this.createClusters(groups);
+      },
+      complete: () => this.dataReceived = true
+    });
   }
 
   constructor() {
@@ -72,7 +74,7 @@ export class TableGraphComponent {
         clusterNode = {id: pair.group, label: pair.group, childNodeIds: []};
         clusterNodeMap.set(pair.group, clusterNode);
       }
-      clusterNode.childNodeIds.push(pair.table);
+      clusterNode.childNodeIds!.push(pair.table);
     });
 
     clusterNodeMap.forEach((value: ClusterNode, key: string) => {
@@ -97,10 +99,10 @@ class GroupTracker {
   }
 
   getGroupedTables() {
-    const grouped = [];
+    const grouped: {table: string, group: string}[] = [];
     this.tables.forEach(table => {
       if (this.tableGroups.has(table)) {
-        grouped.push({table: table, group: this.tableGroups.get(table)});
+        grouped.push({table: table, group: this.tableGroups.get(table)!});
       } else if (table.indexOf('.') !== -1) {
         const schema = table.split('.')[0];
         grouped.push({table: table, group: schema});

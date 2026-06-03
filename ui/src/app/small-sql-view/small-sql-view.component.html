@@ -1,9 +1,15 @@
 
 <div class="col-sm-8">
-  <a *ngIf="query.digest" routerLink="/analyzed-sql/{{query.digest}}">{{query.id}}</a>
-  <a *ngIf="!query.digest" routerLink="/analyzed-sql/{{query.id}}">{{query.id}}</a>
+  @if (query.digest) {
+    <a routerLink="/analyzed-sql/{{query.digest}}">{{query.id}}</a>
+  }
+  @if (!query.digest) {
+    <a routerLink="/analyzed-sql/{{query.id}}">{{query.id}}</a>
+  }
 
-  <div *ngIf="query.analysisFailed && query.analysisFailureReason" class="bg-warning"><pre style="max-height: 40px">{{query.analysisFailureReason}}</pre></div>
+  @if (query.analysisFailed && query.analysisFailureReason) {
+    <div class="bg-warning"><pre style="max-height: 40px">{{query.analysisFailureReason}}</pre></div>
+  }
 
   <pre><code highlight="{{query.query}}"></code></pre>
 </div>
@@ -22,20 +28,24 @@
       Average Scanned: {{query.runtimeMetrics.averageRowsScanned}}
     </li>
   </ul>
-  <div *ngIf="query.mismatchedJoins.length > 0">
-    <div>Mismatched Joins:</div>
-    <ul class="list-unstyled">
-      <li *ngFor="let join of query.mismatchedJoins">
-        <div class="alert alert-danger">
-          <div>
-            <app-column-link [schema]="query.schema" [columnReference]="join[0]"></app-column-link>
-          </div>
-          <div>
-            <app-column-link [schema]="query.schema" [columnReference]="join[1]"></app-column-link>
-          </div>
-        </div>
-      </li>
-    </ul>
-  </div>
+  @if (query.mismatchedJoins.length > 0) {
+    <div>
+      <div>Mismatched Joins:</div>
+      <ul class="list-unstyled">
+        @for (join of query.mismatchedJoins; track join) {
+          <li>
+            <div class="alert alert-danger">
+              <div>
+                <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+              </div>
+              <div>
+                <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+    </div>
+  }
 </div>
 

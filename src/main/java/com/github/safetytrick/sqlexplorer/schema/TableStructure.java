@@ -3,8 +3,8 @@ package com.github.safetytrick.sqlexplorer.schema;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.NameNormalizer;
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Table;
@@ -24,7 +24,7 @@ public record TableStructure(String schema,
                              List<TableColumn> columns) {
 
     public TableReference tableReference() {
-        return new TableReference(schema, name);
+        return TableReference.newTableReference(schema, name);
     }
     public static Builder builder() {
         return new Builder();
@@ -143,20 +143,20 @@ public record TableStructure(String schema,
     }
 
     private static ForeignKey toForeignKey(Table table, ForeignKeyIndex fkIndex) {
-        TableReference fromTable = new TableReference(table.getSchemaName(), table.getName());
+        TableReference fromTable = TableReference.newTableReference(table.getSchemaName(), table.getName());
         Table fkTable = fkIndex.getTable();
         if (fkTable.getSchemaName() == null) {
             fkTable.setSchemaName(table.getSchemaName());
         }
 
-        TableReference toTable = new TableReference(fkTable.getSchemaName(), fkTable.getName());
+        TableReference toTable = TableReference.newTableReference(fkTable.getSchemaName(), fkTable.getName());
 
         ForeignKey.Builder builder = new ForeignKey.Builder();
         for (int i = 0; i < fkIndex.getColumnsNames().size(); i++) {
             String fromColumn = fkIndex.getColumnsNames().get(i);
             String toColumn = fkIndex.getReferencedColumnNames().get(i);
-            builder.addFromAndTo(new ColumnReference(fromTable, fromColumn),
-                                 new ColumnReference(toTable, toColumn));
+            builder.addFromAndTo(ColumnReference.newColumnReference(fromTable, fromColumn),
+                                 ColumnReference.newColumnReference(toTable, toColumn));
         }
 
         return builder.build();

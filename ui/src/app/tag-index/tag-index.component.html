@@ -1,17 +1,21 @@
 
 <h3>Query Tags</h3>
 <hr>
-<ul class="pill-cloud">
-  <li *ngFor="let tag of queryTags">
-    <a class="btn btn-primary" routerLink="/analyzed-sql/by-tag/{{tag}}">{{tag}}</a>
-  </li>
-</ul>
-<hr>
-<h3>Table Tags</h3>
-<hr>
-<ul class="pill-cloud">
-  <li *ngFor="let tag of tableTags">
-    <a class="btn btn-primary" routerLink="/tables/by-tag/{{tag}}">{{tag}}</a>
-  </li>
-</ul>
+  <ul class="pill-cloud">
+    @for (tag of queryTags; track tag) {
+      <li>
+        <a class="btn btn-primary" routerLink="/analyzed-sql/by-tag/{{tag}}">{{tag}}</a>
+      </li>
+    }
+  </ul>
+  <hr>
+    <h3>Table Tags</h3>
+    <hr>
+      <ul class="pill-cloud">
+        @for (tag of tableTags; track tag) {
+          <li>
+            <a class="btn btn-primary" routerLink="/tables/by-tag/{{tag}}">{{tag}}</a>
+          </li>
+        }
+      </ul>
 

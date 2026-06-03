@@ -1,18 +1,26 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {ActivatedRoute, Router} from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {Title} from '@angular/platform-browser';
+import { TagViewComponent } from '../tag-view/tag-view.component';
+import { PicoViewComponent } from '../pico-view/pico-view.component';
+import { TableLinkComponent } from '../table-link/table-link.component';
+import { Highlight } from 'ngx-highlightjs';
+import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
+import { ColumnLinkComponent } from '../column-link/column-link.component';
+import { CallbackPipePipe } from '../callback-pipe.pipe';
 
 @Component({
-  selector: 'app-table-view',
-  templateUrl: './table-view.component.html',
-  styleUrls: ['./table-view.component.css']
+    selector: 'app-table-view',
+    templateUrl: './table-view.component.html',
+    styleUrls: ['./table-view.component.css'],
+    imports: [RouterLink, TagViewComponent, PicoViewComponent, TableLinkComponent, Highlight, SqlSummaryComponent, ColumnLinkComponent, CallbackPipePipe]
 })
 export class TableViewComponent implements OnInit {
 
   table: any = null;
   showCreate = false;
-  column: string = null;
+  column: string | null = null;
 
 
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,

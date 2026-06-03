@@ -8,13 +8,15 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
-import com.github.safetytrick.sqlexplorer.model.ColumnReference;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
-import com.github.safetytrick.sqlexplorer.model.SqlProfile;
-import com.github.safetytrick.sqlexplorer.model.TableReference;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
+import extensions.com.github.safetytrick.sqlexplorer.avro.SqlProfile.SqlProfileExtension;
+import extensions.com.github.safetytrick.sqlexplorer.avro.TableReference.TableReferenceExtension;
 import jakarta.validation.constraints.NotNull;
 
 class AnalyzedSqlRepository implements SqlRepository {
@@ -51,11 +53,11 @@ class AnalyzedSqlRepository implements SqlRepository {
         this.analyzedSqlRepository = Collections.unmodifiableMap(analyzedSqlRepository);
 
         ImmutableListMultimap.Builder<TableReference, SqlProfile> tableNameAnalyzedSqlRepository = ImmutableListMultimap.builder();
+        tableNameAnalyzedSqlRepository.orderKeysBy(TableReferenceExtension.comparator);
 
         for (SqlProfile sqlProfile : sqlProfiles) {
             for (TableReference table : sqlProfile.getTables()) {
-
-                tableNameAnalyzedSqlRepository.put(table.withDefaultSchema(sqlProfile.getSchema()), sqlProfile);
+                tableNameAnalyzedSqlRepository.put(table.withDefaultSchema(sqlProfile.getSchemaName()).normalized(), sqlProfile);
             }
         }
 
@@ -69,12 +71,12 @@ class AnalyzedSqlRepository implements SqlRepository {
         return groupedByDigest.values()
             .stream()
             .map(this::mergedSql)
-            .sorted()
+            .sorted(SqlProfileExtension.comparator)
             .collect(Collectors.toList());
     }
 
     private SqlProfile mergedSql(List<SqlProfile> alreadyGroupedList) {
-        return alreadyGroupedList.size() > 1 ? new MergedSqlProfile(alreadyGroupedList) : alreadyGroupedList.get(0);
+        return alreadyGroupedList.size() > 1 ? new MergedSqlProfile(alreadyGroupedList) : alreadyGroupedList.getFirst();
     }
 
     private String getDigestOrId(SqlProfile sqlProfile) {
@@ -103,13 +105,13 @@ class AnalyzedSqlRepository implements SqlRepository {
 
     @Override
     public Stream<SqlProfile> getTableQueries(TableReference table) {
-        ImmutableList<SqlProfile> tableQueries = tableNameAnalyzedSqlRepository.get(table);
-        return tableQueries != null ? tableQueries.stream() : Stream.empty();
+        ImmutableList<SqlProfile> tableQueries = tableNameAnalyzedSqlRepository.get(table.normalized());
+        return tableQueries.stream();
     }
 
     @Override
     public Stream<SqlProfile> getQueriesForColumn(TableReference table, String column) {
-        ColumnReference columnReference = new ColumnReference(table, column);
+        ColumnReference columnReference = ColumnReference.newColumnReference(table, column);
         Stream<SqlProfile> tableQueries = getTableQueries(table);
         return tableQueries.filter(sql -> sql.constrainedBy(columnReference));
     }
