@@ -123,10 +123,41 @@ dependencies {
 
 ## Status
 
-- [ ] Phase 1 — Pre-flight
-- [ ] Phase 2 — OpenRewrite run
-- [ ] Phase 3 — Manual fixes & verification
-- [ ] Phase 4 — Cleanup
+- [x] Phase 1 — Pre-flight (Gradle 8.14.3, plugins DSL, Jersey/JAX-RS removed, pins dropped)
+- [x] Phase 2 — OpenRewrite run (`rewriteRun` applied; needed `org.gradle.jvmargs=-Xmx4g`)
+- [x] Phase 3 — Manual fixes & verification
+- [x] Phase 4 — Cleanup (rewrite plugin removed, CLAUDE.md updated)
+
+**Completed 2026-06-03** on branch `upgrade/spring-boot-4`. Now on Spring Boot 4.0.6,
+Spring Framework 7, Hibernate 7, Jackson 3 (`tools.jackson`), springdoc 3,
+mysql-connector-j 9.x, Gradle wrapper 8.14.5.
+
+### Manual fixes that were needed beyond the recipe
+
+- **Jackson 3 API renames**: `MappingIterator.getCurrentLocation()` → `currentLocation()`;
+  `JacksonException` is unchecked; `StdSerializer.serialize` can't throw `IOException`
+- **Hibernate 7**: `new StandardLobCreator(session)` → `session.getLobCreator()`
+- **Framework 7**: `PathMatchConfigurer.setUseSuffixPatternMatch` removed (override deleted);
+  `Jackson2ObjectMapperBuilder`/`MappingJackson2HttpMessageConverter` replaced with
+  `JacksonJsonHttpMessageConverter(JsonMapper)`; `ObjectMapperConfig` bean retyped to `JsonMapper`
+- **Connector/J 9**: `getIndexInfo(null, null, null, ...)` now throws "Table not specified";
+  `IndexLoadingService` queries `INFORMATION_SCHEMA.STATISTICS` directly instead
+  (same pattern as `ForeignKeyLoadingService`)
+
+### Verified
+
+- `./gradlew assemble test` green (66 tests)
+- Docker stack: health UP; smoke-tested schemas/tables/sources/graph/reports/tags
+  endpoints, tag create+read+delete (Hibernate 7 write path), swagger UI, v3/api-docs,
+  UI nginx proxy → backend
+
+### Known pre-existing issues (NOT regressions, observed during verification)
+
+- `POST /api/sql-explorer/sources` multipart upload 500s: `calculateMd5Hash(resource.getURL())`
+  in `SqlSourceEntityService` — `MultipartFile` resources are never URL-resolvable. Code
+  unchanged since the Boot 3 migration; should hash from `getInputStream()` instead.
+- `/actuator/prometheus` is 404: `micrometer-registry-prometheus` is on the classpath but
+  `management.endpoints.web.exposure.include` was never configured anywhere.
 
 ## References
 

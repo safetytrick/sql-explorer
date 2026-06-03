@@ -3,7 +3,6 @@ import org.springframework.boot.gradle.plugin.SpringBootPlugin
 plugins {
     id 'java'
     id 'jacoco'
-    id "org.openrewrite.rewrite" version "latest.release"
     id "org.springframework.boot" version "4.0.6"
     id "org.owasp.dependencycheck" version "7.1.0.1"
     id "com.gorylenko.gradle-git-properties" version "2.4.1"
@@ -21,11 +20,6 @@ configurations {
     compileOnly {
         extendsFrom annotationProcessor
     }
-}
-
-rewrite {
-    activeRecipe("org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_0")
-    setExportDatatables(true)
 }
 
 allprojects {
@@ -86,8 +80,6 @@ allprojects {
 }
 
 dependencies {
-    rewrite("org.openrewrite.recipe:rewrite-spring:6.32.0")
-
     implementation platform(SpringBootPlugin.BOM_COORDINATES)
     annotationProcessor platform(SpringBootPlugin.BOM_COORDINATES)
     implementation 'io.micrometer:micrometer-registry-prometheus'

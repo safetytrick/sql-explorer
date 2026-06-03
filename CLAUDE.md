@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SQL Explorer is a full-stack tool for analyzing MySQL performance. It reads queries from MySQL's Performance Schema (or CSV/Parquet files), parses and normalizes them, and surfaces insights about schema usage, query patterns, and performance impact ("Pain" metrics).
 
-- **Backend**: Java 21 + Spring Boot 3.4.2 (Gradle)
+- **Backend**: Java 21 + Spring Boot 4.0.6 (Gradle)
 - **Frontend**: Angular 8 + Material Design (`ui/`)
 - **Data models**: Apache Avro (`models/` subproject)
 - **Database**: MySQL 8.4.4, Liquibase migrations

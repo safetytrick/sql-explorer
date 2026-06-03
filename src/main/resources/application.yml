@@ -15,8 +15,10 @@ spring:
     change-log: "classpath:/db/migration/db.changelog-master.xml"
   jpa:
     open-in-view: true
+  web:
+    error:
+      include-exception: true
+      include-stacktrace: always
 
 sql-explorer:
   trace-errors: false
-spring.web.error.include-exception: true
-spring.web.error.include-stacktrace: always
