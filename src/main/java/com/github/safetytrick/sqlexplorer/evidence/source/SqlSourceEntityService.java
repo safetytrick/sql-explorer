@@ -3,7 +3,6 @@ package com.github.safetytrick.sqlexplorer.evidence.source;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Blob;
@@ -50,7 +49,7 @@ public class SqlSourceEntityService {
                                                  String sourceUrl,
                                                  Resource resource) {
         try {
-            String md5 = calculateMd5Hash(resource.getURL());
+            String md5 = calculateMd5Hash(resource);
             Optional<SqlSourceEntity> existingEntity = sqlSourceEntityRepository.findByMd5Hash(md5);
             if (existingEntity.isPresent()) {
                 return existingEntity.get();
@@ -73,8 +72,8 @@ public class SqlSourceEntityService {
         }
     }
 
-    private String calculateMd5Hash(URL sourceUrl) throws IOException {
-        try (BufferedInputStream stream = new BufferedInputStream(sourceUrl.openStream())) {
+    private String calculateMd5Hash(Resource resource) throws IOException {
+        try (BufferedInputStream stream = new BufferedInputStream(resource.getInputStream())) {
             try {
                 int read;
                 byte[] bytes = new byte[1024];
