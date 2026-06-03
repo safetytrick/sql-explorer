@@ -21,7 +21,6 @@ import jakarta.persistence.SecondaryTable;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.hibernate.annotations.GenericGenerator;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.annotation.CreatedDate;
@@ -35,8 +34,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @SecondaryTable(name = "sql_source_content")
 public class SqlSourceEntity extends AbstractTsvSqlSource {
     @Id
-    @GeneratedValue(strategy= GenerationType.AUTO, generator="native")
-    @GenericGenerator(name = "native", strategy = "native")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     private String sourceRef;
