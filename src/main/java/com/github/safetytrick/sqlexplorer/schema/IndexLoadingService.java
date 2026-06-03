@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.schema;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -72,7 +73,7 @@ public class IndexLoadingService {
         try (Connection connection = metadataDataSource.getConnection()) {
             TableReference table = null;
             List<TableIndex> tableIndices = new ArrayList<>();
-            try (ResultSet indexInfo = connection.getMetaData().getIndexInfo(null, null, null, false, false)) {
+            try (ResultSet indexInfo = getIndexInfo(connection)) {
                 TableIndex.Builder builder = null;
                 String prevIndexName = null;
                 while (indexInfo.next()) {
@@ -130,6 +131,40 @@ public class IndexLoadingService {
 
         log.info("Completed read of indexes in {}", Duration.ofNanos(System.nanoTime() - start));
         return table -> indices.getOrDefault(table.normalized(), Collections.emptyList());
+    }
+
+    /**
+     * DatabaseMetaData.getIndexInfo requires a table name as of mysql-connector-j 9.x.
+     * Query INFORMATION_SCHEMA.STATISTICS directly (the same source the driver uses)
+     * to keep the bulk all-tables load, emulating the getIndexInfo result columns.
+     */
+    private ResultSet getIndexInfo(Connection connection) throws SQLException {
+        String sql = """
+            SELECT TABLE_SCHEMA          AS TABLE_CAT,
+                NULL                     AS TABLE_SCHEM,
+                TABLE_NAME,
+                NON_UNIQUE,
+                NULL                     AS INDEX_QUALIFIER,
+                INDEX_NAME,
+                CASE
+                    WHEN INDEX_TYPE = 'HASH' THEN 2
+                    ELSE 3 END           AS TYPE,
+                SEQ_IN_INDEX             AS ORDINAL_POSITION,
+                COLUMN_NAME,
+                COLLATION                AS ASC_OR_DESC,
+                CARDINALITY,
+                0                        AS PAGES,
+                NULL                     AS FILTER_CONDITION
+            FROM INFORMATION_SCHEMA.STATISTICS
+            ORDER BY TABLE_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
+            """;
+
+        PreparedStatement statement = connection.prepareStatement(sql);
+        if (statement.getMaxRows() != 0) {
+            statement.setMaxRows(0);
+        }
+
+        return statement.executeQuery();
     }
 
     interface IndicesFetcher {
