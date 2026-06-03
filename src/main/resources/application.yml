@@ -3,9 +3,6 @@
 
 server:
   port: 8080
-  error:
-    include-exception: true
-    include-stacktrace: always
 
 
 spring:
@@ -21,3 +18,5 @@ spring:
 
 sql-explorer:
   trace-errors: false
+spring.web.error.include-exception: true
+spring.web.error.include-stacktrace: always

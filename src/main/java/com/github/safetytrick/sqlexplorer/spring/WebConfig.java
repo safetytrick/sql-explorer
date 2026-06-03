@@ -3,8 +3,6 @@ package com.github.safetytrick.sqlexplorer.spring;
 import java.util.Arrays;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.Module;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -16,15 +14,17 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import tools.jackson.databind.JacksonModule;
+import tools.jackson.databind.cfg.DateTimeFeature;
 
 @Configuration
 @EnableWebMvc
 class WebConfig implements WebMvcConfigurer {
 
-    private final List<Module> jacksonModules;
+    private final List<JacksonModule> jacksonModules;
     private final Environment environment;
 
-    public WebConfig(List<Module> jacksonModules, Environment environment) {
+    public WebConfig(List<JacksonModule> jacksonModules, Environment environment) {
         this.jacksonModules = jacksonModules;
         this.environment = environment;
     }
@@ -47,7 +47,7 @@ class WebConfig implements WebMvcConfigurer {
     public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
         Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
         builder.modules(jacksonModules);
-        builder.featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        builder.featuresToDisable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS);
         builder.findModulesViaServiceLoader(true);
 
         converters.add(new MappingJackson2HttpMessageConverter(builder.build()));

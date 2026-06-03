@@ -1,13 +1,12 @@
 package com.github.safetytrick.sqlexplorer.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.module.SimpleModule;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-
+import tools.jackson.databind.JacksonModule;
 
 
 @Configuration
@@ -28,7 +27,7 @@ public class SpecificRecordBaseSerde {
     }
 
     @Bean
-    public com.fasterxml.jackson.databind.Module getSpecificRecordBaseModule() {
+    public JacksonModule getSpecificRecordBaseModule() {
         SimpleModule module = new SimpleModule();
         module.setMixInAnnotation(SqlProfile.class, JacksonSpecificRecordBaseMixin.class);
         module.setMixInAnnotation(RuntimeMetrics.class, JacksonSpecificRecordBaseMixin.class);
