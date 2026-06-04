@@ -23,8 +23,10 @@ export class AnalyzedSqlService {
     return this.http.get(endpoint + 'table/' + schema + '/' + name + columnPath);
   }
 
-  getReportSql(name: string, limit: number): Observable<any> {
-    const params: HttpParams = new HttpParams().set('limit', String(limit));
+  getReportSql(name: string, limit: number, offset: number = 0): Observable<any> {
+    const params: HttpParams = new HttpParams()
+      .set('limit', String(limit))
+      .set('offset', String(offset));
 
     return this.http.get(endpoint + 'analyzed-sql/reports/' + name, {params: params});
   }

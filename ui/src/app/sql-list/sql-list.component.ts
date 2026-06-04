@@ -15,7 +15,10 @@ import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
 export class SqlListComponent implements OnInit {
 
   public sqlList: any = [];
-  private limit = 10;
+  public limit = 10;
+  public offset = 0;
+  // true while the most recent page came back full, i.e. there may be another page
+  public hasNextPage = false;
   private name: string | null = null;
 
   constructor(public sqlService: AnalyzedSqlService,
@@ -24,6 +27,7 @@ export class SqlListComponent implements OnInit {
     this.route.params.subscribe(params => {
       this.name = params['name'] || 'all';
       this.limit = params['limit'] || 50;
+      this.offset = 0;
 
       titleService.setTitle('report: ' + this.name);
 
@@ -37,9 +41,27 @@ export class SqlListComponent implements OnInit {
 
   getReportSql() {
     this.sqlList = [];
-    this.sqlService.getReportSql(this.name!, this.limit).subscribe((data: {}) => {
+    this.sqlService.getReportSql(this.name!, this.limit, this.offset).subscribe((data: any) => {
       this.sqlList = data;
+      // the endpoint has no total count; a full page means there is likely more.
+      this.hasNextPage = data.length === this.limit;
     });
+  }
+
+  nextPage() {
+    if (!this.hasNextPage) {
+      return;
+    }
+    this.offset += this.limit;
+    this.getReportSql();
+  }
+
+  previousPage() {
+    if (this.offset === 0) {
+      return;
+    }
+    this.offset = Math.max(0, this.offset - this.limit);
+    this.getReportSql();
   }
 
 }

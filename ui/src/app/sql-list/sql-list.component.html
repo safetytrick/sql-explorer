@@ -1,4 +1,4 @@
-<ol>
+<ol [attr.start]="offset + 1">
   @for (query of sqlList; track query; let i = $index) {
     <li>
       <div class="row">
@@ -21,3 +21,9 @@
     </li>
   }
 </ol>
+
+<nav class="d-flex justify-content-between align-items-center my-3">
+  <button class="btn btn-secondary btn-sm" (click)="previousPage()" [disabled]="offset === 0">Previous</button>
+  <span class="text-muted">{{ offset + 1 }}–{{ offset + sqlList.length }}</span>
+  <button class="btn btn-secondary btn-sm" (click)="nextPage()" [disabled]="!hasNextPage">Next</button>
+</nav>

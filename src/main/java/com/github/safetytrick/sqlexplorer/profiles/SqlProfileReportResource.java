@@ -21,7 +21,10 @@ class SqlProfileReportResource {
 
     @GetMapping("/analyzed-sql/reports/{name}")
     public Stream<SqlProfile> getNamedReport(@PathVariable String name,
-                                             @RequestParam(name = "limit", defaultValue = "10") int limit) {
-        return sqlProfileReportService.getNamedReport(name).limit(limit);
+                                             @RequestParam(name = "limit", defaultValue = "10") int limit,
+                                             @RequestParam(name = "offset", defaultValue = "0") int offset) {
+        return sqlProfileReportService.getNamedReport(name)
+            .skip(offset)
+            .limit(limit);
     }
 }
