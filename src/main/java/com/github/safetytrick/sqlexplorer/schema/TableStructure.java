@@ -17,7 +17,6 @@ import net.sf.jsqlparser.statement.create.table.ForeignKeyIndex;
 public record TableStructure(String schema,
                              String name,
                              String type,
-                             String create,
                              String remarks,
                              List<ForeignKey> foreignKeys,
                              List<TableIndex> indices,
@@ -38,7 +37,6 @@ public record TableStructure(String schema,
         private List<ForeignKey> foreignKeys;
         private List<TableIndex> indices;
         private List<TableColumn> columns;
-        private String create;
 
         public Builder schema(String schema) {
             this.schema = schema;
@@ -74,13 +72,8 @@ public record TableStructure(String schema,
             return this;
         }
 
-        public Builder create(String create) {
-            this.create = create;
-            return this;
-        }
-
         public TableStructure build() {
-            return new TableStructure(schema, name, type, create, remarks, foreignKeys, indices, columns);
+            return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns);
         }
 
     }
@@ -101,8 +94,7 @@ public record TableStructure(String schema,
                     table.setSchemaName(defaultSchema);
                 }
                 builder.name(table.getName())
-                    .schema(table.getSchemaName())
-                    .create(create);
+                    .schema(table.getSchemaName());
 
                 builder.indices(createTable.getIndexes().stream().map(index -> {
 

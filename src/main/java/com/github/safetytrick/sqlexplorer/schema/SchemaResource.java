@@ -5,9 +5,11 @@ import java.util.stream.Stream;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @Tag(name="Schema")
 @RestController
@@ -15,15 +17,28 @@ class SchemaResource {
 
     private final SqlMetadataService sqlMetadataService;
     private final TableReportService tableReportService;
+    private final CreateStatementService createStatementService;
 
-    public SchemaResource(SqlMetadataService sqlMetadataService, TableReportService tableReportService) {
+    public SchemaResource(SqlMetadataService sqlMetadataService,
+                          TableReportService tableReportService,
+                          CreateStatementService createStatementService) {
         this.sqlMetadataService = sqlMetadataService;
         this.tableReportService = tableReportService;
+        this.createStatementService = createStatementService;
     }
 
     @GetMapping("/metadata/table/{schema}/{name}")
     public TableStructure getTableStructure(@PathVariable String schema, @PathVariable("name") String tableName) {
         return sqlMetadataService.getTable(TableReference.newTableReference(schema, tableName));
+    }
+
+    @GetMapping(value = "/metadata/table/{schema}/{name}/create", produces = "text/plain")
+    public String getCreateStatement(@PathVariable String schema, @PathVariable("name") String tableName) {
+        TableStructure table = sqlMetadataService.getTable(TableReference.newTableReference(schema, tableName));
+        if (table == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown table: " + schema + "." + tableName);
+        }
+        return createStatementService.getCreateStatement(table);
     }
 
 

@@ -4,7 +4,6 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -106,21 +105,14 @@ public class SchemaLoadingService {
             }
             log.info("Completed reading table metadata in {}", Duration.ofNanos(System.nanoTime() - startTables));
 
-
-            long startCreateTables = System.nanoTime();
+            // The create statement is loaded lazily and cached by CreateStatementService;
+            // running `show create table` per table here is slow and only needed on demand.
             List<TableStructure> tableStructures = new ArrayList<>();
             for (var entry : tableBuilders) {
-                TableReference table = entry.getKey();
-                String create = getCreateStatement(connection,
-                    table.getSchemaName(),
-                    table.getTableName());
-                entry.getValue().create(create);
-
                 TableStructure structure = entry.getValue().build();
                 tableStructures.add(structure);
-                addTableStructure(table, structure);
+                addTableStructure(entry.getKey(), structure);
             }
-            log.info("Completed reading create statements in {}", Duration.ofNanos(System.nanoTime() - startCreateTables));
 
             this.tableStructures = tableStructures;
 
@@ -165,24 +157,6 @@ public class SchemaLoadingService {
             .indices(
                 indicesFetcher.getIndices(table)
             ));
-    }
-
-    private String getCreateStatement(Connection connection, String schema, String tableName) throws SQLException {
-        if ("performance_schema".equals(schema)
-            || "sys".equals(schema)
-            || "mysql".equals(schema)
-            || "information_schema".equals(schema)) {
-            return "system table";
-        } else if (true) {
-            return "skipped this stuff";
-        }
-        try (Statement statement = connection.createStatement()) {
-            try (ResultSet resultSet = statement.executeQuery("show create table `" + schema + "`.`" + tableName+"`")) {
-                resultSet.next();
-
-                return resultSet.getString(2);
-            }
-        }
     }
 
     private void addTableStructure(TableReference reference, TableStructure structure) {
