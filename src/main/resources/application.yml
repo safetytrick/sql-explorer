@@ -22,6 +22,10 @@ spring:
       include-exception: true
       include-stacktrace: always
 
+scalar:
+  sources:
+    - url: /api/sql-explorer/v3/api-docs
+  page-title: Sql Explorer API
 
 management:
   endpoints:
