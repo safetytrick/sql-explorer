@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@io.swagger.v3.oas.annotations.tags.Tag(name="Tags")
 @RestController
 class NotesResource {
 
@@ -21,17 +22,17 @@ class NotesResource {
         this.userService = userService;
     }
 
-    @GetMapping("/api/sql-explorer/notes/path")
+    @GetMapping("/notes/path")
     public List<Note> notesForPath(@RequestParam String path) {
         return noteRepository.findAllByPath(path);
     }
 
-    @GetMapping("/api/sql-explorer/note/{id}")
+    @GetMapping("/note/{id}")
     public Note noteById(@PathVariable int id) {
         return noteRepository.findById(id).orElseThrow();
     }
 
-    @PostMapping("/api/sql-explorer/notes")
+    @PostMapping("/notes")
     public Note createNote(@RequestParam String text, @RequestParam String path) {
         Objects.requireNonNull(text, "text is required");
         Objects.requireNonNull(path, "path is required");

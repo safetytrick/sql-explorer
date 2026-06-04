@@ -10,6 +10,7 @@ import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.ImportedSqlSource;
 import com.google.common.base.Strings;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +26,7 @@ import org.springframework.web.util.UriComponents;
 
 import static org.springframework.web.servlet.mvc.method.annotation.MvcUriComponentsBuilder.on;
 
+@Tag(name="Source")
 @RestController
 class SqlSourceResource {
 
@@ -38,12 +40,12 @@ class SqlSourceResource {
         this.sqlSourceEntityService = sqlSourceEntityService;
     }
 
-    @GetMapping("/api/sql-explorer/sources/{id}")
+    @GetMapping("/sources/{id}")
     public SqlSourceEntity getSqlSource(@PathVariable Integer id) {
         return sqlSourceEntityRepository.findById(id).orElseThrow();
     }
 
-    @GetMapping("/api/sql-explorer/sources/{id}/body")
+    @GetMapping("/sources/{id}/body")
     public ResponseEntity<Resource> getSqlSourceBody(@PathVariable Integer id) throws SQLException {
 
         SqlSourceEntity entity = sqlSourceEntityRepository.findById(id).orElseThrow();
@@ -59,7 +61,7 @@ class SqlSourceResource {
         return sourceUrl.substring(sourceUrl.lastIndexOf("/") + 1);
     }
 
-    @GetMapping("/api/sql-explorer/sources/active")
+    @GetMapping("/sources/active")
     public Stream<ImportedSqlSource> listImportedSqlSources() {
         return sqlRepositoryManager.getRepositories()
             .stream()
@@ -67,7 +69,7 @@ class SqlSourceResource {
             .sorted(Comparator.comparing(source -> source.getImportStats().count()));
     }
 
-    @GetMapping("/api/sql-explorer/sources")
+    @GetMapping("/sources")
     public Stream<SqlSourceEntity> listPersistentImportedSqlSources() {
         List<SourceRefProjection> pairs = sqlSourceEntityRepository.findDistinctBy();
         return pairs.stream().map(ref ->
@@ -77,7 +79,7 @@ class SqlSourceResource {
                 .sorted(Comparator.comparing(SqlSourceEntity::getSourceRef));
     }
 
-    @PostMapping("/api/sql-explorer/sources")
+    @PostMapping("/sources")
     public ResponseEntity<Void> handleSqlSourceUpload(SqlSourceUpload body) {
         String sourceUrl = Stream.of(body.sourceUrl(), body.file.getOriginalFilename())
                 .filter(str -> !Strings.isNullOrEmpty(str))
@@ -92,7 +94,7 @@ class SqlSourceResource {
         return ResponseEntity.created(uriComponents.toUri()).build();
     }
 
-    @PostMapping("/api/sql-explorer/sources/load")
+    @PostMapping("/sources/load")
     public SqlImportStats reloadSources(@RequestBody(required = false) List<SourceRefRequest> sourceParam) {
         // todo, this doesn't work with XStatementAnalysisLoader (XStatementAnalysisLoader does not use SqlSourceEntity)
         List<? extends SourceRefProjection> sources;

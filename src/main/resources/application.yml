@@ -3,6 +3,8 @@
 
 server:
   port: 8080
+  servlet:
+    context-path: /api/sql-explorer
 
 
 spring:
@@ -20,6 +22,7 @@ spring:
       include-exception: true
       include-stacktrace: always
 
+
 management:
   endpoints:
     web:
@@ -28,3 +31,4 @@ management:
 
 sql-explorer:
   trace-errors: false
+

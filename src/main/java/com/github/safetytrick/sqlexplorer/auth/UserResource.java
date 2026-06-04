@@ -1,8 +1,10 @@
 package com.github.safetytrick.sqlexplorer.auth;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name="User")
 @RestController
 class UserResource {
 
@@ -12,7 +14,7 @@ class UserResource {
         this.userService = userService;
     }
 
-    @GetMapping("/api/sql-explorer/user")
+    @GetMapping("/user")
     public User getCurrentUser() {
         return userService.currentUser();
     }

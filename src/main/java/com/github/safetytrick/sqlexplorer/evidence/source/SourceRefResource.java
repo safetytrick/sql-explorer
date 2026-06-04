@@ -1,9 +1,11 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name="Source")
 @RestController
 class SourceRefResource {
 
@@ -14,7 +16,7 @@ class SourceRefResource {
     }
 
     @Cacheable("sourceref")
-    @GetMapping("/api/sql-explorer/sourceref")
+    @GetMapping("/sourceref")
     public Iterable<SourceRefEntity> listSourceRefs() {
         return sourceRefEntityRepository.findAll();
     }

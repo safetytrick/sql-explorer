@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@io.swagger.v3.oas.annotations.tags.Tag(name="Tags")
 @RestController
 class TagsResource {
     private final TagRepository tagRepository;
@@ -29,7 +30,7 @@ class TagsResource {
         this.userService = userService;
     }
 
-    @GetMapping("/api/sql-explorer/tags/names")
+    @GetMapping("/tags/names")
     public List<String> tagAutocomplete(@RequestParam String value) {
         String escapedValue = value.replaceAll("\\\\", "\\\\")
             .replaceAll("_", "\\_")
@@ -38,22 +39,22 @@ class TagsResource {
         return tagRepository.findTagNamesStartingWith(escapedValue);
     }
 
-    @GetMapping("/api/sql-explorer/tags/type/{type}")
+    @GetMapping("/tags/type/{type}")
     public List<String> tagsByType(@PathVariable String type) {
         return tagRepository.findTagNamesByType(type);
     }
 
-    @GetMapping("/api/sql-explorer/tags/path")
+    @GetMapping("/tags/path")
     public List<Tag> tagsForPath(@RequestParam String path) {
         return tagRepository.findAllByPath(path);
     }
 
-    @PostMapping("/api/sql-explorer/tags/path")
+    @PostMapping("/tags/path")
     public Map<String, List<Tag>> tagsForPaths(@RequestBody List<String> paths) {
         return tagRepository.findAllByPathInGroupedByPath(paths);
     }
 
-    @PostMapping("/api/sql-explorer/tags")
+    @PostMapping("/tags")
     public Tag createTag(@RequestBody CreateTag createTag) {
         Objects.requireNonNull(createTag.name, "name is required");
         Objects.requireNonNull(createTag.path, "path is required");
@@ -88,7 +89,7 @@ class TagsResource {
         return tag;
     }
 
-    @DeleteMapping("/api/sql-explorer/tag/{id}")
+    @DeleteMapping("/tag/{id}")
     public void deleteTag(@PathVariable int id) {
         tagRepository.deleteById(id);
     }
