@@ -33,6 +33,11 @@ export class AnalyzedSqlService {
     return this.http.get(endpoint + 'metadata/table/' + schema + '/' + name);
   }
 
+  getTableCreateStatement(schema: string, name: string): Observable<string> {
+    return this.http.get(endpoint + 'metadata/table/' + schema + '/' + name + '/create',
+      {responseType: 'text'});
+  }
+
   cleanQuery(query: string) {
     return this.http.post(endpoint + 'util/clean', query);
   }

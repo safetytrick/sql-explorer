@@ -20,6 +20,7 @@ export class TableViewComponent implements OnInit {
 
   table: any = null;
   showCreate = false;
+  createStatement: string | null = null;
   column: string | null = null;
 
 
@@ -29,6 +30,8 @@ export class TableViewComponent implements OnInit {
   ngOnInit() {
     this.route.params.subscribe((params) => {
       this.column = null;
+      this.showCreate = false;
+      this.createStatement = null;
       if (params['joinSchema'] && params['joinTable']) {
         this.getSqlForTableAndJoin(params['schema'],
           params['name'],
@@ -73,6 +76,16 @@ export class TableViewComponent implements OnInit {
         this.table = data;
       }
     );
+  }
+
+  toggleCreate() {
+    this.showCreate = !this.showCreate;
+    if (this.showCreate && this.createStatement === null && this.table) {
+      this.sqlService.getTableCreateStatement(this.table.schema, this.table.name).subscribe(
+        (create: string) => {
+          this.createStatement = create;
+        });
+    }
   }
 
   otherTables(table: any) {

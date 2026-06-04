@@ -95,8 +95,8 @@
     </div>
     @if (table.structure) {
       <div class="clearfix">
-        @if (showCreate && table.structure.create) {
-          <pre><code style="margin-top: 20px; margin-bottom: 20px" highlight="{{table.structure.create}}"></code></pre>
+        @if (showCreate && createStatement) {
+          <pre><code style="margin-top: 20px; margin-bottom: 20px" highlight="{{createStatement}}"></code></pre>
         } @else {
           <table id="table-structure" class="table table-sm table-hover">
             <thead class="thead-dark">
@@ -156,7 +156,7 @@
             </table>
           }
         }
-        <button class="btn btn-secondary btn-sm float-right" (click)="showCreate = !showCreate">{{ showCreate ? 'Table View' : 'Create View' }}</button>
+        <button class="btn btn-secondary btn-sm float-right" (click)="toggleCreate()">{{ showCreate ? 'Table View' : 'Create View' }}</button>
       </div>
     }
     <hr>
