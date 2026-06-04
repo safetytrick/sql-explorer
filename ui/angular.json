@@ -100,9 +100,9 @@
               "src/assets"
             ]
           }
-        },
+        }
       }
-    },
+    }
   },
   "schematics": {
     "@schematics/angular:component": {

@@ -27,7 +27,11 @@ public class ColumnTableResolver {
     }
 
     public String selectTableNameFromCandidates(List<String> tables, String column) {
-        String schema = sqlMetadataService.findSchemaForTablesAndColumns(tables.stream().map(reference -> TableReference.fromString(reference)).collect(Collectors.toList()), Collections.singletonList(column));
+        String schema = sqlMetadataService.findSchemaForTablesAndColumns(
+            tables.stream()
+                .map(TableReference::fromString)
+                .collect(Collectors.toList()),
+            Collections.singletonList(column));
         return selectTableNameFromCandidates(schema, tables, column);
     }
 

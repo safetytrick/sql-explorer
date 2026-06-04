@@ -12,11 +12,11 @@ Fix everything that will block or complicate the version-by-version migration. D
 
 None of these have Angular 9+ support:
 
-| Library | Replacement |
-|---|---|
-| `@teamhive/ngx-tooltip` | Angular Material `MatTooltip` |
-| `ngx-chips` (tag inputs) | Angular Material `MatChipGrid` + `MatAutocomplete` |
-| `ngx-moment` + `moment.js` | Native `Intl.DateTimeFormat` or `date-fns` |
+| Library                    | Replacement                                        |
+|----------------------------|----------------------------------------------------|
+| `@teamhive/ngx-tooltip`    | Angular Material `MatTooltip`                      |
+| `ngx-chips` (tag inputs)   | Angular Material `MatChipGrid` + `MatAutocomplete` |
+| `ngx-moment` + `moment.js` | Native `Intl.DateTimeFormat` or `date-fns`         |
 
 ### Replace deprecated tooling
 
@@ -175,12 +175,12 @@ Not required to complete the upgrade, but significantly improves maintainability
 
 ## Risk Summary
 
-| Risk | Mitigation |
-|---|---|
-| `ngx-chips` replacement changes tag-input UX | Build Material chip replacement in Phase 0 and validate with users before upgrading Angular |
-| Angular Material 15 MDC rewrite breaks styles | Allocate dedicated time for CSS/theming fixes at the 14→15 step |
-| `@swimlane/ngx-graph` v7→v8 API changes | Spike the graph component upgrade independently at end of Phase 1 |
-| Accumulated broken state across 13 `ng update` runs | One git branch per major version; only merge when tests pass |
-| RxJS 7 subscribe deprecation (~10–15 call sites) | Global search for `.subscribe(` and fix all 3-argument forms before upgrading RxJS |
+| Risk                                                | Mitigation                                                                                  |
+|-----------------------------------------------------|---------------------------------------------------------------------------------------------|
+| `ngx-chips` replacement changes tag-input UX        | Build Material chip replacement in Phase 0 and validate with users before upgrading Angular |
+| Angular Material 15 MDC rewrite breaks styles       | Allocate dedicated time for CSS/theming fixes at the 14→15 step                             |
+| `@swimlane/ngx-graph` v7→v8 API changes             | Spike the graph component upgrade independently at end of Phase 1                           |
+| Accumulated broken state across 13 `ng update` runs | One git branch per major version; only merge when tests pass                                |
+| RxJS 7 subscribe deprecation (~10–15 call sites)    | Global search for `.subscribe(` and fix all 3-argument forms before upgrading RxJS          |
 
 The highest-leverage investment is **Phase 0** — clearing the abandoned dependencies before any version bumps reduces the chance of getting stuck mid-migration.

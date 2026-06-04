@@ -71,11 +71,11 @@ The backend is organized by domain, not by layer. Code that changes together liv
 
 Components map directly to the URL hierarchy:
 
-| URL pattern | Component |
-|---|---|
-| `/tables/:schema` | SchemaListComponent → TableNamesComponent |
-| `/table/:schema/:name` | TableViewComponent |
-| `/analyzed-sql/:id` | SqlViewComponent |
+| URL pattern                   | Component                                       |
+|-------------------------------|-------------------------------------------------|
+| `/tables/:schema`             | SchemaListComponent → TableNamesComponent       |
+| `/table/:schema/:name`        | TableViewComponent                              |
+| `/analyzed-sql/:id`           | SqlViewComponent                                |
 | `/table-graph/schema/:schema` | TableGraphLoaderComponent → TableGraphComponent |
 
 Key services: `AnalyzedSqlService` (query profiles), `SourceService` (data sources), `UserService` (auth).

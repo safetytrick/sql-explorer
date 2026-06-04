@@ -1,8 +1,8 @@
 package com.github.safetytrick.sqlexplorer.analysis.resolver;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.schema.Table;
@@ -29,7 +29,7 @@ class ExtendedTableNamesFinder extends TablesNamesFinder<Void> {
 
     public Map<String,String> resolveAliases(Statement statement) {
         aliasMappings = new LinkedHashMap<>();
-        super.getTableList(statement);
+        super.getTables(statement);
         return aliasMappings;
     }
 
@@ -41,15 +41,15 @@ class ExtendedTableNamesFinder extends TablesNamesFinder<Void> {
     }
 
     @Override
-    public List<String> getTableList(Statement statement) {
+    public Set<String> getTables(Statement statement) {
         aliasMappings = new LinkedHashMap<>();
-        return super.getTableList(statement);
+        return super.getTables(statement);
     }
 
     @Override
-    public List<String> getTableList(Expression expr) {
+    public Set<String> getTables(Expression expr) {
         aliasMappings = new LinkedHashMap<>();
-        return super.getTableList(expr);
+        return super.getTables(expr);
     }
 
     @Override
@@ -149,10 +149,8 @@ class ExtendedTableNamesFinder extends TablesNamesFinder<Void> {
 
     @Override
     public <S> Void visit(Statements stmts, S context) {
-        if (stmts.getStatements() != null) {
-            for (Statement statement : stmts.getStatements()) {
-                statement.accept(this);
-            }
+        for (Statement statement : stmts) {
+            statement.accept(this);
         }
         return null;
     }

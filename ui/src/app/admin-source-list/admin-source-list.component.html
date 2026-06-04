@@ -1,6 +1,6 @@
 <mat-selection-list #sourcesList>
   @for (source of all; track source) {
-    <mat-list-option checkboxPosition="before" [selected]="isActive(source)" [value]="source.sourceRef">
+    <mat-list-option togglePosition="before" [selected]="isActive(source)" [value]="source.sourceRef">
       <span>{{source.sourceRef}} - Last Updated: {{source.createdOn | date: 'short'}}</span>
     </mat-list-option>
   }

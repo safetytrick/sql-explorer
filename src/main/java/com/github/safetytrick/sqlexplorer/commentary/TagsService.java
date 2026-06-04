@@ -11,7 +11,7 @@ public class TagsService implements TagLoader {
 
     private final TagRepository tagRepository;
 
-    public TagsService(TagRepository tagRepository) {
+    TagsService(TagRepository tagRepository) {
         this.tagRepository = tagRepository;
     }
 

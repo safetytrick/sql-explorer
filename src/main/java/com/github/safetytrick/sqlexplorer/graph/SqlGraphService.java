@@ -128,7 +128,7 @@ class SqlGraphService implements GraphService {
                                            List<SqlProfile> queries) {
         for(SqlProfile sqlProfile : queries) {
             if(sqlProfile.getQueryActivityStatus() == QueryActivityStatus.ACTIVE){
-                String query = sqlProfile.getQuery().replaceAll("`", "").replaceAll("\\n\\s*", " ");
+                String query = sqlProfile.getQuery().replace("`", "").replaceAll("\\n\\s*", " ");
                 queryToTables.compute(query, (k, currentTableValues) -> createCrossSchemaTable(tableValue, query, sqlProfile, currentTableValues));
             }
         }
@@ -153,7 +153,7 @@ class SqlGraphService implements GraphService {
     }
 
     private String concatenate(String currentList, String addition){
-        return LIST_FORMAT.formatted(currentList, addition.replaceAll("`", ""));
+        return LIST_FORMAT.formatted(currentList, addition.replace("`", ""));
     }
 
     private TableRelationships getTableRelationships(int threshold, TableStructure tableStructure) {

@@ -49,7 +49,7 @@ here: `/etc/sql-explorer//config/application-deployed.yml`
 
 The secrets profile is enabled by default and should be used for managing secrets (passwords, keys, etc.), a sample
 configuration file with required entries is located in the local dev config file:
-[src/main/docker-local/config/application-secrets.yml](src/main/docker-local/config/application-secrets.yml)
+[src/main/docker-local/config/application-secrets.yml](../src/main/docker-local/config/application-secrets.yml)
 
 TODO
 ------------

@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -51,7 +50,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class SqlEvidenceInputService {
 
-    private static final int MAX_NESTING_LEVEL = 50;
+    private static final int MAX_NESTING_LEVEL = 200;
 
     private final Formatter sqlFormatter = new BasicFormatterImpl();
     private final ExecutorService executor = Executors.newWorkStealingPool();
@@ -112,11 +111,9 @@ public class SqlEvidenceInputService {
      *
      * @param source metadata about the source of the performance schema data
      * @return a completely initialized SqlRepository
-     *
-     * @throws IOException for IO failures occur parsing the performance schema csv
      */
     @Timed("performance_schema_import")
-    public SqlRepository fromPerformanceSchema(SqlSource source, Stream<SqlInput> inputStream) throws IOException {
+    public SqlRepository fromPerformanceSchema(SqlSource source, Stream<SqlInput> inputStream) {
         List<Future<?>> futures = new ArrayList<>();
 
         SqlRepositoryBuilder repository = new SqlRepositoryBuilder(source);

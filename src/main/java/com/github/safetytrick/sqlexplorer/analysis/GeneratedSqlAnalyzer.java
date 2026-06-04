@@ -13,7 +13,7 @@ class GeneratedSqlAnalyzer implements SqlAnalyzer {
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder) {
         GeneratedSqlStatementVisitor visitor = new GeneratedSqlStatementVisitor();
-        visitor.getTableList(statement);
+        visitor.getTables(statement);
 
         if (visitor.isHibernate) {
             builder.setGeneratedSource("hibernate");

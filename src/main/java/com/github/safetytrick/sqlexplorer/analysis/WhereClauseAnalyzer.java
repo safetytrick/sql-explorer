@@ -73,9 +73,7 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
             }
             TableAliasResolver previousAliasResolver = aliasResolver;
             aliasResolver = new SchemaAwareTableAliasResolver(select, columnTableResolver);
-            if (select.getSelectBody() != null) {
-                select.getSelectBody().accept(selectVisitor, context);
-            }
+            select.accept(selectVisitor, context);
             aliasResolver = previousAliasResolver;
             return null;
         }

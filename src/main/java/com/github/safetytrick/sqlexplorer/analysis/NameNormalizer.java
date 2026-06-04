@@ -6,7 +6,7 @@ public class NameNormalizer {
         if (name == null) {
             return null;
         }
-        return name.replaceAll("`","").toLowerCase();
+        return name.replace("`","").toLowerCase();
     }
 
 }

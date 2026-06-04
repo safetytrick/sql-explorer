@@ -15,10 +15,10 @@ Replace the requirement of connecting to a live MySQL instance by providing a se
 
 The app connects to two datasources:
 
-| Key | Purpose | Current source |
-|---|---|---|
+| Key                    | Purpose                             | Current source                     |
+|------------------------|-------------------------------------|------------------------------------|
 | `datasources.metadata` | Performance schema + table metadata | Live MySQL pointed to by `DB_HOST` |
-| `datasources.explorer` | App's own storage | `explorer-mysql` container |
+| `datasources.explorer` | App's own storage                   | `explorer-mysql` container         |
 
 The primary query is against `sys.x$statement_analysis`, which is a view on top of `performance_schema.events_statements_summary_by_digest`. That view aggregates all executed statements by their normalized digest — the rows only exist after real queries have run.
 

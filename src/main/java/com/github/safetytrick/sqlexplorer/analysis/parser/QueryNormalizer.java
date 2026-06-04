@@ -23,17 +23,15 @@ public class QueryNormalizer {
 
         @Override
         public <S> Void visit(Statements stmts, S context) {
-            if (stmts.getStatements() != null) {
-                for (Statement statement : stmts.getStatements()) {
-                    statement.accept(this);
-                }
+            for (Statement statement : stmts) {
+                statement.accept(this);
             }
             return null;
         }
 
         @Override
         public <S> Void visit(Select select, S context) {
-            select.getSelectBody().accept(new SelectNormalizer(), context);
+            select.accept(new SelectNormalizer(), context);
             return null;
         }
     }

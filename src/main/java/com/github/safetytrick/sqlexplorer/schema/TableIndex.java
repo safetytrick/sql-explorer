@@ -1,9 +1,8 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.TreeMap;
 
 public record TableIndex(String schema,
@@ -80,7 +79,7 @@ public record TableIndex(String schema,
 
         public TableIndex build() {
             return new TableIndex(schema, unique, identifier, name, indexType, direction, cardinality, pages, filterCondition,
-                                  Collections.unmodifiableList(new ArrayList<>(columns.values())));
+                List.copyOf(columns.values().stream().filter(Objects::nonNull).toList()));
         }
 
         public Builder addColumn(short ordinalPosition, String columnName) {

@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -41,14 +40,9 @@ public class SqlRepositoryManager {
     public SqlImportStats loadFromSqlSources(Stream<? extends SqlSource> sources) {
 
         List<SqlRepository> repositories = sources.parallel().map(source -> {
-            try {
-                log.info("Loading source: {}", source);
+            log.info("Loading source: {}", source);
 
-                return sqlEvidenceInputService.fromPerformanceSchema(source, source.getSql());
-            } catch (IOException e) {
-                log.warn("Unable to process performance schema", e);
-                return null;
-            }
+            return sqlEvidenceInputService.fromPerformanceSchema(source, source.getSql());
         }).toList();
 
         synchronized (this) {

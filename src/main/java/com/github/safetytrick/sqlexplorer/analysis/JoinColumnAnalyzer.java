@@ -12,6 +12,7 @@ import com.github.safetytrick.sqlexplorer.analysis.resolver.DerivedTable;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import jakarta.inject.Inject;
@@ -99,9 +100,8 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
                 throw new UnsupportedSqlException("with items list");
             }
-            if (select.getSelectBody() != null) {
-                select.getSelectBody().accept(new JoinColumnSelectVisitor(), context);
-            }
+
+            select.accept(new JoinColumnSelectVisitor(), context);
             return null;
         }
 
@@ -255,7 +255,25 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                         onExpression.accept(this);
                     }
                 } if (join.getUsingColumns() != null && !join.getUsingColumns().isEmpty()) {
-                    throw new UnsupportedSqlException("join using");
+
+                    String fromTableName = null, rightTableName = null;
+                    if (fromItem instanceof Table fromTable) {
+                        fromTableName = tableAliasResolver.resolveTableName(fromTable);
+                    }
+                    if (join.getRightItem() instanceof Table rightTable) {
+                        rightTableName = tableAliasResolver.resolveTableName(rightTable);
+                    }
+
+                    if (fromTableName == null || rightTableName == null) {
+                        throw new UnsupportedSqlException("unable to resolve tables for using expression");
+                    }
+
+                    for (Column usingColumn : join.getUsingColumns()) {
+                        joinColumns.add(new JoinColumns(
+                            ColumnReference.fromComponents(null, fromTableName, usingColumn.getColumnName()),
+                            ColumnReference.fromComponents(null, rightTableName, usingColumn.getColumnName())
+                        ));
+                    }
                 }
                 return joinColumns;
             }

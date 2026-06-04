@@ -154,7 +154,7 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
         initMappings();
 
         if (tableNames.size() == 1  && parent == null) {
-            return tableNames.get(0);
+            return tableNames.getFirst();
         }
         return null;
     }
