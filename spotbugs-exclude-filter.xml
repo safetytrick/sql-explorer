@@ -7,6 +7,7 @@
 			<Bug code="EI2" />
 			<Bug code="UuF" />
 			<Bug code="MS" />
+			<Bug code="CT" />
 		</Or>
 	</Match>
 	<Match>
