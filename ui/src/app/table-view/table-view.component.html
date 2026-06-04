@@ -95,7 +95,9 @@
     </div>
     @if (table.structure) {
       <div class="clearfix">
-        @if (showCreate && createStatement) {
+        @if (showCreate && createLoading) {
+          <div style="margin-top: 20px; margin-bottom: 20px">Loading create statement...</div>
+        } @else if (showCreate && createStatement) {
           <pre><code style="margin-top: 20px; margin-bottom: 20px" highlight="{{createStatement}}"></code></pre>
         } @else {
           <table id="table-structure" class="table table-sm table-hover">

@@ -21,6 +21,7 @@ export class TableViewComponent implements OnInit {
   table: any = null;
   showCreate = false;
   createStatement: string | null = null;
+  createLoading = false;
   column: string | null = null;
 
 
@@ -32,6 +33,7 @@ export class TableViewComponent implements OnInit {
       this.column = null;
       this.showCreate = false;
       this.createStatement = null;
+      this.createLoading = false;
       if (params['joinSchema'] && params['joinTable']) {
         this.getSqlForTableAndJoin(params['schema'],
           params['name'],
@@ -81,9 +83,14 @@ export class TableViewComponent implements OnInit {
   toggleCreate() {
     this.showCreate = !this.showCreate;
     if (this.showCreate && this.createStatement === null && this.table) {
+      this.createLoading = true;
       this.sqlService.getTableCreateStatement(this.table.schema, this.table.name).subscribe(
         (create: string) => {
           this.createStatement = create;
+          this.createLoading = false;
+        },
+        () => {
+          this.createLoading = false;
         });
     }
   }
