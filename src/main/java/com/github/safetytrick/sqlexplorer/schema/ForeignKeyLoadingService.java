@@ -167,12 +167,20 @@ public class ForeignKeyLoadingService {
 
 
         PreparedStatement statement = connection.prepareStatement(sql);
-        if (statement.getMaxRows() != 0) {
-            statement.setMaxRows(0);
+        try {
+            // close the statement when the returned ResultSet is closed by the caller's
+            // try-with-resources, so the statement is not orphaned.
+            statement.closeOnCompletion();
+            if (statement.getMaxRows() != 0) {
+                statement.setMaxRows(0);
+            }
+
+            return statement.executeQuery();
+        } catch (SQLException e) {
+            // no ResultSet was produced, so closeOnCompletion won't fire; close here.
+            statement.close();
+            throw e;
         }
-
-        return statement.executeQuery();
-
     }
 
     interface ForeignKeysFetcher {
