@@ -20,14 +20,15 @@ class GeneratedSqlAnalyzer implements SqlAnalyzer {
         }
     }
 
-    private static class GeneratedSqlStatementVisitor extends TablesNamesFinder {
+    private static class GeneratedSqlStatementVisitor extends TablesNamesFinder<Void> {
         boolean isHibernate;
 
         @Override
-        public void visit(Table tableName) {
-            super.visit(tableName);
+        public <S> Void visit(Table tableName, S context) {
+            super.visit(tableName, context);
             String aliasName = tableName.getAlias() == null ? null : tableName.getAlias().getName();
             isHibernate |= "`this_`".equals(aliasName);
+            return null;
         }
     }
 }

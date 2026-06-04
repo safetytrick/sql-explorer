@@ -1,6 +1,7 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,27 +25,23 @@ import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.StatementVisitorAdapter;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
-import net.sf.jsqlparser.statement.replace.Replace;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.AllTableColumns;
 import net.sf.jsqlparser.statement.select.FromItem;
 import net.sf.jsqlparser.statement.select.FromItemVisitorAdapter;
 import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.LateralSubSelect;
-import net.sf.jsqlparser.statement.select.ParenthesisFromItem;
+import net.sf.jsqlparser.statement.select.ParenthesedFromItem;
+import net.sf.jsqlparser.statement.select.ParenthesedSelect;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
-import net.sf.jsqlparser.statement.select.SelectBody;
-import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.select.SelectItemVisitor;
 import net.sf.jsqlparser.statement.select.SelectItemVisitorAdapter;
 import net.sf.jsqlparser.statement.select.SelectVisitorAdapter;
 import net.sf.jsqlparser.statement.select.SetOperationList;
-import net.sf.jsqlparser.statement.select.SubJoin;
-import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.select.TableFunction;
-import net.sf.jsqlparser.statement.select.ValuesList;
+import net.sf.jsqlparser.statement.select.Values;
 import net.sf.jsqlparser.statement.select.WithItem;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.upsert.Upsert;
@@ -75,7 +72,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         builder.setJoinColumns(joinColumns);
     }
 
-    private class JoinColumnVisitor extends StatementVisitorAdapter {
+    private class JoinColumnVisitor extends StatementVisitorAdapter<Void> {
         private final String schema;
         private List<JoinColumns> joinColumns;
         private TableAliasResolver tableAliasResolver;
@@ -98,13 +95,14 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         }
 
         @Override
-        public void visit(Select select) {
+        public <S> Void visit(Select select, S context) {
             if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
                 throw new UnsupportedSqlException("with items list");
             }
             if (select.getSelectBody() != null) {
-                select.getSelectBody().accept(new JoinColumnSelectVisitor());
+                select.getSelectBody().accept(new JoinColumnSelectVisitor(), context);
             }
+            return null;
         }
 
         private void visitJoins(FromItem fromItem, List<Join> joins) {
@@ -122,36 +120,35 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         }
 
         @Override
-        public void visit(Delete delete) {
+        public <S> Void visit(Delete delete, S context) {
             visitJoins(delete.getTable(), delete.getJoins());
+            return null;
         }
 
         @Override
-        public void visit(Update update) {
+        public <S> Void visit(Update update, S context) {
             visitJoins(update.getFromItem(), update.getJoins());
+            return null;
         }
 
         @Override
-        public void visit(Insert insert) {
+        public <S> Void visit(Insert insert, S context) {
             if (insert.getSelect() != null) {
-                visit(insert.getSelect());
+                visit(insert.getSelect(), context);
             }
+            return null;
         }
 
         @Override
-        public void visit(Replace replace) {
-            throw new UnsupportedSqlException("replace");
-        }
-
-        @Override
-        public void visit(Upsert upsert) {
-            visit(upsert.getSelect());
+        public <S> Void visit(Upsert upsert, S context) {
+            visit(upsert.getSelect(), context);
+            return null;
         }
 
 
-        private class JoinColumnSelectVisitor extends SelectVisitorAdapter {
+        private class JoinColumnSelectVisitor extends SelectVisitorAdapter<Void> {
             @Override
-            public void visit(PlainSelect plainSelect) {
+            public <S> Void visit(PlainSelect plainSelect, S context) {
                 visitJoins(plainSelect.getFromItem(), plainSelect.getJoins());
                 // todo recurse into sub-selects
 
@@ -159,25 +156,27 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                     plainSelect.getWhere().accept(new JoinInSelectExpressionVisitor());
 
                 }
+                return null;
             }
 
             @Override
-            public void visit(SetOperationList setOpList) {
+            public <S> Void visit(SetOperationList setOpList, S context) {
                 if (setOpList.getSelects() != null) {
-                    for (SelectBody selectBody : setOpList.getSelects()) {
-                        selectBody.accept(this);
+                    for (Select select : setOpList.getSelects()) {
+                        select.accept(this, context);
                     }
                 }
+                return null;
             }
 
             @Override
-            public void visit(WithItem withItem) {
+            public <S> Void visit(WithItem<?> withItem, S context) {
                 throw new UnsupportedSqlException("with item");
             }
 
         }
 
-        private class JoinInSelectExpressionVisitor extends ExpressionVisitorAdapter {
+        private class JoinInSelectExpressionVisitor extends ExpressionVisitorAdapter<Void> {
 
             private final ColumnAliasResolver columnAliasResolver;
 
@@ -186,43 +185,40 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             }
 
             @Override
-            public void visit(InExpression expr) {
-                super.visit(expr);
+            public <S> Void visit(InExpression expr, S context) {
+                super.visit(expr, context);
 
                 String leftColumn = columnAliasResolver.columnReference(expr.getLeftExpression());
 
-                if (leftColumn != null && expr.getRightItemsList() instanceof SubSelect) {
+                if (leftColumn != null && expr.getRightExpression() instanceof ParenthesedSelect subSelect) {
 
-                    DerivedTable derivedTable = new FromSubSelectVisitor().getDerivedTable(expr.getRightItemsList(SubSelect.class));
+                    DerivedTable derivedTable = new FromSubSelectVisitor().getDerivedTable(subSelect);
 
-                    SubSelect subSelect = expr.getRightItemsList(SubSelect.class);
-
-                    subSelect.getSelectBody().accept(new SelectVisitorAdapter() {
+                    subSelect.getSelect().accept(new SelectVisitorAdapter<Void>() {
                         @Override
-                        public void visit(PlainSelect plainSelect) {
+                        public <S2> Void visit(PlainSelect plainSelect, S2 ctx) {
 
-                            for (SelectItem selectItem : plainSelect.getSelectItems()) {
-                                selectItem.accept(new SelectItemVisitorAdapter() {
+                            for (SelectItem<?> selectItem : plainSelect.getSelectItems()) {
+                                selectItem.accept(new SelectItemVisitorAdapter<Void>() {
                                     @Override
-                                    public void visit(SelectExpressionItem item) {
-
-
+                                    public <S3> Void visit(SelectItem<? extends Expression> item, S3 c) {
                                         String rightColumn = derivedTable.columnReference(item.getExpression());
                                         if (rightColumn != null) {
                                             joinColumns.add(JoinColumns.fromReferences(leftColumn, rightColumn));
                                         }
+                                        return null;
                                     }
-                                });
-
-
+                                }, ctx);
                             }
+                            return null;
                         }
-                    });
+                    }, context);
                 }
+                return null;
             }
         }
 
-        private class JoinOnColumnsExpressionVisitor extends ExpressionVisitorAdapter {
+        private class JoinOnColumnsExpressionVisitor extends ExpressionVisitorAdapter<Void> {
             private final FromItem fromItem;
             private List<JoinColumns> joinColumns;
             private ColumnAliasResolver columnAliasResolver;
@@ -233,7 +229,10 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
             List<JoinColumns> getJoinColumns(Join join) {
                 joinColumns = new ArrayList<>();
-                if (join.getOnExpression() != null) {
+                // jsqlparser 5.x exposes ON clauses as a collection; getOnExpression()
+                // throws on a join with no ON (e.g. CROSS JOIN), so guard on the collection.
+                Collection<Expression> onExpressions = join.getOnExpressions();
+                if (onExpressions != null && !onExpressions.isEmpty()) {
                     if (join.getRightItem() != null && !(join.getRightItem() instanceof Table)) {
                         DerivedTable derivedTable = new FromSubSelectVisitor().getDerivedTable(join.getRightItem());
                         tableAliasResolver.addDerivedTable(derivedTable);
@@ -252,31 +251,34 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                     if (columnAliasResolver == null) {
                         columnAliasResolver = new SimpleColumnAliasResolver(tableAliasResolver);
                     }
-                    join.getOnExpression().accept(this);
-                } if (join.getUsingColumns() != null) {
+                    for (Expression onExpression : onExpressions) {
+                        onExpression.accept(this);
+                    }
+                } if (join.getUsingColumns() != null && !join.getUsingColumns().isEmpty()) {
                     throw new UnsupportedSqlException("join using");
                 }
                 return joinColumns;
             }
 
             @Override
-            public void visit(EqualsTo equalsTo) {
+            public <S> Void visit(EqualsTo equalsTo, S context) {
                 String leftColumn = columnAliasResolver.columnReference(equalsTo.getLeftExpression());
                 String rightColumn = columnAliasResolver.columnReference(equalsTo.getRightExpression());
 
                 if (leftColumn != null && rightColumn != null) {
                     joinColumns.add(JoinColumns.fromReferences(leftColumn, rightColumn));
                 }
+                return null;
             }
 
             @Override
-            public void visit(SubSelect subSelect) {
-                super.visit(subSelect);
+            public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
+                return super.visit(parenthesedSelect, context);
             }
 
         }
 
-        private class FromSubSelectVisitor extends FromItemVisitorAdapter {
+        private class FromSubSelectVisitor extends FromItemVisitorAdapter<Void> {
 
             private DerivedTable derivedTable;
 
@@ -287,10 +289,12 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             }
 
             @Override
-            public void visit(Table table) { }
+            public <S> Void visit(Table table, S context) {
+                return null;
+            }
 
             @Override
-            public void visit(SubSelect subSelect) {
+            public <S> Void visit(ParenthesedSelect subSelect, S context) {
                 TableAliasResolver previous = tableAliasResolver;
                 try {
                     // this is a terrifying hack, I need to fix scope handling for alias resolution, etc.
@@ -300,43 +304,40 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                     }
                     ColumnAliasResolverImpl columnAliasResolverImpl = new ColumnAliasResolverImpl();
                     // todo handle scope in subselects for the join column analyzer
-                    subSelect.getSelectBody().accept(columnAliasResolverImpl);
+                    subSelect.getSelect().accept(columnAliasResolverImpl, context);
                     // the alias will be null for IN (select) expressions, we also shouldn't be adding these to the derived tables list.
                     derivedTable = new DerivedTable(subSelect.getAlias() != null ? subSelect.getAlias().getName() : "", columnAliasResolverImpl);
                 } finally {
                     tableAliasResolver = previous;
                 }
-
-
+                return null;
             }
 
             @Override
-            public void visit(SubJoin subjoin) {
-                throw new UnsupportedSqlException("subjoin");
-            }
-
-            @Override
-            public void visit(LateralSubSelect lateralSubSelect) {
+            public <S> Void visit(LateralSubSelect lateralSubSelect, S context) {
                 // ignore
+                return null;
             }
 
             @Override
-            public void visit(ValuesList valuesList) {
+            public <S> Void visit(Values values, S context) {
                 // ignore
+                return null;
             }
 
             @Override
-            public void visit(TableFunction valuesList) {
+            public <S> Void visit(TableFunction tableFunction, S context) {
                 throw new UnsupportedSqlException("table function");
             }
 
             @Override
-            public void visit(ParenthesisFromItem aThis) {
-                aThis.accept(this);
+            public <S> Void visit(ParenthesedFromItem parenthesedFromItem, S context) {
+                parenthesedFromItem.getFromItem().accept(this);
+                return null;
             }
         }
 
-        private static class TableNamesInFromItemVisitor extends FromItemVisitorAdapter {
+        private static class TableNamesInFromItemVisitor extends FromItemVisitorAdapter<Void> {
             List<String> tableNames;
             public List<String> getTableNames(FromItem fromItem) {
                 tableNames = new ArrayList<>();
@@ -345,12 +346,13 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             }
 
             @Override
-            public void visit(Table table) {
+            public <S> Void visit(Table table, S context) {
                 tableNames.add(table.getName());
+                return null;
             }
         }
 
-        private class ColumnAliasResolverImpl extends SelectVisitorAdapter implements SelectItemVisitor, ColumnAliasResolver {
+        private class ColumnAliasResolverImpl extends SelectVisitorAdapter<Void> implements SelectItemVisitor<Void>, ColumnAliasResolver {
             private final Map<String, String> columnAliasMap = new HashMap<>();
             private final SimpleColumnAliasResolver simpleColumnAliasResolver = new SimpleColumnAliasResolver(tableAliasResolver);
             private final List<String> tableNames = new ArrayList<>();
@@ -371,7 +373,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
 
             @Override
-            public void visit(PlainSelect plainSelect) {
+            public <S> Void visit(PlainSelect plainSelect, S context) {
 
                 if (plainSelect.getFromItem() != null) {
                     tableNames.addAll(new TableNamesInFromItemVisitor()
@@ -379,24 +381,38 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 }
 
                 if (plainSelect.getSelectItems() != null) {
-                    for (SelectItem selectItem : plainSelect.getSelectItems()) {
-                        selectItem.accept(this);
+                    for (SelectItem<?> selectItem : plainSelect.getSelectItems()) {
+                        selectItem.accept(this, context);
                     }
                 }
+                return null;
             }
 
             @Override
-            public void visit(SetOperationList setOpList) {
+            public <S> Void visit(SetOperationList setOpList, S context) {
                 throw new UnsupportedSqlException("set operation");
             }
 
             @Override
-            public void visit(WithItem withItem) {
+            public <S> Void visit(WithItem<?> withItem, S context) {
                 throw new UnsupportedSqlException("with item");
             }
 
             @Override
-            public void visit(AllColumns allColumns) {
+            public <S> Void visit(SelectItem<? extends Expression> selectItem, S context) {
+                Expression expression = selectItem.getExpression();
+                // AllTableColumns (`t.*`) extends AllColumns (`*`), so check the subclass first.
+                if (expression instanceof AllTableColumns allTableColumns) {
+                    visitAllTableColumns(allTableColumns);
+                } else if (expression instanceof AllColumns) {
+                    visitAllColumns();
+                } else {
+                    visitSelectExpressionItem(selectItem);
+                }
+                return null;
+            }
+
+            private void visitAllColumns() {
                 for (String tableName : tableNames) {
                     List<String> columnsForTable = columnTableResolver.getAllColumnNamesForTable(schema, tableName);
                     for (String column : columnsForTable) {
@@ -405,8 +421,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 }
             }
 
-            @Override
-            public void visit(AllTableColumns allTableColumns) {
+            private void visitAllTableColumns(AllTableColumns allTableColumns) {
                 String tableName = tableAliasResolver.resolveTableName(allTableColumns.getTable());
                 List<String> columns = columnTableResolver.getAllColumnNamesForTable(schema, tableName);
                 for (String column : columns) {
@@ -414,8 +429,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 }
             }
 
-            @Override
-            public void visit(SelectExpressionItem selectExpressionItem) {
+            private void visitSelectExpressionItem(SelectItem<? extends Expression> selectExpressionItem) {
                 String columnReference = simpleColumnAliasResolver.columnReference(selectExpressionItem.getExpression());
                 String name = null;
                 if (selectExpressionItem.getAlias() != null) {

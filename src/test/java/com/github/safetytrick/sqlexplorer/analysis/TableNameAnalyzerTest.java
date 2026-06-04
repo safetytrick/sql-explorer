@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -10,7 +9,7 @@ import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class TableNameAnalyzerTest {
 
@@ -36,7 +35,8 @@ public class TableNameAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
         List<String> tableNames = builder.getTables().stream().map(TableReference::getNormalizedTableName).collect(Collectors.toList());
-        assertEquals(Arrays.asList("customer_visit", "store", "store_config"), tableNames);
+        // jsqlparser 5.x's TablesNamesFinder no longer preserves source order; the set of tables is what matters.
+        assertThat(tableNames).containsExactlyInAnyOrder("customer_visit", "store", "store_config");
 
     }
 }

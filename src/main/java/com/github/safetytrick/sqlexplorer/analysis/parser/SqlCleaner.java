@@ -19,8 +19,8 @@ class SqlCleaner {
             .replace("INTERVAL @a SQL_TSI_DAY", "INTERVAL 1 SQL_TSI_DAY")
             .replace("LOCK IN SHARE MODE", "")
             .replace("DISTINCTROW", "DISTINCT")
-            .replace("BINARY `", "`")
-            .replace("BINARY (", "CAST (")
+            // jsqlparser 5.x parses the BINARY operator natively; the old rewrite to
+            // CAST(...) produced invalid SQL (CAST without AS type) and is no longer needed.
             .replace(" RLIKE ", " LIKE ")
             .replace("SEPARATOR ?", "SEPARATOR '|'")
             .replace("AS CHARACTER (?)", "AS CHARACTER ()")

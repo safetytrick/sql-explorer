@@ -16,13 +16,13 @@ import net.sf.jsqlparser.statement.create.view.CreateView;
 import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.select.Join;
+import net.sf.jsqlparser.statement.select.ParenthesedSelect;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.SelectItem;
-import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.truncate.Truncate;
 import net.sf.jsqlparser.util.TablesNamesFinder;
 
-class ExtendedTableNamesFinder extends TablesNamesFinder {
+class ExtendedTableNamesFinder extends TablesNamesFinder<Void> {
     // not safe for reuse.
     private Map<String, String> aliasMappings = new LinkedHashMap<>();
     private boolean inWhere;
@@ -53,22 +53,23 @@ class ExtendedTableNamesFinder extends TablesNamesFinder {
     }
 
     @Override
-    public void visit(Table tableName) {
-        super.visit(tableName);
+    public <S> Void visit(Table tableName, S context) {
+        super.visit(tableName, context);
         if (tableName.getAlias() != null) {
             String aliasName = tableName.getAlias().getName();
             aliasMappings.put(aliasName.toLowerCase(), tableName.getFullyQualifiedName());
         } else {
             aliasMappings.put(tableName.getName().toLowerCase(), tableName.getFullyQualifiedName());
         }
+        return null;
     }
 
     @Override
-    public void visit(PlainSelect plainSelect) {
+    public <S> Void visit(PlainSelect plainSelect, S context) {
         if (plainSelect.getSelectItems() != null) {
             inWhere = true;
-            for (SelectItem item : plainSelect.getSelectItems()) {
-                item.accept(this);
+            for (SelectItem<?> item : plainSelect.getSelectItems()) {
+                item.accept(this, context);
             }
             inWhere = false;
         }
@@ -102,68 +103,79 @@ class ExtendedTableNamesFinder extends TablesNamesFinder {
         if (plainSelect.getOracleHierarchical() != null) {
             plainSelect.getOracleHierarchical().accept(this);
         }
+        return null;
     }
 
     @Override
-    public void visit(SubSelect subSelect) {
+    public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
         if (!inWhere) {
-            super.visit(subSelect);
+            super.visit(parenthesedSelect, context);
         }
+        return null;
     }
 
     @Override
-    public void visit(Drop drop) {
-        visit(drop.getName());
+    public <S> Void visit(Drop drop, S context) {
+        visit(drop.getName(), context);
+        return null;
     }
 
     @Override
-    public void visit(Truncate truncate) {
-        visit(truncate.getTable());
+    public <S> Void visit(Truncate truncate, S context) {
+        visit(truncate.getTable(), context);
+        return null;
     }
 
     @Override
-    public void visit(CreateIndex createIndex) {
-        visit(createIndex.getTable());
+    public <S> Void visit(CreateIndex createIndex, S context) {
+        visit(createIndex.getTable(), context);
+        return null;
     }
 
     @Override
-    public void visit(CreateView createView) {
-        visit(createView.getView());
+    public <S> Void visit(CreateView createView, S context) {
+        visit(createView.getView(), context);
         if (createView.getSelect() != null) {
-            createView.getSelect().accept(this);
+            createView.getSelect().accept((net.sf.jsqlparser.statement.select.SelectVisitor<Void>) this, context);
         }
+        return null;
     }
 
     @Override
-    public void visit(Alter alter) {
-        visit(alter.getTable());
+    public <S> Void visit(Alter alter, S context) {
+        visit(alter.getTable(), context);
+        return null;
     }
 
     @Override
-    public void visit(Statements stmts) {
+    public <S> Void visit(Statements stmts, S context) {
         if (stmts.getStatements() != null) {
             for (Statement statement : stmts.getStatements()) {
                 statement.accept(this);
             }
         }
+        return null;
     }
 
     @Override
-    public void visit(Execute execute) {
+    public <S> Void visit(Execute execute, S context) {
         // still unsupported
-        super.visit(execute);
+        super.visit(execute, context);
+        return null;
     }
 
     @Override
-    public void visit(SetStatement set) {
+    public <S> Void visit(SetStatement set, S context) {
         set.accept(this);
+        return null;
     }
 
     @Override
-    public void visit(AlterView alterView) {
-        if (alterView.getSelectBody() != null) {
-            alterView.getSelectBody().accept(this);
+    public <S> Void visit(AlterView alterView, S context) {
+        if (alterView.getSelect() != null) {
+            alterView.getSelect().accept((net.sf.jsqlparser.statement.select.SelectVisitor<Void>) this, context);
         }
-        visit(alterView.getView());
+        visit(alterView.getView(), context);
+        return null;
     }
 }

@@ -12,30 +12,22 @@ import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExistsExpression;
 import net.sf.jsqlparser.schema.Column;
-import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.StatementVisitorAdapter;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
-import net.sf.jsqlparser.statement.replace.Replace;
 import net.sf.jsqlparser.statement.select.FromItemVisitorAdapter;
 import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.LateralSubSelect;
-import net.sf.jsqlparser.statement.select.ParenthesisFromItem;
+import net.sf.jsqlparser.statement.select.ParenthesedSelect;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
-import net.sf.jsqlparser.statement.select.SelectBody;
-import net.sf.jsqlparser.statement.select.SelectExpressionItem;
-import net.sf.jsqlparser.statement.select.SelectVisitor;
+import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.SelectVisitorAdapter;
 import net.sf.jsqlparser.statement.select.SetOperationList;
-import net.sf.jsqlparser.statement.select.SubJoin;
-import net.sf.jsqlparser.statement.select.SubSelect;
-import net.sf.jsqlparser.statement.select.TableFunction;
-import net.sf.jsqlparser.statement.select.ValuesList;
 import net.sf.jsqlparser.statement.select.WithItem;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.upsert.Upsert;
-import net.sf.jsqlparser.statement.values.ValuesStatement;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -59,10 +51,10 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
         new WhereClauseVisitor(builder).visit(statement);
     }
 
-    private class WhereClauseVisitor extends StatementVisitorAdapter {
+    private class WhereClauseVisitor extends StatementVisitorAdapter<Void> {
         private final SqlProfile.Builder builder;
         private TableAliasResolver aliasResolver;
-        private final WhereColumnColumnSelectVisitor visitor = new WhereColumnColumnSelectVisitor();
+        private final WhereSelectVisitor selectVisitor = new WhereSelectVisitor();
 
         private WhereClauseVisitor(SqlProfile.Builder builder) {
             super();
@@ -75,166 +67,150 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
         }
 
         @Override
-        public void visit(Select select) {
+        public <S> Void visit(Select select, S context) {
             if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
                 throw new UnsupportedSqlException("item list parsing not supported");
             }
             TableAliasResolver previousAliasResolver = aliasResolver;
             aliasResolver = new SchemaAwareTableAliasResolver(select, columnTableResolver);
             if (select.getSelectBody() != null) {
-                select.getSelectBody().accept(visitor);
+                select.getSelectBody().accept(selectVisitor, context);
             }
             aliasResolver = previousAliasResolver;
+            return null;
         }
 
 
         @Override
-        public void visit(Delete delete) {
-            visitor.visitWhere(delete.getWhere());
+        public <S> Void visit(Delete delete, S context) {
+            selectVisitor.visitWhere(delete.getWhere());
+            return null;
         }
 
         @Override
-        public void visit(Update update) {
-            visitor.visitWhere(update.getWhere());
+        public <S> Void visit(Update update, S context) {
+            selectVisitor.visitWhere(update.getWhere());
+            return null;
         }
 
         @Override
-        public void visit(Insert insert) {
+        public <S> Void visit(Insert insert, S context) {
             if (insert.getSelect() != null) {
-                visit(insert.getSelect());
+                visit(insert.getSelect(), context);
             }
+            return null;
         }
 
         @Override
-        public void visit(Replace replace) {
-            throw new UnsupportedSqlException("replace not supported");
-        }
-
-        @Override
-        public void visit(Upsert upsert) {
+        public <S> Void visit(Upsert upsert, S context) {
             if (upsert.getSelect() != null) {
-                visit(upsert.getSelect());
+                visit(upsert.getSelect(), context);
             }
+            return null;
         }
 
-        private class WhereColumnColumnSelectVisitor extends FromItemVisitorAdapter implements SelectVisitor {
+        /**
+         * Visits select bodies. Joins are delegated to {@link WhereFromItemVisitor};
+         * subqueries appearing as expressions are routed back here via
+         * {@link ExpressionVisitorAdapter#setSelectVisitor}.
+         */
+        private class WhereSelectVisitor extends SelectVisitorAdapter<Void> {
+            private final WhereFromItemVisitor fromItemVisitor = new WhereFromItemVisitor();
+
             @Override
-            public void visit(PlainSelect plainSelect) {
+            public <S> Void visit(PlainSelect plainSelect, S context) {
                 if (plainSelect.getWhere() != null) {
-                    WhereExpressionVisitor whereExpressionVisitor = new WhereExpressionVisitor();
-                    whereExpressionVisitor.setSelectVisitor(this);
-                    plainSelect.getWhere().accept(whereExpressionVisitor);
+                    plainSelect.getWhere().accept(new WhereExpressionVisitor());
                 }
                 if (plainSelect.getJoins() != null) {
                     for (Join join : plainSelect.getJoins()) {
-
-                        join.getRightItem().accept(this);
-
+                        join.getRightItem().accept(fromItemVisitor);
                     }
                 }
+                return null;
             }
 
             private void visitWhere(Expression where) {
                 if (where != null) {
-                    WhereExpressionVisitor whereExpressionVisitor = new WhereExpressionVisitor();
-                    where.accept(whereExpressionVisitor);
+                    where.accept(new WhereExpressionVisitor());
                 }
             }
 
             @Override
-            public void visit(SetOperationList setOpList) {
+            public <S> Void visit(SetOperationList setOpList, S context) {
                 if (setOpList.getSelects() != null) {
-                    for (SelectBody selectBody : setOpList.getSelects()) {
-                        selectBody.accept(this);
+                    for (Select select : setOpList.getSelects()) {
+                        select.accept(this, context);
                     }
                 }
+                return null;
             }
 
             @Override
-            public void visit(WithItem withItem) {
+            public <S> Void visit(WithItem<?> withItem, S context) {
                 throw new UnsupportedSqlException("with item not supported");
             }
 
             @Override
-            public void visit(ValuesStatement aThis) {
-
-            }
-
-            @Override
-            public void visit(SubSelect subSelect) {
+            public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
                 TableAliasResolver previous = aliasResolver;
-                aliasResolver = new SchemaAwareTableAliasResolver(null, subSelect, columnTableResolver);
-                subSelect.getSelectBody().accept(this);
+                aliasResolver = new SchemaAwareTableAliasResolver(null, parenthesedSelect, columnTableResolver);
+                parenthesedSelect.getSelect().accept(this, context);
                 aliasResolver = previous;
-
-
+                return null;
             }
 
-            @Override
-            public void visit(SubJoin subjoin) { }
-
-            @Override
-            public void visit(LateralSubSelect lateralSubSelect) {
-                throw new UnsupportedSqlException("lateral subselect not supported");
-            }
-
-            @Override
-            public void visit(Table table) {
-                super.visit(table);
-            }
-
-            @Override
-            public void visit(ValuesList valuesList) {
-                super.visit(valuesList);
-            }
-
-            @Override
-            public void visit(TableFunction valuesList) {
-                super.visit(valuesList);
-            }
-
-            @Override
-            public void visit(ParenthesisFromItem aThis) {
-                super.visit(aThis);
-            }
-
-            private class WhereExpressionVisitor extends ExpressionVisitorAdapter {
-
-                private WhereExpressionVisitor() {
-                    super();
-                    setSelectVisitor(WhereColumnColumnSelectVisitor.this);
+            private class WhereFromItemVisitor extends FromItemVisitorAdapter<Void> {
+                @Override
+                public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
+                    return WhereSelectVisitor.this.visit(parenthesedSelect, context);
                 }
 
                 @Override
-                public void visit(Column column) {
+                public <S> Void visit(LateralSubSelect lateralSubSelect, S context) {
+                    throw new UnsupportedSqlException("lateral subselect not supported");
+                }
+            }
+
+            private class WhereExpressionVisitor extends ExpressionVisitorAdapter<Void> {
+
+                private WhereExpressionVisitor() {
+                    super();
+                    setSelectVisitor(WhereSelectVisitor.this);
+                }
+
+                @Override
+                public <S> Void visit(Column column, S context) {
                     // skip the constant true, not sure how this gets into valid sql but it
                     // shouldn't have been parsed as a column to column reference
                     if (column.getTable() == null && "TRUE".equals(column.getColumnName())) {
-                        return;
+                        return null;
                     }
                     String tableName = aliasResolver.resolveTableName(column);
 
                     builder.criteriaColumn(ColumnReference.fromComponents(null, tableName, column.getColumnName()));
+                    return null;
                 }
 
                 @Override
-                public void visit(SubSelect subSelect) {
+                public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
                     TableAliasResolver previous = aliasResolver;
 
                     // todo this won't be able to delegate back to the parent if necessary I think that will fail for some sql
-                    aliasResolver = new SchemaAwareTableAliasResolver(previous, subSelect, columnTableResolver);
-                    super.visit(subSelect);
+                    aliasResolver = new SchemaAwareTableAliasResolver(previous, parenthesedSelect, columnTableResolver);
+                    super.visit(parenthesedSelect, context);
                     aliasResolver = previous;
+                    return null;
                 }
 
                 @Override
-                public void visit(SelectExpressionItem selectExpressionItem) {
-                    super.visit(selectExpressionItem);
+                public <S> Void visit(SelectItem<? extends Expression> selectItem, S context) {
+                    return super.visit(selectItem, context);
                 }
 
                 @Override
-                public void visit(EqualsTo equalsTo) {
-                    super.visit(equalsTo);
+                public <S> Void visit(EqualsTo equalsTo, S context) {
+                    super.visit(equalsTo, context);
 
                     SimpleColumnAliasResolver visitor = new SimpleColumnAliasResolver(aliasResolver);
                     String leftColumn = visitor.columnReference(equalsTo.getLeftExpression());
@@ -243,15 +219,14 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                     if (leftColumn != null && rightColumn != null) {
                         builder.joinPair(leftColumn, rightColumn);
                     }
+                    return null;
                 }
 
                 @Override
-                public void visit(ExistsExpression expr) {
-                    super.visit(expr);
+                public <S> Void visit(ExistsExpression expr, S context) {
+                    return super.visit(expr, context);
                 }
             }
         }
-
-
     }
 }

@@ -4,7 +4,7 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.schema.Column;
 
-public class SimpleColumnAliasResolver extends ExpressionVisitorAdapter implements ColumnAliasResolver {
+public class SimpleColumnAliasResolver extends ExpressionVisitorAdapter<Void> implements ColumnAliasResolver {
     private String columnReference;
     private final TableAliasResolver aliasResolver;
 
@@ -20,8 +20,9 @@ public class SimpleColumnAliasResolver extends ExpressionVisitorAdapter implemen
     }
 
     @Override
-    public void visit(Column column) {
+    public <S> Void visit(Column column, S context) {
         columnReference = columnReference(column);
+        return null;
     }
 
     @Override

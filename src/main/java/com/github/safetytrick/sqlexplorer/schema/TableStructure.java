@@ -86,9 +86,9 @@ public record TableStructure(String schema,
         Statement createStatement = CCJSqlParserUtil.parse(create);
         Builder builder = builder();
 
-        createStatement.accept(new StatementVisitorAdapter() {
+        createStatement.accept(new StatementVisitorAdapter<Void>() {
             @Override
-            public void visit(CreateTable createTable) {
+            public <S> Void visit(CreateTable createTable, S context) {
                 Table table = createTable.getTable();
                 if (table.getSchemaName() == null) {
                     table.setSchemaName(defaultSchema);
@@ -128,6 +128,7 @@ public record TableStructure(String schema,
 
                     return columnBuilder.build();
                 }).toList());
+                return null;
             }
         });
 

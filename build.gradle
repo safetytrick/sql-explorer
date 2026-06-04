@@ -105,9 +105,7 @@ dependencies {
 
     implementation "org.hibernate.validator:hibernate-validator"
 
-    // implementation 'org.duckdb:duckdb_jdbc:1.2.0'
-    
-    implementation 'com.github.jsqlparser:jsqlparser:4.1'
+    implementation 'com.github.jsqlparser:jsqlparser:5.3'
     implementation 'tools.jackson.dataformat:jackson-dataformat-csv'
 
     implementation 'com.google.guava:guava:33.0.0-jre'

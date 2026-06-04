@@ -15,7 +15,7 @@ class TableNameAnalyzer implements SqlAnalyzer {
 
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder) {
-        TablesNamesFinder finder = new TablesNamesFinder();
+        TablesNamesFinder<Void> finder = new TablesNamesFinder<>();
 
         builder.setTables(finder.getTableList(statement).stream().map(reference -> TableReference.fromString(reference))
                            .collect(Collectors.toList()));
