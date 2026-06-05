@@ -20,6 +20,7 @@ import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.analysis.RegexTableExtractor;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
+import com.github.safetytrick.sqlexplorer.analysis.parser.RunFinder;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -231,12 +232,14 @@ public class SqlEvidenceInputService {
 
         List<TableReference> tables = tableExtractor.extractTables(row.getSchemaName(), query);
 
+        int nestingLevel = 0;
+
         if (ignoredFirstTokens.contains(firstToken) || ignoredSchemas.ignoreAll(tables)) {
             builder.setTables(tables);
             builder.setAnalysisSkipped(true);
         } else {
             try {
-                int nestingLevel = getOpenParens(query);
+                nestingLevel = getOpenParens(query);
                 if (nestingLevel > MAX_OPEN_PARENS) {
                     throw new JSQLParserException("Skipping sql that exceeds max nesting level: max=" + MAX_OPEN_PARENS + " level=" + nestingLevel);
                 }
@@ -279,6 +282,16 @@ public class SqlEvidenceInputService {
                 }
 
                 builder.setAnalysisFailed(true);
+            }
+        }
+
+        if (nestingLevel > 20) {
+            try {
+                // todo, refactor and solve this in the UI instead of in the backend.
+                String condensedQuery = RunFinder.reformatQuery(query);
+                builder.setQuery(condensedQuery);
+            } catch (Exception e) {
+                log.debug("Failed to reformat query: ", e);
             }
         }
 
