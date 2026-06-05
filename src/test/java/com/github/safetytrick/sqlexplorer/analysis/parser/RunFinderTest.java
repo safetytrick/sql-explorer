@@ -3,249 +3,483 @@ package com.github.safetytrick.sqlexplorer.analysis.parser;
 import org.junit.jupiter.api.Test;
 
 import static com.github.safetytrick.sqlexplorer.analysis.parser.RunFinder.reformatQuery;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class RunFinderTest {
+
+    private static int count(String haystack, String needle) {
+        int n = 0;
+        for (int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + needle.length())) {
+            n++;
+        }
+        return n;
+    }
 
     @Test
     void monster_sql() {
         String sql = """
             SELECT
-                    `demo_search_vw` . `name` AS `name` ,
-                    `demo_search_vw` . `uuid` AS `uuid` ,
-                    `demo_search_vw` . `org_id` AS `org_id` ,
-                    `demo_search_vw` . `weight` AS `weight` ,
-                    `demo_search_vw` . `is_valid` AS `is_valid` ,
-                    `demo_search_vw` . `demo_type` AS `demo_type` ,
-                    `demo_search_vw` . `uuid_type` AS `uuid_type` ,
-                    `demo_search_vw` . `created_by` AS `created_by` ,
-                    `demo_search_vw` . `is_deleted` AS `is_deleted` ,
-                    `demo_search_vw` . `created_at` AS `created_at` ,
-                    `demo_search_vw` . `updated_at` AS `updated_at` ,
-                    `demo_search_vw` . `demo_owner` AS `demo_owner` ,
-                    `demo_search_vw` . `entity_type` AS `entity_type` ,
-                    `demo_search_vw` . `usage_count` AS `usage_count` ,
-                    `demo_search_vw` . `is_archived` AS `is_archived` ,
-                    `demo_search_vw` . `description` AS `description` ,
-                    `demo_search_vw` . `is_published` AS `is_published` ,
-                    `demo_search_vw` . `current_rank` AS `current_rank` ,
-                    `demo_search_vw` . `demo_language` AS `demo_language` ,
-                    `demo_search_vw` . `demo_platform` AS `demo_platform` ,
-                    `demo_search_vw` . `external_title` AS `external_title` ,
-                    `demo_search_vw` . `demo_owner_name` AS `demo_owner_name` ,
-                    `demo_search_vw` . `created_by_name` AS `created_by_name` ,
-                    `demo_search_vw` . `demoboard_count` AS `demoboard_count` ,
-                    `demo_search_vw` . `public_link_count` AS `public_link_count` ,
-                    `demo_search_vw` . `visible_in_library` AS `visible_in_library`\s
+                    `some_search` . `name` AS `name` ,
+                    `some_search` . `uuid` AS `uuid` ,
+                    `some_search` . `org_id` AS `org_id` ,
+                    `some_search` . `weight` AS `weight` ,
+                    `some_search` . `is_valid` AS `is_valid` ,
+                    `some_search` . `foo_type` AS `foo_type` ,
+                    `some_search` . `uuid_type` AS `uuid_type` ,
+                    `some_search` . `created_by` AS `created_by` ,
+                    `some_search` . `is_deleted` AS `is_deleted` ,
+                    `some_search` . `created_at` AS `created_at` ,
+                    `some_search` . `updated_at` AS `updated_at` ,
+                    `some_search` . `foo_owner` AS `foo_owner` ,
+                    `some_search` . `entity_type` AS `entity_type` ,
+                    `some_search` . `usage_count` AS `usage_count` ,
+                    `some_search` . `is_archived` AS `is_archived` ,
+                    `some_search` . `description` AS `description` ,
+                    `some_search` . `is_published` AS `is_published` ,
+                    `some_search` . `current_rank` AS `current_rank` ,
+                    `some_search` . `foo_language` AS `foo_language` ,
+                    `some_search` . `foo_platform` AS `foo_platform` ,
+                    `some_search` . `external_title` AS `external_title` ,
+                    `some_search` . `foo_owner_name` AS `foo_owner_name` ,
+                    `some_search` . `created_by_name` AS `created_by_name` ,
+                    `some_search` . `fooboard_count` AS `fooboard_count` ,
+                    `some_search` . `public_link_count` AS `public_link_count` ,
+                    `some_search` . `visible_in_library` AS `visible_in_library`\s
                 FROM
-                    `demo_search_vw`\s
+                    `some_search`\s
                 WHERE
-                    `demo_search_vw` . `org_id` = ?\s
-                    AND `demo_search_vw` . `uuid_type` IN (...)\s
+                    `some_search` . `org_id` = ?\s
+                    AND `some_search` . `uuid_type` IN (...)\s
                     AND (
                         (
-                            `demo_search_vw` . `is_deleted` = ?\s
-                            AND `demo_search_vw` . `entity_type` = ?\s
+                            `some_search` . `is_deleted` = ?\s
+                            AND `some_search` . `entity_type` = ?\s
                         )\s
                         AND (
                             (
                                 `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 AND `UPPER` (
-                                    `demo_search_vw` . `name`\s
+                                    `some_search` . `name`\s
                                 ) LIKE `UPPER` (
                                     ?
                                 )\s
                                 OR (
                                     `UPPER` (
-                                        `demo_search_vw` . `description`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                )\s
-                                OR (
-                                    `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
-                                    ) LIKE `UPPER` (
-                                        ?
-                                    )\s
-                                    AND `UPPER` (
-                                        `demo_search_vw` . `demo_owner_name`\s
+                                        `some_search` . `description`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                 )\s
                                 OR (
                                     `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                     AND `UPPER` (
-                                        `demo_search_vw` . `created_by_name`\s
+                                        `some_search` . `foo_owner_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                )\s
+                                OR (
+                                    `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
+                                    ) LIKE `UPPER` (
+                                        ?
+                                    )\s
+                                    AND `UPPER` (
+                                        `some_search` . `created_by_name`\s
                                     ) LIKE `UPPER` (
                                         ?
                                     )\s
                                 )\s
                             )\s
                             AND (
-                                `demo_search_vw` . `created_by` IN (...)\s
+                                `some_search` . `created_by` IN (...)\s
                             )\s
                             AND (
-                                `demo_search_vw` . `created_at` BETWEEN ? AND ?\s
+                                `some_search` . `created_at` BETWEEN ? AND ?\s
                             )\s
                             AND (
-                                `demo_search_vw` . `is_archived` = ?\s
+                                `some_search` . `is_archived` = ?\s
                             )\s
                             AND (
-                                `demo_search_vw` . `is_valid` = ?\s
+                                `some_search` . `is_valid` = ?\s
                             )\s
                             AND (
-                                `demo_search_vw` . `demo_type` IN (...)\s
+                                `some_search` . `foo_type` IN (...)\s
                             )\s
                             AND (
-                                `demo_search_vw` . `demo_platform` IN (...)\s
+                                `some_search` . `foo_platform` IN (...)\s
                             )\s
                             AND (
-                                `demo_search_vw` . `demo_language` IN (...)\s
-                                OR `demo_search_vw` . `demo_language` IS NULL\s
+                                `some_search` . `foo_language` IN (...)\s
+                                OR `some_search` . `foo_language` IS NULL\s
                             )\s
                             AND (
-                                `demo_search_vw` . `demo_owner` IN (...)\s
+                                `some_search` . `foo_owner` IN (...)\s
                             )\s
                             AND (
-                                `demo_search_vw` . `is_published` = ?\s
-                                OR `demo_search_vw` . `is_published` IS NULL\s
+                                `some_search` . `is_published` = ?\s
+                                OR `some_search` . `is_published` IS NULL\s
                             )\s
                         )\s
                     )\s
                 ORDER BY
-                    `demo_search_vw` . `current_rank` DESC
+                    `some_search` . `current_rank` DESC
             """;
 
-        System.out.println(reformatQuery(sql));
+        String result = reformatQuery(sql);
+        System.out.println(result);
+
+        // The WHERE clause has three blocks of ten identical `AND UPPER(col) LIKE UPPER(?)`
+        // predicates (name, foo_owner_name, created_by_name). Each collapses to one copy
+        // plus a `...*[9]` marker for the nine dropped copies.
+        assertThat(count(result, "...*[9]")).isEqualTo(3);
+        // Collapsing dropped the bulk of the repeated LIKE predicates.
+        assertThat(count(result, "LIKE")).isLessThan(count(sql, "LIKE"));
+    }
+
+    @Test
+    void another_monster() {
+        String query = """
+                SELECT
+                    `TABLE_SCHEMA` ,
+                    ? ,
+                    TABLE_NAME ,
+                    COLUMN_NAME ,
+                    CASE\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN IF ( `LOCATE` ( ? , `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                            AND `LOCATE` ( ? , `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                            AND `LOCATE` ( ? , `COLUMN_TYPE` ) != ?, ... )\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN IF ( `LOCATE` ( ? , `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                            AND `LOCATE` ( ? , `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                            AND `LOCATE` ( ? , `COLUMN_TYPE` ) != ?, ... )\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                            THEN - ?\s
+                        ELSE ?\s
+                END AS `DATA_TYPE` ,
+                `UPPER` ( CASE\s
+                    WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                        THEN CASE\s
+                            WHEN `LOCATE` ( ? ,
+                            `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                            AND `LOCATE` ( ? ,
+                            `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                            AND `LOCATE` ( ? ,
+                            `COLUMN_TYPE` ) != ?\s
+                                THEN ?\s
+                            WHEN `LOCATE` ( ? ,
+                            `UPPER` ( `COLUMN_TYPE` ) ) != ?\s
+                            AND `LOCATE` ( ? ,
+                            `UPPER` ( `DATA_TYPE` ) ) = ?\s
+                                THEN ?\s
+                            ELSE `DATA_TYPE`\s
+                    END\s
+                WHEN `LOCATE` ( ? ,
+                `UPPER` ( `COLUMN_TYPE` ) ) != ?\s
+                AND `LOCATE` ( ? ,
+                `UPPER` ( `DATA_TYPE` ) ) = ?\s
+                AND `LOCATE` ( ? ,
+                `UPPER` ( `DATA_TYPE` ) ) != ?\s
+                AND `LOCATE` ( ? ,
+                `UPPER` ( `DATA_TYPE` ) ) != ?\s
+                    THEN `CONCAT` ( `DATA_TYPE` ,
+                    ? )\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                ELSE `UPPER` ( `DATA_TYPE` )\s
+            END ) AS `TYPE_NAME` ,
+            `UPPER` ( CASE\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                OR `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ? + IF ( `DATETIME_PRECISION` > ? , `DATETIME_PRECISION` + ? , `DATETIME_PRECISION` )\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ? + IF ( `DATETIME_PRECISION` > ? , `DATETIME_PRECISION` + ? , `DATETIME_PRECISION` )\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                AND `LOCATE` ( ? ,
+                `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                AND `LOCATE` ( ? ,
+                `UPPER` ( `COLUMN_TYPE` ) ) = ?\s
+                AND `LOCATE` ( ? ,
+                `COLUMN_TYPE` ) != ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                AND `LOCATE` ( ? ,
+                `UPPER` ( `COLUMN_TYPE` ) ) != ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN `UPPER` ( `DATA_TYPE` ) = ?\s
+                    THEN ?\s
+                WHEN
+            """;
+
+        String result = reformatQuery(query);
+        System.out.println(result);
+
+        // The long run of identical `WHEN UPPER(DATA_TYPE) = ? THEN ?` clauses is the
+        // most rewarding run to collapse and must be picked: 11 copies -> one + `...*[11]`.
+        // (The previous covered()-based ranking instead picked a 2-copy giant block,
+        // which spans more tokens but saves fewer, and fragmented this run.)
+        assertThat(result).contains("...*[11]");
+        // Collapsing dropped most of the repeated WHEN clauses.
+        assertThat(count(result, "WHEN")).isLessThan(count(query, "WHEN"));
     }
 
 }

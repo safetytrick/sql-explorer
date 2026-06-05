@@ -25,8 +25,9 @@ public class RunFinder {
 
     /** A maximal tandem repeat: copies of tokens[start, start+period) repeated `count` times. */
     record Run(int start, int period, int count) {
-        int covered() { return period * count; }   // tokens spanned by the whole copies
-        int end()     { return start + covered(); } // index just past the run
+        int covered() { return period * count; }      // tokens spanned by the whole copies
+        int end()     { return start + covered(); }   // index just past the run
+        int saved()   { return period * (count - 1); } // tokens a collapse would remove (all copies but one)
     }
 
     public static String reformatQuery(String query) {
@@ -46,7 +47,7 @@ public class RunFinder {
             tokens = newTokens;
 
             best = bestRun(tokens);
-            if (best != null && best.count() < 3) {
+            if (best != null && best.count() < 2) {
                 best = null;
             }
         }
@@ -83,16 +84,18 @@ public class RunFinder {
     }
 
     /**
-     * Tie-break order:
-     *   1. more tokens covered
+     * Rank by how much a collapse actually helps, then frame nicely:
+     *   1. more tokens saved (period * (count - 1)) -- a collapse keeps one copy and
+     *      drops the rest, so a short unit repeated many times beats a long unit
+     *      repeated twice even when the latter spans more tokens.
      *   2. run that reaches further right  -> picks the clause-aligned framing
      *      ("clause" + ("AND clause") x9) instead of (("clause AND") x9 + "clause")
      *   3. earlier start
      */
     static boolean better(Run a, Run b) {
-        if (b == null)                  return true;
-        if (a.covered() != b.covered()) return a.covered() > b.covered();
-        if (a.end()     != b.end())     return a.end()     > b.end();
+        if (b == null)              return true;
+        if (a.saved() != b.saved()) return a.saved() > b.saved();
+        if (a.end()   != b.end())   return a.end()   > b.end();
         return a.start() < b.start();
     }
 }
