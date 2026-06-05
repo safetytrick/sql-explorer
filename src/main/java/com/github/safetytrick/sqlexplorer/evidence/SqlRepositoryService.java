@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
@@ -22,19 +23,22 @@ import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
-import static java.util.Comparator.comparing;
-
 @Service
 public class SqlRepositoryService {
 
     private final SqlMetadataService sqlMetadataService;
     private final SqlRepositoryManager sqlRepositoryManager;
     private final TagsService tagsService;
+    private final IgnoredSchemas ignoredSchemas;
 
-    public SqlRepositoryService(SqlMetadataService sqlMetadataService, SqlRepositoryManager sqlRepositoryManager, TagsService tagsService) {
+    public SqlRepositoryService(SqlMetadataService sqlMetadataService,
+                                SqlRepositoryManager sqlRepositoryManager,
+                                TagsService tagsService,
+                                IgnoredSchemas ignoredSchemas) {
         this.sqlMetadataService = sqlMetadataService;
         this.sqlRepositoryManager = sqlRepositoryManager;
         this.tagsService = tagsService;
+        this.ignoredSchemas = ignoredSchemas;
     }
 
     public SqlProfile getById(String id) {
@@ -177,7 +181,7 @@ public class SqlRepositoryService {
         return result.values().stream().map(builder-> {
             List<Tag> schemaTags = tagsService.findAllByPath("/schema/" + builder.getName());
             return builder.tags(schemaTags).build();
-        }).sorted(comparing(SchemaRollup::totalQueryTime).reversed());
+        }).sorted(SchemaRollup.comparator(ignoredSchemas));
     }
 
     public Stream<TableRollup> getAllTablesWithRollup() {
@@ -186,7 +190,7 @@ public class SqlRepositoryService {
 
         return sqlRepositoryManager.getSqlRepository().getAllTableReferences().map(
             reference -> getTableRollup(reference, tagLoader)
-        ).sorted(comparing(TableRollup::totalQueryTime).reversed());
+            ).sorted(TableRollup.comparator(ignoredSchemas));
     }
 
     public Stream<TableRollup> getTablesForSchemaWithRollup(String schema) {
@@ -195,7 +199,7 @@ public class SqlRepositoryService {
         return sqlRepositoryManager.getSqlRepository().getAllTableReferences()
             .filter(table -> table.getNormalizedSchemaName() != null && table.getNormalizedSchemaName().equalsIgnoreCase(schema)).map(
                 reference -> getTableRollup(reference, tagLoader)
-        ).sorted(comparing(TableRollup::totalQueryTime).reversed());
+            ).sorted(TableRollup.comparator(ignoredSchemas));
     }
 
     public TableRollup getTableRollup(TableReference reference, TagLoader tagLoader) {

@@ -1,7 +1,9 @@
 package com.github.safetytrick.sqlexplorer.model;
 
+import java.util.Comparator;
 import java.util.List;
 
+import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 
 public record SchemaRollup(
@@ -10,6 +12,21 @@ public record SchemaRollup(
     double totalQueryTime,
     List<Tag> tags
 ) {
+    public static Comparator<SchemaRollup> comparator(IgnoredSchemas ignoredSchemas) {
+        return (o1, o2) -> {
+            int timeDiff = -Double.compare(o1.totalQueryTime(), o2.totalQueryTime());
+            if (ignoredSchemas.contains(o1.name())) {
+                if (ignoredSchemas.contains(o2.name())) {
+                    return timeDiff;
+                }
+                return 1;
+            } else  if (ignoredSchemas.contains(o2.name())) {
+                return -1;
+            }
+            return timeDiff;
+        };
+    }
+
     public static Builder builder() {
         return new Builder();
     }
