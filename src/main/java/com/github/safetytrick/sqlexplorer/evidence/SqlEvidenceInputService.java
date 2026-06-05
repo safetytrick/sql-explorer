@@ -232,14 +232,13 @@ public class SqlEvidenceInputService {
 
         List<TableReference> tables = tableExtractor.extractTables(row.getSchemaName(), query);
 
-        int nestingLevel = 0;
+        int nestingLevel = getOpenParens(query);
 
         if (ignoredFirstTokens.contains(firstToken) || ignoredSchemas.ignoreAll(tables)) {
             builder.setTables(tables);
             builder.setAnalysisSkipped(true);
         } else {
             try {
-                nestingLevel = getOpenParens(query);
                 if (nestingLevel > MAX_OPEN_PARENS) {
                     throw new JSQLParserException("Skipping sql that exceeds max nesting level: max=" + MAX_OPEN_PARENS + " level=" + nestingLevel);
                 }
@@ -285,7 +284,7 @@ public class SqlEvidenceInputService {
             }
         }
 
-        if (nestingLevel > 20) {
+        if (nestingLevel > 5) {
             try {
                 // todo, refactor and solve this in the UI instead of in the backend.
                 String condensedQuery = RunFinder.reformatQuery(query);

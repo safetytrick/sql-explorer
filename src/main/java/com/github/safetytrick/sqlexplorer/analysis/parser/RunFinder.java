@@ -39,10 +39,12 @@ public class RunFinder {
 
         Run best = bestRun(tokens);
         while (best != null) {
-            List<String> newTokens = new ArrayList<>();
-            newTokens.addAll(tokens.subList(0, best.start()));
-            newTokens.addAll(tokens.subList(best.start(), best.start() + best.period()));
-            newTokens.add("...*["+best.count()+"]");
+            List<String> newTokens = new ArrayList<>(
+                tokens.subList(0, best.start())
+            );
+            newTokens.add("~|" +
+                String.join(" ", tokens.subList(best.start(), best.start() + best.period()))
+                + "|~["+best.count()+"]");
             newTokens.addAll(tokens.subList(best.end(), tokens.size()));
             tokens = newTokens;
 

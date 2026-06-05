@@ -260,7 +260,7 @@ class RunFinderTest {
         // The WHERE clause has three blocks of ten identical `AND UPPER(col) LIKE UPPER(?)`
         // predicates (name, foo_owner_name, created_by_name). Each collapses to one copy
         // plus a `...*[9]` marker for the nine dropped copies.
-        assertThat(count(result, "...*[9]")).isEqualTo(3);
+        assertThat(count(result, "|~[9]")).isEqualTo(3);
         // Collapsing dropped the bulk of the repeated LIKE predicates.
         assertThat(count(result, "LIKE")).isLessThan(count(sql, "LIKE"));
     }
@@ -477,7 +477,7 @@ class RunFinderTest {
         // most rewarding run to collapse and must be picked: 11 copies -> one + `...*[11]`.
         // (The previous covered()-based ranking instead picked a 2-copy giant block,
         // which spans more tokens but saves fewer, and fragmented this run.)
-        assertThat(result).contains("...*[11]");
+        assertThat(result).contains("|~[11]");
         // Collapsing dropped most of the repeated WHEN clauses.
         assertThat(count(result, "WHEN")).isLessThan(count(query, "WHEN"));
     }
