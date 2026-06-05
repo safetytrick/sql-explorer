@@ -1,6 +1,6 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
@@ -27,8 +27,8 @@ public class SqlAnalysisService {
         this.analyzers = analyzers;
         this.sqlParser = sqlParser;
     }
-    public SqlAnalysisService(SqlAnalyzer analyzer) {
-        this(Collections.singletonList(analyzer), new SqlParser());
+    public SqlAnalysisService(SqlAnalyzer ...analyzer) {
+        this(Arrays.asList(analyzer), new SqlParser());
     }
 
     public void analyzeSql(String sql, SqlProfile.Builder builder) throws JSQLParserException {

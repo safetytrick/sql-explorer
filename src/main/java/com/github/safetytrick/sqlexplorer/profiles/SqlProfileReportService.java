@@ -31,6 +31,7 @@ class SqlProfileReportService {
         reports.put("slow", this::getSlowQueries);
         reports.put("chatty", this::getChattyQueries);
         reports.put("analysis-failures", this::getAnalysisFailures);
+        reports.put("analysis-skipped", this::getAnalysisSkipped);
         reports.put("parse-failures", this::getParseFailures);
         reports.put("truncated", this::getTruncatedSql);
         reports.put("full-scan", this::getFullScanSql);
@@ -78,6 +79,12 @@ class SqlProfileReportService {
             .filter(SqlProfile::getAnalysisFailed)
             .filter(sql -> !sql.getTruncated())
             .filter(sql -> sql.getAnalysisFailureReason() != null && sql.getAnalysisFailureReason().startsWith("Failure on:"))
+            .sorted(SqlProfileExtension.comparator);
+    }
+
+    public Stream<SqlProfile> getAnalysisSkipped() {
+        return sqlRepositoryService.getAllAnalyzedSql()
+            .filter(SqlProfile::getAnalysisSkipped)
             .sorted(SqlProfileExtension.comparator);
     }
 

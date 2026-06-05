@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
@@ -192,7 +191,7 @@ public class JoinColumnAnalyzerTest {
                     `customernam0_` . `customer_id`
                 """;
 
-        sqlAnalysisService = new SqlAnalysisService(Arrays.asList(new JoinColumnAnalyzer(), new WhereClauseAnalyzer()), new SqlParser());
+        sqlAnalysisService = new SqlAnalysisService(new JoinColumnAnalyzer(), new WhereClauseAnalyzer());
         sqlAnalysisService.analyzeSql(sql, builder);
 
 

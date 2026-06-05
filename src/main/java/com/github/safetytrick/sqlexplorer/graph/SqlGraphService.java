@@ -1,7 +1,6 @@
 package com.github.safetytrick.sqlexplorer.graph;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -11,6 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
@@ -27,6 +27,7 @@ class SqlGraphService implements GraphService {
     private final SqlRepositoryService sqlRepositoryService;
     private final SqlMetadataService sqlMetadataService;
     private final SqlTagsService sqlTagsService;
+    private final IgnoredSchemas ignoredSchemas;
 
     private static final String BASE_URL = "http://localhost:4200/analyzed-sql/";
     // todo refactor into a grafana integration plugin
@@ -35,20 +36,20 @@ class SqlGraphService implements GraphService {
     private static final String LIST_FORMAT = "%s,%s";
     private final Pattern serverPattern = Pattern.compile("SqlSource\\{sourceRef='(.+?)'");
 
-    private static final Set<String> ignoredSchemas = new HashSet<>(Arrays.asList(
-        "sys", "performance_schema", "mysql", "information_schema", "percona"
-    ));
-
-    public SqlGraphService(SqlRepositoryService sqlRepositoryService, SqlMetadataService sqlMetadataService, SqlTagsService sqlTagsService) {
+    public SqlGraphService(SqlRepositoryService sqlRepositoryService,
+                           SqlMetadataService sqlMetadataService,
+                           SqlTagsService sqlTagsService,
+                           IgnoredSchemas ignoredSchemas) {
         this.sqlRepositoryService = sqlRepositoryService;
         this.sqlMetadataService = sqlMetadataService;
         this.sqlTagsService = sqlTagsService;
+        this.ignoredSchemas = ignoredSchemas;
     }
 
     @Override
     public Stream<TableRelationships> getTableRelationships(int threshold) {
         return sqlMetadataService.getTables().stream()
-            .filter(table -> !ignored(table.schema())).map(table -> getTableRelationships(threshold, table));
+            .filter(table -> !ignoredSchemas.contains(table.schema())).map(table -> getTableRelationships(threshold, table));
     }
 
     @Override
@@ -160,10 +161,6 @@ class SqlGraphService implements GraphService {
         TableReference reference = TableReference.newTableReference(tableStructure.schema(), tableStructure.name());
         Table table = sqlRepositoryService.getTable(threshold, reference);
         return new TableRelationships(reference, table.foreignKeyTables(), table.joinTables(), table.relatedTables());
-    }
-
-    private boolean ignored(String schema) {
-        return ignoredSchemas.contains(schema);
     }
 
     private Stream<TableRelationships> visitRelated(Set<TableReference> visited, TableReference tableReference, int threshold, int depth) {

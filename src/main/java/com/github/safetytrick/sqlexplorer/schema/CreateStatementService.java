@@ -6,10 +6,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import jakarta.inject.Named;
+import org.hibernate.engine.jdbc.internal.BasicFormatterImpl;
+import org.hibernate.engine.jdbc.internal.Formatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
@@ -33,14 +35,15 @@ public class CreateStatementService {
 
     private static final Logger log = LoggerFactory.getLogger(CreateStatementService.class);
 
-    private static final Set<String> SYSTEM_SCHEMAS =
-        Set.of("performance_schema", "sys", "mysql", "information_schema");
-
     private final DataSource metadataDataSource;
+    private final IgnoredSchemas ignoredSchemas;
     private final Map<TableStructure, String> cache = new ConcurrentHashMap<>();
+    private final Formatter sqlFormatter = new BasicFormatterImpl();
 
-    public CreateStatementService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource) {
+    public CreateStatementService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource,
+                                  IgnoredSchemas ignoredSchemas) {
         this.metadataDataSource = metadataDataSource;
+        this.ignoredSchemas = ignoredSchemas;
     }
 
     public String getCreateStatement(TableStructure table) {
@@ -48,7 +51,7 @@ public class CreateStatementService {
     }
 
     private String loadCreateStatement(TableStructure table) {
-        if (SYSTEM_SCHEMAS.contains(table.schema())) {
+        if (ignoredSchemas.contains(table.schema())) {
             return "system table";
         }
         log.debug("Reading create statement for {}.{}", table.schema(), table.name());
@@ -59,7 +62,8 @@ public class CreateStatementService {
             if (!resultSet.next()) {
                 return "";
             }
-            return resultSet.getString(2);
+            String createStatement = resultSet.getString(2);
+            return sqlFormatter.format(createStatement);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

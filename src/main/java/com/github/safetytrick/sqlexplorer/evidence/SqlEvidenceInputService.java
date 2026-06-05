@@ -13,11 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
+import com.github.safetytrick.sqlexplorer.analysis.RegexTableExtractor;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
@@ -50,7 +50,8 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class SqlEvidenceInputService {
 
-    private static final int MAX_NESTING_LEVEL = 200;
+    private static final int MAX_OPEN_PARENS = 200;
+    private static final Duration MAX_PARSE = Duration.ofSeconds(20);
 
     private final Formatter sqlFormatter = new BasicFormatterImpl();
     private final ExecutorService executor = Executors.newWorkStealingPool();
@@ -62,6 +63,8 @@ public class SqlEvidenceInputService {
     private final NormalizedQueryDigest normalizedQueryDigest;
     private final Timer performanceSchemaRowTimer;
     private final Set<String> missingFieldExceptions = new ConcurrentHashSet<>();
+    private final IgnoredSchemas ignoredSchemas;
+    private final RegexTableExtractor tableExtractor = new RegexTableExtractor();
 
     // an optimization to ignore parsing sql we likely can't and likely can't find useful data from.
     private static final Set<String> ignoredFirstTokens = Set.of("ALTER",
@@ -92,11 +95,13 @@ public class SqlEvidenceInputService {
     public SqlEvidenceInputService(@Value("${sql-explorer.trace-errors}") boolean traceErrors, ParquetSink parquetSink,
                                    SqlAnalysisService sqlAnalysisService,
                                    NormalizedQueryDigest normalizedQueryDigest,
-                                   MeterRegistry meterRegistry) {
+                                   MeterRegistry meterRegistry,
+                                   IgnoredSchemas ignoredSchemas) {
         this.traceErrors = traceErrors;
         this.parquetSink = parquetSink;
         this.sqlAnalysisService = sqlAnalysisService;
         this.normalizedQueryDigest = normalizedQueryDigest;
+        this.ignoredSchemas = ignoredSchemas;
         performanceSchemaRowTimer = meterRegistry.timer("performance_schema_process_row");
     }
 
@@ -224,13 +229,16 @@ public class SqlEvidenceInputService {
             return;
         }
 
-        if (ignoredFirstTokens.contains(firstToken)) {
+        List<TableReference> tables = tableExtractor.extractTables(row.getSchemaName(), query);
+
+        if (ignoredFirstTokens.contains(firstToken) || ignoredSchemas.ignoreAll(tables)) {
+            builder.setTables(tables);
             builder.setAnalysisSkipped(true);
         } else {
             try {
-                int nestingLevel = getNestingLevel(query);
-                if (nestingLevel > MAX_NESTING_LEVEL) {
-                    throw new JSQLParserException("Skipping sql that exceeds max nesting level: max=" + MAX_NESTING_LEVEL + " level=" + nestingLevel);
+                int nestingLevel = getOpenParens(query);
+                if (nestingLevel > MAX_OPEN_PARENS) {
+                    throw new JSQLParserException("Skipping sql that exceeds max nesting level: max=" + MAX_OPEN_PARENS + " level=" + nestingLevel);
                 }
 
                 int closedParens = getClosedParens(query);
@@ -251,13 +259,12 @@ public class SqlEvidenceInputService {
                 }
 
                 Duration normalizedParseTime = Duration.ofNanos(System.nanoTime() - startNormalization);
-                if (normalizedParseTime.toSeconds() > 20) {
-                    log.info("Parse time exceeded 20 second, aborting analysis");
-                    builder.setAnalysisFailureReason("parse time exceeded 20 seconds");
+                if (MAX_PARSE.compareTo(normalizedParseTime) < 0) {
+                    log.info("Parse time exceeded " + MAX_PARSE.toSeconds() + " second, aborting analysis");
+                    builder.setAnalysisFailureReason("parse time exceeded " + MAX_PARSE.toSeconds() + " seconds");
                 } else {
                     sqlAnalysisService.analyzeSql(query, builder);
                 }
-
             } catch (JSQLParserException e) {
                 if (containsEof(e)) {
                     builder.setTruncated(true);
@@ -265,7 +272,7 @@ public class SqlEvidenceInputService {
                     builder.setAnalysisFailureReason(getRootCauseMessage(e));
                 }
 
-                builder.setTables(extractTablesByRegex(builder.getSchemaName(), query));
+                builder.setTables(tables);
 
                 if (traceErrors) {
                     log.info("Parse failed {}", row.getDigest(), e);
@@ -279,24 +286,6 @@ public class SqlEvidenceInputService {
         parquetSink.write(sqlProfile);
 
         repository.addToIndex(sqlProfile);
-    }
-
-    /**
-     * used to extract tables when parsing the whole query fails
-     */
-    private static final Pattern FROM_TABLE = Pattern.compile("\\s(FROM|JOIN)\\s+(`?(?<schema>[a-zA-Z_]\\w*)`?\\s*\\.\\s*)?`?(?<table>[a-zA-Z_]\\w*)`?\\s+", Pattern.MULTILINE|Pattern.CASE_INSENSITIVE);
-
-    private List<TableReference> extractTablesByRegex(String schema, String query) {
-        Matcher matcher = FROM_TABLE.matcher(query);
-        List<TableReference> references = new ArrayList<>();
-        while (matcher.find()) {
-            String referencedSchema = matcher.group("schema");
-            String table = matcher.group("table");
-            references.add(TableReference.newTableReference(referencedSchema, table)
-                    .withDefaultSchema(schema));
-
-        }
-        return references;
     }
 
     private String getRootCauseMessage(Throwable e) {
@@ -319,28 +308,24 @@ public class SqlEvidenceInputService {
         return false;
     }
 
-    private int getNestingLevel(String query) {
+    private int countChar(char needle, String haystack) {
         int openParens = 0;
         int start = 0;
-        int index = query.indexOf('(', start);
+        int index = haystack.indexOf(needle, start);
         while (index != -1) {
             openParens++;
             start = index + 1;
-            index = query.indexOf('(', start);
+            index = haystack.indexOf(needle, start);
         }
         return openParens;
     }
 
+    private int getOpenParens(String query) {
+        return countChar('(', query);
+    }
+
     private int getClosedParens(String query) {
-        int openParens = 0;
-        int start = 0;
-        int index = query.indexOf(')', start);
-        while (index != -1) {
-            openParens++;
-            start = index + 1;
-            index = query.indexOf(')', start);
-        }
-        return openParens;
+        return countChar(')', query);
     }
 
     private List<SqlProfile> mergeByDigest(List<SqlProfile> sqlList) {
@@ -356,8 +341,6 @@ public class SqlEvidenceInputService {
     private SqlProfile mergedSql(List<SqlProfile> alreadyGroupedList) {
         return alreadyGroupedList.size() > 1 ? new MergedSqlProfile(alreadyGroupedList) : alreadyGroupedList.getFirst();
     }
-
-
 
     private static String firstToken(String sql) {
         StringTokenizer tokenizer = new StringTokenizer(sql);

@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
@@ -39,7 +38,7 @@ public class SqlAnalysisServiceTest {
         new GeneratedSqlAnalyzer()
     );
 
-    SqlAnalysisService sqlAnalysisService = new SqlAnalysisService(analyzerList, new SqlParser());
+    SqlAnalysisService sqlAnalysisService = new SqlAnalysisService(analyzerList.toArray(new SqlAnalyzer[0]));
 
     @Test
     void schemaFromSql() throws JSQLParserException {
