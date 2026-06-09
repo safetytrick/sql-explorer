@@ -22,7 +22,7 @@ Build the application:
 docker compose build
 ```
 
-Startup the application (this will take a few minutes):
+Startup the application:
 ```bash
 docker compose up -d explorer-mysql
 

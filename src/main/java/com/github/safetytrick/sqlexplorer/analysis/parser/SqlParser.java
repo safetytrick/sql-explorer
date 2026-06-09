@@ -14,12 +14,18 @@ public class SqlParser {
         CleanedStatement statement;
         SqlCleaner.CleanedSql cleanSql = sqlCleaner.cleanSql(sql);
         try {
-            statement = new CleanedStatement(CCJSqlParserUtil.parse(cleanSql.sql()), cleanSql.truncated(), cleanSql.modified());
+            statement = new CleanedStatement(parseStatement(cleanSql.sql()),
+                cleanSql.truncated(),
+                cleanSql.modified());
         } catch (JSQLParserException e) {
             throw new JSQLParserException("[[[" + cleanSql.sql() + "]]]", e);
         }
 
         return statement;
+    }
+
+    private Statement parseStatement(String sql) throws JSQLParserException {
+        return CCJSqlParserUtil.parse(sql);
     }
 
     public record CleanedStatement(
