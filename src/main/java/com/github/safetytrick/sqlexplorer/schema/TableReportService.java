@@ -10,16 +10,16 @@ import static java.util.Comparator.comparing;
 
 @Service
 class TableReportService {
-    private final SqlMetadataService sqlMetadataService;
+    private final SqlSchemaService sqlSchemaService;
     private final SqlRepositoryService sqlRepositoryService;
 
-    public TableReportService(SqlMetadataService sqlMetadataService, SqlRepositoryService sqlRepositoryService) {
-        this.sqlMetadataService = sqlMetadataService;
+    public TableReportService(SqlSchemaService sqlSchemaService, SqlRepositoryService sqlRepositoryService) {
+        this.sqlSchemaService = sqlSchemaService;
         this.sqlRepositoryService = sqlRepositoryService;
     }
 
     public Stream<TableRollup> getTablesWithColumn(String columnName) {
-        return sqlMetadataService.getTables().stream().filter(
+        return sqlSchemaService.getTables().stream().filter(
             tableStructure -> tableStructure.columns().stream().anyMatch(column -> column.columnName().equalsIgnoreCase(columnName))
         ).map(table -> sqlRepositoryService.getTableRollup(table.tableReference()))
          .sorted(comparing(TableRollup::totalQueryTime)

@@ -8,7 +8,7 @@ import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.statement.Statement;
 import org.springframework.core.annotation.Order;
@@ -17,11 +17,11 @@ import org.springframework.stereotype.Component;
 @Order(1000)
 @Component
 public class UnknownSchemaAnalyzer implements SqlAnalyzer {
-    private final SqlMetadataService sqlMetadataService;
+    private final SqlSchemaService sqlSchemaService;
 
     @Inject
-    public UnknownSchemaAnalyzer(SqlMetadataService sqlMetadataService) {
-        this.sqlMetadataService = sqlMetadataService;
+    public UnknownSchemaAnalyzer(SqlSchemaService sqlSchemaService) {
+        this.sqlSchemaService = sqlSchemaService;
     }
 
     @Override
@@ -45,6 +45,6 @@ public class UnknownSchemaAnalyzer implements SqlAnalyzer {
                 .forEach(allColumns::add);
         }
 
-        return sqlMetadataService.findSchemaForTablesAndColumns(tableNames, allColumns);
+        return sqlSchemaService.findSchemaForTablesAndColumns(tableNames, allColumns);
     }
 }

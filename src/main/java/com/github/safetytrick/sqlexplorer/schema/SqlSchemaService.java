@@ -11,11 +11,11 @@ import org.springframework.stereotype.Service;
 import static java.util.stream.Collectors.groupingBy;
 
 @Service
-public class SqlMetadataService {
+public class SqlSchemaService {
 
     private final SchemaLoadingService loader;
 
-    public SqlMetadataService(SchemaLoadingService loader) {
+    public SqlSchemaService(SchemaLoadingService loader) {
         this.loader = loader;
     }
 

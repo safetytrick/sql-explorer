@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.analysis.UnsupportedSqlException;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Component;
@@ -16,10 +16,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class ColumnTableResolver {
 
-    private final SqlMetadataService sqlMetadataService;
+    private final SqlSchemaService sqlSchemaService;
 
-    public ColumnTableResolver(SqlMetadataService sqlMetadataService) {
-        this.sqlMetadataService = sqlMetadataService;
+    public ColumnTableResolver(SqlSchemaService sqlSchemaService) {
+        this.sqlSchemaService = sqlSchemaService;
     }
 
     public static ColumnTableResolver unsupported() {
@@ -27,7 +27,7 @@ public class ColumnTableResolver {
     }
 
     public String selectTableNameFromCandidates(List<String> tables, String column) {
-        String schema = sqlMetadataService.findSchemaForTablesAndColumns(
+        String schema = sqlSchemaService.findSchemaForTablesAndColumns(
             tables.stream()
                 .map(TableReference::fromString)
                 .collect(Collectors.toList()),
@@ -45,7 +45,7 @@ public class ColumnTableResolver {
         for (String table : tables) {
             // todo handle schema on table reference
             TableReference tableReference = TableReference.fromString(table);
-            TableStructure tableStructure = sqlMetadataService.getTable(tableReference.withDefaultSchema(schema));
+            TableStructure tableStructure = sqlSchemaService.getTable(tableReference.withDefaultSchema(schema));
             if (tableStructure == null) {
                 missingTable = table;
                 continue;
@@ -70,7 +70,7 @@ public class ColumnTableResolver {
     }
 
     public List<String> getAllColumnNamesForTable(String schema, String table) {
-        return sqlMetadataService.getTable(TableReference.newTableReference(schema, table))
+        return sqlSchemaService.getTable(TableReference.newTableReference(schema, table))
             .columns()
             .stream()
             .map(TableColumn::columnName)

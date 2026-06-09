@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
-import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.statement.Statement;
@@ -25,10 +25,10 @@ import org.springframework.stereotype.Component;
 public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(JoinAcrossTypesAnalyzer.class);
 
-    private final SqlMetadataService sqlMetadataService;
+    private final SqlSchemaService sqlSchemaService;
 
-    public JoinAcrossTypesAnalyzer(SqlMetadataService sqlMetadataService) {
-        this.sqlMetadataService = sqlMetadataService;
+    public JoinAcrossTypesAnalyzer(SqlSchemaService sqlSchemaService) {
+        this.sqlSchemaService = sqlSchemaService;
     }
 
     @Override
@@ -90,7 +90,7 @@ public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
 
     private Optional<TableColumn> getColumnFromReference(String schema, ColumnReference reference) {
 
-        TableStructure table = sqlMetadataService.getTable(reference.getTable().withDefaultSchema(schema));
+        TableStructure table = sqlSchemaService.getTable(reference.getTable().withDefaultSchema(schema));
         if (table == null) {
             return Optional.empty();
         }

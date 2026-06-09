@@ -15,26 +15,26 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 class SchemaResource {
 
-    private final SqlMetadataService sqlMetadataService;
+    private final SqlSchemaService sqlSchemaService;
     private final TableReportService tableReportService;
     private final CreateStatementService createStatementService;
 
-    public SchemaResource(SqlMetadataService sqlMetadataService,
+    public SchemaResource(SqlSchemaService sqlSchemaService,
                           TableReportService tableReportService,
                           CreateStatementService createStatementService) {
-        this.sqlMetadataService = sqlMetadataService;
+        this.sqlSchemaService = sqlSchemaService;
         this.tableReportService = tableReportService;
         this.createStatementService = createStatementService;
     }
 
     @GetMapping("/metadata/table/{schema}/{name}")
     public TableStructure getTableStructure(@PathVariable String schema, @PathVariable("name") String tableName) {
-        return sqlMetadataService.getTable(TableReference.newTableReference(schema, tableName));
+        return sqlSchemaService.getTable(TableReference.newTableReference(schema, tableName));
     }
 
     @GetMapping(value = "/metadata/table/{schema}/{name}/create", produces = "text/plain")
     public String getCreateStatement(@PathVariable String schema, @PathVariable("name") String tableName) {
-        TableStructure table = sqlMetadataService.getTable(TableReference.newTableReference(schema, tableName));
+        TableStructure table = sqlSchemaService.getTable(TableReference.newTableReference(schema, tableName));
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown table: " + schema + "." + tableName);
         }

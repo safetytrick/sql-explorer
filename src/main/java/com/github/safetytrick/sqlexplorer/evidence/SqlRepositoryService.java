@@ -19,23 +19,23 @@ import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
 import com.github.safetytrick.sqlexplorer.model.Table;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
-import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SqlRepositoryService {
 
-    private final SqlMetadataService sqlMetadataService;
+    private final SqlSchemaService sqlSchemaService;
     private final SqlRepositoryManager sqlRepositoryManager;
     private final TagsService tagsService;
     private final IgnoredSchemas ignoredSchemas;
 
-    public SqlRepositoryService(SqlMetadataService sqlMetadataService,
+    public SqlRepositoryService(SqlSchemaService sqlSchemaService,
                                 SqlRepositoryManager sqlRepositoryManager,
                                 TagsService tagsService,
                                 IgnoredSchemas ignoredSchemas) {
-        this.sqlMetadataService = sqlMetadataService;
+        this.sqlSchemaService = sqlSchemaService;
         this.sqlRepositoryManager = sqlRepositoryManager;
         this.tagsService = tagsService;
         this.ignoredSchemas = ignoredSchemas;
@@ -67,7 +67,7 @@ public class SqlRepositoryService {
 
     private Table buildTableWithQueries(int threshold, TableReference table, List<SqlProfile> sqlList) {
 
-        TableStructure tableStructure = sqlMetadataService.getTable(table);
+        TableStructure tableStructure = sqlSchemaService.getTable(table);
 
         List<TableReference> foreignKeyTables = getForeignKeysTables(tableStructure);
         List<TableReference> joinTables = new ArrayList<>(deriveJoinTables(threshold, table, sqlList));

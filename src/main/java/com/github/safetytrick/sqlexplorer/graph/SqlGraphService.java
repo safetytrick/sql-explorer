@@ -17,7 +17,7 @@ import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.SqlTagsService;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.model.Table;
-import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
 class SqlGraphService implements GraphService {
 
     private final SqlRepositoryService sqlRepositoryService;
-    private final SqlMetadataService sqlMetadataService;
+    private final SqlSchemaService sqlSchemaService;
     private final SqlTagsService sqlTagsService;
     private final IgnoredSchemas ignoredSchemas;
 
@@ -37,24 +37,24 @@ class SqlGraphService implements GraphService {
     private final Pattern serverPattern = Pattern.compile("SqlSource\\{sourceRef='(.+?)'");
 
     public SqlGraphService(SqlRepositoryService sqlRepositoryService,
-                           SqlMetadataService sqlMetadataService,
+                           SqlSchemaService sqlSchemaService,
                            SqlTagsService sqlTagsService,
                            IgnoredSchemas ignoredSchemas) {
         this.sqlRepositoryService = sqlRepositoryService;
-        this.sqlMetadataService = sqlMetadataService;
+        this.sqlSchemaService = sqlSchemaService;
         this.sqlTagsService = sqlTagsService;
         this.ignoredSchemas = ignoredSchemas;
     }
 
     @Override
     public Stream<TableRelationships> getTableRelationships(int threshold) {
-        return sqlMetadataService.getTables().stream()
+        return sqlSchemaService.getTables().stream()
             .filter(table -> !ignoredSchemas.contains(table.schema())).map(table -> getTableRelationships(threshold, table));
     }
 
     @Override
     public Stream<TableRelationships> getTableRelationshipsForSchema(int threshold, String schema) {
-        return sqlMetadataService.getTables().stream()
+        return sqlSchemaService.getTables().stream()
             .filter(table -> schema.equalsIgnoreCase(table.schema())).map(table -> getTableRelationships(threshold, table));
     }
 

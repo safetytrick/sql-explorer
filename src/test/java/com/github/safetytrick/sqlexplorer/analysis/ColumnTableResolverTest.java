@@ -9,7 +9,7 @@ import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import com.github.safetytrick.sqlexplorer.schema.SchemaLoadingService;
-import com.github.safetytrick.sqlexplorer.schema.SqlMetadataService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.Test;
@@ -22,8 +22,8 @@ import static org.mockito.Mockito.when;
 class ColumnTableResolverTest {
 
     SchemaLoadingService schemaLoadingService = mock(SchemaLoadingService.class);
-    SqlMetadataService sqlMetadataService = new SqlMetadataService(schemaLoadingService);
-    ColumnTableResolver columnTableResolver = new ColumnTableResolver(sqlMetadataService);
+    SqlSchemaService sqlSchemaService = new SqlSchemaService(schemaLoadingService);
+    ColumnTableResolver columnTableResolver = new ColumnTableResolver(sqlSchemaService);
 
     @Test
     void qualified_schema_and_default() throws JSQLParserException {
@@ -79,8 +79,8 @@ class ColumnTableResolverTest {
         when(schemaLoadingService.getAllByTableName("ccd")).thenReturn(Collections.singletonList(ccd));
         when(schemaLoadingService.getAllByTableName("customer_ref")).thenReturn(Collections.singletonList(customerRef));
 
-        when(sqlMetadataService.getTable(TableReference.newTableReference("ccd", "ccd"))).thenReturn(ccd);
-        when(sqlMetadataService.getTable(TableReference.newTableReference("tdb", "customer_ref"))).thenReturn(customerRef);
+        when(sqlSchemaService.getTable(TableReference.newTableReference("ccd", "ccd"))).thenReturn(ccd);
+        when(sqlSchemaService.getTable(TableReference.newTableReference("tdb", "customer_ref"))).thenReturn(customerRef);
 
         List<String> filteredNames = Arrays.asList("ccd.ccd", "customer_ref");
         String columnName = "customer_visit_id";
@@ -108,7 +108,7 @@ class ColumnTableResolverTest {
         TableStructure store_config_table = TableStructure.fromCreateTable(store_config_create).schema("tdb").build();
 
         when(schemaLoadingService.getAllByTableName("store_config")).thenReturn(Collections.singletonList(store_config_table));
-        when(sqlMetadataService.getTable(TableReference.newTableReference("tdb", "store_config"))).thenReturn(store_config_table);
+        when(sqlSchemaService.getTable(TableReference.newTableReference("tdb", "store_config"))).thenReturn(store_config_table);
 
         String table = columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("store_config"), "store_id");
 
