@@ -1,8 +1,8 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
@@ -12,6 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+/**
+ * Holds the loaded SQL repositories per environment. Loading sources for one
+ * environment replaces only that environment's repositories; queries resolve
+ * the repository for the environment selected on the request.
+ */
 @Service
 public class SqlRepositoryManager {
 
@@ -19,8 +24,7 @@ public class SqlRepositoryManager {
 
     private final SqlEvidenceInputService sqlEvidenceInputService;
     private final EnvironmentRegistry environmentRegistry;
-    private final List<SqlRepository> repositories = new CopyOnWriteArrayList<>();
-    private CompositeSqlRepository compositeSqlRepository = new CompositeSqlRepository(Collections.emptyList());
+    private final Map<String, EnvironmentRepositories> byEnvironment = new ConcurrentHashMap<>();
 
     public SqlRepositoryManager(SqlEvidenceInputService sqlEvidenceInputService,
                                 EnvironmentRegistry environmentRegistry) {
@@ -28,41 +32,38 @@ public class SqlRepositoryManager {
         this.environmentRegistry = environmentRegistry;
     }
 
-    public synchronized void addSqlRepository(SqlRepository sqlRepository) {
-        repositories.add(sqlRepository);
-        compositeSqlRepository = new CompositeSqlRepository(repositories);
+    public SqlRepository getSqlRepository(String environmentName) {
+        return byEnvironment.getOrDefault(environmentName, EnvironmentRepositories.EMPTY).composite();
     }
 
-    public SqlRepository getSqlRepository() {
-        return compositeSqlRepository;
+    public List<SqlRepository> getRepositories(String environmentName) {
+        return byEnvironment.getOrDefault(environmentName, EnvironmentRepositories.EMPTY).repositories();
     }
 
-    public List<SqlRepository> getRepositories() {
-        return Collections.unmodifiableList(repositories);
-    }
-
-
+    /** Load into the default environment (used by the startup loaders). */
     public SqlImportStats loadFromSqlSources(Stream<? extends SqlSource> sources) {
+        return loadFromSqlSources(environmentRegistry.getDefaultName(), sources);
+    }
 
-        // Phase 2: all sources load against the default environment's schema.
-        // Phase 3 will attribute sources to their owning server and pass that
-        // server's schema here (see docs/DATA_ENVIRONMENTS.md).
-        SqlSchemaRepository schema = environmentRegistry.getDefault().schemaRepository();
+    public SqlImportStats loadFromSqlSources(String environmentName, Stream<? extends SqlSource> sources) {
+        SqlSchemaRepository schema = environmentRegistry.get(environmentName).schemaRepository();
 
         List<SqlRepository> repositories = sources.parallel().map(source -> {
-            log.info("Loading source: {}", source);
+            log.info("Loading source into environment {}: {}", environmentName, source);
 
             return sqlEvidenceInputService.fromPerformanceSchema(source, source.getSql(), schema);
         }).toList();
 
-        synchronized (this) {
-            this.repositories.clear();
-            this.repositories.addAll(repositories);
-            compositeSqlRepository = new CompositeSqlRepository(this.repositories);
-        }
+        byEnvironment.put(environmentName, new EnvironmentRepositories(List.copyOf(repositories),
+            new CompositeSqlRepository(repositories)));
 
-        log.info("Overall import stats: {}", getSqlRepository().getImportStats());
-        return getSqlRepository().getImportStats();
+        SqlImportStats stats = getSqlRepository(environmentName).getImportStats();
+        log.info("Import stats for environment {}: {}", environmentName, stats);
+        return stats;
     }
 
+    private record EnvironmentRepositories(List<SqlRepository> repositories, CompositeSqlRepository composite) {
+        static final EnvironmentRepositories EMPTY =
+            new EnvironmentRepositories(List.of(), new CompositeSqlRepository(List.of()));
+    }
 }

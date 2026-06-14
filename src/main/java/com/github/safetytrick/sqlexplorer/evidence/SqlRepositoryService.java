@@ -15,6 +15,7 @@ import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagLoader;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
 import com.github.safetytrick.sqlexplorer.model.Table;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
@@ -28,37 +29,45 @@ public class SqlRepositoryService {
 
     private final SqlSchemaService sqlSchemaService;
     private final SqlRepositoryManager sqlRepositoryManager;
+    private final EnvironmentContext environmentContext;
     private final TagsService tagsService;
     private final IgnoredSchemas ignoredSchemas;
 
     public SqlRepositoryService(SqlSchemaService sqlSchemaService,
                                 SqlRepositoryManager sqlRepositoryManager,
+                                EnvironmentContext environmentContext,
                                 TagsService tagsService,
                                 IgnoredSchemas ignoredSchemas) {
         this.sqlSchemaService = sqlSchemaService;
         this.sqlRepositoryManager = sqlRepositoryManager;
+        this.environmentContext = environmentContext;
         this.tagsService = tagsService;
         this.ignoredSchemas = ignoredSchemas;
     }
 
+    /** The SQL repository for the environment selected on the current request. */
+    private SqlRepository repository() {
+        return sqlRepositoryManager.getSqlRepository(environmentContext.current().getName());
+    }
+
     public SqlProfile getById(String id) {
-        return sqlRepositoryManager.getSqlRepository().getById(id);
+        return repository().getById(id);
     }
 
     // todo refactor threshold into a predicate to filter AnalyzedSql
     public Table getTable(int threshold, TableReference table) {
-        return buildTableWithQueries(threshold, table, sqlRepositoryManager.getSqlRepository().getTableQueries(table)
+        return buildTableWithQueries(threshold, table, repository().getTableQueries(table)
             .toList());
     }
 
     public Table getQueriesForColumn(int threshold, TableReference table, String column) {
-        return buildTableWithQueries(threshold, table, sqlRepositoryManager.getSqlRepository().getQueriesForColumn(table, column)
+        return buildTableWithQueries(threshold, table, repository().getQueriesForColumn(table, column)
             .toList());
     }
 
 
     public Table getQueriesForTableJoin(int threshold, TableReference table, TableReference otherTable) {
-        List<SqlProfile> tableQueries = sqlRepositoryManager.getSqlRepository().getTableQueries(table)
+        List<SqlProfile> tableQueries = repository().getTableQueries(table)
             .filter(analyzedSql -> analyzedSql.getTables().stream().anyMatch(otherTable::equalsNormalized))
             .toList();
 
@@ -157,18 +166,18 @@ public class SqlRepositoryService {
     }
 
     public Stream<SqlProfile> getAllAnalyzedSql() {
-        return sqlRepositoryManager.getSqlRepository().getAllAnalyzedSql();
+        return repository().getAllAnalyzedSql();
     }
 
     public Stream<SchemaRollup> getAllSchemasWithRollup() {
         Map<String, SchemaRollup.Builder> result = new HashMap<>();
-        sqlRepositoryManager.getSqlRepository().getAllTableReferences().forEach(
+        repository().getAllTableReferences().forEach(
             table -> {
                 SchemaRollup.Builder builder = result.computeIfAbsent(
                     table.getNormalizedSchemaName(), schemaName ->
                     SchemaRollup.builder().name(schemaName)
                 );
-                List<SqlProfile> sqlList = sqlRepositoryManager.getSqlRepository().getTableQueries(table)
+                List<SqlProfile> sqlList = repository().getTableQueries(table)
                     .toList();
 
                 double totalQueryTime = sqlList.stream()
@@ -188,7 +197,7 @@ public class SqlRepositoryService {
 
         TagLoader tagLoader = tagsService.getBulkTagLoaderByType("table");
 
-        return sqlRepositoryManager.getSqlRepository().getAllTableReferences().map(
+        return repository().getAllTableReferences().map(
             reference -> getTableRollup(reference, tagLoader)
             ).sorted(TableRollup.comparator(ignoredSchemas));
     }
@@ -196,14 +205,14 @@ public class SqlRepositoryService {
     public Stream<TableRollup> getTablesForSchemaWithRollup(String schema) {
         TagLoader tagLoader = tagsService.getBulkTagLoaderByTypeAndPathPrefix("table", "/schema/" + schema + "/");
 
-        return sqlRepositoryManager.getSqlRepository().getAllTableReferences()
+        return repository().getAllTableReferences()
             .filter(table -> table.getNormalizedSchemaName() != null && table.getNormalizedSchemaName().equalsIgnoreCase(schema)).map(
                 reference -> getTableRollup(reference, tagLoader)
             ).sorted(TableRollup.comparator(ignoredSchemas));
     }
 
     public TableRollup getTableRollup(TableReference reference, TagLoader tagLoader) {
-        List<SqlProfile> sqlList = sqlRepositoryManager.getSqlRepository().getTableQueries(reference)
+        List<SqlProfile> sqlList = repository().getTableQueries(reference)
             .toList();
 
         double totalQueryTime = sqlList.stream()

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.ImportedSqlSource;
@@ -31,11 +32,14 @@ import static org.springframework.web.servlet.mvc.method.annotation.MvcUriCompon
 class SqlSourceResource {
 
     private final SqlRepositoryManager sqlRepositoryManager;
+    private final EnvironmentContext environmentContext;
     private final SqlSourceEntityRepository sqlSourceEntityRepository;
     private final SqlSourceEntityService sqlSourceEntityService;
 
-    SqlSourceResource(SqlRepositoryManager sqlRepositoryManager, SqlSourceEntityRepository sqlSourceEntityRepository, SqlSourceEntityService sqlSourceEntityService) {
+    SqlSourceResource(SqlRepositoryManager sqlRepositoryManager, EnvironmentContext environmentContext,
+                      SqlSourceEntityRepository sqlSourceEntityRepository, SqlSourceEntityService sqlSourceEntityService) {
         this.sqlRepositoryManager = sqlRepositoryManager;
+        this.environmentContext = environmentContext;
         this.sqlSourceEntityRepository = sqlSourceEntityRepository;
         this.sqlSourceEntityService = sqlSourceEntityService;
     }
@@ -63,7 +67,7 @@ class SqlSourceResource {
 
     @GetMapping("/sources/active")
     public Stream<ImportedSqlSource> listImportedSqlSources() {
-        return sqlRepositoryManager.getRepositories()
+        return sqlRepositoryManager.getRepositories(environmentContext.current().getName())
             .stream()
             .map(repo -> new ImportedSqlSource(repo.getSource(), "unknown", repo.getImportStats()))
             .sorted(Comparator.comparing(source -> source.getImportStats().count()));
@@ -107,7 +111,7 @@ class SqlSourceResource {
                 sqlSourceEntityRepository.findLatestBySourceRef(ref.getSourceRef())
         ).flatMap(Optional::stream);
 
-        return sqlRepositoryManager.loadFromSqlSources(entityStream);
+        return sqlRepositoryManager.loadFromSqlSources(environmentContext.current().getName(), entityStream);
     }
 
 
