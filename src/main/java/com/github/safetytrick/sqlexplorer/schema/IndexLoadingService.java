@@ -14,22 +14,13 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.stereotype.Service;
 
-@DependsOnDatabaseInitialization
 @Service
 public class IndexLoadingService {
     private static final Logger log = LoggerFactory.getLogger(IndexLoadingService.class);
-
-    private final DataSource metadataDataSource;
-
-    public IndexLoadingService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource) {
-        this.metadataDataSource = metadataDataSource;
-    }
 
     /*
      * <P>Each index column description has the following columns:
@@ -66,11 +57,11 @@ public class IndexLoadingService {
      *      is the number of pages used for the current index.
      *  <LI><B>FILTER_CONDITION</B> String {@code =>} Filter condition, if any.
      */
-    IndicesFetcher getIndicesFetcher() {
+    IndicesFetcher getIndicesFetcher(DataSource dataSource) {
         Map<TableReference, List<TableIndex>> indices = new HashMap<>();
         log.info("Reading Indexes from database...");
         long start = System.nanoTime();
-        try (Connection connection = metadataDataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             TableReference table = null;
             List<TableIndex> tableIndices = new ArrayList<>();
             try (ResultSet indexInfo = getIndexInfo(connection)) {

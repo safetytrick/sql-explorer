@@ -17,6 +17,10 @@ public interface SqlSchemaRepository {
 
     List<TableStructure> getTablesByName(TableReference table);
 
+    default String getCreateStatement(TableStructure table) {
+        throw new UnsupportedOperationException("create statements are not available from " + getClass().getSimpleName());
+    }
+
     default String findSchemaForTablesAndColumns(List<TableReference> tables, List<String> columns) {
 
         if (tables == null) {

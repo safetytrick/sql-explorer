@@ -120,30 +120,29 @@ public class SqlEvidenceInputService {
      */
     @Timed("performance_schema_import")
     public SqlRepository fromPerformanceSchema(SqlSource source, Stream<SqlInput> inputStream) {
-        List<Future<?>> futures = new ArrayList<>();
-
         SqlRepositoryBuilder repository = new SqlRepositoryBuilder(source);
-        inputStream.forEach(sqlInput ->
-            futures.add(
-                executor.submit(
-                    performanceSchemaRowTimer.wrap(() -> {
-                        String rowName = getRowName(sqlInput);
-                        try {
-                            currentlyProcessing.put(rowName, true);
-                            processRow(repository, sqlInput);
-                        } catch (Exception e) {
-                            if (e instanceof AvroMissingFieldException) {
-                                missingFieldExceptions.add(e.toString());
-                            }
-                            log.error("Row Processing failed: {}", sqlInput.row(), e);
-                            throw e;
-                        } finally {
-                            currentlyProcessing.remove(rowName);
+        // inputStream may be a parallel stream (e.g. XStatementAnalysisSqlSource),
+        // so collect the submitted futures rather than adding to a shared
+        // ArrayList from the stream action — concurrent add() corrupts the list.
+        List<Future<?>> futures = inputStream.map(sqlInput ->
+            executor.submit(
+                performanceSchemaRowTimer.wrap(() -> {
+                    String rowName = getRowName(sqlInput);
+                    try {
+                        currentlyProcessing.put(rowName, true);
+                        processRow(repository, sqlInput);
+                    } catch (Exception e) {
+                        if (e instanceof AvroMissingFieldException) {
+                            missingFieldExceptions.add(e.toString());
                         }
-                    })
-                )
+                        log.error("Row Processing failed: {}", sqlInput.row(), e);
+                        throw e;
+                    } finally {
+                        currentlyProcessing.remove(rowName);
+                    }
+                })
             )
-        );
+        ).collect(Collectors.toList());
 
         int iteration = 0;
         while (!futures.stream().allMatch(Future::isDone)) {

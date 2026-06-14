@@ -11,29 +11,19 @@ import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.stereotype.Service;
 
-@DependsOnDatabaseInitialization
 @Service
 public class ColumnEncodingService {
     private static final Logger log = LoggerFactory.getLogger(ColumnEncodingService.class);
 
-    private final DataSource metadataDataSource;
-
-    public ColumnEncodingService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource) {
-        this.metadataDataSource = metadataDataSource;
-    }
-
-
-    ColumnEncodingFetcher getColumnEncodingFetcher() {
+    ColumnEncodingFetcher getColumnEncodingFetcher(DataSource dataSource) {
         Map<ColumnReference, ColumnEncoding> columnEncodings = new HashMap<>();
         log.info("Reading ColumnEncodings from database...");
         long start = System.nanoTime();
-        try (Connection connection = metadataDataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             /*
             select TABLE_SCHEMA,
                TABLE_NAME,

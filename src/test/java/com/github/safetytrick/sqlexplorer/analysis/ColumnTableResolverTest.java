@@ -6,24 +6,16 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
-import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
-import com.github.safetytrick.sqlexplorer.schema.SchemaLoadingService;
-import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
+import com.github.safetytrick.sqlexplorer.schema.LoadedSchema;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class ColumnTableResolverTest {
-
-    SchemaLoadingService schemaLoadingService = mock(SchemaLoadingService.class);
-    SqlSchemaService sqlSchemaService = new SqlSchemaService(schemaLoadingService);
-    ColumnTableResolver columnTableResolver = new ColumnTableResolver(sqlSchemaService);
 
     @Test
     void qualified_schema_and_default() throws JSQLParserException {
@@ -76,11 +68,8 @@ class ColumnTableResolverTest {
 
         TableStructure ccd = TableStructure.fromCreateTable(ccdCreate).schema("ccd").build();
 
-        when(schemaLoadingService.getAllByTableName("ccd")).thenReturn(Collections.singletonList(ccd));
-        when(schemaLoadingService.getAllByTableName("customer_ref")).thenReturn(Collections.singletonList(customerRef));
-
-        when(sqlSchemaService.getTable(TableReference.newTableReference("ccd", "ccd"))).thenReturn(ccd);
-        when(sqlSchemaService.getTable(TableReference.newTableReference("tdb", "customer_ref"))).thenReturn(customerRef);
+        ColumnTableResolver columnTableResolver =
+            new ColumnTableResolver(new LoadedSchema(Arrays.asList(customerRef, ccd)));
 
         List<String> filteredNames = Arrays.asList("ccd.ccd", "customer_ref");
         String columnName = "customer_visit_id";
@@ -107,8 +96,8 @@ class ColumnTableResolverTest {
             ) ENGINE=InnoDB DEFAULT CHARSET=latin1;""";
         TableStructure store_config_table = TableStructure.fromCreateTable(store_config_create).schema("tdb").build();
 
-        when(schemaLoadingService.getAllByTableName("store_config")).thenReturn(Collections.singletonList(store_config_table));
-        when(sqlSchemaService.getTable(TableReference.newTableReference("tdb", "store_config"))).thenReturn(store_config_table);
+        ColumnTableResolver columnTableResolver =
+            new ColumnTableResolver(new LoadedSchema(Collections.singletonList(store_config_table)));
 
         String table = columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("store_config"), "store_id");
 

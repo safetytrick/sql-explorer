@@ -17,14 +17,11 @@ class SchemaResource {
 
     private final SqlSchemaService sqlSchemaService;
     private final TableReportService tableReportService;
-    private final CreateStatementService createStatementService;
 
     public SchemaResource(SqlSchemaService sqlSchemaService,
-                          TableReportService tableReportService,
-                          CreateStatementService createStatementService) {
+                          TableReportService tableReportService) {
         this.sqlSchemaService = sqlSchemaService;
         this.tableReportService = tableReportService;
-        this.createStatementService = createStatementService;
     }
 
     @GetMapping("/metadata/table/{schema}/{name}")
@@ -38,7 +35,7 @@ class SchemaResource {
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown table: " + schema + "." + tableName);
         }
-        return createStatementService.getCreateStatement(table);
+        return sqlSchemaService.getCreateStatement(table);
     }
 
 

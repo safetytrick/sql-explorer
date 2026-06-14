@@ -14,24 +14,18 @@ import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.stereotype.Service;
 
-@DependsOnDatabaseInitialization
 @Service
 public class TableColumnService {
 
     private static final Logger log = LoggerFactory.getLogger(TableColumnService.class);
 
-    private final DataSource metadataDataSource;
     private final ColumnEncodingService columnEncodingService;
 
-    public TableColumnService(@Named(MetadataDataSource.NAME) DataSource metadataDataSource,
-                              ColumnEncodingService columnEncodingService) {
-        this.metadataDataSource = metadataDataSource;
+    public TableColumnService(ColumnEncodingService columnEncodingService) {
         this.columnEncodingService = columnEncodingService;
     }
 
@@ -107,12 +101,12 @@ public class TableColumnService {
      * this is the length in bytes. Null is returned for data types where the
      * column size is not applicable.
      */
-    TableColumnsFetcher getColumnFetcher() {
+    TableColumnsFetcher getColumnFetcher(DataSource dataSource) {
         Map<TableReference, List<TableColumn>> tableColumnsMap = new HashMap<>();
-        ColumnEncodingService.ColumnEncodingFetcher columnEncodingFetcher = columnEncodingService.getColumnEncodingFetcher();
+        ColumnEncodingService.ColumnEncodingFetcher columnEncodingFetcher = columnEncodingService.getColumnEncodingFetcher(dataSource);
         log.info("Reading Columns from database...");
         long start = System.nanoTime();
-        try (Connection connection = metadataDataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             TableReference table = null;
             List<TableColumn> tableColumns = new ArrayList<>();
             try (ResultSet columns = connection.getMetaData().getColumns(null, null, null, null)) {

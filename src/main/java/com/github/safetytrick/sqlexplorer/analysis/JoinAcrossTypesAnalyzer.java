@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
-import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.statement.Statement;
@@ -25,9 +25,9 @@ import org.springframework.stereotype.Component;
 public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(JoinAcrossTypesAnalyzer.class);
 
-    private final SqlSchemaService sqlSchemaService;
+    private final SqlSchemaRepository sqlSchemaService;
 
-    public JoinAcrossTypesAnalyzer(SqlSchemaService sqlSchemaService) {
+    public JoinAcrossTypesAnalyzer(SqlSchemaRepository sqlSchemaService) {
         this.sqlSchemaService = sqlSchemaService;
     }
 

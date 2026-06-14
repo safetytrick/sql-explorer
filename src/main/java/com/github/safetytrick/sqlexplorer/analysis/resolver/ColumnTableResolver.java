@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.analysis.UnsupportedSqlException;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Component;
@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ColumnTableResolver {
 
-    private final SqlSchemaService sqlSchemaService;
+    private final SqlSchemaRepository sqlSchemaService;
 
-    public ColumnTableResolver(SqlSchemaService sqlSchemaService) {
+    public ColumnTableResolver(SqlSchemaRepository sqlSchemaService) {
         this.sqlSchemaService = sqlSchemaService;
     }
 

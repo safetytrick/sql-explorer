@@ -8,7 +8,7 @@ import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.statement.Statement;
 import org.springframework.core.annotation.Order;
@@ -17,10 +17,10 @@ import org.springframework.stereotype.Component;
 @Order(1000)
 @Component
 public class UnknownSchemaAnalyzer implements SqlAnalyzer {
-    private final SqlSchemaService sqlSchemaService;
+    private final SqlSchemaRepository sqlSchemaService;
 
     @Inject
-    public UnknownSchemaAnalyzer(SqlSchemaService sqlSchemaService) {
+    public UnknownSchemaAnalyzer(SqlSchemaRepository sqlSchemaService) {
         this.sqlSchemaService = sqlSchemaService;
     }
 
