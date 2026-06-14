@@ -3,25 +3,26 @@ package com.github.safetytrick.sqlexplorer.schema;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
-import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import org.springframework.stereotype.Service;
 
 /**
- * The schema of the active environment. Phase 1 of the environments work:
- * always the default environment; phases 2-3 replace this delegate with the
- * schema repository resolved per request/import (see docs/DATA_ENVIRONMENTS.md).
+ * The schema of the environment selected for the current request (resolved via
+ * {@link EnvironmentContext} from the {@code X-Sql-Explorer-Environment} header,
+ * defaulting to the default environment). Used on the REST query path; the
+ * import path resolves its schema explicitly per server.
  */
 @Service
 public class SqlSchemaService implements SqlSchemaRepository {
 
-    private final EnvironmentRegistry environmentRegistry;
+    private final EnvironmentContext environmentContext;
 
-    public SqlSchemaService(EnvironmentRegistry environmentRegistry) {
-        this.environmentRegistry = environmentRegistry;
+    public SqlSchemaService(EnvironmentContext environmentContext) {
+        this.environmentContext = environmentContext;
     }
 
     private SqlSchemaRepository activeSchema() {
-        return environmentRegistry.getDefault().schemaRepository();
+        return environmentContext.current().schemaRepository();
     }
 
     @Override

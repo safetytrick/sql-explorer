@@ -1,36 +1,75 @@
 package com.github.safetytrick.sqlexplorer.environment;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import jakarta.annotation.PreDestroy;
-import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Holds the known {@link Environment}s. Phase 1: exactly one implicit
- * "default" environment with a single server assembled from the legacy
- * {@code datasources.metadata.*} configuration.
+ * Holds the known {@link Environment}s. Built from {@code environments.*}
+ * config, or — when none is configured — a single "default" environment
+ * synthesized from the legacy {@code datasources.metadata.*} keys.
  */
-@Service
 public class EnvironmentRegistry {
 
     public static final String DEFAULT_ENVIRONMENT = "default";
 
-    private final Map<String, Environment> environments;
+    private static final Logger log = LoggerFactory.getLogger(EnvironmentRegistry.class);
 
-    public EnvironmentRegistry(MetadataDataSourceProperties metadataProperties,
+    private final Map<String, Environment> environments = new LinkedHashMap<>();
+    private final String defaultEnvironmentName;
+
+    public EnvironmentRegistry(Map<String, EnvironmentDefinition> definitions,
+                               MetadataDataSourceProperties legacyMetadata,
                                SchemaRepositoryFactory schemaRepositoryFactory) {
-        ConnectionInfo connectionInfo = new ConnectionInfo(metadataProperties.getJdbcUrl(),
-            metadataProperties.getUsername(),
-            metadataProperties.getPassword());
-        DatabaseServer server = new DatabaseServer(DEFAULT_ENVIRONMENT, connectionInfo, schemaRepositoryFactory);
-        this.environments = Map.of(DEFAULT_ENVIRONMENT, new Environment(DEFAULT_ENVIRONMENT, List.of(server)));
+        if (definitions != null && !definitions.isEmpty()) {
+            for (Map.Entry<String, EnvironmentDefinition> entry : definitions.entrySet()) {
+                environments.put(entry.getKey(), toEnvironment(entry.getKey(), entry.getValue(), schemaRepositoryFactory));
+            }
+            // prefer an environment literally named "default", else the first declared
+            this.defaultEnvironmentName = environments.containsKey(DEFAULT_ENVIRONMENT)
+                ? DEFAULT_ENVIRONMENT
+                : environments.keySet().iterator().next();
+        } else {
+            ConnectionInfo connectionInfo = new ConnectionInfo(legacyMetadata.getJdbcUrl(),
+                legacyMetadata.getUsername(),
+                legacyMetadata.getPassword());
+            DatabaseServer server = new DatabaseServer(DEFAULT_ENVIRONMENT, connectionInfo, schemaRepositoryFactory);
+            environments.put(DEFAULT_ENVIRONMENT, new Environment(DEFAULT_ENVIRONMENT, List.of(server)));
+            this.defaultEnvironmentName = DEFAULT_ENVIRONMENT;
+        }
+        log.info("Environments configured: {} (default: {})", environments.keySet(), defaultEnvironmentName);
+    }
+
+    private static Environment toEnvironment(String name, EnvironmentDefinition definition,
+                                             SchemaRepositoryFactory schemaRepositoryFactory) {
+        List<DatabaseServer> servers = new ArrayList<>();
+        for (Map.Entry<String, ServerDefinition> serverEntry : definition.getServers().entrySet()) {
+            ServerDefinition server = serverEntry.getValue();
+            ConnectionInfo connectionInfo = new ConnectionInfo(server.getJdbcUrl(), server.getUsername(), server.getPassword());
+            servers.add(new DatabaseServer(serverEntry.getKey(), connectionInfo, schemaRepositoryFactory));
+        }
+        return new Environment(name, servers);
     }
 
     public Environment getDefault() {
-        return environments.get(DEFAULT_ENVIRONMENT);
+        return environments.get(defaultEnvironmentName);
+    }
+
+    public String getDefaultName() {
+        return defaultEnvironmentName;
+    }
+
+    /** @return the named environment, or the default if {@code name} is null/unknown. */
+    public Environment getOrDefault(String name) {
+        Environment environment = name == null ? null : environments.get(name);
+        return environment != null ? environment : getDefault();
     }
 
     public Environment get(String name) {
