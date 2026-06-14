@@ -4,6 +4,7 @@ import java.util.ArrayList;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import net.sf.jsqlparser.statement.Statement;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -12,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 class SchemaAnalyzer implements SqlAnalyzer {
     @Override
-    public void analyze(Statement statement, SqlProfile.Builder builder) {
+    public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schema) {
         if (builder.getTables() == null) {
             builder.setTables(new ArrayList<>());
         }

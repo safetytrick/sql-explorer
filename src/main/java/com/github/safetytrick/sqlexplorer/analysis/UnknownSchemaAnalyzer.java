@@ -9,7 +9,6 @@ import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
-import jakarta.inject.Inject;
 import net.sf.jsqlparser.statement.Statement;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -17,22 +16,16 @@ import org.springframework.stereotype.Component;
 @Order(1000)
 @Component
 public class UnknownSchemaAnalyzer implements SqlAnalyzer {
-    private final SqlSchemaRepository sqlSchemaService;
-
-    @Inject
-    public UnknownSchemaAnalyzer(SqlSchemaRepository sqlSchemaService) {
-        this.sqlSchemaService = sqlSchemaService;
-    }
 
     @Override
-    public void analyze(Statement statement, SqlProfile.Builder builder) {
-        if (builder.getSchemaName() == null) {
-            String schema = deriveSchemaFrom(builder.getTables(), builder.getJoinColumns(), builder.getCriteriaColumns());
+    public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schemaRepository) {
+        if (schemaRepository != null && builder.getSchemaName() == null) {
+            String schema = deriveSchemaFrom(schemaRepository, builder.getTables(), builder.getJoinColumns(), builder.getCriteriaColumns());
             builder.setSchemaName(schema);
         }
     }
 
-    private String deriveSchemaFrom(List<TableReference> tableNames, List<JoinColumns> joinColumns, List<ColumnReference> criteriaColumns) {
+    private String deriveSchemaFrom(SqlSchemaRepository schemaRepository, List<TableReference> tableNames, List<JoinColumns> joinColumns, List<ColumnReference> criteriaColumns) {
         List<String> allColumns = new ArrayList<>();
         if (joinColumns != null) {
             joinColumns.stream()
@@ -45,6 +38,6 @@ public class UnknownSchemaAnalyzer implements SqlAnalyzer {
                 .forEach(allColumns::add);
         }
 
-        return sqlSchemaService.findSchemaForTablesAndColumns(tableNames, allColumns);
+        return schemaRepository.findSchemaForTablesAndColumns(tableNames, allColumns);
     }
 }

@@ -11,9 +11,12 @@ import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
-import org.springframework.stereotype.Component;
 
-@Component
+/**
+ * Resolves columns to tables against a single schema. Built per analysis call
+ * by {@link ColumnTableResolverFactory} from the schema of the server the SQL
+ * was captured on, rather than injected as a singleton.
+ */
 public class ColumnTableResolver {
 
     private final SqlSchemaRepository sqlSchemaService;

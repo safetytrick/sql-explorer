@@ -8,6 +8,7 @@ import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolverFactory;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.DerivedTable;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
@@ -15,6 +16,7 @@ import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
@@ -53,20 +55,25 @@ import org.springframework.stereotype.Component;
 @Component
 class JoinColumnAnalyzer implements SqlAnalyzer {
 
-    private final ColumnTableResolver columnTableResolver;
+    private final ColumnTableResolverFactory resolverFactory;
 
     public JoinColumnAnalyzer() {
         this(ColumnTableResolver.unsupported());
     }
 
-    @Inject
+    /** Test/convenience: resolve against a fixed resolver regardless of schema. */
     public JoinColumnAnalyzer(ColumnTableResolver columnTableResolver) {
-        this.columnTableResolver = columnTableResolver;
+        this.resolverFactory = schema -> columnTableResolver;
+    }
+
+    @Inject
+    public JoinColumnAnalyzer(ColumnTableResolverFactory resolverFactory) {
+        this.resolverFactory = resolverFactory;
     }
 
     @Override
-    public void analyze(Statement statement, SqlProfile.Builder builder) {
-        JoinColumnVisitor joinColumnVisitor = new JoinColumnVisitor(builder.getSchemaName());
+    public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schema) {
+        JoinColumnVisitor joinColumnVisitor = new JoinColumnVisitor(builder.getSchemaName(), resolverFactory.forSchema(schema));
 
         List<JoinColumns> joinColumns = joinColumnVisitor.getJoinColumns(statement);
 
@@ -75,12 +82,14 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
     private class JoinColumnVisitor extends StatementVisitorAdapter<Void> {
         private final String schema;
+        private final ColumnTableResolver columnTableResolver;
         private List<JoinColumns> joinColumns;
         private TableAliasResolver tableAliasResolver;
 
-        public JoinColumnVisitor(String schema) {
+        public JoinColumnVisitor(String schema, ColumnTableResolver columnTableResolver) {
             super();
             this.schema = schema;
+            this.columnTableResolver = columnTableResolver;
         }
 
         private void addJoin(JoinColumns join) {

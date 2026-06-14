@@ -1,6 +1,7 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.util.TablesNamesFinder;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 class GeneratedSqlAnalyzer implements SqlAnalyzer {
     @Override
-    public void analyze(Statement statement, SqlProfile.Builder builder) {
+    public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schema) {
         GeneratedSqlStatementVisitor visitor = new GeneratedSqlStatementVisitor();
         visitor.getTables(statement);
 

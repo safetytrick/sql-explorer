@@ -1,11 +1,13 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
+import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolverFactory;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
@@ -35,11 +37,16 @@ import org.springframework.stereotype.Component;
 @Component
 class WhereClauseAnalyzer implements SqlAnalyzer {
 
-    private final ColumnTableResolver columnTableResolver;
+    private final ColumnTableResolverFactory resolverFactory;
 
     @Inject
+    public WhereClauseAnalyzer(ColumnTableResolverFactory resolverFactory) {
+        this.resolverFactory = resolverFactory;
+    }
+
+    /** Test/convenience: resolve against a fixed resolver regardless of schema. */
     public WhereClauseAnalyzer(ColumnTableResolver columnTableResolver) {
-        this.columnTableResolver = columnTableResolver;
+        this.resolverFactory = schema -> columnTableResolver;
     }
 
     public WhereClauseAnalyzer() {
@@ -47,18 +54,20 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
     }
 
     @Override
-    public void analyze(Statement statement, SqlProfile.Builder builder) {
-        new WhereClauseVisitor(builder).visit(statement);
+    public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schema) {
+        new WhereClauseVisitor(builder, resolverFactory.forSchema(schema)).visit(statement);
     }
 
     private class WhereClauseVisitor extends StatementVisitorAdapter<Void> {
         private final SqlProfile.Builder builder;
+        private final ColumnTableResolver columnTableResolver;
         private TableAliasResolver aliasResolver;
         private final WhereSelectVisitor selectVisitor = new WhereSelectVisitor();
 
-        private WhereClauseVisitor(SqlProfile.Builder builder) {
+        private WhereClauseVisitor(SqlProfile.Builder builder, ColumnTableResolver columnTableResolver) {
             super();
             this.builder = builder;
+            this.columnTableResolver = columnTableResolver;
         }
 
         void visit(Statement statement) {

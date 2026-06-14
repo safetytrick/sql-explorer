@@ -31,6 +31,7 @@ import com.github.safetytrick.sqlexplorer.evidence.source.MeteredSql;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
@@ -119,7 +120,7 @@ public class SqlEvidenceInputService {
      * @return a completely initialized SqlRepository
      */
     @Timed("performance_schema_import")
-    public SqlRepository fromPerformanceSchema(SqlSource source, Stream<SqlInput> inputStream) {
+    public SqlRepository fromPerformanceSchema(SqlSource source, Stream<SqlInput> inputStream, SqlSchemaRepository schema) {
         SqlRepositoryBuilder repository = new SqlRepositoryBuilder(source);
         // inputStream may be a parallel stream (e.g. XStatementAnalysisSqlSource),
         // so collect the submitted futures rather than adding to a shared
@@ -130,7 +131,7 @@ public class SqlEvidenceInputService {
                     String rowName = getRowName(sqlInput);
                     try {
                         currentlyProcessing.put(rowName, true);
-                        processRow(repository, sqlInput);
+                        processRow(repository, sqlInput, schema);
                     } catch (Exception e) {
                         if (e instanceof AvroMissingFieldException) {
                             missingFieldExceptions.add(e.toString());
@@ -195,7 +196,7 @@ public class SqlEvidenceInputService {
         return row.source().getSourceRef() + "#" + row.rank();
     }
 
-    private void processRow(SqlRepositoryBuilder repository, SqlInput toProcess) {
+    private void processRow(SqlRepositoryBuilder repository, SqlInput toProcess, SqlSchemaRepository schema) {
         MeteredSql row = toProcess.row();
         if (row.getQuery() == null) {
             // a few entries in the mysql export are null
@@ -264,7 +265,7 @@ public class SqlEvidenceInputService {
                     log.info("Parse time exceeded " + MAX_PARSE.toSeconds() + " second, aborting analysis");
                     builder.setAnalysisFailureReason("parse time exceeded " + MAX_PARSE.toSeconds() + " seconds");
                 } else {
-                    sqlAnalysisService.analyzeSql(query, builder);
+                    sqlAnalysisService.analyzeSql(query, builder, schema);
                 }
             } catch (JSQLParserException e) {
                 if (containsEof(e)) {

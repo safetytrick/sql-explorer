@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.statement.Statement;
@@ -31,7 +32,12 @@ public class SqlAnalysisService {
         this(Arrays.asList(analyzer), new SqlParser());
     }
 
+    /** Analyze with no schema context (resolution falls back to unsupported). */
     public void analyzeSql(String sql, SqlProfile.Builder builder) throws JSQLParserException {
+        analyzeSql(sql, builder, null);
+    }
+
+    public void analyzeSql(String sql, SqlProfile.Builder builder, SqlSchemaRepository schema) throws JSQLParserException {
 
         SqlParser.CleanedStatement cleanedStatement = sqlParser.parseSql(sql);
         builder.setTruncated(cleanedStatement.truncated());
@@ -40,7 +46,7 @@ public class SqlAnalysisService {
 
         for (SqlAnalyzer analyzer : analyzers) {
             try {
-                analyzer.analyze(statement, builder);
+                analyzer.analyze(statement, builder, schema);
             } catch (Exception e) {
                 builder.setAnalysisFailureReason("Failure on: " + analyzer.getClass().getSimpleName() + " message: " + getRootCauseMessage(e));
                 log.debug("Failure on: {}", analyzer.getClass().getSimpleName(), e);

@@ -25,25 +25,19 @@ import org.springframework.stereotype.Component;
 public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(JoinAcrossTypesAnalyzer.class);
 
-    private final SqlSchemaRepository sqlSchemaService;
-
-    public JoinAcrossTypesAnalyzer(SqlSchemaRepository sqlSchemaService) {
-        this.sqlSchemaService = sqlSchemaService;
-    }
-
     @Override
-    public void analyze(Statement statement, SqlProfile.Builder builder) {
-        List<JoinColumns> mismatchedJoins = mismatchedJoins(builder.getSchemaName(), builder.getJoinColumns());
+    public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schemaRepository) {
+        List<JoinColumns> mismatchedJoins = mismatchedJoins(schemaRepository, builder.getSchemaName(), builder.getJoinColumns());
         builder.setMismatchedJoins(mismatchedJoins);
     }
 
-    public List<JoinColumns> mismatchedJoins(String schema, List<JoinColumns> joinColumns) {
-        if (joinColumns == null) {
+    public List<JoinColumns> mismatchedJoins(SqlSchemaRepository schemaRepository, String schema, List<JoinColumns> joinColumns) {
+        if (schemaRepository == null || joinColumns == null) {
             return Collections.emptyList();
         }
         return joinColumns.stream()
             .map(joinPair -> {
-                if (doColumnTypesMatch(schema, joinPair.getLeft(), joinPair.getRight())) {
+                if (doColumnTypesMatch(schemaRepository, schema, joinPair.getLeft(), joinPair.getRight())) {
                     return null;
                 }
                 return joinPair;
@@ -52,9 +46,9 @@ public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
             .collect(Collectors.toList());
     }
 
-    private boolean doColumnTypesMatch(String schema, ColumnReference left, ColumnReference right) {
-        TableColumn leftColumn = getColumnFromReference(schema, left).orElse(null);
-        TableColumn rightColumn = getColumnFromReference(schema, right).orElse(null);
+    private boolean doColumnTypesMatch(SqlSchemaRepository schemaRepository, String schema, ColumnReference left, ColumnReference right) {
+        TableColumn leftColumn = getColumnFromReference(schemaRepository, schema, left).orElse(null);
+        TableColumn rightColumn = getColumnFromReference(schemaRepository, schema, right).orElse(null);
         if (leftColumn == null || rightColumn == null) {
             // todo report this as a general issue with the environment instead of just debug logging
             log.debug("Comparison may be incorrect, column definition not found: {}={} {}={}", left, leftColumn, right, rightColumn);
@@ -88,9 +82,9 @@ public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
         return false;
     }
 
-    private Optional<TableColumn> getColumnFromReference(String schema, ColumnReference reference) {
+    private Optional<TableColumn> getColumnFromReference(SqlSchemaRepository schemaRepository, String schema, ColumnReference reference) {
 
-        TableStructure table = sqlSchemaService.getTable(reference.getTable().withDefaultSchema(schema));
+        TableStructure table = schemaRepository.getTable(reference.getTable().withDefaultSchema(schema));
         if (table == null) {
             return Optional.empty();
         }
