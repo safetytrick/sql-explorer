@@ -36,6 +36,16 @@
         <a class="dropdown-item" routerLink="/admin/sources">Sources</a>
       </div>
     </li>
+    @if (environments.length > 0) {
+      <li class="nav-item">
+        <select class="nav-environment-select" title="Environment"
+                (change)="onEnvChange($any($event.target).value)">
+          @for (env of environments; track env.name) {
+            <option [value]="env.name" [selected]="env.name === current">{{env.name}}</option>
+          }
+        </select>
+      </li>
+    }
   </ul>
 
 

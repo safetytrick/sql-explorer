@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {SourceService} from '../source.service';
+import {EnvironmentService} from '../environment.service';
 import { MatSelectionList, MatListOption } from '@angular/material/list';
 import { DatePipe } from '@angular/common';
 
@@ -14,8 +15,11 @@ export class AdminSourceListComponent implements OnInit {
   sources!: Array<any>;
   active!: Array<any>;
   all!: Array<any>;
+  currentEnvironment: string | null;
 
-  constructor(private sourceService: SourceService) { }
+  constructor(private sourceService: SourceService, environmentService: EnvironmentService) {
+    this.currentEnvironment = environmentService.getCurrent();
+  }
 
   ngOnInit() {
     const activePromise = this.sourceService.getActiveSources()

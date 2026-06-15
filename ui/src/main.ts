@@ -4,7 +4,8 @@ import {environment} from './environments/environment';
 import {AnalyzedSqlService} from './app/analyzed-sql.service';
 import {MAT_SNACK_BAR_DEFAULT_OPTIONS, MatSnackBarModule} from '@angular/material/snack-bar';
 import {HIGHLIGHT_OPTIONS, HighlightModule} from 'ngx-highlightjs';
-import {provideHttpClient, withInterceptorsFromDi} from '@angular/common/http';
+import {provideHttpClient, withInterceptors, withInterceptorsFromDi} from '@angular/common/http';
+import {environmentInterceptor} from './app/environment.interceptor';
 import {provideRouter, Routes, withInMemoryScrolling} from '@angular/router';
 import {SchemaListComponent} from './app/schema-list/schema-list.component';
 import {TableNamesComponent} from './app/table-names/table-names.component';
@@ -190,7 +191,7 @@ bootstrapApplication(AppComponent, {
                 }
             }
         },
-        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClient(withInterceptorsFromDi(), withInterceptors([environmentInterceptor])),
         provideRouter(appRoutes, withInMemoryScrolling({
             // it would be nice to get this working: https://github.com/angular/angular/issues/24547
             scrollPositionRestoration: 'enabled',

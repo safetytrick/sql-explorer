@@ -1,3 +1,6 @@
+@if (currentEnvironment) {
+  <p>Managing sources for environment: <strong>{{currentEnvironment}}</strong></p>
+}
 <mat-selection-list #sourcesList>
   @for (source of all; track source) {
     <mat-list-option togglePosition="before" [selected]="isActive(source)" [value]="source.sourceRef">
