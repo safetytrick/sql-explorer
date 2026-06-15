@@ -157,4 +157,25 @@
 		</sql>
 	</changeSet>
 
+	<!--
+	  The original "create-source_ref" changeset was a no-op SELECT, so the
+	  source_ref table backing SourceRefEntity was never created. Create it now
+	  with environment_name (replacing the dropped environment_type concept).
+	-->
+	<changeSet id="create-source_ref-table" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><tableExists tableName="source_ref"/></not>
+		</preConditions>
+		<sql>
+			create table source_ref (
+				name             varchar(255) primary key not null,
+				environment_name varchar(255),
+				creator_id       int,
+				created_on       timestamp not null default current_timestamp,
+				foreign key (creator_id) references users (id)
+					on update cascade on delete restrict
+			);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

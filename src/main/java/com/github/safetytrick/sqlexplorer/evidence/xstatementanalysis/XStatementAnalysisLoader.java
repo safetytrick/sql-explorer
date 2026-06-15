@@ -4,10 +4,10 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
-import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
-import jakarta.annotation.PostConstruct;
+import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceProvider;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,31 +16,20 @@ import org.springframework.stereotype.Component;
 
 @ConditionalOnProperty(value="x-statement-analysis.enabled", havingValue = "true")
 @Component
-class XStatementAnalysisLoader {
+class XStatementAnalysisLoader implements SqlSourceProvider {
     private static final Logger log = LoggerFactory.getLogger(XStatementAnalysisLoader.class);
 
-    private final SqlRepositoryManager sqlRepositoryManager;
     private final XStatementAnalysisLoaderConfig config;
     private final Clock clock;
     @Inject
-    public XStatementAnalysisLoader(SqlRepositoryManager sqlRepositoryManager,
-                                    XStatementAnalysisLoaderConfig config,
+    public XStatementAnalysisLoader(XStatementAnalysisLoaderConfig config,
                                     Clock clock) {
-        this.sqlRepositoryManager = sqlRepositoryManager;
         this.config = config;
         this.clock = clock;
     }
 
-    @PostConstruct
-    public void initialize() {
-        if (!config.isEnabled()) {
-            throw new IllegalArgumentException("XStatementAnalysisLoader is not enabled");
-        }
-
-        sqlRepositoryManager.loadFromSqlSources(getSqlSources().parallelStream());
-    }
-
-    private List<SqlSource> getSqlSources() {
+    @Override
+    public Stream<? extends SqlSource> sqlSources() {
         List<SqlSource> result = new ArrayList<>();
         for (Map.Entry<String, MySqlStatementAnalysisHost> hostEntry : config.getHosts().entrySet()) {
             MySqlStatementAnalysisHost host = hostEntry.getValue();
@@ -54,6 +43,6 @@ class XStatementAnalysisLoader {
 
             result.add(sqlSource);
         }
-        return result;
+        return result.stream();
     }
 }

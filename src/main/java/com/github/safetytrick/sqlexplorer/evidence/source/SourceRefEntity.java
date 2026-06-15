@@ -5,8 +5,6 @@ import java.time.Instant;
 import com.github.safetytrick.sqlexplorer.auth.User;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -23,8 +21,8 @@ class SourceRefEntity {
     @Id
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    private EnvironmentType environmentType;
+    /** Name of the environment this source belongs to (see docs/DATA_ENVIRONMENTS.md). */
+    private String environmentName;
 
     @ManyToOne
     private User creator;

@@ -36,6 +36,11 @@ public final class Environment implements AutoCloseable {
             .toList());
     }
 
+    /** Drop each server's cached schema so the next access reloads it. */
+    public void refreshSchema() {
+        servers.forEach(DatabaseServer::refreshSchema);
+    }
+
     @Override
     public void close() {
         servers.forEach(DatabaseServer::close);

@@ -16,12 +16,12 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceEntity;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceEntityService;
-import jakarta.annotation.PostConstruct;
+import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,20 +30,18 @@ import org.springframework.stereotype.Component;
 
 @ConditionalOnProperty(value = "performance-schema-file-loader.enabled", havingValue = "true")
 @Component
-class PerformanceSchemaFileLoader {
+class PerformanceSchemaFileLoader implements SqlSourceProvider {
 
     private static final Logger log = LoggerFactory.getLogger(PerformanceSchemaFileLoader.class);
 
 
-    private final SqlRepositoryManager sqlRepositoryManager;
     private final PerformanceSchemaFileLoaderConfig config;
     private final SqlSourceEntityService sqlSourceEntityService;
     private final DateTimeFormatter dateTimeFormatter;
     private final Pattern filePattern;
 
-    public PerformanceSchemaFileLoader(SqlRepositoryManager sqlRepositoryManager,
-                                       PerformanceSchemaFileLoaderConfig config, SqlSourceEntityService sqlSourceEntityService) {
-        this.sqlRepositoryManager = sqlRepositoryManager;
+    public PerformanceSchemaFileLoader(PerformanceSchemaFileLoaderConfig config,
+                                       SqlSourceEntityService sqlSourceEntityService) {
         this.config = config;
         this.filePattern = Pattern.compile(config.getPattern(), Pattern.CASE_INSENSITIVE);
 
@@ -52,9 +50,9 @@ class PerformanceSchemaFileLoader {
     }
 
 
-    @PostConstruct
-    public void initialize() {
-        log.info("Initialized file loader with: {}", config.getDirectory());
+    @Override
+    public Stream<? extends SqlSource> sqlSources() {
+        log.info("Scanning for performance-schema files in: {}", config.getDirectory());
 
         List<? extends AbstractTsvSqlSource> sqlSources = getSqlSources();
         for (AbstractTsvSqlSource sqlSource : sqlSources) {
@@ -62,7 +60,7 @@ class PerformanceSchemaFileLoader {
             log.info("Found file: {} first loaded on: {}", sqlSourceEntity.getSourceUrl(), sqlSourceEntity.getCreatedOn());
         }
 
-        sqlRepositoryManager.loadFromSqlSources(sqlSources.parallelStream());
+        return sqlSources.stream();
     }
 
 
