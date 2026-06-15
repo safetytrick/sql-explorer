@@ -1,14 +1,6 @@
 server:
   port: 18180
 
-environments:
-  staging:
-    servers:
-      staging-db-primary:
-        jdbcUrl: "jdbc:mysql://${DB_HOST}:3306"
-        sources:
-          - type: x-statement-analysis
-
 datasources:
   explorer:
     jdbcUrl: "jdbc:mysql://localhost:3999/explorer"

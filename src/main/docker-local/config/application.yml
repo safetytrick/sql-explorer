@@ -1,9 +1,10 @@
 # this config file should contain non-secret environment specific configuration (visible to both development and devops)
 
+
 environments:
-  staging:
+  regression:
     servers:
-      staging-db-primary:
+      primary:
         jdbcUrl: "jdbc:mysql://${DB_HOST}:3306"
         sources:
           - type: x-statement-analysis
