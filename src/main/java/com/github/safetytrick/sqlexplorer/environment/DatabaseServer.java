@@ -1,6 +1,7 @@
 package com.github.safetytrick.sqlexplorer.environment;
 
 import javax.sql.DataSource;
+import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
@@ -10,25 +11,37 @@ import com.zaxxer.hikari.HikariDataSource;
 /**
  * One MySQL server inside an {@link Environment}. Owns its connection pool and
  * the schema loaded from it; both are built lazily on first use so the
- * application can start without reaching any metadata database.
+ * application can start without reaching any metadata database. Also carries
+ * the {@link SourceDefinition}s describing what SQL to ingest from it.
  */
 public final class DatabaseServer implements AutoCloseable {
 
     private final String name;
     private final ConnectionInfo connectionInfo;
+    private final List<SourceDefinition> sourceDefinitions;
     private final SchemaRepositoryFactory schemaRepositoryFactory;
 
     private HikariDataSource dataSource;
     private SqlSchemaRepository schemaRepository;
 
-    public DatabaseServer(String name, ConnectionInfo connectionInfo, SchemaRepositoryFactory schemaRepositoryFactory) {
+    public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
+                          SchemaRepositoryFactory schemaRepositoryFactory) {
         this.name = name;
         this.connectionInfo = connectionInfo;
+        this.sourceDefinitions = List.copyOf(sourceDefinitions);
         this.schemaRepositoryFactory = schemaRepositoryFactory;
     }
 
     public String getName() {
         return name;
+    }
+
+    public ConnectionInfo getConnectionInfo() {
+        return connectionInfo;
+    }
+
+    public List<SourceDefinition> getSourceDefinitions() {
+        return sourceDefinitions;
     }
 
     public synchronized DataSource getDataSource() {

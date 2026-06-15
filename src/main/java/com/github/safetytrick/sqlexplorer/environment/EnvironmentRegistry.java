@@ -40,7 +40,8 @@ public class EnvironmentRegistry {
             ConnectionInfo connectionInfo = new ConnectionInfo(legacyMetadata.getJdbcUrl(),
                 legacyMetadata.getUsername(),
                 legacyMetadata.getPassword());
-            DatabaseServer server = new DatabaseServer(DEFAULT_ENVIRONMENT, connectionInfo, schemaRepositoryFactory);
+            // legacy fallback provides a connection (for schema) but no sources
+            DatabaseServer server = new DatabaseServer(DEFAULT_ENVIRONMENT, connectionInfo, List.of(), schemaRepositoryFactory);
             environments.put(DEFAULT_ENVIRONMENT, new Environment(DEFAULT_ENVIRONMENT, List.of(server)));
             this.defaultEnvironmentName = DEFAULT_ENVIRONMENT;
         }
@@ -53,7 +54,7 @@ public class EnvironmentRegistry {
         for (Map.Entry<String, ServerDefinition> serverEntry : definition.getServers().entrySet()) {
             ServerDefinition server = serverEntry.getValue();
             ConnectionInfo connectionInfo = new ConnectionInfo(server.getJdbcUrl(), server.getUsername(), server.getPassword());
-            servers.add(new DatabaseServer(serverEntry.getKey(), connectionInfo, schemaRepositoryFactory));
+            servers.add(new DatabaseServer(serverEntry.getKey(), connectionInfo, server.getSources(), schemaRepositoryFactory));
         }
         return new Environment(name, servers);
     }

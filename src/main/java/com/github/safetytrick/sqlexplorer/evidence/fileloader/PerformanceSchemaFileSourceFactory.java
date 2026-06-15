@@ -9,7 +9,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -18,80 +17,82 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.environment.DatabaseServer;
+import com.github.safetytrick.sqlexplorer.environment.SourceDefinition;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceEntity;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceEntityService;
-import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceProvider;
+import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Component;
 
-@ConditionalOnProperty(value = "performance-schema-file-loader.enabled", havingValue = "true")
+/**
+ * Reads performance-schema export TSV files from a directory. Configured as
+ * {@code - type: performance-schema-files} with {@code directory},
+ * {@code pattern} (a regex with {@code id} and {@code date} groups), and
+ * {@code dateFormat} under a server's sources. Each file is persisted as a
+ * {@link SqlSourceEntity} before being returned for loading.
+ */
 @Component
-class PerformanceSchemaFileLoader implements SqlSourceProvider {
+class PerformanceSchemaFileSourceFactory implements SqlSourceFactory {
 
-    private static final Logger log = LoggerFactory.getLogger(PerformanceSchemaFileLoader.class);
+    static final String TYPE = "performance-schema-files";
 
+    private static final Logger log = LoggerFactory.getLogger(PerformanceSchemaFileSourceFactory.class);
 
-    private final PerformanceSchemaFileLoaderConfig config;
     private final SqlSourceEntityService sqlSourceEntityService;
-    private final DateTimeFormatter dateTimeFormatter;
-    private final Pattern filePattern;
 
-    public PerformanceSchemaFileLoader(PerformanceSchemaFileLoaderConfig config,
-                                       SqlSourceEntityService sqlSourceEntityService) {
-        this.config = config;
-        this.filePattern = Pattern.compile(config.getPattern(), Pattern.CASE_INSENSITIVE);
-
-        this.dateTimeFormatter = DateTimeFormatter.ofPattern(config.getDateFormat());
+    PerformanceSchemaFileSourceFactory(SqlSourceEntityService sqlSourceEntityService) {
         this.sqlSourceEntityService = sqlSourceEntityService;
     }
 
+    @Override
+    public String type() {
+        return TYPE;
+    }
 
     @Override
-    public Stream<? extends SqlSource> sqlSources() {
-        log.info("Scanning for performance-schema files in: {}", config.getDirectory());
-
-        List<? extends AbstractTsvSqlSource> sqlSources = getSqlSources();
-        for (AbstractTsvSqlSource sqlSource : sqlSources) {
-            SqlSourceEntity sqlSourceEntity = sqlSourceEntityService.saveSqlSource(sqlSource);
-            log.info("Found file: {} first loaded on: {}", sqlSourceEntity.getSourceUrl(), sqlSourceEntity.getCreatedOn());
+    public Stream<? extends SqlSource> create(DatabaseServer server, SourceDefinition definition) {
+        if (definition.getDirectory() == null || definition.getPattern() == null || definition.getDateFormat() == null) {
+            throw new PerformanceSchemaFileLoaderConfigException(
+                "performance-schema-files source requires directory, pattern and dateFormat");
         }
+        Pattern filePattern = Pattern.compile(definition.getPattern(), Pattern.CASE_INSENSITIVE);
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(definition.getDateFormat());
 
+        log.info("Scanning for performance-schema files in: {}", definition.getDirectory());
+        List<FileSqlSource> sqlSources = scan(definition.getDirectory(), filePattern, dateTimeFormatter);
+        for (FileSqlSource sqlSource : sqlSources) {
+            SqlSourceEntity entity = sqlSourceEntityService.saveSqlSource(sqlSource);
+            log.info("Found file: {} first loaded on: {}", entity.getSourceUrl(), entity.getCreatedOn());
+        }
         return sqlSources.stream();
     }
 
-
-    private List<? extends AbstractTsvSqlSource> getSqlSources() throws PerformanceSchemaFileLoaderConfigException {
-        if (!config.isEnabled()) {
-            return Collections.emptyList();
-        }
-
-        File directory = new File(config.getDirectory());
-
+    private List<FileSqlSource> scan(String directoryPath, Pattern filePattern, DateTimeFormatter dateTimeFormatter) {
+        File directory = new File(directoryPath);
         File[] matchingFiles = directory.listFiles(file -> file.isFile() && filePattern.matcher(file.getName()).matches());
         if (matchingFiles == null) {
-            throw new PerformanceSchemaFileLoaderConfigException("Invalid directory: " + config.getDirectory());
+            throw new PerformanceSchemaFileLoaderConfigException("Invalid directory: " + directoryPath);
         }
 
-        return Arrays.stream(matchingFiles).map(this::mapFileToSource)
+        return Arrays.stream(matchingFiles)
+            .map(file -> mapFileToSource(file, filePattern, dateTimeFormatter))
             .collect(Collectors.groupingBy(SqlSource::getSourceRef))
             .values()
             .stream().map(list -> list.stream().max(Comparator.comparing(SqlSource::getCreatedOn)))
             .flatMap(Optional::stream)
             .collect(Collectors.toList());
-
     }
 
-    private FileSqlSource mapFileToSource(File file) throws PerformanceSchemaFileLoaderConfigException {
+    private FileSqlSource mapFileToSource(File file, Pattern filePattern, DateTimeFormatter dateTimeFormatter) {
         Matcher matcher = filePattern.matcher(file.getName());
 
         if (!matcher.matches()) {
             throw new IllegalArgumentException("All input files should match the file regex.");
         }
-
 
         String id = matcher.group("id");
         Instant createdOn = null;
@@ -114,11 +115,9 @@ class PerformanceSchemaFileLoader implements SqlSourceProvider {
         return new FileSqlSource(id, new FileSystemResource(file), createdOn);
     }
 
-
-    public static class PerformanceSchemaFileLoaderConfigException extends RuntimeException {
-        public PerformanceSchemaFileLoaderConfigException(String message) {
+    static class PerformanceSchemaFileLoaderConfigException extends RuntimeException {
+        PerformanceSchemaFileLoaderConfigException(String message) {
             super(message);
         }
     }
-
 }
