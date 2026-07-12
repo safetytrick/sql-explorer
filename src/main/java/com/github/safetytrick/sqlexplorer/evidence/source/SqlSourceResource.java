@@ -8,6 +8,7 @@ import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
+import com.github.safetytrick.sqlexplorer.evidence.EnvironmentLoader;
 import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.ImportedSqlSource;
@@ -35,15 +36,18 @@ import static org.springframework.web.servlet.mvc.method.annotation.MvcUriCompon
 class SqlSourceResource {
 
     private final SqlRepositoryManager sqlRepositoryManager;
+    private final EnvironmentLoader environmentLoader;
     private final EnvironmentContext environmentContext;
     private final EnvironmentRegistry environmentRegistry;
     private final SqlSourceEntityRepository sqlSourceEntityRepository;
     private final SqlSourceEntityService sqlSourceEntityService;
 
-    SqlSourceResource(SqlRepositoryManager sqlRepositoryManager, EnvironmentContext environmentContext,
+    SqlSourceResource(SqlRepositoryManager sqlRepositoryManager, EnvironmentLoader environmentLoader,
+                      EnvironmentContext environmentContext,
                       EnvironmentRegistry environmentRegistry,
                       SqlSourceEntityRepository sqlSourceEntityRepository, SqlSourceEntityService sqlSourceEntityService) {
         this.sqlRepositoryManager = sqlRepositoryManager;
+        this.environmentLoader = environmentLoader;
         this.environmentContext = environmentContext;
         this.environmentRegistry = environmentRegistry;
         this.sqlSourceEntityRepository = sqlSourceEntityRepository;
@@ -106,22 +110,25 @@ class SqlSourceResource {
 
     @PostMapping("/sources/load")
     public SqlImportStats reloadSources(@RequestBody(required = false) List<SourceRefRequest> sourceParam) {
-        return sqlRepositoryManager.loadFromSqlSources(environmentContext.current().getName(), resolveSources(sourceParam));
+        return environmentLoader.load(environmentContext.current().getName(), resolveSources(sourceParam));
     }
 
-    /** Load persisted sources into a specific environment (independent of the request's selection). */
+    /** Load configured + persisted sources into a specific environment (independent of the request's selection). */
     @PostMapping("/environments/{name}/load")
     public SqlImportStats loadEnvironment(@PathVariable String name,
                                           @RequestBody(required = false) List<SourceRefRequest> sourceParam) {
         if (environmentRegistry.get(name) == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown environment: " + name);
         }
-        return sqlRepositoryManager.loadFromSqlSources(name, resolveSources(sourceParam));
+        return environmentLoader.load(name, resolveSources(sourceParam));
     }
 
-    /** Resolve the latest persisted source for each requested ref (all refs when none given). */
+    /**
+     * Resolve the latest persisted source for each requested ref (all refs when none given).
+     * The environment's configured sources (x-statement-analysis, performance-schema files)
+     * are added by {@link EnvironmentLoader#load}.
+     */
     private Stream<SqlSource> resolveSources(List<SourceRefRequest> sourceParam) {
-        // todo, this doesn't include XStatementAnalysis sources (they are not persisted as SqlSourceEntity)
         List<? extends SourceRefProjection> sources;
         if (sourceParam == null || sourceParam.isEmpty()) {
             sources = sqlSourceEntityRepository.findDistinctBy();

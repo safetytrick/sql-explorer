@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.environment.DatabaseServer;
 import com.github.safetytrick.sqlexplorer.environment.Environment;
@@ -49,6 +50,28 @@ public class EnvironmentLoader {
 
     /** Build every configured source for the named environment and load them together. */
     public SqlImportStats loadConfiguredSources(String environmentName) {
+        return load(environmentName, Stream.empty());
+    }
+
+    /**
+     * Load the environment's configured sources together with the given extra sources
+     * (e.g. persisted uploads). Loading replaces the environment's repositories, so the
+     * configured sources must be part of every load or they would be dropped.
+     */
+    public SqlImportStats load(String environmentName, Stream<? extends SqlSource> extraSources) {
+        List<SqlSource> sources = buildConfiguredSources(environmentName);
+        List<SqlSource> all = Stream.concat(sources.stream(), extraSources).toList();
+
+        if (all.isEmpty()) {
+            log.info("No sources for environment {}; nothing to load", environmentName);
+            return SqlImportStats.builder().build();
+        }
+        log.info("Loading {} source(s) into environment {} ({} configured)",
+            all.size(), environmentName, sources.size());
+        return sqlRepositoryManager.loadFromSqlSources(environmentName, all.stream());
+    }
+
+    private List<SqlSource> buildConfiguredSources(String environmentName) {
         Environment environment = environmentRegistry.get(environmentName);
         List<SqlSource> sources = new ArrayList<>();
         for (DatabaseServer server : environment.getServers()) {
@@ -61,12 +84,6 @@ public class EnvironmentLoader {
                 factory.create(server, definition).forEach(sources::add);
             }
         }
-
-        if (sources.isEmpty()) {
-            log.info("No configured sources for environment {}; nothing to load", environmentName);
-            return SqlImportStats.builder().build();
-        }
-        log.info("Loading {} configured source(s) into environment {}", sources.size(), environmentName);
-        return sqlRepositoryManager.loadFromSqlSources(environmentName, sources.stream());
+        return sources;
     }
 }
