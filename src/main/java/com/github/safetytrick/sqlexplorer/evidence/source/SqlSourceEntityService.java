@@ -86,11 +86,13 @@ public class SqlSourceEntityService {
     }
 
     /**
-     * Attribute the source ref to the environment it was saved under. The most
-     * recent save wins so a ref can be moved by re-uploading under another
-     * environment; unattributed (legacy) refs stay loadable into any environment.
+     * Attribute the source ref to an environment. The most recent save wins so
+     * a ref can be moved by re-uploading under another environment. Also called
+     * when an unattributed (legacy) ref is encountered, to pin it to the
+     * default environment.
      */
-    private void attributeSourceRef(String sourceRef, String environmentName) {
+    @CacheEvict(value = "sourceref", allEntries = true)
+    public void attributeSourceRef(String sourceRef, String environmentName) {
         SourceRefEntity ref = sourceRefEntityRepository.findById(sourceRef).orElseGet(() -> {
             SourceRefEntity created = new SourceRefEntity();
             created.setName(sourceRef);

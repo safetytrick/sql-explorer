@@ -27,6 +27,7 @@ class SqlSourceResourceTest {
 
     private SqlSourceEntityRepository sqlSourceEntityRepository;
     private SourceRefEntityRepository sourceRefEntityRepository;
+    private SqlSourceEntityService sqlSourceEntityService;
     private EnvironmentLoader environmentLoader;
     private EnvironmentRegistry environmentRegistry;
     private EnvironmentContext environmentContext;
@@ -36,14 +37,16 @@ class SqlSourceResourceTest {
     void setUp() {
         sqlSourceEntityRepository = mock(SqlSourceEntityRepository.class);
         sourceRefEntityRepository = mock(SourceRefEntityRepository.class);
+        sqlSourceEntityService = mock(SqlSourceEntityService.class);
         environmentLoader = mock(EnvironmentLoader.class);
         environmentRegistry = mock(EnvironmentRegistry.class);
         environmentContext = mock(EnvironmentContext.class);
         resource = new SqlSourceResource(mock(SqlRepositoryManager.class), environmentLoader,
             environmentContext, environmentRegistry,
-            sqlSourceEntityRepository, sourceRefEntityRepository, mock(SqlSourceEntityService.class));
+            sqlSourceEntityRepository, sourceRefEntityRepository, sqlSourceEntityService);
 
         // persisted uploads: "mine" attributed to prod, "theirs" to staging, "legacy" unattributed
+        when(environmentRegistry.getDefaultName()).thenReturn("staging");
         when(sqlSourceEntityRepository.findDistinctBy()).thenReturn(List.of(
             new SourceRefRequest("mine"), new SourceRefRequest("theirs"), new SourceRefRequest("legacy")));
         when(sourceRefEntityRepository.findAll()).thenReturn(List.of(
@@ -54,12 +57,22 @@ class SqlSourceResourceTest {
     }
 
     @Test
-    void loadWithoutBodyLoadsAttributedAndUnattributedRefs() {
+    void loadWithoutBodyLoadsOnlyTheEnvironmentsRefs() {
         when(environmentRegistry.get("prod")).thenReturn(new Environment("prod", List.of()));
 
         resource.loadEnvironment("prod", null);
 
-        assertThat(loadedSourceRefs("prod")).containsExactly("mine", "legacy");
+        assertThat(loadedSourceRefs("prod")).containsExactly("mine");
+    }
+
+    @Test
+    void unattributedRefsArePinnedToTheDefaultEnvironmentOnFirstEncounter() {
+        when(environmentContext.current()).thenReturn(new Environment("staging", List.of()));
+
+        resource.reloadSources(null);
+
+        verify(sqlSourceEntityService).attributeSourceRef("legacy", "staging");
+        assertThat(loadedSourceRefs("staging")).containsExactly("theirs", "legacy");
     }
 
     @Test
@@ -95,7 +108,7 @@ class SqlSourceResourceTest {
         List<String> listed = resource.listPersistentImportedSqlSources()
             .map(SqlSourceEntity::getSourceRef).toList();
 
-        assertThat(listed).containsExactly("legacy", "mine");
+        assertThat(listed).containsExactly("mine");
     }
 
     private List<String> loadedSourceRefs(String environmentName) {

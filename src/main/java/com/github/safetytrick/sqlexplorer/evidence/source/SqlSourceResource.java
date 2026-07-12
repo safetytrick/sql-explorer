@@ -90,7 +90,7 @@ class SqlSourceResource {
             .sorted(Comparator.comparing(source -> source.getImportStats().count()));
     }
 
-    /** Persisted sources attributed to the request's environment (or to none). */
+    /** Persisted sources attributed to the request's environment. */
     @GetMapping("/sources")
     public Stream<SqlSourceEntity> listPersistentImportedSqlSources() {
         return sourceRefsForEnvironment(environmentContext.current().getName()).stream()
@@ -133,10 +133,10 @@ class SqlSourceResource {
 
     /**
      * Resolve the latest persisted source for each requested ref. When no refs are
-     * given, all refs attributed to the environment (or to none — legacy uploads)
-     * are used; explicitly requested refs are honored regardless of attribution.
-     * The environment's configured sources (x-statement-analysis, performance-schema
-     * files) are added by {@link EnvironmentLoader#load}.
+     * given, all refs attributed to the environment are used; explicitly requested
+     * refs are honored regardless of attribution. The environment's configured
+     * sources (x-statement-analysis, performance-schema files) are added by
+     * {@link EnvironmentLoader#load}.
      */
     private Stream<SqlSource> resolveSources(String environmentName, List<SourceRefRequest> sourceParam) {
         List<? extends SourceRefProjection> sources;
@@ -150,15 +150,24 @@ class SqlSourceResource {
         ).flatMap(Optional::stream);
     }
 
-    /** Persisted source refs attributed to the environment, plus unattributed (legacy) refs. */
+    /**
+     * Persisted source refs attributed to the environment. Unattributed (legacy)
+     * refs belong to the default environment; encountering one persists that
+     * attribution.
+     */
     private List<SourceRefProjection> sourceRefsForEnvironment(String environmentName) {
+        String defaultEnvironment = environmentRegistry.getDefaultName();
         Map<String, String> attribution = new HashMap<>();
         sourceRefEntityRepository.findAll()
                 .forEach(ref -> attribution.put(ref.getName(), ref.getEnvironmentName()));
         return sqlSourceEntityRepository.findDistinctBy().stream()
                 .filter(ref -> {
                     String attributedTo = attribution.get(ref.getSourceRef());
-                    return attributedTo == null || attributedTo.equals(environmentName);
+                    if (attributedTo == null) {
+                        sqlSourceEntityService.attributeSourceRef(ref.getSourceRef(), defaultEnvironment);
+                        attributedTo = defaultEnvironment;
+                    }
+                    return attributedTo.equals(environmentName);
                 })
                 .collect(Collectors.toList());
     }
