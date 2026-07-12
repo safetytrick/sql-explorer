@@ -31,7 +31,7 @@ class XStatementAnalysisSourceFactory implements SqlSourceFactory {
     }
 
     @Override
-    public Stream<? extends SqlSource> create(DatabaseServer server, SourceDefinition definition) {
+    public Stream<? extends SqlSource> create(String environmentName, DatabaseServer server, SourceDefinition definition) {
         ConnectionInfo connection = server.getConnectionInfo();
         return Stream.of(new XStatementAnalysisSqlSource(server.getName(),
             connection.jdbcUrl(),

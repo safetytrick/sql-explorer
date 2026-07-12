@@ -131,7 +131,7 @@ class EnvironmentLoaderTest {
 
     private record StubSourceFactory(String type, SqlSource source) implements SqlSourceFactory {
         @Override
-        public Stream<? extends SqlSource> create(DatabaseServer server, SourceDefinition definition) {
+        public Stream<? extends SqlSource> create(String environmentName, DatabaseServer server, SourceDefinition definition) {
             return Stream.of(source);
         }
     }

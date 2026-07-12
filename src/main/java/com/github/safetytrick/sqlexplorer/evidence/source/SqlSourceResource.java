@@ -2,8 +2,11 @@ package com.github.safetytrick.sqlexplorer.evidence.source;
 
 import java.sql.SQLException;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
@@ -40,17 +43,21 @@ class SqlSourceResource {
     private final EnvironmentContext environmentContext;
     private final EnvironmentRegistry environmentRegistry;
     private final SqlSourceEntityRepository sqlSourceEntityRepository;
+    private final SourceRefEntityRepository sourceRefEntityRepository;
     private final SqlSourceEntityService sqlSourceEntityService;
 
     SqlSourceResource(SqlRepositoryManager sqlRepositoryManager, EnvironmentLoader environmentLoader,
                       EnvironmentContext environmentContext,
                       EnvironmentRegistry environmentRegistry,
-                      SqlSourceEntityRepository sqlSourceEntityRepository, SqlSourceEntityService sqlSourceEntityService) {
+                      SqlSourceEntityRepository sqlSourceEntityRepository,
+                      SourceRefEntityRepository sourceRefEntityRepository,
+                      SqlSourceEntityService sqlSourceEntityService) {
         this.sqlRepositoryManager = sqlRepositoryManager;
         this.environmentLoader = environmentLoader;
         this.environmentContext = environmentContext;
         this.environmentRegistry = environmentRegistry;
         this.sqlSourceEntityRepository = sqlSourceEntityRepository;
+        this.sourceRefEntityRepository = sourceRefEntityRepository;
         this.sqlSourceEntityService = sqlSourceEntityService;
     }
 
@@ -83,12 +90,11 @@ class SqlSourceResource {
             .sorted(Comparator.comparing(source -> source.getImportStats().count()));
     }
 
+    /** Persisted sources attributed to the request's environment (or to none). */
     @GetMapping("/sources")
     public Stream<SqlSourceEntity> listPersistentImportedSqlSources() {
-        List<SourceRefProjection> pairs = sqlSourceEntityRepository.findDistinctBy();
-        return pairs.stream().map(ref ->
-                    sqlSourceEntityRepository.findLatestBySourceRef(ref.getSourceRef())
-                )
+        return sourceRefsForEnvironment(environmentContext.current().getName()).stream()
+                .map(ref -> sqlSourceEntityRepository.findLatestBySourceRef(ref.getSourceRef()))
                 .flatMap(Optional::stream)
                 .sorted(Comparator.comparing(SqlSourceEntity::getSourceRef));
     }
@@ -101,7 +107,8 @@ class SqlSourceResource {
 
         SqlSourceEntity entity = sqlSourceEntityService.saveUploadedSqlSource(body.sourceRef(),
                 sourceUrl,
-                body.file().getResource());
+                body.file().getResource(),
+                environmentContext.current().getName());
 
         UriComponents uriComponents = MvcUriComponentsBuilder.fromMethodCall(on(SqlSourceResource.class).getSqlSource(entity.getId())).buildAndExpand(1);
 
@@ -110,7 +117,8 @@ class SqlSourceResource {
 
     @PostMapping("/sources/load")
     public SqlImportStats reloadSources(@RequestBody(required = false) List<SourceRefRequest> sourceParam) {
-        return environmentLoader.load(environmentContext.current().getName(), resolveSources(sourceParam));
+        String environmentName = environmentContext.current().getName();
+        return environmentLoader.load(environmentName, resolveSources(environmentName, sourceParam));
     }
 
     /** Load configured + persisted sources into a specific environment (independent of the request's selection). */
@@ -120,24 +128,39 @@ class SqlSourceResource {
         if (environmentRegistry.get(name) == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown environment: " + name);
         }
-        return environmentLoader.load(name, resolveSources(sourceParam));
+        return environmentLoader.load(name, resolveSources(name, sourceParam));
     }
 
     /**
-     * Resolve the latest persisted source for each requested ref (all refs when none given).
-     * The environment's configured sources (x-statement-analysis, performance-schema files)
-     * are added by {@link EnvironmentLoader#load}.
+     * Resolve the latest persisted source for each requested ref. When no refs are
+     * given, all refs attributed to the environment (or to none — legacy uploads)
+     * are used; explicitly requested refs are honored regardless of attribution.
+     * The environment's configured sources (x-statement-analysis, performance-schema
+     * files) are added by {@link EnvironmentLoader#load}.
      */
-    private Stream<SqlSource> resolveSources(List<SourceRefRequest> sourceParam) {
+    private Stream<SqlSource> resolveSources(String environmentName, List<SourceRefRequest> sourceParam) {
         List<? extends SourceRefProjection> sources;
         if (sourceParam == null || sourceParam.isEmpty()) {
-            sources = sqlSourceEntityRepository.findDistinctBy();
+            sources = sourceRefsForEnvironment(environmentName);
         } else {
             sources = sourceParam;
         }
         return sources.stream().map(ref ->
                 sqlSourceEntityRepository.findLatestBySourceRef(ref.getSourceRef())
         ).flatMap(Optional::stream);
+    }
+
+    /** Persisted source refs attributed to the environment, plus unattributed (legacy) refs. */
+    private List<SourceRefProjection> sourceRefsForEnvironment(String environmentName) {
+        Map<String, String> attribution = new HashMap<>();
+        sourceRefEntityRepository.findAll()
+                .forEach(ref -> attribution.put(ref.getName(), ref.getEnvironmentName()));
+        return sqlSourceEntityRepository.findDistinctBy().stream()
+                .filter(ref -> {
+                    String attributedTo = attribution.get(ref.getSourceRef());
+                    return attributedTo == null || attributedTo.equals(environmentName);
+                })
+                .collect(Collectors.toList());
     }
 
 

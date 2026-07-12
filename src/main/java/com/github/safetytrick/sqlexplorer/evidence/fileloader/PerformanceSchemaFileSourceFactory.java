@@ -54,7 +54,7 @@ class PerformanceSchemaFileSourceFactory implements SqlSourceFactory {
     }
 
     @Override
-    public Stream<? extends SqlSource> create(DatabaseServer server, SourceDefinition definition) {
+    public Stream<? extends SqlSource> create(String environmentName, DatabaseServer server, SourceDefinition definition) {
         if (definition.getDirectory() == null || definition.getPattern() == null || definition.getDateFormat() == null) {
             throw new PerformanceSchemaFileLoaderConfigException(
                 "performance-schema-files source requires directory, pattern and dateFormat");
@@ -65,7 +65,7 @@ class PerformanceSchemaFileSourceFactory implements SqlSourceFactory {
         log.info("Scanning for performance-schema files in: {}", definition.getDirectory());
         List<FileSqlSource> sqlSources = scan(definition.getDirectory(), filePattern, dateTimeFormatter);
         for (FileSqlSource sqlSource : sqlSources) {
-            SqlSourceEntity entity = sqlSourceEntityService.saveSqlSource(sqlSource);
+            SqlSourceEntity entity = sqlSourceEntityService.saveSqlSource(sqlSource, environmentName);
             log.info("Found file: {} first loaded on: {}", entity.getSourceUrl(), entity.getCreatedOn());
         }
         return sqlSources.stream();

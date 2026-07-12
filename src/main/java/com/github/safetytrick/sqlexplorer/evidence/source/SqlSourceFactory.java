@@ -15,5 +15,5 @@ public interface SqlSourceFactory {
 
     String type();
 
-    Stream<? extends SqlSource> create(DatabaseServer server, SourceDefinition definition);
+    Stream<? extends SqlSource> create(String environmentName, DatabaseServer server, SourceDefinition definition);
 }

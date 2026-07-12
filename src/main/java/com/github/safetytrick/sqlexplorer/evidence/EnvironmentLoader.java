@@ -81,7 +81,7 @@ public class EnvironmentLoader {
                     throw new IllegalArgumentException("Unknown source type '" + definition.getType()
                         + "' on server " + server.getName());
                 }
-                factory.create(server, definition).forEach(sources::add);
+                factory.create(environmentName, server, definition).forEach(sources::add);
             }
         }
         return sources;
