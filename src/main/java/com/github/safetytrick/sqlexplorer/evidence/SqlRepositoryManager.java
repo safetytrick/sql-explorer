@@ -1,5 +1,7 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,12 +26,15 @@ public class SqlRepositoryManager {
 
     private final SqlEvidenceInputService sqlEvidenceInputService;
     private final EnvironmentRegistry environmentRegistry;
+    private final Clock clock;
     private final Map<String, EnvironmentRepositories> byEnvironment = new ConcurrentHashMap<>();
 
     public SqlRepositoryManager(SqlEvidenceInputService sqlEvidenceInputService,
-                                EnvironmentRegistry environmentRegistry) {
+                                EnvironmentRegistry environmentRegistry,
+                                Clock clock) {
         this.sqlEvidenceInputService = sqlEvidenceInputService;
         this.environmentRegistry = environmentRegistry;
+        this.clock = clock;
     }
 
     public SqlRepository getSqlRepository(String environmentName) {
@@ -38,6 +43,17 @@ public class SqlRepositoryManager {
 
     public List<SqlRepository> getRepositories(String environmentName) {
         return byEnvironment.getOrDefault(environmentName, EnvironmentRepositories.EMPTY).repositories();
+    }
+
+    /** Load state for the environment, or {@code null} when nothing has been loaded into it. */
+    public LoadState getLoadState(String environmentName) {
+        EnvironmentRepositories repositories = byEnvironment.get(environmentName);
+        if (repositories == null) {
+            return null;
+        }
+        return new LoadState(repositories.repositories().size(),
+            repositories.loadedOn(),
+            repositories.composite().getImportStats());
     }
 
     /** Load into the default environment (used by the startup loaders). */
@@ -55,15 +71,18 @@ public class SqlRepositoryManager {
         }).toList();
 
         byEnvironment.put(environmentName, new EnvironmentRepositories(List.copyOf(repositories),
-            new CompositeSqlRepository(repositories)));
+            new CompositeSqlRepository(repositories), clock.instant()));
 
         SqlImportStats stats = getSqlRepository(environmentName).getImportStats();
         log.info("Import stats for environment {}: {}", environmentName, stats);
         return stats;
     }
 
-    private record EnvironmentRepositories(List<SqlRepository> repositories, CompositeSqlRepository composite) {
+    public record LoadState(int sourceCount, Instant loadedOn, SqlImportStats importStats) { }
+
+    private record EnvironmentRepositories(List<SqlRepository> repositories, CompositeSqlRepository composite,
+                                           Instant loadedOn) {
         static final EnvironmentRepositories EMPTY =
-            new EnvironmentRepositories(List.of(), new CompositeSqlRepository(List.of()));
+            new EnvironmentRepositories(List.of(), new CompositeSqlRepository(List.of()), null);
     }
 }

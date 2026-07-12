@@ -67,6 +67,11 @@ public final class DatabaseServer implements AutoCloseable {
         return schemaRepository;
     }
 
+    /** Whether the schema has been loaded, without triggering a load. */
+    public synchronized boolean isSchemaLoaded() {
+        return schemaRepository != null;
+    }
+
     /** Drop the cached schema so the next access reloads it from the server (the pool is kept). */
     public synchronized void refreshSchema() {
         schemaRepository = null;

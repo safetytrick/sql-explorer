@@ -5,9 +5,32 @@ import { BehaviorSubject, Observable } from 'rxjs';
 const endpoint = '/api/sql-explorer/';
 const STORAGE_KEY = 'sql-explorer.environment';
 
+export interface ServerSummary {
+  name: string;
+  schemaLoaded: boolean;
+}
+
+export interface SqlImportStats {
+  count: number;
+  merged: number;
+  notMerged: number;
+  analysisFailed: number;
+  analysisSkipped: number;
+  truncated: number;
+  dml: number;
+}
+
+export interface SourcesSummary {
+  loaded: boolean;
+  sourceCount: number;
+  loadedOn: string | null;
+  importStats: SqlImportStats | null;
+}
+
 export interface EnvironmentSummary {
   name: string;
-  servers: string[];
+  servers: ServerSummary[];
+  sources: SourcesSummary;
 }
 
 export interface EnvironmentList {
