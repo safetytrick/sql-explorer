@@ -224,11 +224,11 @@
         } @else {
           <div class="detail-head">
             <div class="detail-label">query detail</div>
-            <a class="detail-open" [routerLink]="['/analyzed-sql', selected.profile.id]">open full view ↗</a>
+            <a class="detail-open" [routerLink]="['/analyzed-sql', selected.profile.digest]">open full view ↗</a>
           </div>
           <div class="detail-scroll">
             <div class="detail-section">
-              <div class="sql-display"><span class="kw">{{sqlVerb(selected.profile.query)}}</span> {{sqlRest(selected.profile.query)}}</div>
+              <pre class="sql-display"><code highlight="{{selected.profile.query}}"></code></pre>
             </div>
             @if (selected.profile.mismatchedJoins.length > 0) {
               <div class="banner warn">Analyzer warning: join column type mismatch</div>

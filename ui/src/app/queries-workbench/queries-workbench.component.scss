@@ -359,10 +359,39 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 8px 10px;
+  margin: 0;
   font-family: var(--mono);
   font-size: 11px;
-  line-height: 1.75;
-  word-break: break-word;
+  line-height: 1.55;
+  color: var(--text);
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre;
+
+  &::-webkit-scrollbar { width: 4px; height: 4px; }
+
+  /* dark palette over the globally-loaded (light) highlight.js theme */
+  ::ng-deep code.hljs,
+  ::ng-deep code {
+    display: block;
+    background: transparent;
+    color: var(--text);
+    padding: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  ::ng-deep .hljs-keyword { color: var(--blue); font-weight: 500; }
+  ::ng-deep .hljs-literal { color: var(--blue); }
+  ::ng-deep .hljs-string { color: var(--green); }
+  ::ng-deep .hljs-number { color: var(--amber); }
+  ::ng-deep .hljs-built_in,
+  ::ng-deep .hljs-type { color: var(--teal); }
+  ::ng-deep .hljs-operator,
+  ::ng-deep .hljs-punctuation { color: var(--text2); }
+  ::ng-deep .hljs-comment { color: var(--text3); font-style: italic; }
+  ::ng-deep .hljs-variable,
+  ::ng-deep .hljs-attr { color: var(--purple); }
 }
 
 .banner {
@@ -415,6 +444,7 @@
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
+  color: var(--text);
 
   &.hot { color: var(--amber); }
   &.blue { color: var(--blue); }

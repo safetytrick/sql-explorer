@@ -15,6 +15,7 @@ import {
 import { AnalyzedSqlService } from '../analyzed-sql.service';
 import { EnvironmentService } from '../environment.service';
 import { ChipStyle, TagColorsService } from '../tag-colors.service';
+import { Highlight } from 'ngx-highlightjs';
 
 const PAGE_SIZE = 50;
 
@@ -31,7 +32,7 @@ interface RangeState { min: number | null; max: number | null; }
   selector: 'app-queries-workbench',
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe]
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, Highlight]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
@@ -148,6 +149,9 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
         this.loading = false;
         if (this.selected && !this.hits.some(hit => hit.profile.id === this.selected!.profile.id)) {
           this.selected = null;
+        }
+        if (!this.selected && this.hits.length) {
+          this.selected = this.hits[0];
         }
       },
       error: () => this.loading = false
