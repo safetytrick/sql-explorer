@@ -31,4 +31,17 @@ interface TagRepository extends CrudRepository<Tag,Integer> {
     List<Tag> findAllByType(String type);
 
     List<Tag> findAllByTypeAndPathStartsWith(String type, String path);
+
+    @Query("SELECT t.name AS name, t.type AS type, COUNT(t) AS uses, MAX(t.createdOn) AS lastUsed "
+        + "FROM Tag t GROUP BY t.name, t.type")
+    List<TagUsage> aggregateUsage();
+
+    void deleteAllByName(String name);
+
+    interface TagUsage {
+        String getName();
+        String getType();
+        long getUses();
+        java.time.Instant getLastUsed();
+    }
 }

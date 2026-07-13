@@ -14,6 +14,7 @@ import {
 } from '../query-search.service';
 import { AnalyzedSqlService } from '../analyzed-sql.service';
 import { EnvironmentService } from '../environment.service';
+import { ChipStyle, TagColorsService } from '../tag-colors.service';
 
 const PAGE_SIZE = 50;
 
@@ -65,13 +66,19 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   constructor(private querySearchService: QuerySearchService,
               private analyzedSqlService: AnalyzedSqlService,
               private environmentService: EnvironmentService,
+              private tagColorsService: TagColorsService,
               private route: ActivatedRoute,
               private router: Router) { }
 
   ngOnInit() {
     this.subscriptions.add(this.searchTrigger.pipe(debounceTime(250)).subscribe(() => this.runSearch()));
     this.subscriptions.add(this.environmentService.current$.subscribe(() => this.searchTrigger.next()));
+    this.subscriptions.add(this.tagColorsService.getSummaries().subscribe());
     this.readFiltersFromUrl();
+  }
+
+  tagStyle(name: string): ChipStyle {
+    return this.tagColorsService.chipStyle(name);
   }
 
   ngOnDestroy() {

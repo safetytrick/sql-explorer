@@ -39,7 +39,7 @@
         </div>
         <div class="tag-input-area">
           @for (tag of tags; track tag) {
-            <span class="tag-chip">{{tag}} <span class="rx" (click)="removeTag(tag)">×</span></span>
+            <span class="tag-chip" [style.background]="tagStyle(tag).background" [style.color]="tagStyle(tag).color">{{tag}} <span class="rx" (click)="removeTag(tag)">×</span></span>
           }
           <input placeholder="add tag…" [(ngModel)]="tagInput" (input)="onTagInput()"
                  (keydown.enter)="addTag(tagInput)">
@@ -174,7 +174,7 @@
               <span class="qm">sel <span>{{selectivityOf(hit)}}</span></span>
               <span class="qm">last <span>{{hit.profile.runtimeMetrics?.lastSeen ? (hit.profile.runtimeMetrics?.lastSeen | date:'MMM d, yy') : '—'}}</span></span>
               @for (tag of hit.tags; track tag.id) {
-                <span class="tag-chip small">{{tag.name}}</span>
+                <span class="tag-chip small" [style.background]="tagStyle(tag.name).background" [style.color]="tagStyle(tag.name).color">{{tag.name}}</span>
               }
             </div>
           </div>
@@ -251,7 +251,7 @@
               <div class="detail-section">
                 <div class="ds-label">Tags</div>
                 @for (tag of selected.tags; track tag.id) {
-                  <span class="tag-chip">{{tag.name}}</span>
+                  <span class="tag-chip" [style.background]="tagStyle(tag.name).background" [style.color]="tagStyle(tag.name).color">{{tag.name}}</span>
                 }
               </div>
             }

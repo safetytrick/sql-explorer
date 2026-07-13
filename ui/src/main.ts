@@ -36,6 +36,7 @@ import {AppComponent} from './app/app.component';
 import {TableLensComponent} from './app/table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './app/queries-workbench/queries-workbench.component';
 import {GraphLensComponent} from './app/graph-lens/graph-lens.component';
+import {TagManagerComponent} from './app/tag-manager/tag-manager.component';
 
 const appRoutes: Routes = [
   {
@@ -70,8 +71,13 @@ const appRoutes: Routes = [
   },
   {
     path: 'tags',
-    component: TagIndexComponent,
+    component: TagManagerComponent,
     data: { title: 'Tags' }
+  },
+  {
+    path: 'tags/index',
+    component: TagIndexComponent,
+    data: { title: 'Tag Index' }
   },
   {
     path: 'tables/with-column/:column',

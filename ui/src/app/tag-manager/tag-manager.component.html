@@ -1,0 +1,61 @@
+<div class="view-header">
+  <span class="view-title">Tag manager</span>
+  <span class="view-sub">{{tags.length}} tags</span>
+  <div class="view-actions">
+    <a class="btn" routerLink="/tags/index">browse tagged items ↗</a>
+  </div>
+</div>
+
+<div class="manager-grid">
+  <div class="lens-card">
+    <div class="card-head"><span class="card-head-title">All tags</span></div>
+    @if (tags.length === 0) {
+      <div class="card-empty">no tags yet — create one on the right</div>
+    } @else {
+      <table class="data-table">
+        <thead>
+        <tr><th>tag</th><th class="num">queries</th><th class="num">tables</th><th>last used</th><th></th></tr>
+        </thead>
+        <tbody>
+          @for (tag of tags; track tag.name) {
+            <tr (click)="edit(tag)">
+              <td><span class="tag-chip" [style.background]="chip(tag.name, tag.color).background" [style.color]="chip(tag.name, tag.color).color">{{tag.name}}</span>
+                @if (!tag.color) { <span class="no-def">no color</span> }
+              </td>
+              <td class="num mono">{{tag.queries}}</td>
+              <td class="num mono">{{tag.tables}}</td>
+              <td class="dim">{{tag.lastUsed ? (tag.lastUsed | date:'MMM d, yy') : '—'}}</td>
+              <td class="num">
+                <span class="delete" (click)="deleteTag(tag.name); $event.stopPropagation()">
+                  {{confirmingDelete === tag.name ? 'really delete?' : 'delete'}}
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+
+  <div class="rail">
+    <div class="lens-card create-card">
+      <div class="create-title">Create or recolor tag</div>
+      <input class="name-input" placeholder="tag name…" [(ngModel)]="newTagName">
+      <div class="picker-label">Color</div>
+      <div class="color-picker">
+        @for (color of colors; track color) {
+          <div class="color-dot"
+               [style.background]="color + '26'"
+               [style.border-color]="color"
+               [class.selected]="color === selectedColor"
+               (click)="selectedColor = color"></div>
+        }
+      </div>
+      <div class="picker-label">Preview</div>
+      <div class="preview">
+        <span class="tag-chip" [style.background]="selectedColor + '26'" [style.color]="selectedColor">{{newTagName || 'new-tag'}}</span>
+      </div>
+      <button class="btn primary" (click)="createTag()">Save tag</button>
+    </div>
+  </div>
+</div>

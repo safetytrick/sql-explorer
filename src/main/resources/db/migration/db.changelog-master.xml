@@ -162,6 +162,20 @@
 	  source_ref table backing SourceRefEntity was never created. Create it now
 	  with environment_name (replacing the dropped environment_type concept).
 	-->
+	<!-- Tag definitions: name-level attributes (color) for the path-based tag rows. -->
+	<changeSet id="create-tag_def" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><tableExists tableName="tag_def"/></not>
+		</preConditions>
+		<sql>
+			create table tag_def (
+				name       varchar(255) primary key not null,
+				color      varchar(32),
+				created_on timestamp not null default current_timestamp
+			);
+		</sql>
+	</changeSet>
+
 	<changeSet id="create-source_ref-table" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<not><tableExists tableName="source_ref"/></not>
