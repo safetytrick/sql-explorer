@@ -52,6 +52,11 @@ export class EnvironmentService {
     return this.http.get<EnvironmentList>(endpoint + 'environments');
   }
 
+  /** Drop the environment's cached schema so it reloads from its servers on next use. */
+  refreshSchema(name: string): Observable<void> {
+    return this.http.post<void>(endpoint + 'environments/' + encodeURIComponent(name) + '/refresh-schema', null);
+  }
+
   getCurrent(): string | null {
     return this.current$.value;
   }

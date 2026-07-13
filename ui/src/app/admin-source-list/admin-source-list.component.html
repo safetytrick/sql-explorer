@@ -1,12 +1,35 @@
-@if (currentEnvironment) {
+@if (environment) {
+  <div class="env-status">
+    <p>Managing sources for environment: <strong>{{environment.name}}</strong></p>
+    <ul class="server-list">
+      @for (server of environment.servers; track server.name) {
+        <li>
+          {{server.name}} &mdash;
+          <span [class.state-loaded]="server.schemaLoaded" [class.state-unloaded]="!server.schemaLoaded">
+            schema {{server.schemaLoaded ? 'loaded' : 'not loaded'}}
+          </span>
+        </li>
+      }
+    </ul>
+    @if (environment.sources.loaded) {
+      <p class="state-loaded">
+        {{environment.sources.sourceCount}} source(s) loaded at {{environment.sources.loadedOn | date: 'short'}}
+        &mdash; {{environment.sources.importStats?.count}} statements imported
+      </p>
+    } @else {
+      <p class="state-unloaded">No sources loaded</p>
+    }
+    <button class="btn btn-secondary" (click)="refreshSchema()"> Refresh Schema </button>
+  </div>
+} @else if (currentEnvironment) {
   <p>Managing sources for environment: <strong>{{currentEnvironment}}</strong></p>
 }
-<mat-selection-list #sourcesList>
+<mat-selection-list #sourcesList [disabled]="loading">
   @for (source of all; track source) {
     <mat-list-option togglePosition="before" [selected]="isActive(source)" [value]="source.sourceRef">
       <span>{{source.sourceRef}} - Last Updated: {{source.createdOn | date: 'short'}}</span>
     </mat-list-option>
   }
-  <button class="btn btn-primary" (click)="applyChange(sourcesList)"> Apply </button>
-  <button class="btn btn-secondary" (click)="cancelChange(sourcesList)"> Cancel </button>
+  <button class="btn btn-primary" [disabled]="loading" (click)="applyChange(sourcesList)"> {{loading ? 'Loading…' : 'Apply'}} </button>
+  <button class="btn btn-secondary" [disabled]="loading" (click)="cancelChange(sourcesList)"> Cancel </button>
 </mat-selection-list>
