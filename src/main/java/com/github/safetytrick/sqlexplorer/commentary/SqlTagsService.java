@@ -28,6 +28,7 @@ public class SqlTagsService {
         return tagsService.findAllByNameAndType(name, "query").stream()
             .filter(Objects::nonNull)
             .map(this::buildTaggedAnalyzedSql)
+            .filter(Objects::nonNull)
             .sorted(SqlProfileExtension.comparator);
     }
 

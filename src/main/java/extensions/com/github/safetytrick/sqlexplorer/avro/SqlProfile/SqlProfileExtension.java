@@ -23,6 +23,11 @@ public class SqlProfileExtension {
         if (thiz == other) {
             return 0;
         }
+        if (thiz == null) {
+            return -1;
+        } else if  (other == null) {
+            return 1;
+        }
         int result = thiz.getQueryActivityStatus().compareTo(other.getQueryActivityStatus());
         if (result != 0) {
             return result;
@@ -53,6 +58,16 @@ public class SqlProfileExtension {
             return Collections.singletonList(thiz.getRuntimeMetrics().getDigest());
         }
         return Collections.emptyList();
+    }
+
+    public static String getGeneralId(@This SqlProfile thiz) {
+        if (thiz.getNormalizedDigest() != null) {
+            return thiz.getNormalizedDigest();
+        } else if (thiz.getDigest() != null) {
+            return thiz.getDigest();
+        } else {
+            return thiz.getId();
+        }
     }
 
     public static class Builder {

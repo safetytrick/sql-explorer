@@ -55,7 +55,7 @@ public class QuerySearchService {
         Map<String, List<Tag>> tagsByQueryId = queryTagsById();
 
         List<QueryHit> matches = sqlRepositoryService.getAllAnalyzedSql()
-            .map(profile -> new QueryHit(profile, tagsByQueryId.getOrDefault(profile.getId(), List.of())))
+            .map(profile -> new QueryHit(profile, tagsByQueryId.getOrDefault(profile.getGeneralId(), List.of())))
             .filter(hit -> matches(criteria, hit))
             .sorted(comparator(criteria.sort()))
             .toList();
@@ -109,9 +109,7 @@ public class QuerySearchService {
         if (Boolean.TRUE.equals(r.analysisFailed()) && !profile.getAnalysisFailed()) return false;
         if (Boolean.TRUE.equals(r.cleanAnalysis()) && (hasAnalyzerWarnings || profile.getAnalysisFailed())) return false;
         if (Boolean.TRUE.equals(r.analysisSkipped()) && !profile.getAnalysisSkipped()) return false;
-        if (r.failureKind() != null && !matchesFailureKind(r.failureKind(), profile)) return false;
-
-        return true;
+        return r.failureKind() == null || matchesFailureKind(r.failureKind(), profile);
     }
 
     /** Matches SqlAnalysisService's failure labeling: analyzer failures carry a "Failure on:" reason. */
@@ -126,7 +124,7 @@ public class QuerySearchService {
             return false;
         }
         boolean analyzerFailure = reason.startsWith(ANALYZER_FAILURE_PREFIX);
-        return kind == QuerySearchRequest.FailureKind.ANALYZER ? analyzerFailure : !analyzerFailure;
+        return (kind == QuerySearchRequest.FailureKind.ANALYZER) == analyzerFailure;
     }
 
     /** "OTHER" matches any type outside {@link #EXPLICIT_TYPES} (including missing types). */
@@ -177,7 +175,7 @@ public class QuerySearchService {
     private static boolean matchesFlag(Flag flag, Boolean value) {
         if (flag == null || flag == Flag.ANY) return true;
         if (value == null) return false;
-        return flag == Flag.YES ? value : !value;
+        return (flag == Flag.YES) == value;
     }
 
     private static Double millis(BigDecimal picos) {
