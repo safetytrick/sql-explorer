@@ -1,0 +1,263 @@
+<div class="workbench">
+
+  <!-- ── Filter sidebar ── -->
+  <div class="filter-sidebar">
+    <div class="filter-head">
+      <span>Filters</span>
+      <span class="clr" (click)="clearAll()">clear all</span>
+    </div>
+    <div class="filter-scroll">
+
+      <div class="section-hdr">Activity</div>
+      <div class="fg">
+        <div class="fg-label">Query activity</div>
+        <div class="tri-row">
+          <span class="tri-btn" [class.on]="activity === 'ANY'" (click)="activity = 'ANY'; filtersChanged()">any</span>
+          <span class="tri-btn" [class.on]="activity === 'ACTIVE'" (click)="activity = 'ACTIVE'; filtersChanged()">active</span>
+          <span class="tri-btn" [class.on-bad]="activity === 'DORMANT'" (click)="activity = 'DORMANT'; filtersChanged()">dormant</span>
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fg-label">First seen</div>
+        <div class="date-row"><label>after</label><input type="date" [(ngModel)]="firstAfter" (change)="filtersChanged()"></div>
+        <div class="date-row"><label>before</label><input type="date" [(ngModel)]="firstBefore" (change)="filtersChanged()"></div>
+      </div>
+      <div class="fg">
+        <div class="fg-label">Last seen</div>
+        <div class="date-row"><label>after</label><input type="date" [(ngModel)]="lastAfter" (change)="filtersChanged()"></div>
+        <div class="date-row"><label>before</label><input type="date" [(ngModel)]="lastBefore" (change)="filtersChanged()"></div>
+      </div>
+
+      <div class="section-hdr">Tags</div>
+      <div class="fg">
+        <div class="fg-label">
+          Tagged with
+          <select class="tag-mode" [(ngModel)]="tagMode" (change)="filtersChanged()">
+            <option value="ANY">any</option>
+            <option value="ALL">all</option>
+          </select>
+        </div>
+        <div class="tag-input-area">
+          @for (tag of tags; track tag) {
+            <span class="tag-chip">{{tag}} <span class="rx" (click)="removeTag(tag)">×</span></span>
+          }
+          <input placeholder="add tag…" [(ngModel)]="tagInput" (input)="onTagInput()"
+                 (keydown.enter)="addTag(tagInput)">
+        </div>
+        @if (tagSuggestions.length) {
+          <div class="tag-sugg-wrap">
+            @for (name of tagSuggestions; track name) {
+              <span class="tag-sugg-item" (mousedown)="addTag(name)">{{name}}</span>
+            }
+          </div>
+        }
+        <label class="check-row"><input type="checkbox" [(ngModel)]="untaggedOnly" (change)="filtersChanged()"> untagged only</label>
+      </div>
+
+      <div class="section-hdr">Performance</div>
+      <div class="fg">
+        <div class="fg-label">Avg time (ms)</div>
+        <div class="range-row">
+          <input type="number" placeholder="min" [(ngModel)]="avgTime.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" [(ngModel)]="avgTime.max" (change)="filtersChanged()">
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fg-label">Max time (ms)</div>
+        <div class="range-row">
+          <input type="number" placeholder="min" [(ngModel)]="maxTime.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" [(ngModel)]="maxTime.max" (change)="filtersChanged()">
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fg-label">Avg rows scanned</div>
+        <div class="range-row">
+          <input type="number" placeholder="min" [(ngModel)]="avgRows.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" [(ngModel)]="avgRows.max" (change)="filtersChanged()">
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fg-label">Selectivity % <span class="hint">sent/scanned</span></div>
+        <div class="range-row">
+          <input type="number" placeholder="min" min="0" max="100" [(ngModel)]="selectivityPct.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" min="0" max="100" [(ngModel)]="selectivityPct.max" (change)="filtersChanged()">
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fg-label">Rows sorted</div>
+        <div class="range-row">
+          <input type="number" placeholder="min" [(ngModel)]="rowsSorted.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" [(ngModel)]="rowsSorted.max" (change)="filtersChanged()">
+        </div>
+      </div>
+
+      <div class="section-hdr">Execution flags</div>
+      @for (flagDef of [
+        {key: 'fullScan', label: 'Full table scan'},
+        {key: 'tmpTable', label: 'Temp tables'},
+        {key: 'tmpDisk', label: 'Temp to disk'},
+        {key: 'errors', label: 'Errors'},
+        {key: 'warnings', label: 'Warnings'}
+      ]; track flagDef.key) {
+        <div class="fg">
+          <div class="fg-label">{{flagDef.label}}</div>
+          <div class="tri-row">
+            <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'ANY'" (click)="setFlag(flagDef.key, 'ANY')">any</span>
+            <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'YES'" (click)="setFlag(flagDef.key, 'YES')">yes</span>
+            <span class="tri-btn" [class.on-bad]="flagValue(flagDef.key) === 'NO'" (click)="setFlag(flagDef.key, 'NO')">no</span>
+          </div>
+        </div>
+      }
+
+      <div class="section-hdr">Analyzer</div>
+      <div class="fg checks">
+        <label class="check-row"><input type="checkbox" [(ngModel)]="analyzerWarnings" (change)="filtersChanged()"> has analyzer warnings</label>
+        <label class="check-row"><input type="checkbox" [(ngModel)]="analysisFailed" (change)="filtersChanged()"> analysis failed</label>
+        <label class="check-row"><input type="checkbox" [(ngModel)]="cleanAnalysis" (change)="filtersChanged()"> clean analysis</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── List + detail ── -->
+  <div class="results-pane">
+    <div class="active-filter-bar">
+      <span class="bar-label">Active:</span>
+      @if (activeFilterChips().length === 0) {
+        <span class="none-label">no filters</span>
+      }
+      @for (chip of activeFilterChips(); track chip) {
+        <span class="active-chip">{{chip}}</span>
+      }
+      <div class="bar-right">
+        <span class="bar-label">sort:</span>
+        <select [(ngModel)]="sort" (change)="filtersChanged()">
+          <option value="AVG_TIME">avg time ↓</option>
+          <option value="MAX_TIME">max time ↓</option>
+          <option value="AVG_ROWS_SCANNED">rows scanned ↓</option>
+          <option value="SELECTIVITY">selectivity ↓</option>
+          <option value="LAST_SEEN">last seen ↓</option>
+        </select>
+        <span class="result-count">{{hits.length}}/{{total}}</span>
+      </div>
+    </div>
+
+    <div class="list-and-detail">
+      <div class="query-list">
+        @if (loading) {
+          <div class="list-note">searching…</div>
+        } @else if (hits.length === 0) {
+          <div class="list-note">No queries match.</div>
+        }
+        @for (hit of hits; track hit.profile.id) {
+          <div class="q-row"
+               [class.selected]="selected?.profile?.id === hit.profile.id"
+               [class.has-warn]="hit.profile.mismatchedJoins.length > 0 || hit.profile.analysisFailed"
+               (click)="select(hit)">
+            <div class="q-top">
+              <div class="q-sql"><span class="kw">{{sqlVerb(hit.profile.query)}}</span> {{sqlRest(hit.profile.query) | slice:0:90}}</div>
+              <div class="q-badges">
+                @if (hit.profile.queryActivityStatus === 'ACTIVE') { <span class="badge b-active">active</span> }
+                @if (hit.profile.queryActivityStatus === 'DORMANT') { <span class="badge b-dormant">dormant</span> }
+                @if (hit.profile.runtimeMetrics?.fullTableScan) { <span class="badge b-scan">full scan</span> }
+                @if ((hit.profile.runtimeMetrics?.tempDiskTables ?? 0) > 0) { <span class="badge b-disk">tmp disk</span> }
+                @else if ((hit.profile.runtimeMetrics?.tempTables ?? 0) > 0) { <span class="badge b-warn">tmp table</span> }
+                @if ((hit.profile.runtimeMetrics?.errors ?? 0) > 0) { <span class="badge b-err">{{hit.profile.runtimeMetrics?.errors}}err</span> }
+                @if ((hit.profile.runtimeMetrics?.warnings ?? 0) > 0) { <span class="badge b-warn">{{hit.profile.runtimeMetrics?.warnings}}warn</span> }
+                @if (hit.profile.mismatchedJoins.length > 0) { <span class="badge b-anal">analyzer!</span> }
+                @if (hit.profile.analysisFailed) { <span class="badge b-err">failed</span> }
+              </div>
+            </div>
+            <div class="q-meta">
+              <span class="qm">avg <span>{{ms(hit.profile.runtimeMetrics?.averageTime)}}</span></span>
+              <span class="qm">max <span>{{ms(hit.profile.runtimeMetrics?.maxTime)}}</span></span>
+              <span class="qm">scanned <span>{{rows(hit.profile.runtimeMetrics?.averageRowsScanned)}}</span></span>
+              <span class="qm">sel <span>{{selectivityOf(hit)}}</span></span>
+              <span class="qm">last <span>{{hit.profile.runtimeMetrics?.lastSeen ? (hit.profile.runtimeMetrics?.lastSeen | date:'MMM d, yy') : '—'}}</span></span>
+              @for (tag of hit.tags; track tag.id) {
+                <span class="tag-chip small">{{tag.name}}</span>
+              }
+            </div>
+          </div>
+        }
+        @if (!loading && hits.length < total) {
+          <div class="load-more" (click)="loadMore()">load more ({{total - hits.length}} remaining)</div>
+        }
+      </div>
+
+      <!-- ── Detail pane ── -->
+      <div class="detail-pane">
+        @if (!selected) {
+          <div class="detail-placeholder">select a query</div>
+        } @else {
+          <div class="detail-head">
+            <div class="detail-label">query detail</div>
+            <a class="detail-open" [routerLink]="['/analyzed-sql', selected.profile.id]">open full view ↗</a>
+          </div>
+          <div class="detail-scroll">
+            <div class="detail-section">
+              <div class="sql-display"><span class="kw">{{sqlVerb(selected.profile.query)}}</span> {{sqlRest(selected.profile.query)}}</div>
+            </div>
+            @if (selected.profile.mismatchedJoins.length > 0) {
+              <div class="banner warn">Analyzer warning: join column type mismatch</div>
+            }
+            @if (selected.profile.analysisFailed) {
+              <div class="banner err">Analysis failed: {{selected.profile.analysisFailureReason || 'unknown reason'}}</div>
+            }
+            <div class="detail-section">
+              <div class="ds-label">Digests</div>
+              <div class="digest-tag dt-ps">perf_schema</div>
+              <div class="digest-box">{{selected.profile.digest}}</div>
+              <div class="digest-tag dt-app">app norm</div>
+              <div class="digest-box">{{selected.profile.normalizedDigest}}</div>
+            </div>
+            @if (selected.profile.runtimeMetrics; as m) {
+              <div class="detail-section">
+                <div class="ds-label">Counts</div>
+                <div class="metric-row"><span class="metric-key">Executed</span><span class="metric-val blue">{{m.executed | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Errors</span><span class="metric-val" [class.hot]="m.errors > 0">{{m.errors}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Warnings</span><span class="metric-val" [class.hot]="m.warnings > 0">{{m.warnings}}</span></div>
+              </div>
+              <div class="detail-section">
+                <div class="ds-label">Time</div>
+                <div class="metric-row"><span class="metric-key">Total</span><span class="metric-val hot">{{ms(m.totalTime)}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Max</span><span class="metric-val">{{ms(m.maxTime)}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Average</span><span class="metric-val">{{ms(m.averageTime)}}</span></div>
+              </div>
+              <div class="detail-section">
+                <div class="ds-label">Rows</div>
+                <div class="metric-row"><span class="metric-key">Total sent</span><span class="metric-val">{{m.rowsSent | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Avg sent</span><span class="metric-val">{{m.averageRowsSent | number}}</span></div>
+                <div class="metric-row"><span class="metric-key">Total scanned</span><span class="metric-val hot">{{m.rowsScanned | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Avg scanned</span><span class="metric-val">{{rows(m.averageRowsScanned)}}</span></div>
+              </div>
+              <div class="detail-section">
+                <div class="ds-label">Temp tables</div>
+                <div class="metric-row"><span class="metric-key">Count</span><span class="metric-val">{{m.tempTables}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Disk</span><span class="metric-val" [class.hot]="m.tempDiskTables > 0">{{m.tempDiskTables}}</span></div>
+              </div>
+              <div class="detail-section">
+                <div class="ds-label">Sorting</div>
+                <div class="metric-row"><span class="metric-key">Rows sorted</span><span class="metric-val">{{m.rowsSorted | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Merge passes</span><span class="metric-val">{{m.sortMergePasses}}</span></div>
+              </div>
+              <div class="detail-section">
+                <div class="ds-label">Activity</div>
+                <div class="metric-row"><span class="metric-key">First seen</span><span class="metric-val">{{m.firstSeen ? (m.firstSeen | date:'MMM d, yy') : '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key">Last seen</span><span class="metric-val">{{m.lastSeen ? (m.lastSeen | date:'MMM d, yy') : '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key">Status</span><span class="metric-val" [class.green]="selected.profile.queryActivityStatus === 'ACTIVE'">{{selected.profile.queryActivityStatus.toLowerCase()}}</span></div>
+              </div>
+            }
+            @if (selected.tags.length) {
+              <div class="detail-section">
+                <div class="ds-label">Tags</div>
+                @for (tag of selected.tags; track tag.id) {
+                  <span class="tag-chip">{{tag.name}}</span>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

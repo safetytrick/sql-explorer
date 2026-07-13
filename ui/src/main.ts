@@ -34,8 +34,14 @@ import {MatIconModule} from '@angular/material/icon';
 import {MatListModule} from '@angular/material/list';
 import {AppComponent} from './app/app.component';
 import {TableLensComponent} from './app/table-lens/table-lens.component';
+import {QueriesWorkbenchComponent} from './app/queries-workbench/queries-workbench.component';
 
 const appRoutes: Routes = [
+  {
+    path: 'queries',
+    component: QueriesWorkbenchComponent,
+    data: { title: 'Queries' }
+  },
   {
     path: 'schemas',
     component: SchemaListComponent,
