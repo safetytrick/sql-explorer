@@ -1,5 +1,7 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -7,6 +9,7 @@ import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
 import extensions.com.github.safetytrick.sqlexplorer.avro.SqlProfile.SqlProfileExtension;
@@ -52,8 +55,39 @@ class CompositeSqlRepository implements SqlRepository {
 
     @Override
     public SqlSource getSource() {
-        // todo implement composite source
-        return sources.getFirst().getSource();
+        return new CompositeSqlSource(sources.stream()
+            .map(SqlRepository::getSource)
+            .filter(Objects::nonNull)
+            .toList());
+    }
+
+    /**
+     * The repositories' sources viewed as one: SQL concatenated, refs joined,
+     * created when the newest member was.
+     */
+    private record CompositeSqlSource(List<SqlSource> members) implements SqlSource {
+
+        @Override
+        public Stream<SqlInput> getSql() {
+            return members.stream().flatMap(SqlSource::getSql);
+        }
+
+        @Override
+        public Instant getCreatedOn() {
+            return members.stream()
+                .map(SqlSource::getCreatedOn)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+        }
+
+        @Override
+        public String getSourceRef() {
+            return members.stream()
+                .map(SqlSource::getSourceRef)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining("+"));
+        }
     }
 
     private SqlProfile merge(List<SqlProfile> items) {
