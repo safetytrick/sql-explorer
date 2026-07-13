@@ -169,6 +169,10 @@ public class SqlRepositoryService {
         return repository().getAllAnalyzedSql();
     }
 
+    public Stream<SqlProfile> getTableQueries(TableReference table) {
+        return repository().getTableQueries(table);
+    }
+
     public Stream<SchemaRollup> getAllSchemasWithRollup() {
         Map<String, SchemaRollup.Builder> result = new HashMap<>();
         repository().getAllTableReferences().forEach(
