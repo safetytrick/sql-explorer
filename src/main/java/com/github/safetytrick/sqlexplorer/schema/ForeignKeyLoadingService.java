@@ -52,74 +52,70 @@ public class ForeignKeyLoadingService {
      *      importedKeyNotDeferrable - see SQL92 for definition
      */
     ForeignKeysFetcher getForeignKeysFetcher(DataSource dataSource) {
-        Map<TableReference, List<ForeignKey>> foreignKeyMap = new HashMap<>();
         log.info("Reading Foreign keys from database...");
         long start = System.nanoTime();
-        try (Connection connection = dataSource.getConnection()) {
-            TableReference toTable = null;
-            TableReference fromTable = null;
-
-            ForeignKey.Builder builder = null;
-            List<ForeignKey> result = new ArrayList<>();
-            try (ResultSet keys = getImportedKeys(connection)) {
-
-                while (keys.next()) {
-                    // the jdbc driver sends the schema column over in the catalog field
-                    String toSchema = keys.getString("FKTABLE_CAT");
-                    String toTableName = keys.getString("FKTABLE_NAME");
-                    if (toTable == null || !(
-                            toTable.getNormalizedSchemaName().equalsIgnoreCase(toSchema) &&
-                            toTable.getNormalizedTableName().equalsIgnoreCase(toTableName)
-                    )) {
-                        if (toTable != null) {
-                            foreignKeyMap.put(toTable, result);
-                            result = new ArrayList<>();
-                        }
-                        toTable = TableReference.newTableReference(toSchema, toTableName).normalized();
-                    }
-
-                    String fromSchema = keys.getString("FKTABLE_CAT");
-                    String fromTableName = keys.getString("FKTABLE_NAME");
-                    if (fromTable == null || !(
-                            fromTable.getNormalizedSchemaName().equalsIgnoreCase(fromSchema) &&
-                            fromTable.getNormalizedTableName().equalsIgnoreCase(fromTableName)
-                        )) {
-                        fromTable = TableReference.newTableReference(fromSchema, fromTableName).normalized();
-                    }
-
-                    int sequence = keys.getInt("KEY_SEQ");
-
-                    if (sequence == 1) {
-                        if (builder != null) {
-                            result.add(builder.build());
-                        }
-                        builder = new ForeignKey.Builder();
-                    }
-                    if (builder == null) {
-                        throw new NullPointerException("invalid key sequence");
-                    }
-
-                    String fromColumn = keys.getString("FKCOLUMN_NAME");
-                    String toColumn = keys.getString("PKCOLUMN_NAME");
-                    builder.addFromAndTo(
-                        ColumnReference.newColumnReference(fromTable, fromColumn),
-                        ColumnReference.newColumnReference(toTable, toColumn)
-                    );
-                }
-            }
-            if (builder != null) {
-                result.add(builder.build());
-            }
-            if (toTable != null) {
-                foreignKeyMap.put(toTable, result);
-            }
-
+        Map<TableReference, List<ForeignKey>> foreignKeyMap;
+        try (Connection connection = dataSource.getConnection();
+             ResultSet keys = getImportedKeys(connection)) {
+            foreignKeyMap = readForeignKeys(keys);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
         log.info("Completed read of foreign keys in {}", Duration.ofNanos(System.nanoTime() - start));
 
         return table -> foreignKeyMap.getOrDefault(table.normalized(), Collections.emptyList());
+    }
+
+    /**
+     * Groups the (owning-table, constraint, key-seq)-ordered rows into one
+     * {@link ForeignKey} per constraint, keyed by the owning table.
+     */
+    Map<TableReference, List<ForeignKey>> readForeignKeys(ResultSet keys) throws SQLException {
+        Map<TableReference, List<ForeignKey>> foreignKeyMap = new HashMap<>();
+        TableReference fromTable = null;
+        String constraint = null;
+        ForeignKey.Builder builder = null;
+        List<ForeignKey> result = new ArrayList<>();
+
+        while (keys.next()) {
+            // the jdbc driver sends the schema column over in the catalog field
+            String fromSchema = keys.getString("FKTABLE_CAT");
+            String fromTableName = keys.getString("FKTABLE_NAME");
+            String constraintName = keys.getString("FK_NAME");
+
+            boolean newOwner = fromTable == null || !(
+                fromTable.getNormalizedSchemaName().equalsIgnoreCase(fromSchema) &&
+                fromTable.getNormalizedTableName().equalsIgnoreCase(fromTableName));
+
+            if (builder != null && (newOwner || !constraintName.equals(constraint))) {
+                result.add(builder.build());
+                builder = null;
+            }
+            if (newOwner) {
+                if (fromTable != null) {
+                    foreignKeyMap.put(fromTable, result);
+                    result = new ArrayList<>();
+                }
+                fromTable = TableReference.newTableReference(fromSchema, fromTableName).normalized();
+            }
+            if (builder == null) {
+                builder = new ForeignKey.Builder();
+            }
+            constraint = constraintName;
+
+            TableReference toTable = TableReference.newTableReference(
+                keys.getString("PKTABLE_CAT"), keys.getString("PKTABLE_NAME")).normalized();
+            builder.addFromAndTo(
+                ColumnReference.newColumnReference(fromTable, keys.getString("FKCOLUMN_NAME")),
+                ColumnReference.newColumnReference(toTable, keys.getString("PKCOLUMN_NAME")));
+        }
+        if (builder != null) {
+            result.add(builder.build());
+        }
+        if (fromTable != null) {
+            foreignKeyMap.put(fromTable, result);
+        }
+        return foreignKeyMap;
     }
 
     private ResultSet getImportedKeys(Connection connection) throws SQLException {
@@ -153,7 +149,8 @@ public class ForeignKeyLoadingService {
            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE A
                     JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS B USING (CONSTRAINT_SCHEMA, CONSTRAINT_NAME, TABLE_NAME)
                     JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS R
-           ON (R.CONSTRAINT_NAME = B.CONSTRAINT_NAME)
+           ON (R.CONSTRAINT_SCHEMA = B.CONSTRAINT_SCHEMA AND R.CONSTRAINT_NAME = B.CONSTRAINT_NAME)
+           ORDER BY FKTABLE_CAT, FKTABLE_NAME, FK_NAME, KEY_SEQ
            """;
 
 
