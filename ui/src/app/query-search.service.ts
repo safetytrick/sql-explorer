@@ -42,6 +42,8 @@ export interface QuerySearchRequest {
   analyzerWarnings?: boolean | null;
   analysisFailed?: boolean | null;
   cleanAnalysis?: boolean | null;
+  analysisSkipped?: boolean | null;
+  failureKind?: 'ANALYZER' | 'PARSE' | null;
   sort?: SortKey | null;
   limit?: number | null;
   offset?: number | null;

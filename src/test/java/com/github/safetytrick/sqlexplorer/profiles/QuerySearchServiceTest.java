@@ -152,6 +152,30 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void analysisSkippedAndFailureKindsMirrorTheReports() {
+        SqlProfile skipped = profile("skipped", metrics().build());
+        skipped.setAnalysisSkipped(true);
+        SqlProfile analyzerFailure = profile("analyzer-failure", metrics().build());
+        analyzerFailure.setAnalysisFailed(true);
+        analyzerFailure.setAnalysisFailureReason("Failure on: JoinColumnAnalyzer message: boom");
+        SqlProfile parseFailure = profile("parse-failure", metrics().build());
+        parseFailure.setAnalysisFailed(true);
+        parseFailure.setAnalysisFailureReason("Encountered unexpected token");
+        // truncated failures are excluded from both kinds, like the reports
+        SqlProfile truncatedFailure = profile("truncated-failure", metrics().build());
+        truncatedFailure.setAnalysisFailed(true);
+        truncatedFailure.setTruncated(true);
+        truncatedFailure.setAnalysisFailureReason("Failure on: SchemaAnalyzer");
+        repositoryReturns(skipped, analyzerFailure, parseFailure, truncatedFailure, profile("clean", metrics().build()));
+
+        assertThat(searchIds(request().analysisSkipped(true).build())).containsExactly("skipped");
+        assertThat(searchIds(request().failureKind(QuerySearchRequest.FailureKind.ANALYZER).build()))
+            .containsExactly("analyzer-failure");
+        assertThat(searchIds(request().failureKind(QuerySearchRequest.FailureKind.PARSE).build()))
+            .containsExactly("parse-failure");
+    }
+
+    @Test
     void tagFiltersMatchAnyAllAndUntagged() {
         when(tagsService.findAllByType("query")).thenReturn(List.of(
             tag("audit", "/query/a"), tag("slow", "/query/a"), tag("audit", "/query/b")));
@@ -296,7 +320,8 @@ class QuerySearchServiceTest {
         private DateRange lastSeen;
         private List<String> tags;
         private TagMode tagMode;
-        private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis;
+        private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped;
+        private QuerySearchRequest.FailureKind failureKind;
         private Flag fullScan, truncated, multiSchema;
         private Sort sort;
         private Integer limit, offset;
@@ -312,6 +337,8 @@ class QuerySearchServiceTest {
         RequestBuilder analyzerWarnings(Boolean v) { this.analyzerWarnings = v; return this; }
         RequestBuilder analysisFailed(Boolean v) { this.analysisFailed = v; return this; }
         RequestBuilder cleanAnalysis(Boolean v) { this.cleanAnalysis = v; return this; }
+        RequestBuilder analysisSkipped(Boolean v) { this.analysisSkipped = v; return this; }
+        RequestBuilder failureKind(QuerySearchRequest.FailureKind v) { this.failureKind = v; return this; }
         RequestBuilder fullScan(Flag v) { this.fullScan = v; return this; }
         RequestBuilder truncated(Flag v) { this.truncated = v; return this; }
         RequestBuilder multiSchema(Flag v) { this.multiSchema = v; return this; }
@@ -324,7 +351,7 @@ class QuerySearchServiceTest {
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
-                analyzerWarnings, analysisFailed, cleanAnalysis, sort, limit, offset);
+                analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);
         }
     }
 }

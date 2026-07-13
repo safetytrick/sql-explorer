@@ -60,6 +60,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   analyzerWarnings = false;
   analysisFailed = false;
   cleanAnalysis = false;
+  analysisSkipped = false;
+  failureKind: 'ANALYZER' | 'PARSE' | null = null;
   sort: SortKey = 'IMPACT';
 
   // ── results ──
@@ -125,6 +127,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       analyzerWarnings: this.analyzerWarnings || null,
       analysisFailed: this.analysisFailed || null,
       cleanAnalysis: this.cleanAnalysis || null,
+      analysisSkipped: this.analysisSkipped || null,
+      failureKind: this.failureKind,
       sort: this.sort,
       limit: PAGE_SIZE,
       offset
@@ -179,7 +183,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.rowsSorted = { min: null, max: null };
     this.fullScan = this.tmpTable = this.tmpDisk = this.errors = this.warnings = 'ANY';
     this.truncated = this.multiSchema = 'ANY';
-    this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = false;
+    this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = this.analysisSkipped = false;
+    this.failureKind = null;
     this.filtersChanged();
   }
 
@@ -209,6 +214,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (this.analyzerWarnings) { chips.push('analyzer: warnings'); }
     if (this.analysisFailed) { chips.push('analyzer: failed'); }
     if (this.cleanAnalysis) { chips.push('analyzer: clean'); }
+    if (this.analysisSkipped) { chips.push('analyzer: skipped'); }
+    if (this.failureKind) { chips.push('failure: ' + this.failureKind.toLowerCase()); }
     return chips;
   }
 
@@ -220,6 +227,11 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   setFlag(key: string, value: Flag) {
     (this as any)[key] = value;
+    this.filtersChanged();
+  }
+
+  toggleFailureKind(kind: 'ANALYZER' | 'PARSE') {
+    this.failureKind = this.failureKind === kind ? null : kind;
     this.filtersChanged();
   }
 
@@ -324,6 +336,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (this.analyzerWarnings) { params['analWarn'] = '1'; }
     if (this.analysisFailed) { params['analFail'] = '1'; }
     if (this.cleanAnalysis) { params['analClean'] = '1'; }
+    if (this.analysisSkipped) { params['analSkipped'] = '1'; }
+    if (this.failureKind) { params['failKind'] = this.failureKind; }
     if (this.sort !== 'IMPACT') { params['sort'] = this.sort; }
     this.router.navigate([], { relativeTo: this.route, queryParams: params, replaceUrl: true });
   }
@@ -358,6 +372,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.analyzerWarnings = params.get('analWarn') === '1';
     this.analysisFailed = params.get('analFail') === '1';
     this.cleanAnalysis = params.get('analClean') === '1';
+    this.analysisSkipped = params.get('analSkipped') === '1';
+    this.failureKind = (params.get('failKind') as 'ANALYZER' | 'PARSE') || null;
     this.sort = (params.get('sort') as SortKey) || 'IMPACT';
     this.searchTrigger.next();
   }

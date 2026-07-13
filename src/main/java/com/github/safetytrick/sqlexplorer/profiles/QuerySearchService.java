@@ -108,8 +108,25 @@ public class QuerySearchService {
         if (Boolean.TRUE.equals(r.analyzerWarnings()) && !hasAnalyzerWarnings) return false;
         if (Boolean.TRUE.equals(r.analysisFailed()) && !profile.getAnalysisFailed()) return false;
         if (Boolean.TRUE.equals(r.cleanAnalysis()) && (hasAnalyzerWarnings || profile.getAnalysisFailed())) return false;
+        if (Boolean.TRUE.equals(r.analysisSkipped()) && !profile.getAnalysisSkipped()) return false;
+        if (r.failureKind() != null && !matchesFailureKind(r.failureKind(), profile)) return false;
 
         return true;
+    }
+
+    /** Matches SqlAnalysisService's failure labeling: analyzer failures carry a "Failure on:" reason. */
+    private static final String ANALYZER_FAILURE_PREFIX = "Failure on:";
+
+    private static boolean matchesFailureKind(QuerySearchRequest.FailureKind kind, SqlProfile profile) {
+        if (!profile.getAnalysisFailed() || profile.getTruncated()) {
+            return false;
+        }
+        String reason = profile.getAnalysisFailureReason();
+        if (reason == null) {
+            return false;
+        }
+        boolean analyzerFailure = reason.startsWith(ANALYZER_FAILURE_PREFIX);
+        return kind == QuerySearchRequest.FailureKind.ANALYZER ? analyzerFailure : !analyzerFailure;
     }
 
     /** "OTHER" matches any type outside {@link #EXPLICIT_TYPES} (including missing types). */
