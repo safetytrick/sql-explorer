@@ -116,7 +116,7 @@ class TableInsightsServiceTest {
 
     private static JoinColumns join(TableReference leftTable, String leftColumn,
                                     TableReference rightTable, String rightColumn) {
-        return new JoinColumns(criteria(leftTable, leftColumn), criteria(rightTable, rightColumn));
+        return new JoinColumns(criteria(leftTable, leftColumn), criteria(rightTable, rightColumn), "INNER");
     }
 
     private static RuntimeMetrics metrics(long executions, double totalMs) {

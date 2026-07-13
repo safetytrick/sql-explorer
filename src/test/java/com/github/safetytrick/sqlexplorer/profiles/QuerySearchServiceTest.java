@@ -130,7 +130,7 @@ class QuerySearchServiceTest {
     @Test
     void analyzerFiltersUseMismatchedJoinsAndFailureFlag() {
         repositoryReturns(
-            profile("warned", QueryActivityStatus.UNKNOWN, metrics().build(), false, List.of(new JoinColumns(null, null))),
+            profile("warned", QueryActivityStatus.UNKNOWN, metrics().build(), false, List.of(new JoinColumns(null, null, null))),
             profile("failed", QueryActivityStatus.UNKNOWN, metrics().build(), true, List.of()),
             profile("clean", QueryActivityStatus.UNKNOWN, metrics().build(), false, List.of()));
 

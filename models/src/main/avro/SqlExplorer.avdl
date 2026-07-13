@@ -9,6 +9,8 @@ protocol SqlExplorer {
 		string type;
 		array<JoinColumns> joinColumns = [];
 		array<ColumnReference> criteriaColumns = [];
+		array<ColumnReference> selectColumns = [];
+		array<ColumnReference> groupByColumns = [];
 		string? generatedSource = null;
 		boolean truncated = false;
 		boolean analysisFailed = false;
@@ -67,6 +69,8 @@ protocol SqlExplorer {
 	record JoinColumns {
 		ColumnReference left;
 		ColumnReference right;
+		/** INNER/LEFT/RIGHT/FULL/CROSS/STRAIGHT/IMPLICIT; null when unknown. */
+		string? joinType = null;
 	}
 
 	record TableReference {

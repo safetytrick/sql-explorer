@@ -408,4 +408,19 @@ public class JoinColumnAnalyzerTest {
         List<JoinColumns> joinColumns = builder.getJoinColumns();
         assertContainsJoinColumns(joinColumns, "customer_store_relationship.store_id", "store_config.store_id");
     }
+
+    @Test
+    public void capturesJoinTypes() throws JSQLParserException {
+        String sql = """
+            SELECT s.id FROM sessions s \
+            JOIN users u ON s.user_id = u.id \
+            LEFT JOIN accounts a ON s.account_id = a.id\
+            """;
+
+        sqlAnalysisService.analyzeSql(sql, builder);
+
+        List<JoinColumns> joinColumns = builder.getJoinColumns();
+        assertThat(joinColumns).extracting(JoinColumns::getJoinType)
+            .containsExactly("INNER", "LEFT");
+    }
 }

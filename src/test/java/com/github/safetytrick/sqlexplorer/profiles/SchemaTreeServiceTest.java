@@ -116,7 +116,7 @@ class SchemaTreeServiceTest {
         profile.setQueryActivityStatus(QueryActivityStatus.UNKNOWN);
         profile.setAnalysisFailed(false);
         profile.setTables(List.of(tables));
-        profile.setMismatchedJoins(warn ? List.of(new JoinColumns(null, null)) : List.of());
+        profile.setMismatchedJoins(warn ? List.of(new JoinColumns(null, null, null)) : List.of());
         return profile;
     }
 }

@@ -32,6 +32,8 @@ public class TableInsightsService {
 
     static final String ROLE_JOIN = "join";
     static final String ROLE_CRITERIA = "criteria";
+    static final String ROLE_SELECT = "select";
+    static final String ROLE_GROUP_BY = "group by";
 
     private final SqlRepositoryService sqlRepositoryService;
     private final SqlSchemaService sqlSchemaService;
@@ -115,6 +117,12 @@ public class TableInsightsService {
                 addUsage(usage, table, join.getLeft(), ROLE_JOIN, countedThisQuery);
                 addUsage(usage, table, join.getRight(), ROLE_JOIN, countedThisQuery);
             }
+            for (ColumnReference select : nullSafe(profile.getSelectColumns())) {
+                addUsage(usage, table, select, ROLE_SELECT, countedThisQuery);
+            }
+            for (ColumnReference groupBy : nullSafe(profile.getGroupByColumns())) {
+                addUsage(usage, table, groupBy, ROLE_GROUP_BY, countedThisQuery);
+            }
         });
         return usage;
     }
@@ -139,6 +147,10 @@ public class TableInsightsService {
 
     private static String lower(String value) {
         return value.toLowerCase(Locale.ROOT);
+    }
+
+    private static List<ColumnReference> nullSafe(List<ColumnReference> columns) {
+        return columns == null ? List.of() : columns;
     }
 
     public record ColumnUsage(String name, String type, int size, boolean nullable, boolean autoIncrement,

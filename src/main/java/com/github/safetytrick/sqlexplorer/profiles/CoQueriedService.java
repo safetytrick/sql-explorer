@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
@@ -51,6 +52,7 @@ public class CoQueriedService {
                 }
                 Accumulator accumulator = partners.computeIfAbsent(key(other), k -> new Accumulator(other));
                 accumulator.add(profile.getRuntimeMetrics(), isJoined(profile, table, other));
+                accumulator.addJoinTypes(profile, table, other);
             }
         });
 
@@ -66,20 +68,25 @@ public class CoQueriedService {
 
     private static boolean isJoined(SqlProfile profile, TableReference a, TableReference b) {
         for (JoinColumns join : profile.getJoinColumns()) {
-            if (join.getLeft() == null || join.getRight() == null) {
-                continue;
-            }
-            TableReference left = join.getLeft().getTable();
-            TableReference right = join.getRight().getTable();
-            if (left == null || right == null) {
-                continue;
-            }
-            if ((left.equalsNormalized(a) && right.equalsNormalized(b))
-                || (left.equalsNormalized(b) && right.equalsNormalized(a))) {
+            if (pairs(join, a, b)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** Whether this join column pair connects tables {@code a} and {@code b} (either way around). */
+    private static boolean pairs(JoinColumns join, TableReference a, TableReference b) {
+        if (join.getLeft() == null || join.getRight() == null) {
+            return false;
+        }
+        TableReference left = join.getLeft().getTable();
+        TableReference right = join.getRight().getTable();
+        if (left == null || right == null) {
+            return false;
+        }
+        return (left.equalsNormalized(a) && right.equalsNormalized(b))
+            || (left.equalsNormalized(b) && right.equalsNormalized(a));
     }
 
     /** "out" when {@code table} references {@code other}, "in" for the reverse, else null. */
@@ -103,7 +110,7 @@ public class CoQueriedService {
     }
 
     public record CoQueriedTable(String schema, String table, int queries, long executions,
-                                 Double avgTimeMs, boolean joined, String fkDirection) { }
+                                 Double avgTimeMs, boolean joined, List<String> joinTypes, String fkDirection) { }
 
     private static final class Accumulator {
         private final TableReference table;
@@ -111,6 +118,7 @@ public class CoQueriedService {
         private long executions;
         private double totalTimePicos;
         private boolean joined;
+        private final Set<String> joinTypes = new TreeSet<>();
 
         private Accumulator(TableReference table) {
             this.table = table;
@@ -125,10 +133,18 @@ public class CoQueriedService {
             }
         }
 
+        void addJoinTypes(SqlProfile profile, TableReference a, TableReference b) {
+            for (JoinColumns join : profile.getJoinColumns()) {
+                if (join.getJoinType() != null && pairs(join, a, b)) {
+                    joinTypes.add(join.getJoinType());
+                }
+            }
+        }
+
         CoQueriedTable toResult(String fkDirection) {
             Double avgTimeMs = executions == 0 ? null : totalTimePicos / executions / PICOS_PER_MILLI;
             return new CoQueriedTable(table.getNormalizedSchemaName(), table.getNormalizedTableName(),
-                queries, executions, avgTimeMs, joined, fkDirection);
+                queries, executions, avgTimeMs, joined, List.copyOf(joinTypes), fkDirection);
         }
     }
 }

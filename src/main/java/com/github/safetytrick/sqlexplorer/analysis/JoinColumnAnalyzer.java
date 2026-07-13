@@ -118,14 +118,26 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             if (joins != null) {
                 JoinOnColumnsExpressionVisitor visitor = new JoinOnColumnsExpressionVisitor(fromItem);
                 for (Join join : joins) {
+                    String joinType = joinType(join);
                     List<JoinColumns> joinColumns = visitor.getJoinColumns(join);
                     for (JoinColumns joinColumn : joinColumns) {
+                        joinColumn.setJoinType(joinType);
                         addJoin(joinColumn);
                     }
 
                 }
 
             }
+        }
+
+        private String joinType(Join join) {
+            if (join.isLeft()) return "LEFT";
+            if (join.isRight()) return "RIGHT";
+            if (join.isFull()) return "FULL";
+            if (join.isCross()) return "CROSS";
+            if (join.isStraight()) return "STRAIGHT";
+            if (join.isSimple()) return "IMPLICIT"; // comma-separated from list
+            return "INNER"; // JOIN / INNER JOIN
         }
 
         @Override
@@ -280,7 +292,8 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                     for (Column usingColumn : join.getUsingColumns()) {
                         joinColumns.add(new JoinColumns(
                             ColumnReference.fromComponents(null, fromTableName, usingColumn.getColumnName()),
-                            ColumnReference.fromComponents(null, rightTableName, usingColumn.getColumnName())
+                            ColumnReference.fromComponents(null, rightTableName, usingColumn.getColumnName()),
+                            null
                         ));
                     }
                 }

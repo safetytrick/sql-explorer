@@ -30,14 +30,16 @@ public class JoinColumnsExtension {
     @Extension
     public static JoinColumns fromReferences(String left, String right) {
         return new JoinColumns(ColumnReferenceExtension.fromString(left),
-            ColumnReferenceExtension.fromString(right));
+            ColumnReferenceExtension.fromString(right),
+            null);
     }
 
     public static JoinColumns withDefaultSchema(@This JoinColumns thiz, String schema) {
         if (thiz.getLeft().getTable().getSchemaName() == null || thiz.getRight().getTable().getSchemaName() == null) {
             return new JoinColumns(
                 ColumnReferenceExtension.withDefaultSchema(thiz.getLeft(), schema),
-                ColumnReferenceExtension.withDefaultSchema(thiz.getRight(), schema)
+                ColumnReferenceExtension.withDefaultSchema(thiz.getRight(), schema),
+                thiz.getJoinType()
             );
         }
         return thiz;

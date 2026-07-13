@@ -81,7 +81,7 @@ class CoQueriedServiceTest {
     }
 
     private static JoinColumns join(TableReference left, TableReference right) {
-        return new JoinColumns(new ColumnReference(left, "id", "id"), new ColumnReference(right, "id", "id"));
+        return new JoinColumns(new ColumnReference(left, "id", "id"), new ColumnReference(right, "id", "id"), "INNER");
     }
 
     private static TableStructure structureWithFkTo(TableReference from, TableReference to) {

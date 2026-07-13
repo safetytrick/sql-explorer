@@ -84,6 +84,26 @@ public class SqlProfileExtension {
             return thiz;
         }
 
+        public static SqlProfile.Builder selectColumn(@This SqlProfile.Builder thiz, ColumnReference column) {
+            if (thiz.getSelectColumns() == null) {
+                thiz.setSelectColumns(new ArrayList<>());
+                thiz.getSelectColumns().add(column);
+            } else if (thiz.getSelectColumns().stream().noneMatch(column::equalsNormalized)) {
+                thiz.getSelectColumns().add(column);
+            }
+            return thiz;
+        }
+
+        public static SqlProfile.Builder groupByColumn(@This SqlProfile.Builder thiz, ColumnReference column) {
+            if (thiz.getGroupByColumns() == null) {
+                thiz.setGroupByColumns(new ArrayList<>());
+                thiz.getGroupByColumns().add(column);
+            } else if (thiz.getGroupByColumns().stream().noneMatch(column::equalsNormalized)) {
+                thiz.getGroupByColumns().add(column);
+            }
+            return thiz;
+        }
+
         public static void addSchema(@This SqlProfile.Builder thiz, String schema) {
             if (schema == null) {
                 return;
@@ -145,6 +165,22 @@ public class SqlProfileExtension {
                     criteriaColumns.add(criteriaColumn.withDefaultSchema(defaultSchema));
                 }
                 thiz.setCriteriaColumns(criteriaColumns);
+            }
+
+            if (thiz.getSelectColumns() != null) {
+                List<ColumnReference> selectColumns = new ArrayList<>(thiz.getSelectColumns().size());
+                for (ColumnReference selectColumn : thiz.getSelectColumns()) {
+                    selectColumns.add(selectColumn.withDefaultSchema(defaultSchema));
+                }
+                thiz.setSelectColumns(selectColumns);
+            }
+
+            if (thiz.getGroupByColumns() != null) {
+                List<ColumnReference> groupByColumns = new ArrayList<>(thiz.getGroupByColumns().size());
+                for (ColumnReference groupByColumn : thiz.getGroupByColumns()) {
+                    groupByColumns.add(groupByColumn.withDefaultSchema(defaultSchema));
+                }
+                thiz.setGroupByColumns(groupByColumns);
             }
 
             if (thiz.getJoinColumns() != null) {
