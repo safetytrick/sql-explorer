@@ -258,7 +258,7 @@ class QuerySearchServiceTest {
 
         RuntimeMetrics build() {
             return new RuntimeMetrics(fullScan, executed, 0L, 0L,
-                picos(avgTimeMs * 100), picos(maxTimeMs), picos(avgTimeMs),
+                picos(avgTimeMs * executed), picos(maxTimeMs), picos(avgTimeMs),
                 rowsSentAvg * 100, rowsSentAvg, rowsScannedAvg * 100, rowsScannedAvg,
                 0L, 0L, 0L, 0L,
                 "digest", lastSeen, lastSeen.minusDays(100),

@@ -174,10 +174,7 @@ public class QuerySearchService {
     private static Comparator<QueryHit> comparator(QuerySearchRequest.Sort sort) {
         QuerySearchRequest.Sort key = sort == null ? QuerySearchRequest.Sort.IMPACT : sort;
         Function<RuntimeMetrics, Double> metric = switch (key) {
-            case IMPACT -> m -> {
-                Double avgMs = millis(m.getAverageTime());
-                return avgMs == null ? null : avgMs * m.getExecuted();
-            };
+            case IMPACT -> m -> millis(m.getTotalTime());
             case AVG_TIME -> m -> millis(m.getAverageTime());
             case MAX_TIME -> m -> millis(m.getMaxTime());
             case AVG_ROWS_SCANNED -> m -> (double) m.getAverageRowsScanned();

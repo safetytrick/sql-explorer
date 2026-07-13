@@ -46,7 +46,7 @@ public record QuerySearchRequest(
     /** Tri-state matching a boolean characteristic. */
     public enum Flag { ANY, YES, NO }
 
-    /** Sort keys; results are always descending (worst first). IMPACT = executions × avg time; the default. */
+    /** Sort keys; results are always descending (worst first). IMPACT = total query time; the default. */
     public enum Sort { IMPACT, AVG_TIME, MAX_TIME, AVG_ROWS_SCANNED, SELECTIVITY, LAST_SEEN }
 
     /** An unconstrained search (used when the request body is absent). */

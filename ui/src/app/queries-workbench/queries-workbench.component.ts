@@ -277,7 +277,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   impactOf(hit: QueryHit): string {
     const metrics = hit.profile.runtimeMetrics;
     if (!metrics) { return '—'; }
-    return this.ms(metrics.averageTime * metrics.executed);
+    return this.ms(metrics.totalTime);
   }
 
   selectivityOf(hit: QueryHit): string {
