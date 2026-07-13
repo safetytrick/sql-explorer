@@ -21,6 +21,10 @@ const PAGE_SIZE = 50;
 /** Mirrors the backend's explicit type set; OTHER matches everything outside it. */
 export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'OTHER'];
 
+/** SqlProfileReportService.SLOW_THRESHOLD / CHATTY_THRESHOLD, in ms. */
+const SLOW_MIN_MS = 1000;
+const CHATTY_MAX_MS = 20;
+
 interface RangeState { min: number | null; max: number | null; }
 
 @Component({
@@ -227,6 +231,26 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   setFlag(key: string, value: Flag) {
     (this as any)[key] = value;
+    this.filtersChanged();
+  }
+
+  // ── slow/chatty shortcuts over the avg-time range ──
+
+  isSlow(): boolean {
+    return this.avgTime.min === SLOW_MIN_MS && this.avgTime.max === null;
+  }
+
+  isChatty(): boolean {
+    return this.avgTime.min === null && this.avgTime.max === CHATTY_MAX_MS;
+  }
+
+  toggleSlow() {
+    this.avgTime = this.isSlow() ? { min: null, max: null } : { min: SLOW_MIN_MS, max: null };
+    this.filtersChanged();
+  }
+
+  toggleChatty() {
+    this.avgTime = this.isChatty() ? { min: null, max: null } : { min: null, max: CHATTY_MAX_MS };
     this.filtersChanged();
   }
 

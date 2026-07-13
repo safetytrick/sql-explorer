@@ -66,6 +66,10 @@
       <div class="section-hdr">Performance</div>
       <div class="fg">
         <div class="fg-label">Avg time (ms)</div>
+        <div class="tri-row shortcut-row">
+          <span class="tri-btn" [class.on]="isSlow()" (click)="toggleSlow()">slow &gt;1s</span>
+          <span class="tri-btn" [class.on]="isChatty()" (click)="toggleChatty()">chatty &lt;20ms</span>
+        </div>
         <div class="range-row">
           <input type="number" placeholder="min" [(ngModel)]="avgTime.min" (change)="filtersChanged()">
           <input type="number" placeholder="max" [(ngModel)]="avgTime.max" (change)="filtersChanged()">

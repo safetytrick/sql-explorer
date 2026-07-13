@@ -89,6 +89,8 @@
   &.on-bad { background: var(--red-dim); border-color: var(--red); color: var(--red); }
 }
 
+.shortcut-row { margin-bottom: 5px; }
+
 .date-row, .range-row {
   display: flex;
   align-items: center;
