@@ -1,0 +1,209 @@
+<div class="view-header">
+  <span class="view-title mono tbl-name">{{table}}</span>
+  <span class="view-sub">{{schema}} · {{columns.length}} columns</span>
+  <div class="view-actions">
+    <a class="btn" [routerLink]="['/table', schema, table, 'queries']">Queries ↗</a>
+    <a class="btn" [routerLink]="['/table-graph/schema', schema, table]">Graph ↗</a>
+  </div>
+</div>
+
+<div class="lens-body">
+  <div class="lens-grid">
+    <div class="lens-main">
+
+      <!-- Stats -->
+      <div class="lens-card">
+        <div class="stat-strip">
+          <div class="stat-cell">
+            <div class="stat-label">distinct queries</div>
+            <div class="stat-val blue">{{stats?.distinctQueries ?? '—'}}</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">total executions</div>
+            <div class="stat-val">{{stats ? fmtExecutions(stats.totalExecutions) : '—'}}</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">total query time</div>
+            <div class="stat-val hot">{{stats ? (stats.totalTimeMs | duration) : '—'}}</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">read / write</div>
+            <div class="stat-val">
+              @if (readPercent() !== null) {
+                {{readPercent()}}% / {{100 - readPercent()!}}%
+              } @else {
+                —
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Foreign keys -->
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">Foreign key relationships</span>
+          <span class="card-head-note">{{outgoingCount()}} out · {{incomingCount()}} in</span>
+        </div>
+        @if (foreignKeys.length === 0) {
+          <div class="card-empty">no foreign keys</div>
+        } @else {
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+              <tr><th>dir</th><th>constraint</th><th>columns</th><th></th><th>references</th><th>on update</th><th>on delete</th></tr>
+              </thead>
+              <tbody>
+                @for (fk of foreignKeys; track fk.constraintName) {
+                  <tr [routerLink]="['/table', fk.otherSchema, fk.otherTable]">
+                    <td><span class="badge" [class.fk-out]="fk.direction === 'out'" [class.fk-in]="fk.direction === 'in'">{{fk.direction}}</span></td>
+                    <td><span class="mono dim">{{fk.constraintName}}</span></td>
+                    <td>
+                      @for (col of fk.columns; track col.fromColumn) {
+                        <div>
+                          <span class="mono">{{col.fromColumn}}</span>
+                          @if (col.typeMismatch) {
+                            <span class="badge b-warn mismatch">{{col.fromType}}≠{{col.toType}}</span>
+                          }
+                        </div>
+                      }
+                    </td>
+                    <td class="dim">→</td>
+                    <td>
+                      <span class="mono tbl-name">{{fk.otherTable}}</span><span class="mono dim">.{{fk.columns[0].toColumn}}</span>
+                    </td>
+                    <td><span class="mono dim">{{fk.onUpdate || '—'}}</span></td>
+                    <td><span class="mono dim">{{fk.onDelete || '—'}}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- Co-queried -->
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">Commonly queried together</span>
+        </div>
+        @if (coQueried.length === 0) {
+          <div class="card-empty">never queried with another table</div>
+        } @else {
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+              <tr><th>table</th><th class="num">queries</th><th class="num">executions</th><th class="num">avg time</th><th>join types</th><th>fk</th></tr>
+              </thead>
+              <tbody>
+                @for (partner of coQueried; track partner.schema + '.' + partner.table) {
+                  <tr [routerLink]="['/table', partner.schema, partner.table]">
+                    <td><span class="mono tbl-name">{{partner.table}}</span></td>
+                    <td class="num mono">{{partner.queries}}</td>
+                    <td class="num mono">{{fmtExecutions(partner.executions)}}</td>
+                    <td class="num mono hot">{{fmtMs(partner.avgTimeMs)}}</td>
+                    <td>
+                      @for (type of partner.joinTypes; track type) {
+                        <span class="rp rp-join">{{type}}</span>
+                      }
+                      @if (partner.joinTypes.length === 0 && partner.joined) {
+                        <span class="rp rp-join">joined</span>
+                      }
+                    </td>
+                    <td>
+                      @if (partner.fkDirection) {
+                        <span class="badge" [class.fk-out]="partner.fkDirection === 'out'" [class.fk-in]="partner.fkDirection === 'in'">{{partner.fkDirection}}</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- Columns -->
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">Columns</span>
+          <div class="col-filters">
+            <span class="tri-btn" [class.on]="columnFilter === 'all'" (click)="columnFilter = 'all'">all {{columns.length}}</span>
+            <span class="tri-btn" [class.on]="columnFilter === 'used'" (click)="columnFilter = 'used'">used</span>
+            <span class="tri-btn" [class.on]="columnFilter === 'keys'" (click)="columnFilter = 'keys'">keys</span>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+            <tr><th>column</th><th>type</th><th>attributes</th><th>charset</th><th class="ctr">nullable</th><th>query roles</th><th class="num">queries</th></tr>
+            </thead>
+            <tbody>
+              @for (column of visibleColumns(); track column.name) {
+                <tr>
+                  <td><span class="mono">{{column.name}}</span></td>
+                  <td><span class="mono dim2">{{column.type}}({{column.size}})</span></td>
+                  <td>
+                    @if (column.primaryKey) { <span class="badge b-pk">PK</span> }
+                    @if (column.foreignKey) { <span class="badge b-fk">FK</span> }
+                    @if (column.autoIncrement) { <span class="badge b-idx">AI</span> }
+                  </td>
+                  <td>
+                    @if (column.characterSet) {
+                      <span class="mono dim charset">{{column.characterSet}}</span>
+                    } @else {
+                      <span class="dim">—</span>
+                    }
+                  </td>
+                  <td class="ctr" [class.dim]="column.nullable">{{column.nullable ? 'null' : 'not null'}}</td>
+                  <td>
+                    @for (role of column.roles; track role) {
+                      <span class="rp" [class.rp-join]="role === 'join'" [class.rp-criteria]="role === 'criteria'"
+                            [class.rp-select]="role === 'select'" [class.rp-groupby]="role === 'group by'">{{role}}</span>
+                    }
+                    @if (column.roles.length === 0) { <span class="dim">—</span> }
+                  </td>
+                  <td class="num">
+                    <span class="mono" [class.dim]="column.queries === 0">{{column.queries || '—'}}</span>
+                    @if (column.queries > 0) {
+                      <div class="q-bar" [style.width.px]="8 + column.queries / maxColumnQueries() * 48"></div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right rail -->
+    <div class="lens-rail">
+      <div class="lens-card">
+        <div class="card-head"><span class="card-head-title">Indexes</span></div>
+        <div class="index-list">
+          @if (indexes.length === 0) {
+            <div class="card-empty">no indexes</div>
+          }
+          @for (index of indexes; track index.name) {
+            <div class="index-row">
+              <div class="index-head">
+                <span class="badge" [class.b-pk]="index.name === 'PRIMARY'" [class.b-idx]="index.name !== 'PRIMARY'">
+                  {{index.name === 'PRIMARY' ? 'PK' : (index.unique ? 'UNIQ' : 'IDX')}}
+                </span>
+                <span class="mono dim2">{{index.name}}</span>
+              </div>
+              <span class="mono dim">{{index.columns.join(', ')}}</span>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="lens-card">
+        <div class="card-head"><span class="card-head-title">Tags</span></div>
+        <div class="tags-body">
+          <app-tag-view [path]="'/schema/' + schema + '/table/' + table"></app-tag-view>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

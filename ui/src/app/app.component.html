@@ -1,7 +1,10 @@
 <app-nav-bar></app-nav-bar>
-<div class="main-content">
-  @if (showExplain) {
-    <app-explain-view></app-explain-view>
-  }
-  <router-outlet></router-outlet>
+<div class="app-body">
+  <app-schema-tree></app-schema-tree>
+  <div class="main-content">
+    @if (showExplain) {
+      <app-explain-view></app-explain-view>
+    }
+    <router-outlet></router-outlet>
+  </div>
 </div>

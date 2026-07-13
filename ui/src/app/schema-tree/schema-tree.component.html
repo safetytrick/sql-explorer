@@ -1,0 +1,26 @@
+<div class="sidebar-search">
+  <input placeholder="filter tables…" [value]="filter" (input)="filter = $any($event.target).value">
+</div>
+<div class="sidebar-scroll">
+  @if (loading) {
+    <div class="tree-note">loading…</div>
+  } @else if (visibleSchemas().length === 0) {
+    <div class="tree-note">no tables</div>
+  }
+  @for (schema of visibleSchemas(); track schema.name) {
+    <div class="schema-label">{{schema.name}}</div>
+    @for (table of schema.tables; track table.name) {
+      <a class="tree-table"
+         [routerLink]="['/table', schema.name, table.name]"
+         routerLinkActive="active">
+        <span class="t-name">{{table.name}}</span>
+        @if (table.columnCount !== null) {
+          <span class="t-cols">{{table.columnCount}}c</span>
+        }
+        @if (table.warn) {
+          <span class="t-warn" title="has analyzer findings"></span>
+        }
+      </a>
+    }
+  }
+</div>

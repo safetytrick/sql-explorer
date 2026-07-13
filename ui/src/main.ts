@@ -33,6 +33,7 @@ import {MatInputModule} from '@angular/material/input';
 import {MatIconModule} from '@angular/material/icon';
 import {MatListModule} from '@angular/material/list';
 import {AppComponent} from './app/app.component';
+import {TableLensComponent} from './app/table-lens/table-lens.component';
 
 const appRoutes: Routes = [
   {
@@ -67,8 +68,13 @@ const appRoutes: Routes = [
   },
   {
     path: 'table/:schema/:name',
-    component: TableViewComponent,
+    component: TableLensComponent,
     data: { title: 'Table View'}
+  },
+  {
+    path: 'table/:schema/:name/queries',
+    component: TableViewComponent,
+    data: { title: 'Table Queries'}
   },
   {
     path: 'table/:schema/:name/join/:joinSchema/:joinTable',
