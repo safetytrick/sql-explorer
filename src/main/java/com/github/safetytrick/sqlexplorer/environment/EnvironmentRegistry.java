@@ -32,10 +32,7 @@ public class EnvironmentRegistry {
             for (Map.Entry<String, EnvironmentDefinition> entry : definitions.entrySet()) {
                 environments.put(entry.getKey(), toEnvironment(entry.getKey(), entry.getValue(), schemaRepositoryFactory));
             }
-            // prefer an environment literally named "default", else the first declared
-            this.defaultEnvironmentName = environments.containsKey(DEFAULT_ENVIRONMENT)
-                ? DEFAULT_ENVIRONMENT
-                : environments.keySet().iterator().next();
+            this.defaultEnvironmentName = resolveDefaultName(definitions);
         } else {
             ConnectionInfo connectionInfo = new ConnectionInfo(legacyMetadata.getJdbcUrl(),
                 legacyMetadata.getUsername(),
@@ -46,6 +43,27 @@ public class EnvironmentRegistry {
             this.defaultEnvironmentName = DEFAULT_ENVIRONMENT;
         }
         log.info("Environments configured: {} (default: {})", environments.keySet(), defaultEnvironmentName);
+    }
+
+    /**
+     * The environment marked {@code default: true} wins; else one literally named
+     * "default"; else the first declared (single-file configs only — profile
+     * overlays do not preserve declaration order).
+     */
+    private String resolveDefaultName(Map<String, EnvironmentDefinition> definitions) {
+        List<String> marked = definitions.entrySet().stream()
+            .filter(entry -> entry.getValue().isDefault())
+            .map(Map.Entry::getKey)
+            .toList();
+        if (marked.size() > 1) {
+            throw new IllegalArgumentException("Multiple environments marked default: " + marked);
+        }
+        if (!marked.isEmpty()) {
+            return marked.getFirst();
+        }
+        return environments.containsKey(DEFAULT_ENVIRONMENT)
+            ? DEFAULT_ENVIRONMENT
+            : environments.keySet().iterator().next();
     }
 
     private static Environment toEnvironment(String name, EnvironmentDefinition definition,

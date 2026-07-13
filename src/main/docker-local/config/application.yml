@@ -3,9 +3,18 @@
 
 environments:
   regression:
+    default: true
     servers:
       primary:
         jdbcUrl: "jdbc:mysql://${DB_HOST}:3306"
+        sources:
+          - type: x-statement-analysis
+  # second environment backed by the local explorer database, used to exercise
+  # environment switching (the X-Sql-Explorer-Environment header selects it)
+  local:
+    servers:
+      explorer:
+        jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
         sources:
           - type: x-statement-analysis
 
