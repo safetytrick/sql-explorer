@@ -105,7 +105,7 @@
     white-space: nowrap;
   }
 
-  td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
   tr:last-child td { border-bottom: none; }
   tbody tr:hover td { background: var(--bg3); cursor: pointer; }
   .num { text-align: right; }
