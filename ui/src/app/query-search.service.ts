@@ -17,7 +17,7 @@ export interface DateRange {
 export type Flag = 'ANY' | 'YES' | 'NO';
 export type Activity = 'ANY' | 'ACTIVE' | 'DORMANT';
 export type TagMode = 'ANY' | 'ALL';
-export type SortKey = 'AVG_TIME' | 'MAX_TIME' | 'AVG_ROWS_SCANNED' | 'SELECTIVITY' | 'LAST_SEEN';
+export type SortKey = 'IMPACT' | 'AVG_TIME' | 'MAX_TIME' | 'AVG_ROWS_SCANNED' | 'SELECTIVITY' | 'LAST_SEEN';
 
 export interface QuerySearchRequest {
   avgTimeMs?: Range | null;

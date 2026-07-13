@@ -140,6 +140,7 @@
       <div class="bar-right">
         <span class="bar-label">sort:</span>
         <select [(ngModel)]="sort" (change)="filtersChanged()">
+          <option value="IMPACT">impact ↓</option>
           <option value="AVG_TIME">avg time ↓</option>
           <option value="MAX_TIME">max time ↓</option>
           <option value="AVG_ROWS_SCANNED">rows scanned ↓</option>
@@ -177,6 +178,7 @@
               </div>
             </div>
             <div class="q-meta">
+              <span class="qm">impact <span>{{impactOf(hit)}}</span></span>
               <span class="qm">avg <span>{{ms(hit.profile.runtimeMetrics?.averageTime)}}</span></span>
               <span class="qm">max <span>{{ms(hit.profile.runtimeMetrics?.maxTime)}}</span></span>
               <span class="qm">scanned <span>{{rows(hit.profile.runtimeMetrics?.averageRowsScanned)}}</span></span>

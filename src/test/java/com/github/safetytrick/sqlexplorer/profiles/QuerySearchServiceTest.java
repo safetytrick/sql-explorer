@@ -51,7 +51,7 @@ class QuerySearchServiceTest {
     }
 
     @Test
-    void unconstrainedSearchReturnsEverythingWorstAvgTimeFirst() {
+    void unconstrainedSearchReturnsEverythingHighestImpactFirst() {
         repositoryReturns(
             profile("fast", metrics().avgTimeMs(2).build()),
             profile("slow", metrics().avgTimeMs(50).build()),
@@ -179,6 +179,22 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void defaultSortIsImpactNotAvgTime() {
+        repositoryReturns(
+            // slow but rare: 200ms × 10 = 2,000ms impact
+            profile("slow-rare", metrics().avgTimeMs(200).executed(10).build()),
+            // fast but constant: 2ms × 100,000 = 200,000ms impact
+            profile("fast-hot", metrics().avgTimeMs(2).executed(100_000).build()),
+            profile("unmetered", null));
+
+        assertThat(searchIds(request().build()))
+            .containsExactly("fast-hot", "slow-rare", "unmetered");
+        // explicit avg-time sort still puts the slow query first
+        assertThat(searchIds(request().sort(Sort.AVG_TIME).build()))
+            .containsExactly("slow-rare", "fast-hot", "unmetered");
+    }
+
+    @Test
     void sortByLastSeenPutsNewestFirst() {
         repositoryReturns(
             profile("old", metrics().lastSeen(NOW.minusDays(30)).build()),
@@ -228,18 +244,20 @@ class QuerySearchServiceTest {
         private double avgTimeMs = 1;
         private double maxTimeMs = 1;
         private boolean fullScan = false;
+        private long executed = 100;
         private long rowsSentAvg = 1;
         private long rowsScannedAvg = 1;
         private LocalDateTime lastSeen = NOW;
 
         MetricsBuilder avgTimeMs(double v) { this.avgTimeMs = v; return this; }
         MetricsBuilder fullScan(boolean v) { this.fullScan = v; return this; }
+        MetricsBuilder executed(long v) { this.executed = v; return this; }
         MetricsBuilder rowsSentAvg(long v) { this.rowsSentAvg = v; return this; }
         MetricsBuilder rowsScannedAvg(long v) { this.rowsScannedAvg = v; return this; }
         MetricsBuilder lastSeen(LocalDateTime v) { this.lastSeen = v; return this; }
 
         RuntimeMetrics build() {
-            return new RuntimeMetrics(fullScan, 100L, 0L, 0L,
+            return new RuntimeMetrics(fullScan, executed, 0L, 0L,
                 picos(avgTimeMs * 100), picos(maxTimeMs), picos(avgTimeMs),
                 rowsSentAvg * 100, rowsSentAvg, rowsScannedAvg * 100, rowsScannedAvg,
                 0L, 0L, 0L, 0L,

@@ -58,7 +58,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   analyzerWarnings = false;
   analysisFailed = false;
   cleanAnalysis = false;
-  sort: SortKey = 'AVG_TIME';
+  sort: SortKey = 'IMPACT';
 
   // ── results ──
   hits: QueryHit[] = [];
@@ -274,6 +274,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     return String(value);
   }
 
+  impactOf(hit: QueryHit): string {
+    const metrics = hit.profile.runtimeMetrics;
+    if (!metrics) { return '—'; }
+    return this.ms(metrics.averageTime * metrics.executed);
+  }
+
   selectivityOf(hit: QueryHit): string {
     const metrics = hit.profile.runtimeMetrics;
     if (!metrics) { return '—'; }
@@ -311,7 +317,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (this.analyzerWarnings) { params['analWarn'] = '1'; }
     if (this.analysisFailed) { params['analFail'] = '1'; }
     if (this.cleanAnalysis) { params['analClean'] = '1'; }
-    if (this.sort !== 'AVG_TIME') { params['sort'] = this.sort; }
+    if (this.sort !== 'IMPACT') { params['sort'] = this.sort; }
     this.router.navigate([], { relativeTo: this.route, queryParams: params, replaceUrl: true });
   }
 
@@ -343,7 +349,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.analyzerWarnings = params.get('analWarn') === '1';
     this.analysisFailed = params.get('analFail') === '1';
     this.cleanAnalysis = params.get('analClean') === '1';
-    this.sort = (params.get('sort') as SortKey) || 'AVG_TIME';
+    this.sort = (params.get('sort') as SortKey) || 'IMPACT';
     this.searchTrigger.next();
   }
 }
