@@ -90,13 +90,15 @@ class SqlSourceResource {
             .sorted(Comparator.comparing(source -> source.getImportStats().count()));
     }
 
-    /** Persisted sources attributed to the request's environment. */
+    /** All persisted sources, each labeled with the environment it is attributed to. */
     @GetMapping("/sources")
-    public Stream<SqlSourceEntity> listPersistentImportedSqlSources() {
-        return sourceRefsForEnvironment(environmentContext.current().getName()).stream()
+    public Stream<PersistedSource> listPersistentImportedSqlSources() {
+        Map<String, String> attribution = attributionByRef();
+        return sqlSourceEntityRepository.findDistinctBy().stream()
                 .map(ref -> sqlSourceEntityRepository.findLatestBySourceRef(ref.getSourceRef()))
                 .flatMap(Optional::stream)
-                .sorted(Comparator.comparing(SqlSourceEntity::getSourceRef));
+                .map(entity -> new PersistedSource(entity, attribution.get(entity.getSourceRef())))
+                .sorted(Comparator.comparing(persisted -> persisted.source().getSourceRef()));
     }
 
     @PostMapping("/sources")
@@ -150,27 +152,34 @@ class SqlSourceResource {
         ).flatMap(Optional::stream);
     }
 
-    /**
-     * Persisted source refs attributed to the environment. Unattributed (legacy)
-     * refs belong to the default environment; encountering one persists that
-     * attribution.
-     */
+    /** Persisted source refs attributed to the environment. */
     private List<SourceRefProjection> sourceRefsForEnvironment(String environmentName) {
+        Map<String, String> attribution = attributionByRef();
+        return sqlSourceEntityRepository.findDistinctBy().stream()
+                .filter(ref -> environmentName.equals(attribution.get(ref.getSourceRef())))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Environment attribution for every persisted source ref. Unattributed
+     * (legacy) refs belong to the default environment; encountering one
+     * persists that attribution.
+     */
+    private Map<String, String> attributionByRef() {
         String defaultEnvironment = environmentRegistry.getDefaultName();
         Map<String, String> attribution = new HashMap<>();
         sourceRefEntityRepository.findAll()
                 .forEach(ref -> attribution.put(ref.getName(), ref.getEnvironmentName()));
-        return sqlSourceEntityRepository.findDistinctBy().stream()
-                .filter(ref -> {
-                    String attributedTo = attribution.get(ref.getSourceRef());
-                    if (attributedTo == null) {
-                        sqlSourceEntityService.attributeSourceRef(ref.getSourceRef(), defaultEnvironment);
-                        attributedTo = defaultEnvironment;
-                    }
-                    return attributedTo.equals(environmentName);
-                })
-                .collect(Collectors.toList());
+        for (SourceRefProjection ref : sqlSourceEntityRepository.findDistinctBy()) {
+            if (attribution.get(ref.getSourceRef()) == null) {
+                sqlSourceEntityService.attributeSourceRef(ref.getSourceRef(), defaultEnvironment);
+                attribution.put(ref.getSourceRef(), defaultEnvironment);
+            }
+        }
+        return attribution;
     }
+
+    record PersistedSource(SqlSourceEntity source, String environmentName) { }
 
 
     @SuppressWarnings("ClassCanBeRecord") // todo, test if this works with SourceRefProjection and SqlSourceEntityRepository

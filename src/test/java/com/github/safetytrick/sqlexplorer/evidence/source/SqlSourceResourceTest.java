@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -102,13 +103,16 @@ class SqlSourceResourceTest {
     }
 
     @Test
-    void listingIsScopedToTheRequestEnvironment() {
-        when(environmentContext.current()).thenReturn(new Environment("prod", List.of()));
+    void listingShowsEverySourceWithItsEnvironment() {
+        List<SqlSourceResource.PersistedSource> listed = resource.listPersistentImportedSqlSources().toList();
 
-        List<String> listed = resource.listPersistentImportedSqlSources()
-            .map(SqlSourceEntity::getSourceRef).toList();
-
-        assertThat(listed).containsExactly("mine");
+        assertThat(listed)
+            .extracting(item -> item.source().getSourceRef(), SqlSourceResource.PersistedSource::environmentName)
+            .containsExactly(
+                tuple("legacy", "staging"),
+                tuple("mine", "prod"),
+                tuple("theirs", "staging"));
+        verify(sqlSourceEntityService).attributeSourceRef("legacy", "staging");
     }
 
     private List<String> loadedSourceRefs(String environmentName) {

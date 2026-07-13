@@ -25,9 +25,10 @@
   <p>Managing sources for environment: <strong>{{currentEnvironment}}</strong></p>
 }
 <mat-selection-list #sourcesList [disabled]="loading">
-  @for (source of all; track source) {
-    <mat-list-option togglePosition="before" [selected]="isActive(source)" [value]="source.sourceRef">
-      <span>{{source.sourceRef}} - Last Updated: {{source.createdOn | date: 'short'}}</span>
+  @for (item of all; track item.source.sourceRef) {
+    <mat-list-option togglePosition="before" [selected]="isActive(item.source)" [value]="item.source.sourceRef">
+      <span>{{item.source.sourceRef}} - Last Updated: {{item.source.createdOn | date: 'short'}}</span>
+      <span class="env-badge" [class.foreign]="item.environmentName !== currentEnvironment">{{item.environmentName}}</span>
     </mat-list-option>
   }
   <button class="btn btn-primary" [disabled]="loading" (click)="applyChange(sourcesList)"> {{loading ? 'Loading…' : 'Apply'}} </button>
