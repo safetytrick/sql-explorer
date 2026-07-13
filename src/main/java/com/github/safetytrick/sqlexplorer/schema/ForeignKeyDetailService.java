@@ -94,7 +94,8 @@ public class ForeignKeyDetailService {
         return column == null ? null : column.typeName() + "(" + column.columnSize() + ")";
     }
 
-    private static boolean isMismatch(TableColumn from, TableColumn to) {
+    /** Strict FK-column comparison: type name, size, or charset differing is a mismatch. */
+    public static boolean isMismatch(TableColumn from, TableColumn to) {
         if (from == null || to == null) {
             return false;
         }

@@ -77,6 +77,39 @@ export interface TableIndex {
   columns: string[];
 }
 
+export interface GraphNode {
+  schema: string;
+  table: string;
+  columnCount: number | null;
+  queryCount: number;
+  warn: boolean;
+  selfJoin: boolean;
+}
+
+export interface GraphFkEdge {
+  fromSchema: string;
+  fromTable: string;
+  toSchema: string;
+  toTable: string;
+  label: string;
+  mismatch: boolean;
+}
+
+export interface GraphCoQueryEdge {
+  aSchema: string;
+  aTable: string;
+  bSchema: string;
+  bTable: string;
+  queries: number;
+  executions: number;
+}
+
+export interface GraphV2 {
+  nodes: GraphNode[];
+  fkEdges: GraphFkEdge[];
+  coQueryEdges: GraphCoQueryEdge[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class SchemaLensService {
 
@@ -104,5 +137,9 @@ export class SchemaLensService {
 
   getTableStructure(schema: string, name: string): Observable<{ indices: TableIndex[] } | null> {
     return this.http.get<{ indices: TableIndex[] } | null>(`${endpoint}metadata/table/${schema}/${name}`);
+  }
+
+  getSchemaGraph(schema: string): Observable<GraphV2> {
+    return this.http.get<GraphV2>(`${endpoint}graph/v2/schema/${schema}`);
   }
 }

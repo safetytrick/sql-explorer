@@ -1,0 +1,106 @@
+:host {
+  display: block;
+  margin: -16px -24px;
+  height: calc(100vh - 44px);
+}
+
+.graph-wrap {
+  position: relative;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: grab;
+
+  &:active { cursor: grabbing; }
+}
+
+.graph-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 5px;
+  z-index: 10;
+  align-items: center;
+
+  .schema-select {
+    font-size: 11px;
+    height: 26px;
+    padding: 0 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    border-radius: var(--radius);
+  }
+
+  .btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text2);
+    cursor: pointer;
+
+    &:hover { border-color: var(--blue); color: var(--blue); }
+    &.on { background: var(--blue-dim2); border-color: var(--blue); color: var(--blue); }
+  }
+
+  .loading { font-size: 10px; color: var(--text3); }
+}
+
+.graph-legend {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  .leg-row { display: flex; align-items: center; gap: 7px; font-size: 10px; color: var(--text2); }
+  .leg-line { height: 2px; width: 22px; border-radius: 1px; }
+  .leg-line.blue { background: var(--blue); }
+  .leg-line.amber { background: var(--amber); }
+  .leg-dash { border-top: 2px dashed var(--text3); width: 22px; }
+}
+
+.minimap {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: crosshair;
+  z-index: 10;
+
+  canvas { position: static; display: block; cursor: crosshair; }
+}
+
+.graph-tooltip {
+  position: absolute;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 20;
+  display: none;
+  min-width: 160px;
+
+  ::ng-deep .tt-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--teal); margin-bottom: 4px; }
+  ::ng-deep .tt-line { font-size: 10px; color: var(--text3); }
+  ::ng-deep .tt-foot { font-size: 10px; color: var(--text3); margin-top: 4px; border-top: 1px solid var(--border); padding-top: 4px; }
+}

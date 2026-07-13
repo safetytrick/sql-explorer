@@ -35,12 +35,23 @@ import {MatListModule} from '@angular/material/list';
 import {AppComponent} from './app/app.component';
 import {TableLensComponent} from './app/table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './app/queries-workbench/queries-workbench.component';
+import {GraphLensComponent} from './app/graph-lens/graph-lens.component';
 
 const appRoutes: Routes = [
   {
     path: 'queries',
     component: QueriesWorkbenchComponent,
     data: { title: 'Queries' }
+  },
+  {
+    path: 'graph',
+    component: GraphLensComponent,
+    data: { title: 'Graph' }
+  },
+  {
+    path: 'graph/:schema',
+    component: GraphLensComponent,
+    data: { title: 'Graph' }
   },
   {
     path: 'schemas',
