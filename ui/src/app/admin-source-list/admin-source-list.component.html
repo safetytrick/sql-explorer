@@ -11,7 +11,7 @@
         </li>
       }
     </ul>
-    @if (environment.sources.loaded) {
+    @if (environment.sources?.loaded) {
       <p class="state-loaded">
         {{environment.sources.sourceCount}} source(s) loaded at {{environment.sources.loadedOn | date: 'short'}}
         &mdash; {{environment.sources.importStats?.count}} statements imported
