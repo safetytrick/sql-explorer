@@ -26,6 +26,7 @@ export interface QuerySearchRequest {
   selectivity?: Range | null;
   rowsSorted?: Range | null;
   activity?: Activity | null;
+  types?: string[] | null;
   firstSeen?: DateRange | null;
   lastSeen?: DateRange | null;
   tags?: string[] | null;

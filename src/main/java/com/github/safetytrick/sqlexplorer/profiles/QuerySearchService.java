@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,6 +33,11 @@ public class QuerySearchService {
 
     static final int DEFAULT_LIMIT = 100;
     static final int MAX_LIMIT = 1000;
+
+    /** Types offered as explicit filters; "OTHER" matches everything outside this set. */
+    public static final Set<String> EXPLICIT_TYPES = Set.of(
+        "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "SHOW");
+    public static final String OTHER_TYPE = "OTHER";
 
     private static final String QUERY_TAG_TYPE = "query";
     private static final double PICOS_PER_MILLI = 1_000_000_000d;
@@ -81,6 +88,8 @@ public class QuerySearchService {
         if (r.activity() == QuerySearchRequest.Activity.DORMANT
             && profile.getQueryActivityStatus() != QueryActivityStatus.DORMANT) return false;
 
+        if (!matchesTypes(r.types(), profile.getType())) return false;
+
         if (!matchesDates(r.firstSeen(), m == null ? null : m.getFirstSeen())) return false;
         if (!matchesDates(r.lastSeen(), m == null ? null : m.getLastSeen())) return false;
 
@@ -98,6 +107,24 @@ public class QuerySearchService {
         if (Boolean.TRUE.equals(r.cleanAnalysis()) && (hasAnalyzerWarnings || profile.getAnalysisFailed())) return false;
 
         return true;
+    }
+
+    /** "OTHER" matches any type outside {@link #EXPLICIT_TYPES} (including missing types). */
+    private static boolean matchesTypes(List<String> wanted, String profileType) {
+        if (wanted == null || wanted.isEmpty()) {
+            return true;
+        }
+        String type = profileType == null ? "" : profileType.toUpperCase(Locale.ROOT);
+        for (String candidate : wanted) {
+            if (candidate == null) {
+                continue;
+            }
+            String upper = candidate.toUpperCase(Locale.ROOT);
+            if (OTHER_TYPE.equals(upper) ? !EXPLICIT_TYPES.contains(type) : upper.equals(type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean matchesTags(QuerySearchRequest r, List<Tag> tags) {

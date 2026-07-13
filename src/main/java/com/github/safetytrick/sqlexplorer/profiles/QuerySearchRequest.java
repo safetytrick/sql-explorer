@@ -16,6 +16,8 @@ public record QuerySearchRequest(
     Range selectivity,
     Range rowsSorted,
     Activity activity,
+    /** Statement types (SELECT, INSERT, …); "OTHER" matches any type outside {@link QuerySearchService#EXPLICIT_TYPES}. */
+    List<String> types,
     DateRange firstSeen,
     DateRange lastSeen,
     List<String> tags,
@@ -49,6 +51,6 @@ public record QuerySearchRequest(
 
     /** An unconstrained search (used when the request body is absent). */
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
-        null, null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null);
 }

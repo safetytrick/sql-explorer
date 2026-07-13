@@ -18,6 +18,15 @@
         </div>
       </div>
       <div class="fg">
+        <div class="fg-label">Query type <span class="hint">multi-select</span></div>
+        <div class="tri-row">
+          <span class="tri-btn" [class.on]="types.length === 0" (click)="clearTypes()">all</span>
+          @for (type of queryTypes; track type) {
+            <span class="tri-btn type-btn" [class.on]="types.includes(type)" (click)="toggleType(type)">{{type.toLowerCase()}}</span>
+          }
+        </div>
+      </div>
+      <div class="fg">
         <div class="fg-label">First seen</div>
         <div class="date-row"><label>after</label><input type="date" [(ngModel)]="firstAfter" (change)="filtersChanged()"></div>
         <div class="date-row"><label>before</label><input type="date" [(ngModel)]="firstBefore" (change)="filtersChanged()"></div>

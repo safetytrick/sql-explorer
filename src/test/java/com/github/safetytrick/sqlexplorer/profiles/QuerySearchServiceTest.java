@@ -112,6 +112,32 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void typeFilterMatchesMultipleTypesAndOther() {
+        repositoryReturns(
+            typed("select-q", "SELECT"),
+            typed("insert-q", "INSERT"),
+            typed("grant-q", "GRANT"),
+            typed("flush-q", "flush"),
+            typed("untyped-q", null));
+
+        assertThat(searchIds(request().types(List.of("SELECT", "INSERT")).build()))
+            .containsExactlyInAnyOrder("select-q", "insert-q");
+        // OTHER catches everything outside the explicit set, including missing types
+        assertThat(searchIds(request().types(List.of("OTHER")).build()))
+            .containsExactlyInAnyOrder("grant-q", "flush-q", "untyped-q");
+        assertThat(searchIds(request().types(List.of("select", "other")).build()))
+            .containsExactlyInAnyOrder("select-q", "grant-q", "flush-q", "untyped-q");
+        assertThat(searchIds(request().types(List.of()).build()))
+            .hasSize(5);
+    }
+
+    private static SqlProfile typed(String id, String type) {
+        SqlProfile profile = profile(id, metrics().build());
+        profile.setType(type);
+        return profile;
+    }
+
+    @Test
     void tagFiltersMatchAnyAllAndUntagged() {
         when(tagsService.findAllByType("query")).thenReturn(List.of(
             tag("audit", "/query/a"), tag("slow", "/query/a"), tag("audit", "/query/b")));
@@ -234,6 +260,7 @@ class QuerySearchServiceTest {
     private static class RequestBuilder {
         private Range avgTimeMs, selectivity;
         private Activity activity;
+        private List<String> types;
         private DateRange lastSeen;
         private List<String> tags;
         private TagMode tagMode;
@@ -245,6 +272,7 @@ class QuerySearchServiceTest {
         RequestBuilder avgTimeMs(Range v) { this.avgTimeMs = v; return this; }
         RequestBuilder selectivity(Range v) { this.selectivity = v; return this; }
         RequestBuilder activity(Activity v) { this.activity = v; return this; }
+        RequestBuilder types(List<String> v) { this.types = v; return this; }
         RequestBuilder lastSeen(DateRange v) { this.lastSeen = v; return this; }
         RequestBuilder tags(List<String> v) { this.tags = v; return this; }
         RequestBuilder tagMode(TagMode v) { this.tagMode = v; return this; }
@@ -259,7 +287,7 @@ class QuerySearchServiceTest {
 
         QuerySearchRequest build() {
             return new QuerySearchRequest(avgTimeMs, null, null, selectivity, null,
-                activity, null, lastSeen, tags, tagMode, untaggedOnly,
+                activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
                 fullScan, null, null, null, null,
                 analyzerWarnings, analysisFailed, cleanAnalysis, sort, limit, offset);
         }

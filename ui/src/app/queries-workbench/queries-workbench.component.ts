@@ -18,6 +18,9 @@ import { ChipStyle, TagColorsService } from '../tag-colors.service';
 
 const PAGE_SIZE = 50;
 
+/** Mirrors the backend's explicit type set; OTHER matches everything outside it. */
+export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'OTHER'];
+
 interface RangeState { min: number | null; max: number | null; }
 
 @Component({
@@ -28,8 +31,11 @@ interface RangeState { min: number | null; max: number | null; }
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
+  readonly queryTypes = QUERY_TYPES;
+
   // ── filter state ──
   activity: Activity = 'ANY';
+  types: string[] = [];
   firstAfter: string | null = null;
   firstBefore: string | null = null;
   lastAfter: string | null = null;
@@ -101,6 +107,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
         : { min: pctToFraction(this.selectivityPct.min), max: pctToFraction(this.selectivityPct.max) },
       rowsSorted: range(this.rowsSorted),
       activity: this.activity === 'ANY' ? null : this.activity,
+      types: this.types.length ? this.types : null,
       firstSeen: dates(this.firstAfter, this.firstBefore),
       lastSeen: dates(this.lastAfter, this.lastBefore),
       tags: this.tags.length ? this.tags : null,
@@ -142,8 +149,21 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     });
   }
 
+  toggleType(type: string) {
+    this.types = this.types.includes(type)
+      ? this.types.filter(candidate => candidate !== type)
+      : [...this.types, type];
+    this.filtersChanged();
+  }
+
+  clearTypes() {
+    this.types = [];
+    this.filtersChanged();
+  }
+
   clearAll() {
     this.activity = 'ANY';
+    this.types = [];
     this.firstAfter = this.firstBefore = this.lastAfter = this.lastBefore = null;
     this.tags = [];
     this.tagMode = 'ANY';
@@ -169,6 +189,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     rangeChip('selectivity', this.selectivityPct);
     rangeChip('rows sorted', this.rowsSorted);
     if (this.activity !== 'ANY') { chips.push('activity: ' + this.activity.toLowerCase()); }
+    if (this.types.length) { chips.push('type: ' + this.types.join(', ')); }
     if (this.firstAfter || this.firstBefore) { chips.push('first seen'); }
     if (this.lastAfter || this.lastBefore) { chips.push('last seen'); }
     if (this.tags.length) { chips.push(`tags(${this.tagMode.toLowerCase()}): ${this.tags.join(', ')}`); }
@@ -270,6 +291,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       if (r.max !== null) { params[key + 'Max'] = String(r.max); }
     };
     if (this.activity !== 'ANY') { params['activity'] = this.activity; }
+    if (this.types.length) { params['queryTypes'] = this.types.join(','); }
     put('firstAfter', this.firstAfter);
     put('firstBefore', this.firstBefore);
     put('lastAfter', this.lastAfter);
@@ -300,6 +322,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       max: params.has(key + 'Max') ? Number(params.get(key + 'Max')) : null
     });
     this.activity = (params.get('activity') as Activity) || 'ANY';
+    this.types = params.get('queryTypes')?.split(',').filter(Boolean) || [];
     this.firstAfter = params.get('firstAfter');
     this.firstBefore = params.get('firstBefore');
     this.lastAfter = params.get('lastAfter');
