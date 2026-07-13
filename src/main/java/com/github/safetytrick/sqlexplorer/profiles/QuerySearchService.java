@@ -101,6 +101,9 @@ public class QuerySearchService {
         if (!matchesFlag(r.errors(), m == null ? null : m.getErrors() > 0)) return false;
         if (!matchesFlag(r.warnings(), m == null ? null : m.getWarnings() > 0)) return false;
 
+        if (!matchesFlag(r.truncated(), profile.getTruncated())) return false;
+        if (!matchesFlag(r.multiSchema(), profile.getIsMultiSchema())) return false;
+
         boolean hasAnalyzerWarnings = !profile.getMismatchedJoins().isEmpty();
         if (Boolean.TRUE.equals(r.analyzerWarnings()) && !hasAnalyzerWarnings) return false;
         if (Boolean.TRUE.equals(r.analysisFailed()) && !profile.getAnalysisFailed()) return false;

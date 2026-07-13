@@ -55,6 +55,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   tmpDisk: Flag = 'ANY';
   errors: Flag = 'ANY';
   warnings: Flag = 'ANY';
+  truncated: Flag = 'ANY';
+  multiSchema: Flag = 'ANY';
   analyzerWarnings = false;
   analysisFailed = false;
   cleanAnalysis = false;
@@ -118,6 +120,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       tmpDisk: flag(this.tmpDisk),
       errors: flag(this.errors),
       warnings: flag(this.warnings),
+      truncated: flag(this.truncated),
+      multiSchema: flag(this.multiSchema),
       analyzerWarnings: this.analyzerWarnings || null,
       analysisFailed: this.analysisFailed || null,
       cleanAnalysis: this.cleanAnalysis || null,
@@ -174,6 +178,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.selectivityPct = { min: null, max: null };
     this.rowsSorted = { min: null, max: null };
     this.fullScan = this.tmpTable = this.tmpDisk = this.errors = this.warnings = 'ANY';
+    this.truncated = this.multiSchema = 'ANY';
     this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = false;
     this.filtersChanged();
   }
@@ -199,6 +204,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (this.tmpDisk !== 'ANY') { chips.push('tmp disk: ' + this.tmpDisk.toLowerCase()); }
     if (this.errors !== 'ANY') { chips.push('errors: ' + this.errors.toLowerCase()); }
     if (this.warnings !== 'ANY') { chips.push('warnings: ' + this.warnings.toLowerCase()); }
+    if (this.truncated !== 'ANY') { chips.push('truncated: ' + this.truncated.toLowerCase()); }
+    if (this.multiSchema !== 'ANY') { chips.push('multi-schema: ' + this.multiSchema.toLowerCase()); }
     if (this.analyzerWarnings) { chips.push('analyzer: warnings'); }
     if (this.analysisFailed) { chips.push('analyzer: failed'); }
     if (this.cleanAnalysis) { chips.push('analyzer: clean'); }
@@ -311,7 +318,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     putRange('sel', this.selectivityPct);
     putRange('sorted', this.rowsSorted);
     for (const [key, value] of Object.entries(
-      { fullScan: this.fullScan, tmpTable: this.tmpTable, tmpDisk: this.tmpDisk, errors: this.errors, warnings: this.warnings })) {
+      { fullScan: this.fullScan, tmpTable: this.tmpTable, tmpDisk: this.tmpDisk, errors: this.errors, warnings: this.warnings, truncated: this.truncated, multiSchema: this.multiSchema })) {
       if (value !== 'ANY') { params[key] = value; }
     }
     if (this.analyzerWarnings) { params['analWarn'] = '1'; }
@@ -346,6 +353,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.tmpDisk = (params.get('tmpDisk') as Flag) || 'ANY';
     this.errors = (params.get('errors') as Flag) || 'ANY';
     this.warnings = (params.get('warnings') as Flag) || 'ANY';
+    this.truncated = (params.get('truncated') as Flag) || 'ANY';
+    this.multiSchema = (params.get('multiSchema') as Flag) || 'ANY';
     this.analyzerWarnings = params.get('analWarn') === '1';
     this.analysisFailed = params.get('analFail') === '1';
     this.cleanAnalysis = params.get('analClean') === '1';

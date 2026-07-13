@@ -28,6 +28,8 @@ public record QuerySearchRequest(
     Flag tmpDisk,
     Flag errors,
     Flag warnings,
+    Flag truncated,
+    Flag multiSchema,
     Boolean analyzerWarnings,
     Boolean analysisFailed,
     Boolean cleanAnalysis,
@@ -52,5 +54,5 @@ public record QuerySearchRequest(
     /** An unconstrained search (used when the request body is absent). */
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null);
 }

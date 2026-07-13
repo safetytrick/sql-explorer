@@ -138,6 +138,20 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void truncatedAndMultiSchemaTriStates() {
+        SqlProfile truncated = profile("truncated", metrics().build());
+        truncated.setTruncated(true);
+        SqlProfile multi = profile("multi", metrics().build());
+        multi.setIsMultiSchema(true);
+        repositoryReturns(truncated, multi, profile("plain", metrics().build()));
+
+        assertThat(searchIds(request().truncated(Flag.YES).build())).containsExactly("truncated");
+        assertThat(searchIds(request().truncated(Flag.NO).build()))
+            .containsExactlyInAnyOrder("multi", "plain");
+        assertThat(searchIds(request().multiSchema(Flag.YES).build())).containsExactly("multi");
+    }
+
+    @Test
     void tagFiltersMatchAnyAllAndUntagged() {
         when(tagsService.findAllByType("query")).thenReturn(List.of(
             tag("audit", "/query/a"), tag("slow", "/query/a"), tag("audit", "/query/b")));
@@ -283,7 +297,7 @@ class QuerySearchServiceTest {
         private List<String> tags;
         private TagMode tagMode;
         private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis;
-        private Flag fullScan;
+        private Flag fullScan, truncated, multiSchema;
         private Sort sort;
         private Integer limit, offset;
 
@@ -299,6 +313,8 @@ class QuerySearchServiceTest {
         RequestBuilder analysisFailed(Boolean v) { this.analysisFailed = v; return this; }
         RequestBuilder cleanAnalysis(Boolean v) { this.cleanAnalysis = v; return this; }
         RequestBuilder fullScan(Flag v) { this.fullScan = v; return this; }
+        RequestBuilder truncated(Flag v) { this.truncated = v; return this; }
+        RequestBuilder multiSchema(Flag v) { this.multiSchema = v; return this; }
         RequestBuilder sort(Sort v) { this.sort = v; return this; }
         RequestBuilder limit(Integer v) { this.limit = v; return this; }
         RequestBuilder offset(Integer v) { this.offset = v; return this; }
@@ -307,6 +323,7 @@ class QuerySearchServiceTest {
             return new QuerySearchRequest(avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
                 fullScan, null, null, null, null,
+                truncated, multiSchema,
                 analyzerWarnings, analysisFailed, cleanAnalysis, sort, limit, offset);
         }
     }

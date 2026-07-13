@@ -118,6 +118,21 @@
         </div>
       }
 
+      <div class="section-hdr">Statement</div>
+      @for (flagDef of [
+        {key: 'truncated', label: 'Truncated capture'},
+        {key: 'multiSchema', label: 'Multi-schema'}
+      ]; track flagDef.key) {
+        <div class="fg">
+          <div class="fg-label">{{flagDef.label}}</div>
+          <div class="tri-row">
+            <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'ANY'" (click)="setFlag(flagDef.key, 'ANY')">any</span>
+            <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'YES'" (click)="setFlag(flagDef.key, 'YES')">yes</span>
+            <span class="tri-btn" [class.on-bad]="flagValue(flagDef.key) === 'NO'" (click)="setFlag(flagDef.key, 'NO')">no</span>
+          </div>
+        </div>
+      }
+
       <div class="section-hdr">Analyzer</div>
       <div class="fg checks">
         <label class="check-row"><input type="checkbox" [(ngModel)]="analyzerWarnings" (change)="filtersChanged()"> has analyzer warnings</label>

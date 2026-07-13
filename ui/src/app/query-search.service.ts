@@ -37,6 +37,8 @@ export interface QuerySearchRequest {
   tmpDisk?: Flag | null;
   errors?: Flag | null;
   warnings?: Flag | null;
+  truncated?: Flag | null;
+  multiSchema?: Flag | null;
   analyzerWarnings?: boolean | null;
   analysisFailed?: boolean | null;
   cleanAnalysis?: boolean | null;
