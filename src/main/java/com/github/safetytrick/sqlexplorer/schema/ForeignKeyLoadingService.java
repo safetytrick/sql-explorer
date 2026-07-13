@@ -99,7 +99,9 @@ public class ForeignKeyLoadingService {
                 fromTable = TableReference.newTableReference(fromSchema, fromTableName).normalized();
             }
             if (builder == null) {
-                builder = new ForeignKey.Builder();
+                builder = new ForeignKey.Builder()
+                    .constraintName(constraintName)
+                    .rules(keys.getString("UPDATE_RULE_NAME"), keys.getString("DELETE_RULE_NAME"));
             }
             constraint = constraintName;
 
@@ -145,7 +147,9 @@ public class ForeignKeyLoadingService {
                    ELSE 1 END            AS DELETE_RULE,
                A.CONSTRAINT_NAME         AS FK_NAME,
                R.UNIQUE_CONSTRAINT_NAME  AS PK_NAME,
-               7                         AS DEFERRABILITY
+               7                         AS DEFERRABILITY,
+               R.UPDATE_RULE             AS UPDATE_RULE_NAME,
+               R.DELETE_RULE             AS DELETE_RULE_NAME
            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE A
                     JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS B USING (CONSTRAINT_SCHEMA, CONSTRAINT_NAME, TABLE_NAME)
                     JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS R

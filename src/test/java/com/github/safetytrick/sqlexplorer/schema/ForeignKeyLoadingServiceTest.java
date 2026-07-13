@@ -34,6 +34,9 @@ class ForeignKeyLoadingServiceTest {
 
         List<ForeignKey> orders = byTable.get(ref("app", "orders"));
         assertThat(orders).hasSize(2);
+        assertThat(orders.getFirst().constraintName()).isEqualTo("fk_orders_customer");
+        assertThat(orders.getFirst().onUpdate()).isEqualTo("CASCADE");
+        assertThat(orders.getFirst().onDelete()).isEqualTo("RESTRICT");
         assertThat(columns(orders.get(0).from())).containsExactly("customer_id");
         assertThat(columns(orders.get(1).from())).containsExactly("line_a", "line_b");
         assertThat(columns(orders.get(1).to())).containsExactly("a", "b");
@@ -86,6 +89,8 @@ class ForeignKeyLoadingServiceTest {
                 case "PKTABLE_CAT" -> row.pkSchema();
                 case "PKTABLE_NAME" -> row.pkTable();
                 case "PKCOLUMN_NAME" -> row.pkColumn();
+                case "UPDATE_RULE_NAME" -> "CASCADE";
+                case "DELETE_RULE_NAME" -> "RESTRICT";
                 default -> throw new IllegalArgumentException(column);
             };
         });

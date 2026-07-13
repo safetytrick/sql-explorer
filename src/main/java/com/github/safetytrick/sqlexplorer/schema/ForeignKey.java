@@ -6,19 +6,42 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 
+/**
+ * One foreign key constraint owned by a table. {@code constraintName},
+ * {@code onUpdate} and {@code onDelete} may be null when the source of the
+ * schema does not provide them (e.g. parsed CREATE statements).
+ */
 public record ForeignKey(
     List<ColumnReference> from,
-    List<ColumnReference> to) {
+    List<ColumnReference> to,
+    String constraintName,
+    String onUpdate,
+    String onDelete) {
 
     public static class Builder {
         private final List<ColumnReference> from = new ArrayList<>();
         private final List<ColumnReference> to = new ArrayList<>();
+        private String constraintName;
+        private String onUpdate;
+        private String onDelete;
 
         public Builder addFromAndTo(ColumnReference from, ColumnReference to) {
             this.from.add(from);
             this.to.add(to);
             return this;
         }
+
+        public Builder constraintName(String constraintName) {
+            this.constraintName = constraintName;
+            return this;
+        }
+
+        public Builder rules(String onUpdate, String onDelete) {
+            this.onUpdate = onUpdate;
+            this.onDelete = onDelete;
+            return this;
+        }
+
         public ForeignKey build() {
             if (from.size() != to.size()) {
                 throw new IllegalStateException("cannot have ForeignKey with mismatched to and from");
@@ -27,7 +50,8 @@ public record ForeignKey(
                 throw new IllegalArgumentException("cannot build ForeignKey without to and from columns");
             }
             return new ForeignKey(Collections.unmodifiableList(from),
-                Collections.unmodifiableList(to));
+                Collections.unmodifiableList(to),
+                constraintName, onUpdate, onDelete);
         }
     }
 }

@@ -144,7 +144,9 @@ public record TableStructure(String schema,
 
         TableReference toTable = TableReference.newTableReference(fkTable.getSchemaName(), fkTable.getName());
 
-        ForeignKey.Builder builder = new ForeignKey.Builder();
+        ForeignKey.Builder builder = new ForeignKey.Builder()
+            .constraintName(fkIndex.getName())
+            .rules(fkIndex.getOnUpdateReferenceOption(), fkIndex.getOnDeleteReferenceOption());
         for (int i = 0; i < fkIndex.getColumnsNames().size(); i++) {
             String fromColumn = fkIndex.getColumnsNames().get(i);
             String toColumn = fkIndex.getReferencedColumnNames().get(i);

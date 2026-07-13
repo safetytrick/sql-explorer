@@ -1,9 +1,11 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
+import com.github.safetytrick.sqlexplorer.schema.ForeignKeyDetailService.ForeignKeyDetail;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,11 +19,14 @@ class SchemaResource {
 
     private final SqlSchemaService sqlSchemaService;
     private final TableReportService tableReportService;
+    private final ForeignKeyDetailService foreignKeyDetailService;
 
     public SchemaResource(SqlSchemaService sqlSchemaService,
-                          TableReportService tableReportService) {
+                          TableReportService tableReportService,
+                          ForeignKeyDetailService foreignKeyDetailService) {
         this.sqlSchemaService = sqlSchemaService;
         this.tableReportService = tableReportService;
+        this.foreignKeyDetailService = foreignKeyDetailService;
     }
 
     @GetMapping("/metadata/table/{schema}/{name}")
@@ -38,6 +43,12 @@ class SchemaResource {
         return sqlSchemaService.getCreateStatement(table);
     }
 
+
+    /** Foreign keys touching the table: owned ("out") and referencing ("in"). */
+    @GetMapping("/metadata/table/{schema}/{name}/foreign-keys")
+    public List<ForeignKeyDetail> getForeignKeys(@PathVariable String schema, @PathVariable("name") String tableName) {
+        return foreignKeyDetailService.getForeignKeys(TableReference.newTableReference(schema, tableName));
+    }
 
     @GetMapping("/tables/with-column/{name}")
     public Stream<TableRollup> getTablesWithColumn(@PathVariable String name) {
