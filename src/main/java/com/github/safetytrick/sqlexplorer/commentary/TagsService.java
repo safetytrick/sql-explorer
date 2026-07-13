@@ -19,6 +19,10 @@ public class TagsService implements TagLoader {
         return this.tagRepository.findAllByNameAndType(name, type);
     }
 
+    public List<Tag> findAllByType(String type) {
+        return this.tagRepository.findAllByType(type);
+    }
+
     @Override
     public List<Tag> findAllByPath(String path) {
         return this.tagRepository.findAllByPath(path);
