@@ -242,14 +242,42 @@
 
 .list-and-detail {
   display: flex;
+  flex-direction: column;
   flex: 1;
   overflow: hidden;
 }
 
 .query-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   &::-webkit-scrollbar { width: 4px; }
+}
+
+/* ── draggable divider between list (top) and detail (bottom) ── */
+.split-handle {
+  height: 7px;
+  flex-shrink: 0;
+  background: var(--bg3);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: row-resize;
+  position: relative;
+
+  &:hover { background: var(--blue-dim); }
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 42px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--border2);
+  }
+  &:hover::after { background: var(--blue); }
 }
 
 .list-note { padding: 32px; text-align: center; color: var(--text3); font-size: 12px; }
@@ -312,10 +340,9 @@
   span { color: var(--text2); font-weight: 500; font-family: var(--mono); }
 }
 
-/* ── detail pane ── */
+/* ── detail pane (bottom, resizable) ── */
 .detail-pane {
-  width: 300px;
-  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   background: var(--bg2);
   display: flex;
   flex-direction: column;
@@ -337,12 +364,20 @@
 .detail-scroll {
   flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
   &::-webkit-scrollbar { width: 3px; }
 }
 
 .detail-section {
+  flex: 1 1 190px;
+  min-width: 190px;
   padding: 10px 12px;
+  border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+
+  &.sql-section { flex: 2 1 340px; }
 }
 
 .ds-label {
@@ -395,6 +430,7 @@
 }
 
 .banner {
+  flex: 1 1 100%;
   margin: 8px 12px;
   padding: 7px 9px;
   border-radius: var(--radius);

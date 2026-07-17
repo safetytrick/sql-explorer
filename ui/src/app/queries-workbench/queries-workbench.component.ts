@@ -75,6 +75,15 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   loading = false;
   selected: QueryHit | null = null;
 
+  // ── resizable detail panel (bottom half) ──
+  detailHeight = 320;
+  private resizing = false;
+  private resizeStartY = 0;
+  private resizeStartHeight = 0;
+  private resizeContainer: HTMLElement | null = null;
+  private readonly onResizeMove = (event: MouseEvent) => this.resizeMove(event);
+  private readonly onResizeEnd = () => this.endResize();
+
   private readonly searchTrigger = new Subject<void>();
   private subscriptions = new Subscription();
 
@@ -98,6 +107,38 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.unsubscribe();
+    this.endResize();
+  }
+
+  // ── detail panel resizing ──
+
+  startResize(event: MouseEvent) {
+    event.preventDefault();
+    this.resizing = true;
+    this.resizeStartY = event.clientY;
+    this.resizeStartHeight = this.detailHeight;
+    this.resizeContainer = (event.target as HTMLElement).closest('.list-and-detail');
+    document.addEventListener('mousemove', this.onResizeMove);
+    document.addEventListener('mouseup', this.onResizeEnd);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+  }
+
+  private resizeMove(event: MouseEvent) {
+    if (!this.resizing) { return; }
+    const delta = this.resizeStartY - event.clientY;   // drag up grows the panel
+    const containerHeight = this.resizeContainer?.clientHeight ?? window.innerHeight;
+    const max = Math.max(120, containerHeight - 80);   // always leave room for the list
+    this.detailHeight = Math.max(120, Math.min(this.resizeStartHeight + delta, max));
+  }
+
+  private endResize() {
+    if (!this.resizing) { return; }
+    this.resizing = false;
+    document.removeEventListener('mousemove', this.onResizeMove);
+    document.removeEventListener('mouseup', this.onResizeEnd);
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
   }
 
   // ── search plumbing ──

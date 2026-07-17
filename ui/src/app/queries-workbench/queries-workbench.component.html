@@ -217,8 +217,11 @@
         }
       </div>
 
+      <!-- ── Resize handle ── -->
+      <div class="split-handle" (mousedown)="startResize($event)"></div>
+
       <!-- ── Detail pane ── -->
-      <div class="detail-pane">
+      <div class="detail-pane" [style.height.px]="detailHeight">
         @if (!selected) {
           <div class="detail-placeholder">select a query</div>
         } @else {
@@ -227,7 +230,7 @@
             <a class="detail-open" [routerLink]="['/analyzed-sql', selected.profile.digest]">open full view ↗</a>
           </div>
           <div class="detail-scroll">
-            <div class="detail-section">
+            <div class="detail-section sql-section">
               <pre class="sql-display"><code highlight="{{selected.profile.query}}"></code></pre>
             </div>
             @if (selected.profile.mismatchedJoins.length > 0) {
