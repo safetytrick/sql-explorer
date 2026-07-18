@@ -14,7 +14,7 @@ public record SchemaRollup(
 ) {
     public static Comparator<SchemaRollup> comparator(IgnoredSchemas ignoredSchemas) {
         return (o1, o2) -> {
-            int timeDiff = -Double.compare(o1.totalQueryTime(), o2.totalQueryTime());
+            int timeDiff = Double.compare(o2.totalQueryTime(), o1.totalQueryTime());
             if (ignoredSchemas.contains(o1.name())) {
                 if (ignoredSchemas.contains(o2.name())) {
                     return timeDiff;
