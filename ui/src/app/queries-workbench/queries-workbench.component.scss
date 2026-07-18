@@ -218,6 +218,25 @@
     border-radius: 20px;
     background: var(--blue-dim2);
     color: var(--blue);
+
+    &.scope-chip {
+      background: var(--green-dim);
+      color: var(--green);
+      font-family: var(--mono);
+    }
+
+    .rx { cursor: pointer; opacity: 0.6; margin-left: 2px; }
+    .rx:hover { opacity: 1; }
+  }
+
+  .scope-mode {
+    font-size: 10px;
+    height: 20px;
+    padding: 0 4px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    border-radius: 20px;
   }
 
   .bar-right {

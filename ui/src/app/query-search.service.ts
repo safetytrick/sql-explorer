@@ -17,6 +17,7 @@ export interface DateRange {
 export type Flag = 'ANY' | 'YES' | 'NO';
 export type Activity = 'ANY' | 'ACTIVE' | 'DORMANT';
 export type TagMode = 'ANY' | 'ALL';
+export type TableMode = 'ANY' | 'ALL';
 export type SortKey = 'IMPACT' | 'AVG_TIME' | 'MAX_TIME' | 'AVG_ROWS_SCANNED' | 'SELECTIVITY' | 'LAST_SEEN';
 
 export interface QuerySearchRequest {
@@ -32,6 +33,9 @@ export interface QuerySearchRequest {
   tags?: string[] | null;
   tagMode?: TagMode | null;
   untaggedOnly?: boolean | null;
+  schemas?: string[] | null;
+  tables?: string[] | null;        // normalized "schema.table" keys
+  tableMode?: TableMode | null;
   fullScan?: Flag | null;
   tmpTable?: Flag | null;
   tmpDisk?: Flag | null;
@@ -93,9 +97,16 @@ export interface QueryHit {
   tags: QueryTag[];
 }
 
+/** Per-table / per-schema match counts over the current filter (excluding the schema/table scope). */
+export interface QueryFacets {
+  tables: Record<string, number>;   // keyed by normalized "schema.table"
+  schemas: Record<string, number>;  // keyed by normalized schema
+}
+
 export interface QuerySearchResult {
   total: number;
   results: QueryHit[];
+  facets: QueryFacets;
 }
 
 @Injectable({ providedIn: 'root' })

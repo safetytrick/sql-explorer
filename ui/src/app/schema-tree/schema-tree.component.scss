@@ -48,6 +48,51 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text3);
+
+  &.filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+
+    .s-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    &:hover { color: var(--text2); }
+    &.selected { color: var(--green); }
+  }
+}
+
+/* checkbox glyph shared by schema + table rows in filter mode */
+.t-box {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid var(--border2);
+  flex-shrink: 0;
+  position: relative;
+
+  &.on {
+    background: var(--green);
+    border-color: var(--green);
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 0.5px;
+      width: 3px;
+      height: 6px;
+      border: solid var(--bg);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+  }
+}
+
+.t-count {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text3);
+  flex-shrink: 0;
 }
 
 .tree-table {
@@ -68,6 +113,15 @@
   &.active {
     background: var(--blue-dim);
     color: var(--blue);
+  }
+
+  &.filter.selected {
+    background: var(--green-dim);
+    color: var(--green);
+  }
+
+  &.dim {
+    opacity: 0.4;
   }
 
   .t-name {

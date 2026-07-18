@@ -60,14 +60,18 @@ public class SqlProfileExtension {
         return Collections.emptyList();
     }
 
-    public static String getGeneralId(@This SqlProfile thiz) {
+    public static List<String> getAllIds(@This SqlProfile thiz) {
+        var result = new ArrayList<String>(3);
         if (thiz.getNormalizedDigest() != null) {
-            return thiz.getNormalizedDigest();
-        } else if (thiz.getDigest() != null) {
-            return thiz.getDigest();
-        } else {
-            return thiz.getId();
+            result.add(thiz.getNormalizedDigest());
         }
+        if (thiz.getDigest() != null) {
+            result.add(thiz.getDigest());
+        }
+        result.addAll(thiz.getPerfDigests());
+        result.add(thiz.getId());
+
+        return result;
     }
 
     public static class Builder {

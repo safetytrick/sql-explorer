@@ -8,19 +8,44 @@
     <div class="tree-note">no tables</div>
   }
   @for (schema of visibleSchemas(); track schema.name) {
-    <div class="schema-label">{{schema.name}}</div>
+
+    @if (active) {
+      <div class="schema-label filter" [class.selected]="isSchemaSelected(schema.name)"
+           (click)="toggleSchema(schema.name)">
+        <span class="t-box" [class.on]="isSchemaSelected(schema.name)"></span>
+        <span class="s-name">{{schema.name}}</span>
+        <span class="t-count">{{schemaCount(schema.name)}}</span>
+      </div>
+    } @else {
+      <div class="schema-label">{{schema.name}}</div>
+    }
+
     @for (table of schema.tables; track table.name) {
-      <a class="tree-table"
-         [routerLink]="['/table', schema.name, table.name]"
-         routerLinkActive="active">
-        <span class="t-name">{{table.name}}</span>
-        @if (table.columnCount !== null) {
-          <span class="t-cols">{{table.columnCount}}c</span>
-        }
-        @if (table.warn) {
-          <span class="t-warn" title="has analyzer findings"></span>
-        }
-      </a>
+      @if (active) {
+        <div class="tree-table filter"
+             [class.selected]="isTableSelected(schema.name, table.name)"
+             [class.dim]="isTableDimmed(schema.name, table.name)"
+             (click)="toggleTable(schema.name, table.name)">
+          <span class="t-box" [class.on]="isTableSelected(schema.name, table.name)"></span>
+          <span class="t-name">{{table.name}}</span>
+          <span class="t-count">{{tableCount(schema.name, table.name)}}</span>
+          @if (table.warn) {
+            <span class="t-warn" title="has analyzer findings"></span>
+          }
+        </div>
+      } @else {
+        <a class="tree-table"
+           [routerLink]="['/table', schema.name, table.name]"
+           routerLinkActive="active">
+          <span class="t-name">{{table.name}}</span>
+          @if (table.columnCount !== null) {
+            <span class="t-cols">{{table.columnCount}}c</span>
+          }
+          @if (table.warn) {
+            <span class="t-warn" title="has analyzer findings"></span>
+          }
+        </a>
+      }
     }
   }
 </div>

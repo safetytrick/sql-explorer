@@ -153,8 +153,20 @@
   <div class="results-pane">
     <div class="active-filter-bar">
       <span class="bar-label">Active:</span>
-      @if (activeFilterChips().length === 0) {
+      @if (activeFilterChips().length === 0 && scopeSchemas.length === 0 && scopeTables.length === 0) {
         <span class="none-label">no filters</span>
+      }
+      @for (schema of scopeSchemas; track schema) {
+        <span class="active-chip scope-chip">schema:{{schema}} <span class="rx" (click)="removeScopeSchema(schema)">×</span></span>
+      }
+      @for (table of scopeTables; track table) {
+        <span class="active-chip scope-chip">{{table}} <span class="rx" (click)="removeScopeTable(table)">×</span></span>
+      }
+      @if (scopeTables.length > 1) {
+        <select class="scope-mode" [(ngModel)]="tableMode">
+          <option value="ANY">any table</option>
+          <option value="ALL">all tables</option>
+        </select>
       }
       @for (chip of activeFilterChips(); track chip) {
         <span class="active-chip">{{chip}}</span>

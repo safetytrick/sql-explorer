@@ -1,7 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
@@ -10,6 +9,7 @@ import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
@@ -18,6 +18,7 @@ import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.DateRange;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Flag;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Range;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Sort;
+import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.TableMode;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.TagMode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -178,7 +179,7 @@ class QuerySearchServiceTest {
     @Test
     void tagFiltersMatchAnyAllAndUntagged() {
         when(tagsService.findAllByType("query")).thenReturn(List.of(
-            tag("audit", "/query/a"), tag("slow", "/query/a"), tag("audit", "/query/b")));
+            tag("audit", "/query/a-norm"), tag("slow", "/query/a-digest"), tag("audit", "/query/b-norm")));
         repositoryReturns(
             profile("a", metrics().build()),
             profile("b", metrics().build()),
@@ -201,6 +202,63 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request().analyzerWarnings(true).build())).containsExactly("warned");
         assertThat(searchIds(request().analysisFailed(true).build())).containsExactly("failed");
         assertThat(searchIds(request().cleanAnalysis(true).build())).containsExactly("clean");
+    }
+
+    @Test
+    void tableScopeMatchesAnyAndAll() {
+        repositoryReturns(
+            withTables("orders", "app.orders"),
+            withTables("orders-users", "app.orders", "app.users"),
+            withTables("billing", "billing.invoices"),
+            profile("no-tables", metrics().build()));
+
+        assertThat(searchIds(request().tables(List.of("app.orders")).build()))
+            .containsExactlyInAnyOrder("orders", "orders-users");
+        assertThat(searchIds(request().tables(List.of("app.orders", "app.users")).tableMode(TableMode.ALL).build()))
+            .containsExactly("orders-users");
+        // selection casing need not match the casing captured in analysis
+        assertThat(searchIds(request().tables(List.of("APP.ORDERS")).build()))
+            .containsExactlyInAnyOrder("orders", "orders-users");
+    }
+
+    @Test
+    void schemaScopeMatchesAnyListedSchema() {
+        repositoryReturns(
+            withTables("orders", "app.orders"),
+            withTables("billing", "billing.invoices"));
+
+        assertThat(searchIds(request().schemas(List.of("billing")).build())).containsExactly("billing");
+        assertThat(searchIds(request().schemas(List.of("app", "billing")).build()))
+            .containsExactlyInAnyOrder("orders", "billing");
+    }
+
+    @Test
+    void facetsCountEachTableOncePerProfileOverTheNonScopeSet() {
+        repositoryReturns(
+            withTables("orders", "app.orders", "app.orders"), // self-join lists a table twice
+            withTables("orders-users", "app.orders", "app.users"),
+            withTables("billing", "billing.invoices"));
+
+        // scoping to one table narrows the results, but facets still reflect the full non-scope set
+        QuerySearchResult result = service.search(request().tables(List.of("billing.invoices")).build());
+
+        assertThat(result.results()).extracting(hit -> hit.profile().getId()).containsExactly("billing");
+        assertThat(result.facets().tables())
+            .containsEntry("app.orders", 2)
+            .containsEntry("app.users", 1)
+            .containsEntry("billing.invoices", 1);
+        assertThat(result.facets().schemas())
+            .containsEntry("app", 2)
+            .containsEntry("billing", 1);
+    }
+
+    private static SqlProfile withTables(String id, String... schemaTableKeys) {
+        SqlProfile profile = profile(id, metrics().build());
+        profile.setTables(Stream.of(schemaTableKeys).map(key -> {
+            String[] parts = key.split("\\.", 2);
+            return new TableReference(parts[0], parts[1], parts[1], parts[0]);
+        }).toList());
+        return profile;
     }
 
     @Test
@@ -320,6 +378,8 @@ class QuerySearchServiceTest {
         private DateRange lastSeen;
         private List<String> tags;
         private TagMode tagMode;
+        private List<String> schemas, tables;
+        private TableMode tableMode;
         private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
         private Flag fullScan, truncated, multiSchema;
@@ -333,6 +393,9 @@ class QuerySearchServiceTest {
         RequestBuilder lastSeen(DateRange v) { this.lastSeen = v; return this; }
         RequestBuilder tags(List<String> v) { this.tags = v; return this; }
         RequestBuilder tagMode(TagMode v) { this.tagMode = v; return this; }
+        RequestBuilder schemas(List<String> v) { this.schemas = v; return this; }
+        RequestBuilder tables(List<String> v) { this.tables = v; return this; }
+        RequestBuilder tableMode(TableMode v) { this.tableMode = v; return this; }
         RequestBuilder untaggedOnly(Boolean v) { this.untaggedOnly = v; return this; }
         RequestBuilder analyzerWarnings(Boolean v) { this.analyzerWarnings = v; return this; }
         RequestBuilder analysisFailed(Boolean v) { this.analysisFailed = v; return this; }
@@ -349,6 +412,7 @@ class QuerySearchServiceTest {
         QuerySearchRequest build() {
             return new QuerySearchRequest(avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
+                schemas, tables, tableMode,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
                 analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);

@@ -2,10 +2,14 @@ package com.github.safetytrick.sqlexplorer.profiles;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -13,6 +17,7 @@ import java.util.stream.Collectors;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
@@ -54,17 +59,43 @@ public class QuerySearchService {
         QuerySearchRequest criteria = request == null ? QuerySearchRequest.UNCONSTRAINED : request;
         Map<String, List<Tag>> tagsByQueryId = queryTagsById();
 
-        List<QueryHit> matches = sqlRepositoryService.getAllAnalyzedSql()
-            .map(profile -> new QueryHit(profile, tagsByQueryId.getOrDefault(profile.getGeneralId(), List.of())))
-            .filter(hit -> matches(criteria, hit))
-            .sorted(comparator(criteria.sort()))
-            .toList();
+        Map<String, Integer> tableFacets = new HashMap<>();
+        Map<String, Integer> schemaFacets = new HashMap<>();
+        List<QueryHit> matches = new ArrayList<>();
+
+        // One pass: everything passing the non-scope filters feeds the facet counts;
+        // those that also pass the table/schema scope form the result set.
+        sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
+            QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
+            if (!matchesNonScope(criteria, hit)) {
+                return;
+            }
+            ScopeKeys keys = scopeKeys(profile);
+            keys.tables().forEach(key -> tableFacets.merge(key, 1, Integer::sum));
+            keys.schemas().forEach(key -> schemaFacets.merge(key, 1, Integer::sum));
+            if (matchesScope(criteria, keys)) {
+                matches.add(hit);
+            }
+        });
+
+        matches.sort(comparator(criteria.sort()));
 
         int offset = Math.max(criteria.offset() == null ? 0 : criteria.offset(), 0);
         int limit = Math.min(criteria.limit() == null || criteria.limit() < 1 ? DEFAULT_LIMIT : criteria.limit(), MAX_LIMIT);
         int from = Math.min(offset, matches.size());
         int to = Math.min(from + limit, matches.size());
-        return new QuerySearchResult(matches.size(), matches.subList(from, to));
+        return new QuerySearchResult(matches.size(), List.copyOf(matches.subList(from, to)),
+            new QuerySearchResult.Facets(tableFacets, schemaFacets));
+    }
+
+    private List<Tag> tagsForQuery(SqlProfile profile, Map<String, List<Tag>> tags) {
+        return profile.getAllIds()
+            .stream()
+            .map(tags::get)
+            .filter(Objects::nonNull)
+            .flatMap(List::stream)
+            .distinct()
+            .toList();
     }
 
     private Map<String, List<Tag>> queryTagsById() {
@@ -73,7 +104,7 @@ public class QuerySearchService {
             .collect(Collectors.groupingBy(tag -> tag.getPathElements().get(QUERY_TAG_TYPE)));
     }
 
-    private boolean matches(QuerySearchRequest r, QueryHit hit) {
+    private boolean matchesNonScope(QuerySearchRequest r, QueryHit hit) {
         SqlProfile profile = hit.profile();
         RuntimeMetrics m = profile.getRuntimeMetrics();
 
@@ -110,6 +141,57 @@ public class QuerySearchService {
         if (Boolean.TRUE.equals(r.cleanAnalysis()) && (hasAnalyzerWarnings || profile.getAnalysisFailed())) return false;
         if (Boolean.TRUE.equals(r.analysisSkipped()) && !profile.getAnalysisSkipped()) return false;
         return r.failureKind() == null || matchesFailureKind(r.failureKind(), profile);
+    }
+
+    /** A profile's normalized {@code schema.table} keys and schema keys, keyed to match the schema tree. */
+    private record ScopeKeys(Set<String> tables, Set<String> schemas) { }
+
+    /**
+     * Builds the scope keys the way {@link SchemaTreeService} keys its nodes
+     * (normalized schema/table), lower-cased so selection and facet lookups
+     * line up regardless of the casing captured in analysis.
+     */
+    private static ScopeKeys scopeKeys(SqlProfile profile) {
+        Set<String> tables = new HashSet<>();
+        Set<String> schemas = new HashSet<>();
+        if (profile.getTables() == null) {
+            return new ScopeKeys(tables, schemas);
+        }
+        for (TableReference table : profile.getTables()) {
+            String schema = table.getNormalizedSchemaName();
+            if (schema == null) {
+                continue;
+            }
+            schemas.add(schema.toLowerCase(Locale.ROOT));
+            String name = table.getNormalizedTableName();
+            if (name != null) {
+                tables.add((schema + "." + name).toLowerCase(Locale.ROOT));
+            }
+        }
+        return new ScopeKeys(tables, schemas);
+    }
+
+    private static boolean matchesScope(QuerySearchRequest r, ScopeKeys keys) {
+        return matchesTables(r, keys.tables()) && matchesSchemas(r, keys.schemas());
+    }
+
+    /** ANY = references any selected table; ALL = references all of them. Empty = unconstrained. */
+    private static boolean matchesTables(QuerySearchRequest r, Set<String> tableKeys) {
+        if (r.tables() == null || r.tables().isEmpty()) {
+            return true;
+        }
+        List<String> wanted = r.tables().stream().map(t -> t.toLowerCase(Locale.ROOT)).toList();
+        return r.tableMode() == QuerySearchRequest.TableMode.ALL
+            ? tableKeys.containsAll(wanted)
+            : wanted.stream().anyMatch(tableKeys::contains);
+    }
+
+    /** A query in any listed schema matches. Empty = unconstrained. */
+    private static boolean matchesSchemas(QuerySearchRequest r, Set<String> schemaKeys) {
+        if (r.schemas() == null || r.schemas().isEmpty()) {
+            return true;
+        }
+        return r.schemas().stream().map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(schemaKeys::contains);
     }
 
     /** Matches SqlAnalysisService's failure labeling: analyzer failures carry a "Failure on:" reason. */

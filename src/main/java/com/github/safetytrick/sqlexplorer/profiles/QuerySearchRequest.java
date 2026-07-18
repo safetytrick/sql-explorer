@@ -23,6 +23,12 @@ public record QuerySearchRequest(
     List<String> tags,
     TagMode tagMode,
     Boolean untaggedOnly,
+    /** Normalized schema names; a query in any listed schema matches. */
+    List<String> schemas,
+    /** Normalized {@code schema.table} keys (see SchemaTreeService keying). */
+    List<String> tables,
+    /** ANY = query references any selected table; ALL = it references all of them. */
+    TableMode tableMode,
     Flag fullScan,
     Flag tmpTable,
     Flag tmpDisk,
@@ -48,6 +54,8 @@ public record QuerySearchRequest(
 
     public enum TagMode { ANY, ALL }
 
+    public enum TableMode { ANY, ALL }
+
     /** Tri-state matching a boolean characteristic. */
     public enum Flag { ANY, YES, NO }
 
@@ -59,5 +67,6 @@ public record QuerySearchRequest(
     /** An unconstrained search (used when the request body is absent). */
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+        null, null, null);
 }

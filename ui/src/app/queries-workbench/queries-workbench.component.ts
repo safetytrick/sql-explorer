@@ -15,6 +15,7 @@ import {
 import { AnalyzedSqlService } from '../analyzed-sql.service';
 import { EnvironmentService } from '../environment.service';
 import { ChipStyle, TagColorsService } from '../tag-colors.service';
+import { QueryScopeService } from '../query-scope.service';
 import { Highlight } from 'ngx-highlightjs';
 
 const PAGE_SIZE = 50;
@@ -91,6 +92,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
               private analyzedSqlService: AnalyzedSqlService,
               private environmentService: EnvironmentService,
               private tagColorsService: TagColorsService,
+              private queryScopeService: QueryScopeService,
               private route: ActivatedRoute,
               private router: Router) { }
 
@@ -98,6 +100,9 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.searchTrigger.pipe(debounceTime(250)).subscribe(() => this.runSearch()));
     this.subscriptions.add(this.environmentService.current$.subscribe(() => this.searchTrigger.next()));
     this.subscriptions.add(this.tagColorsService.getSummaries().subscribe());
+    // the schema tree drives the schema/table scope; a change there re-runs the search
+    this.subscriptions.add(this.queryScopeService.scope$.subscribe(() => this.searchTrigger.next()));
+    this.queryScopeService.setActive(true);
     this.readFiltersFromUrl();
   }
 
@@ -107,6 +112,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.unsubscribe();
+    this.queryScopeService.setActive(false);
     this.endResize();
   }
 
@@ -163,6 +169,9 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       tags: this.tags.length ? this.tags : null,
       tagMode: this.tagMode,
       untaggedOnly: this.untaggedOnly || null,
+      schemas: this.queryScopeService.scope.schemas.length ? this.queryScopeService.scope.schemas : null,
+      tables: this.queryScopeService.scope.tables.length ? this.queryScopeService.scope.tables : null,
+      tableMode: this.queryScopeService.scope.tableMode,
       fullScan: flag(this.fullScan),
       tmpTable: flag(this.tmpTable),
       tmpDisk: flag(this.tmpDisk),
@@ -187,6 +196,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       next: result => {
         this.hits = result.results;
         this.total = result.total;
+        this.queryScopeService.publishFacets(result.facets);
         this.loading = false;
         if (this.selected && !this.hits.some(hit => hit.profile.id === this.selected!.profile.id)) {
           this.selected = null;
@@ -234,7 +244,34 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.truncated = this.multiSchema = 'ANY';
     this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = this.analysisSkipped = false;
     this.failureKind = null;
+    this.queryScopeService.clear();
     this.filtersChanged();
+  }
+
+  // ── schema/table scope (driven by the schema tree) ──
+
+  get scopeTables(): string[] {
+    return this.queryScopeService.scope.tables;
+  }
+
+  get scopeSchemas(): string[] {
+    return this.queryScopeService.scope.schemas;
+  }
+
+  get tableMode(): 'ANY' | 'ALL' {
+    return this.queryScopeService.scope.tableMode;
+  }
+
+  set tableMode(mode: 'ANY' | 'ALL') {
+    this.queryScopeService.setTableMode(mode);
+  }
+
+  removeScopeTable(key: string) {
+    this.queryScopeService.removeTable(key);
+  }
+
+  removeScopeSchema(key: string) {
+    this.queryScopeService.removeSchema(key);
   }
 
   activeFilterChips(): string[] {
