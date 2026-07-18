@@ -10,6 +10,9 @@ import java.util.List;
  * fraction (rows sent / rows scanned).
  */
 public record QuerySearchRequest(
+    /** Regex matched against {@link com.github.safetytrick.sqlexplorer.avro.SqlProfile#getQuery()}
+     *  (case-insensitive, substring; an invalid pattern falls back to a literal search). */
+    String queryRegex,
     Range avgTimeMs,
     Range maxTimeMs,
     Range avgRowsScanned,
@@ -68,5 +71,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null);
+        null, null, null, null);
 }

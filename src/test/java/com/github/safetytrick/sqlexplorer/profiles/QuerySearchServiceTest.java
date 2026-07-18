@@ -262,6 +262,33 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void queryRegexMatchesSqlTextCaseInsensitivelyWithLiteralFallback() {
+        repositoryReturns(
+            queried("orders", "SELECT * FROM orders WHERE status = ?"),
+            queried("users", "SELECT id FROM users"),
+            queried("insert", "INSERT INTO orders (id) VALUES (?)"));
+
+        // case-insensitive substring
+        assertThat(searchIds(request().queryRegex("from orders").build())).containsExactly("orders");
+        // regex anchors / alternation
+        assertThat(searchIds(request().queryRegex("^SELECT").build()))
+            .containsExactlyInAnyOrder("orders", "users");
+        assertThat(searchIds(request().queryRegex("orders|users").build()))
+            .containsExactlyInAnyOrder("orders", "users", "insert");
+        // blank is not a constraint
+        assertThat(searchIds(request().queryRegex("   ").build())).hasSize(3);
+        // an invalid regex falls back to a literal search rather than erroring
+        assertThat(searchIds(request().queryRegex("VALUES (").build())).containsExactly("insert");
+        assertThat(searchIds(request().queryRegex("(status").build())).isEmpty();
+    }
+
+    private static SqlProfile queried(String id, String sql) {
+        SqlProfile profile = profile(id, metrics().build());
+        profile.setQuery(sql);
+        return profile;
+    }
+
+    @Test
     void pagingReportsTotalBeforeSlicing() {
         repositoryReturns(
             profile("q1", metrics().avgTimeMs(30).build()),
@@ -372,6 +399,7 @@ class QuerySearchServiceTest {
     }
 
     private static class RequestBuilder {
+        private String queryRegex;
         private Range avgTimeMs, selectivity;
         private Activity activity;
         private List<String> types;
@@ -386,6 +414,7 @@ class QuerySearchServiceTest {
         private Sort sort;
         private Integer limit, offset;
 
+        RequestBuilder queryRegex(String v) { this.queryRegex = v; return this; }
         RequestBuilder avgTimeMs(Range v) { this.avgTimeMs = v; return this; }
         RequestBuilder selectivity(Range v) { this.selectivity = v; return this; }
         RequestBuilder activity(Activity v) { this.activity = v; return this; }
@@ -410,7 +439,7 @@ class QuerySearchServiceTest {
         RequestBuilder offset(Integer v) { this.offset = v; return this; }
 
         QuerySearchRequest build() {
-            return new QuerySearchRequest(avgTimeMs, null, null, selectivity, null,
+            return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
                 schemas, tables, tableMode,
                 fullScan, null, null, null, null,

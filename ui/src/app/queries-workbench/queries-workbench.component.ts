@@ -21,7 +21,7 @@ import { Highlight } from 'ngx-highlightjs';
 const PAGE_SIZE = 50;
 
 /** Mirrors the backend's explicit type set; OTHER matches everything outside it. */
-export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'OTHER'];
+export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'WITH', 'OTHER'];
 
 /** SqlProfileReportService.SLOW_THRESHOLD / CHATTY_THRESHOLD, in ms. */
 const SLOW_MIN_MS = 1000;
@@ -40,6 +40,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   readonly queryTypes = QUERY_TYPES;
 
   // ── filter state ──
+  queryRegex = '';
   activity: Activity = 'ANY';
   types: string[] = [];
   firstAfter: string | null = null;
@@ -156,6 +157,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   private buildRequest(offset: number): QuerySearchRequest {
     return {
+      queryRegex: this.queryRegex.trim() || null,
       avgTimeMs: range(this.avgTime),
       maxTimeMs: range(this.maxTime),
       avgRowsScanned: range(this.avgRows),
@@ -229,6 +231,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   }
 
   clearAll() {
+    this.queryRegex = '';
     this.activity = 'ANY';
     this.types = [];
     this.firstAfter = this.firstBefore = this.lastAfter = this.lastBefore = null;
@@ -279,6 +282,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     const rangeChip = (label: string, r: RangeState) => {
       if (r.min !== null || r.max !== null) { chips.push(label); }
     };
+    if (this.queryRegex.trim()) { chips.push('sql: /' + this.queryRegex.trim() + '/'); }
     rangeChip('avg time', this.avgTime);
     rangeChip('max time', this.maxTime);
     rangeChip('rows scanned', this.avgRows);
@@ -421,6 +425,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       if (r.min !== null) { params[key + 'Min'] = String(r.min); }
       if (r.max !== null) { params[key + 'Max'] = String(r.max); }
     };
+    put('q', this.queryRegex.trim() || null);
     if (this.activity !== 'ANY') { params['activity'] = this.activity; }
     if (this.types.length) { params['queryTypes'] = this.types.join(','); }
     put('firstAfter', this.firstAfter);
@@ -454,6 +459,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       min: params.has(key + 'Min') ? Number(params.get(key + 'Min')) : null,
       max: params.has(key + 'Max') ? Number(params.get(key + 'Max')) : null
     });
+    this.queryRegex = params.get('q') || '';
     this.activity = (params.get('activity') as Activity) || 'ANY';
     this.types = params.get('queryTypes')?.split(',').filter(Boolean) || [];
     this.firstAfter = params.get('firstAfter');

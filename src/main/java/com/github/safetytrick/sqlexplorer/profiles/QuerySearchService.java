@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
@@ -41,7 +43,7 @@ public class QuerySearchService {
 
     /** Types offered as explicit filters; "OTHER" matches everything outside this set. */
     public static final Set<String> EXPLICIT_TYPES = Set.of(
-        "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "SHOW");
+        "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "SHOW", "WITH");
     public static final String OTHER_TYPE = "OTHER";
 
     private static final String QUERY_TAG_TYPE = "query";
@@ -62,12 +64,14 @@ public class QuerySearchService {
         Map<String, Integer> tableFacets = new HashMap<>();
         Map<String, Integer> schemaFacets = new HashMap<>();
         List<QueryHit> matches = new ArrayList<>();
+        // compiled once, not per profile
+        Pattern queryPattern = compileQueryPattern(criteria.queryRegex());
 
         // One pass: everything passing the non-scope filters feeds the facet counts;
         // those that also pass the table/schema scope form the result set.
         sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
             QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
-            if (!matchesNonScope(criteria, hit)) {
+            if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit)) {
                 return;
             }
             ScopeKeys keys = scopeKeys(profile);
@@ -207,6 +211,30 @@ public class QuerySearchService {
         }
         boolean analyzerFailure = reason.startsWith(ANALYZER_FAILURE_PREFIX);
         return (kind == QuerySearchRequest.FailureKind.ANALYZER) == analyzerFailure;
+    }
+
+    /**
+     * Compiles the SQL search into a case-insensitive pattern. Blank = no filter
+     * (null). An invalid regex falls back to a literal (quoted) search so a
+     * half-typed pattern still does something sensible instead of erroring.
+     */
+    private static Pattern compileQueryPattern(String regex) {
+        if (regex == null || regex.isBlank()) {
+            return null;
+        }
+        try {
+            return Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+        } catch (PatternSyntaxException invalid) {
+            return Pattern.compile(Pattern.quote(regex), Pattern.CASE_INSENSITIVE);
+        }
+    }
+
+    private static boolean matchesQuery(Pattern pattern, SqlProfile profile) {
+        if (pattern == null) {
+            return true;
+        }
+        String query = profile.getQuery();
+        return query != null && pattern.matcher(query).find();
     }
 
     /** "OTHER" matches any type outside {@link #EXPLICIT_TYPES} (including missing types). */

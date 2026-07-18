@@ -21,6 +21,7 @@ export type TableMode = 'ANY' | 'ALL';
 export type SortKey = 'IMPACT' | 'AVG_TIME' | 'MAX_TIME' | 'AVG_ROWS_SCANNED' | 'SELECTIVITY' | 'LAST_SEEN';
 
 export interface QuerySearchRequest {
+  queryRegex?: string | null;   // regex over SqlProfile.query (case-insensitive, literal fallback)
   avgTimeMs?: Range | null;
   maxTimeMs?: Range | null;
   avgRowsScanned?: Range | null;

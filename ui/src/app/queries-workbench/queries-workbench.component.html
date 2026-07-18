@@ -8,6 +8,18 @@
     </div>
     <div class="filter-scroll">
 
+      <div class="section-hdr">Search</div>
+      <div class="fg">
+        <div class="fg-label">SQL text <span class="hint">regex</span></div>
+        <div class="sql-search">
+          <input placeholder="e.g. from orders|users" spellcheck="false"
+                 [(ngModel)]="queryRegex" (ngModelChange)="filtersChanged()">
+          @if (queryRegex) {
+            <span class="rx" title="clear" (click)="queryRegex = ''; filtersChanged()">×</span>
+          }
+        </div>
+      </div>
+
       <div class="section-hdr">Activity</div>
       <div class="fg">
         <div class="fg-label">Query activity</div>
