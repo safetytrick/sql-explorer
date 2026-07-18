@@ -31,8 +31,12 @@ export class NavBarComponent implements OnInit {
   onEnvChange(name: string) {
     this.environmentService.setCurrent(name);
     this.current = name;
-    // re-fetch everything against the newly selected environment
-    this.router.navigate(['/schemas']);
+    // Stay on the current route, but re-instantiate it so its data reloads for
+    // the newly selected environment. The interceptor scopes every request to
+    // EnvironmentService.getCurrent(), so re-fetching pulls the new env's data.
+    const url = this.router.url;
+    this.router.navigateByUrl('/', { skipLocationChange: true })
+      .then(() => this.router.navigateByUrl(url));
   }
 
   toggleExplain() {
