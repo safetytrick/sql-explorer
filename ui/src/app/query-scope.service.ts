@@ -1,6 +1,6 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
-import { QueryFacets, TableMode } from './query-search.service';
+import {Injectable} from '@angular/core';
+import {BehaviorSubject} from 'rxjs';
+import {QueryFacets, TableMode, TagMode} from './query-search.service';
 
 /** Normalized "schema.table" key, lower-cased to line up with the backend's facet keys. */
 export function tableKey(schema: string, table: string): string {
@@ -13,7 +13,26 @@ export interface QueryScope {
   tableMode: TableMode;
 }
 
+/** Schema-tree tag filters that also scope the queries workbench. */
+export interface SchemaTagFilter {
+  includeTags: string[];
+  excludeTags: string[];
+  tagMode: TagMode;
+}
+
+/**
+ * Resolved schema names from {@link SchemaTagFilter} against the current tag map.
+ * `includedSchemas` is null when include tags are inactive (no constraint);
+ * an empty array means include tags are set but no schemas match.
+ */
+export interface SchemaTagScope {
+  includedSchemas: string[] | null;
+  excludedSchemas: string[];
+}
+
 const EMPTY_FACETS: QueryFacets = { tables: {}, schemas: {} };
+const EMPTY_TAG_FILTER: SchemaTagFilter = { includeTags: [], excludeTags: [], tagMode: 'ANY' };
+const EMPTY_TAG_SCOPE: SchemaTagScope = { includedSchemas: null, excludedSchemas: [] };
 
 /**
  * Shared state linking the schema tree and the queries workbench. The workbench
@@ -21,6 +40,9 @@ const EMPTY_FACETS: QueryFacets = { tables: {}, schemas: {} };
  * counts and toggles the scope selection, which drives the workbench's next
  * search. `active$` tells the (always-mounted) tree whether the workbench is on
  * screen, so it only switches into filter mode there.
+ *
+ * Schema tag include/exclude filters live here too: the tree edits them and
+ * resolves matching schema names; the workbench applies those as search scope.
  */
 @Injectable({ providedIn: 'root' })
 export class QueryScopeService {
@@ -28,9 +50,19 @@ export class QueryScopeService {
   readonly active$ = new BehaviorSubject<boolean>(false);
   readonly scope$ = new BehaviorSubject<QueryScope>({ schemas: [], tables: [], tableMode: 'ANY' });
   readonly facets$ = new BehaviorSubject<QueryFacets>(EMPTY_FACETS);
+  readonly schemaTagFilter$ = new BehaviorSubject<SchemaTagFilter>(EMPTY_TAG_FILTER);
+  readonly schemaTagScope$ = new BehaviorSubject<SchemaTagScope>(EMPTY_TAG_SCOPE);
 
   get scope(): QueryScope {
     return this.scope$.value;
+  }
+
+  get schemaTagFilter(): SchemaTagFilter {
+    return this.schemaTagFilter$.value;
+  }
+
+  get schemaTagScope(): SchemaTagScope {
+    return this.schemaTagScope$.value;
   }
 
   setActive(active: boolean): void {
@@ -75,6 +107,30 @@ export class QueryScopeService {
 
   isSchemaSelected(name: string): boolean {
     return this.scope.schemas.includes(name.toLowerCase());
+  }
+
+  setSchemaTagFilter(filter: SchemaTagFilter): void {
+    this.schemaTagFilter$.next({
+      includeTags: [...filter.includeTags],
+      excludeTags: [...filter.excludeTags],
+      tagMode: filter.tagMode
+    });
+  }
+
+  /**
+   * Publish the schema names that currently match the tag filter. Call whenever
+   * the filter or the underlying schema→tags map changes.
+   */
+  publishSchemaTagScope(scope: SchemaTagScope): void {
+    this.schemaTagScope$.next({
+      includedSchemas: scope.includedSchemas === null ? null : [...scope.includedSchemas],
+      excludedSchemas: [...scope.excludedSchemas]
+    });
+  }
+
+  clearSchemaTagFilter(): void {
+    this.schemaTagFilter$.next(EMPTY_TAG_FILTER);
+    this.schemaTagScope$.next(EMPTY_TAG_SCOPE);
   }
 }
 

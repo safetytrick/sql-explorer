@@ -190,10 +190,22 @@ public class QuerySearchService {
             : wanted.stream().anyMatch(tableKeys::contains);
     }
 
-    /** A query in any listed schema matches. Empty = unconstrained. */
+    /** Include: a query in any listed schema matches. {@code null} = unconstrained;
+     *  empty list = match nothing. Exclude: a query that touches any listed schema is dropped. */
     private static boolean matchesSchemas(QuerySearchRequest r, Set<String> schemaKeys) {
-        if (r.schemas() == null || r.schemas().isEmpty()) {
+        if (r.excludeSchemas() != null && !r.excludeSchemas().isEmpty()) {
+            boolean touchesExcluded = r.excludeSchemas().stream()
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .anyMatch(schemaKeys::contains);
+            if (touchesExcluded) {
+                return false;
+            }
+        }
+        if (r.schemas() == null) {
             return true;
+        }
+        if (r.schemas().isEmpty()) {
+            return false;
         }
         return r.schemas().stream().map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(schemaKeys::contains);
     }

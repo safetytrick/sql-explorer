@@ -1,6 +1,6 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import {Injectable} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {Observable} from 'rxjs';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -35,6 +35,7 @@ export interface QuerySearchRequest {
   tagMode?: TagMode | null;
   untaggedOnly?: boolean | null;
   schemas?: string[] | null;
+  excludeSchemas?: string[] | null;
   tables?: string[] | null;        // normalized "schema.table" keys
   tableMode?: TableMode | null;
   fullScan?: Flag | null;

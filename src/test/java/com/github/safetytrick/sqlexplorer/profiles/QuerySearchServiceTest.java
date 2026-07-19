@@ -233,6 +233,20 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void excludeSchemasDropsQueriesThatTouchAnyExcludedSchema() {
+        repositoryReturns(
+            withTables("orders", "app.orders"),
+            withTables("billing", "billing.invoices"),
+            withTables("cross", "app.orders", "billing.invoices"));
+
+        assertThat(searchIds(request().excludeSchemas(List.of("billing")).build()))
+            .containsExactly("orders");
+        assertThat(searchIds(request().schemas(List.of("app")).excludeSchemas(List.of("billing")).build()))
+            .containsExactly("orders");
+        assertThat(searchIds(request().schemas(List.of()).build())).isEmpty();
+    }
+
+    @Test
     void facetsCountEachTableOncePerProfileOverTheNonScopeSet() {
         repositoryReturns(
             withTables("orders", "app.orders", "app.orders"), // self-join lists a table twice
@@ -406,7 +420,7 @@ class QuerySearchServiceTest {
         private DateRange lastSeen;
         private List<String> tags;
         private TagMode tagMode;
-        private List<String> schemas, tables;
+        private List<String> schemas, excludeSchemas, tables;
         private TableMode tableMode;
         private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
@@ -423,6 +437,7 @@ class QuerySearchServiceTest {
         RequestBuilder tags(List<String> v) { this.tags = v; return this; }
         RequestBuilder tagMode(TagMode v) { this.tagMode = v; return this; }
         RequestBuilder schemas(List<String> v) { this.schemas = v; return this; }
+        RequestBuilder excludeSchemas(List<String> v) { this.excludeSchemas = v; return this; }
         RequestBuilder tables(List<String> v) { this.tables = v; return this; }
         RequestBuilder tableMode(TableMode v) { this.tableMode = v; return this; }
         RequestBuilder untaggedOnly(Boolean v) { this.untaggedOnly = v; return this; }
@@ -441,7 +456,7 @@ class QuerySearchServiceTest {
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
-                schemas, tables, tableMode,
+                schemas, excludeSchemas, tables, tableMode,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
                 analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);

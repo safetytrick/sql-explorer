@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {
   CleanedSql,
@@ -62,6 +62,10 @@ export class AnalyzedSqlService {
   getTags(path: string): Observable<Tag[]> {
     const params: HttpParams = new HttpParams().set('path', String(path));
     return this.http.get<Tag[]>(endpoint + 'tags/path', {params: params});
+  }
+
+  getTagsForPaths(paths: string[]): Observable<Record<string, Tag[]>> {
+    return this.http.post<Record<string, Tag[]>>(endpoint + 'tags/path', paths);
   }
 
   autoCompleteTags(text: string): Observable<string[]> {

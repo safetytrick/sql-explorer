@@ -1,8 +1,8 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DatePipe, DecimalPipe, SlicePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Subject, Subscription, debounceTime } from 'rxjs';
+import {Component, OnDestroy, OnInit} from '@angular/core';
+import {ActivatedRoute, Router, RouterLink} from '@angular/router';
+import {DatePipe, DecimalPipe, SlicePipe} from '@angular/common';
+import {FormsModule} from '@angular/forms';
+import {debounceTime, Subject, Subscription} from 'rxjs';
 import {
   Activity,
   Flag,
@@ -12,11 +12,11 @@ import {
   SortKey,
   TagMode
 } from '../query-search.service';
-import { AnalyzedSqlService } from '../analyzed-sql.service';
-import { EnvironmentService } from '../environment.service';
-import { ChipStyle, TagColorsService } from '../tag-colors.service';
-import { QueryScopeService } from '../query-scope.service';
-import { Highlight } from 'ngx-highlightjs';
+import {AnalyzedSqlService} from '../analyzed-sql.service';
+import {EnvironmentService} from '../environment.service';
+import {ChipStyle, TagColorsService} from '../tag-colors.service';
+import {QueryScopeService} from '../query-scope.service';
+import {Highlight} from 'ngx-highlightjs';
 
 const PAGE_SIZE = 50;
 
@@ -106,6 +106,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.tagColorsService.getSummaries().subscribe());
     // the schema tree drives the schema/table scope; a change there re-runs the search
     this.subscriptions.add(this.queryScopeService.scope$.subscribe(() => this.searchTrigger.next()));
+    this.subscriptions.add(this.queryScopeService.schemaTagScope$.subscribe(() => this.searchTrigger.next()));
     this.queryScopeService.setActive(true);
     this.readFiltersFromUrl();
   }
@@ -174,7 +175,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       tags: this.tags.length ? this.tags : null,
       tagMode: this.tagMode,
       untaggedOnly: this.untaggedOnly || null,
-      schemas: this.queryScopeService.scope.schemas.length ? this.queryScopeService.scope.schemas : null,
+      schemas: this.resolvedSchemas(),
+      excludeSchemas: this.resolvedExcludeSchemas(),
       tables: this.queryScopeService.scope.tables.length ? this.queryScopeService.scope.tables : null,
       tableMode: this.queryScopeService.scope.tableMode,
       fullScan: flag(this.fullScan),
@@ -193,6 +195,28 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       limit: PAGE_SIZE,
       offset
     };
+  }
+
+  /**
+   * Manual schema checkboxes ∩ schema-tag include list.
+   * {@code null} = unconstrained; empty array = include tags active but no schemas match.
+   */
+  private resolvedSchemas(): string[] | null {
+    const selected = this.queryScopeService.scope.schemas;
+    const tagIncluded = this.queryScopeService.schemaTagScope.includedSchemas;
+    if (tagIncluded === null) {
+      return selected.length ? selected : null;
+    }
+    if (!selected.length) {
+      return tagIncluded;
+    }
+    const allowed = new Set(tagIncluded);
+    return selected.filter(schema => allowed.has(schema));
+  }
+
+  private resolvedExcludeSchemas(): string[] | null {
+    const excluded = this.queryScopeService.schemaTagScope.excludedSchemas;
+    return excluded.length ? excluded : null;
   }
 
   private runSearch() {
@@ -251,6 +275,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = this.analysisSkipped = false;
     this.failureKind = null;
     this.queryScopeService.clear();
+    this.queryScopeService.clearSchemaTagFilter();
     this.filtersChanged();
   }
 
@@ -297,6 +322,13 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (this.lastAfter || this.lastBefore) { chips.push('last seen'); }
     if (this.tags.length) { chips.push(`tags(${this.tagMode.toLowerCase()}): ${this.tags.join(', ')}`); }
     if (this.untaggedOnly) { chips.push('untagged'); }
+    const schemaTagFilter = this.queryScopeService.schemaTagFilter;
+    if (schemaTagFilter.includeTags.length) {
+      chips.push(`schema tags(${schemaTagFilter.tagMode.toLowerCase()}): ${schemaTagFilter.includeTags.join(', ')}`);
+    }
+    if (schemaTagFilter.excludeTags.length) {
+      chips.push(`exclude schema tags: ${schemaTagFilter.excludeTags.join(', ')}`);
+    }
     if (this.fullScan !== 'ANY') { chips.push('full scan: ' + this.fullScan.toLowerCase()); }
     if (this.tmpTable !== 'ANY') { chips.push('tmp table: ' + this.tmpTable.toLowerCase()); }
     if (this.tmpDisk !== 'ANY') { chips.push('tmp disk: ' + this.tmpDisk.toLowerCase()); }

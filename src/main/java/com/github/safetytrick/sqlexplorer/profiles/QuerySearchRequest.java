@@ -28,6 +28,8 @@ public record QuerySearchRequest(
     Boolean untaggedOnly,
     /** Normalized schema names; a query in any listed schema matches. */
     List<String> schemas,
+    /** Normalized schema names; a query that touches any of these is excluded. */
+    List<String> excludeSchemas,
     /** Normalized {@code schema.table} keys (see SchemaTreeService keying). */
     List<String> tables,
     /** ANY = query references any selected table; ALL = it references all of them. */
@@ -71,5 +73,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null);
+        null, null, null, null, null);
 }
