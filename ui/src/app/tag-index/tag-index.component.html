@@ -18,4 +18,14 @@
           </li>
         }
       </ul>
+  <hr>
+    <h3>Schema Tags</h3>
+    <hr>
+      <ul class="pill-cloud">
+        @for (tag of schemaTags; track tag) {
+          <li>
+            <a class="btn btn-primary" routerLink="/schemas/by-tag/{{tag}}">{{tag}}</a>
+          </li>
+        }
+      </ul>
 

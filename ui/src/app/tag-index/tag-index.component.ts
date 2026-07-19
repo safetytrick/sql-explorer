@@ -13,6 +13,7 @@ export class TagIndexComponent implements OnInit {
 
   public queryTags!: string[];
   public tableTags!: string[];
+  public schemaTags!: string[];
 
   constructor(public sqlService: AnalyzedSqlService,
               private titleService: Title) { }
@@ -28,6 +29,12 @@ export class TagIndexComponent implements OnInit {
     this.sqlService.getTagsByType('table').subscribe(
       data => {
         this.tableTags = data;
+      }
+    );
+
+    this.sqlService.getTagsByType('schema').subscribe(
+      data => {
+        this.schemaTags = data;
       }
     );
   }

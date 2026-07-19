@@ -197,6 +197,21 @@ public class SqlRepositoryService {
         }).sorted(SchemaRollup.comparator(ignoredSchemas));
     }
 
+    public SchemaRollup getSchemaRollup(String schemaName) {
+        SchemaRollup.Builder builder = SchemaRollup.builder().name(schemaName);
+        repository().getAllTableReferences()
+            .filter(table -> schemaName.equalsIgnoreCase(table.getNormalizedSchemaName()))
+            .forEach(table -> {
+                List<SqlProfile> sqlList = repository().getTableQueries(table).toList();
+                double totalQueryTime = sqlList.stream()
+                    .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics().getTotalTime().doubleValue())
+                    .sum();
+                builder.addQueries(sqlList.size(), totalQueryTime);
+            });
+        List<Tag> schemaTags = tagsService.findAllByPath("/schema/" + schemaName);
+        return builder.tags(schemaTags).build();
+    }
+
     public Stream<TableRollup> getAllTablesWithRollup() {
 
         TagLoader tagLoader = tagsService.getBulkTagLoaderByType("table");

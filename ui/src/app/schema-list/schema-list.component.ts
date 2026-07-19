@@ -1,15 +1,14 @@
 import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from "../analyzed-sql.service";
 import {Title} from "@angular/platform-browser";
-import { RouterLink } from '@angular/router';
-import { PicoViewComponent } from '../pico-view/pico-view.component';
+import { SchemaListTableComponent } from '../schema-list-table/schema-list-table.component';
 import { SchemaRollup } from '../api-types';
 
 @Component({
     selector: 'app-schema-list',
     templateUrl: './schema-list.component.html',
     styleUrls: ['./schema-list.component.scss'],
-    imports: [RouterLink, PicoViewComponent]
+    imports: [SchemaListTableComponent]
 })
 export class SchemaListComponent implements OnInit {
 

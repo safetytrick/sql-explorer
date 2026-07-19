@@ -7,6 +7,7 @@ import java.util.stream.Stream;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
+import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import extensions.com.github.safetytrick.sqlexplorer.avro.SqlProfile.SqlProfileExtension;
 import org.springframework.stereotype.Service;
@@ -52,5 +53,23 @@ public class SqlTagsService {
         String table = elements.get("table");
         TableReference reference = TableReference.newTableReference(schema, table);
         return sqlRepositoryService.getTableRollup(reference, tagsService);
+    }
+
+    public Stream<SchemaRollup> getSchemasByTag(String name) {
+        return tagsService.findAllByNameAndType(name, "schema")
+            .stream()
+            .filter(Objects::nonNull)
+            .map(this::buildTaggedSchema)
+            .filter(Objects::nonNull)
+            .sorted(comparing(SchemaRollup::totalQueryTime)
+                        .reversed());
+    }
+
+    private SchemaRollup buildTaggedSchema(Tag tag) {
+        String schema = tag.getPathElements().get("schema");
+        if (schema == null) {
+            return null;
+        }
+        return sqlRepositoryService.getSchemaRollup(schema);
     }
 }

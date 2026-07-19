@@ -89,6 +89,10 @@ export class AnalyzedSqlService {
     return this.http.get<TableRollup[]>(endpoint + 'tables/tag/' + tag);
   }
 
+  getSchemasByTag(tag: string): Observable<SchemaRollup[]> {
+    return this.http.get<SchemaRollup[]>(endpoint + 'schemas/tag/' + tag);
+  }
+
   getTableGraph(): Observable<TableRelationships[]> {
     return this.http.get<TableRelationships[]>(endpoint + 'graph/all');
   }

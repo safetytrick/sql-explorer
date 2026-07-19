@@ -10,6 +10,7 @@ export interface TagSummary {
   color: string | null;
   queries: number;
   tables: number;
+  schemas: number;
   other: number;
   lastUsed: string | null;
 }

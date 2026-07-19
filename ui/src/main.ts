@@ -12,6 +12,7 @@ import {TableNamesComponent} from './app/table-names/table-names.component';
 import {TagIndexComponent} from './app/tag-index/tag-index.component';
 import {TablesWithColumnComponent} from './app/tables-with-column/tables-with-column.component';
 import {TaggedTableViewComponent} from './app/tagged-table-view/tagged-table-view.component';
+import {TaggedSchemaViewComponent} from './app/tagged-schema-view/tagged-schema-view.component';
 import {TableViewComponent} from './app/table-view/table-view.component';
 import {SqlViewComponent} from './app/sql-view/sql-view.component';
 import {SqlListComponent} from './app/sql-list/sql-list.component';
@@ -58,6 +59,11 @@ const appRoutes: Routes = [
     path: 'schemas',
     component: SchemaListComponent,
     data: { title: 'Schemas' }
+  },
+  {
+    path: 'schemas/by-tag/:tag',
+    component: TaggedSchemaViewComponent,
+    data: { title: 'Tagged Schemas' }
   },
   {
     path: 'tables/:schema',

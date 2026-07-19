@@ -36,17 +36,18 @@ class TagManagerServiceTest {
         when(tagRepository.aggregateUsage()).thenReturn(List.of(
             usage("audit", "query", 4, OLD),
             usage("audit", "table", 2, RECENT),
+            usage("audit", "schema", 1, OLD),
             // legacy tag: assignments exist but no definition row
             usage("legacy", "query", 1, RECENT)));
 
         List<TagSummary> summaries = service.getSummaries();
 
         assertThat(summaries).extracting(TagSummary::name, TagSummary::color,
-                TagSummary::queries, TagSummary::tables, TagSummary::lastUsed)
+                TagSummary::queries, TagSummary::tables, TagSummary::schemas, TagSummary::lastUsed)
             .containsExactly(
-                org.assertj.core.groups.Tuple.tuple("audit", "#4a9eff", 4L, 2L, RECENT),
-                org.assertj.core.groups.Tuple.tuple("legacy", null, 1L, 0L, RECENT),
-                org.assertj.core.groups.Tuple.tuple("unused", "#f5a623", 0L, 0L, null));
+                org.assertj.core.groups.Tuple.tuple("audit", "#4a9eff", 4L, 2L, 1L, RECENT),
+                org.assertj.core.groups.Tuple.tuple("legacy", null, 1L, 0L, 0L, RECENT),
+                org.assertj.core.groups.Tuple.tuple("unused", "#f5a623", 0L, 0L, 0L, null));
     }
 
     @Test

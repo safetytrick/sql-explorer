@@ -35,6 +35,8 @@ public class TagManagerService {
                 builder.queries += usage.getUses();
             } else if ("table".equalsIgnoreCase(usage.getType())) {
                 builder.tables += usage.getUses();
+            } else if ("schema".equalsIgnoreCase(usage.getType())) {
+                builder.schemas += usage.getUses();
             } else {
                 builder.other += usage.getUses();
             }
@@ -67,13 +69,14 @@ public class TagManagerService {
         tagRepository.deleteAllByName(name);
     }
 
-    public record TagSummary(String name, String color, long queries, long tables, long other, Instant lastUsed) { }
+    public record TagSummary(String name, String color, long queries, long tables, long schemas, long other, Instant lastUsed) { }
 
     private static final class Builder {
         private final String name;
         private String color;
         private long queries;
         private long tables;
+        private long schemas;
         private long other;
         private Instant lastUsed;
 
@@ -82,7 +85,7 @@ public class TagManagerService {
         }
 
         private TagSummary build() {
-            return new TagSummary(name, color, queries, tables, other, lastUsed);
+            return new TagSummary(name, color, queries, tables, schemas, other, lastUsed);
         }
     }
 }

@@ -14,7 +14,7 @@
     } @else {
       <table class="data-table">
         <thead>
-        <tr><th>tag</th><th class="num">queries</th><th class="num">tables</th><th>last used</th><th></th></tr>
+        <tr><th>tag</th><th class="num">queries</th><th class="num">tables</th><th class="num">schemas</th><th>last used</th><th></th></tr>
         </thead>
         <tbody>
           @for (tag of tags; track tag.name) {
@@ -24,6 +24,7 @@
               </td>
               <td class="num mono">{{tag.queries}}</td>
               <td class="num mono">{{tag.tables}}</td>
+              <td class="num mono">{{tag.schemas}}</td>
               <td class="dim">{{tag.lastUsed ? (tag.lastUsed | date:'MMM d, yy') : '—'}}</td>
               <td class="num">
                 <span class="delete" (click)="deleteTag(tag.name); $event.stopPropagation()">
