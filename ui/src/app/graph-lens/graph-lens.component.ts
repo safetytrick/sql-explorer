@@ -8,6 +8,13 @@ import { EnvironmentService } from '../environment.service';
 const NW = 130;
 const NH = 44;
 
+/** The minimap canvas caches its last draw transform for pointer hit-testing. */
+interface MinimapCanvas extends HTMLCanvasElement {
+  _msc?: number;   // minimap scale
+  _offX?: number;
+  _offY?: number;
+}
+
 interface LayoutNode {
   id: string;          // schema.table
   schema: string;
@@ -288,11 +295,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onMinimapClick(event: MouseEvent) {
-    const minimap = this.minimapCanvas.nativeElement as any;
-    if (!minimap._msc) { return; }
+    const minimap = this.minimapCanvas.nativeElement as MinimapCanvas;
+    const scale = minimap._msc;
+    if (!scale) { return; }
     const rect = this.minimapCanvas.nativeElement.getBoundingClientRect();
-    const wx = (event.clientX - rect.left - minimap._offX) / minimap._msc;
-    const wy = (event.clientY - rect.top - minimap._offY) / minimap._msc;
+    const wx = (event.clientX - rect.left - (minimap._offX ?? 0)) / scale;
+    const wy = (event.clientY - rect.top - (minimap._offY ?? 0)) / scale;
     const canvas = this.graphCanvas.nativeElement;
     this.tx = canvas.width / 2 - wx * this.scale;
     this.ty = canvas.height / 2 - wy * this.scale;
@@ -432,7 +440,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private drawMinimap() {
-    const minimap = this.minimapCanvas.nativeElement;
+    const minimap = this.minimapCanvas.nativeElement as MinimapCanvas;
     const ctx = minimap.getContext('2d')!;
     const mmW = minimap.width;
     const mmH = minimap.height;
@@ -473,9 +481,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.lineWidth = 1.5;
     ctx.strokeRect((-this.tx / this.scale) * msc + offX, (-this.ty / this.scale) * msc + offY,
       (canvas.width / this.scale) * msc, (canvas.height / this.scale) * msc);
-    (minimap as any)._msc = msc;
-    (minimap as any)._offX = offX;
-    (minimap as any)._offY = offY;
+    minimap._msc = msc;
+    minimap._offX = offX;
+    minimap._offY = offY;
   }
 
   private fmtExecs(value: number): string {

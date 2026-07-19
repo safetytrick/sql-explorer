@@ -3,6 +3,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
+import { TableRollup } from '../api-types';
 
 @Component({
     selector: 'app-tables-with-column',
@@ -13,7 +14,7 @@ import { TableListComponent } from '../table-list-component/table-list.component
 export class TablesWithColumnComponent implements OnInit {
 
     column!: string;
-    tables!: any[];
+    tables!: TableRollup[];
 
 
     constructor(public sqlService: AnalyzedSqlService,
@@ -28,7 +29,7 @@ export class TablesWithColumnComponent implements OnInit {
 
     private getTablesWithColumn(tag: string) {
         this.sqlService.getTablesWithColumn(tag).subscribe(
-            (data: any) => {
+            data => {
                 this.tables = data;
             }
         );

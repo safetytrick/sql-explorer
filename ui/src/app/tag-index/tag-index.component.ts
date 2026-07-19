@@ -11,8 +11,8 @@ import { RouterLink } from '@angular/router';
 })
 export class TagIndexComponent implements OnInit {
 
-  public queryTags!: any[];
-  public tableTags!: any[];
+  public queryTags!: string[];
+  public tableTags!: string[];
 
   constructor(public sqlService: AnalyzedSqlService,
               private titleService: Title) { }
@@ -20,13 +20,13 @@ export class TagIndexComponent implements OnInit {
   ngOnInit() {
     this.titleService.setTitle('::: tags :::');
     this.sqlService.getTagsByType('query').subscribe(
-      (data: any) => {
+      data => {
         this.queryTags = data;
       }
     );
 
     this.sqlService.getTagsByType('table').subscribe(
-      (data: any) => {
+      data => {
         this.tableTags = data;
       }
     );

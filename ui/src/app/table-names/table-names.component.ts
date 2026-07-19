@@ -3,6 +3,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
+import { TableRollup } from '../api-types';
 
 @Component({
     selector: 'app-table-names',
@@ -15,7 +16,7 @@ export class TableNamesComponent implements OnInit {
   @Input()
   schema!: string;
 
-  tables: any = [];
+  tables: TableRollup[] = [];
 
   constructor(public sqlService: AnalyzedSqlService, private route: ActivatedRoute,
               private titleService: Title) { }
@@ -36,13 +37,13 @@ export class TableNamesComponent implements OnInit {
 
   getTables() {
     this.tables = [];
-    this.sqlService.getTables().subscribe((data: {}) => {
+    this.sqlService.getTables().subscribe(data => {
       this.tables = data;
     });
   }
 
   private getTablesForSchema(schema: string) {
-    this.sqlService.getTablesForSchema(schema).subscribe((data: {}) => {
+    this.sqlService.getTablesForSchema(schema).subscribe(data => {
       this.tables = data;
     });
   }

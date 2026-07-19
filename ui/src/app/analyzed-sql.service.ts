@@ -1,8 +1,19 @@
 import {Injectable} from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import {Observable} from 'rxjs';
+import {
+  CleanedSql,
+  GroupedTableRelationships,
+  NormalizedQuery,
+  SchemaRollup,
+  SqlProfile,
+  Table,
+  TableRelationships,
+  TableRollup,
+  TableStructure,
+  Tag
+} from './api-types';
 
-// todo, configure me
 const endpoint = '/api/sql-explorer/';
 
 @Injectable()
@@ -10,29 +21,29 @@ export class AnalyzedSqlService {
 
   constructor(private http: HttpClient) {}
 
-  getTables(): Observable<any> {
-    return this.http.get(endpoint + 'tables');
+  getTables(): Observable<TableRollup[]> {
+    return this.http.get<TableRollup[]>(endpoint + 'tables');
   }
 
-  getSql(id: string): Observable<any> {
-    return this.http.get(endpoint + 'analyzed-sql/' + id);
+  getSql(id: string): Observable<SqlProfile> {
+    return this.http.get<SqlProfile>(endpoint + 'analyzed-sql/' + id);
   }
 
-  getTable(schema: string, name: string, column: string): Observable<any> {
+  getTable(schema: string, name: string, column: string): Observable<Table> {
     const columnPath = column ? '/column/' + column : '';
-    return this.http.get(endpoint + 'table/' + schema + '/' + name + columnPath);
+    return this.http.get<Table>(endpoint + 'table/' + schema + '/' + name + columnPath);
   }
 
-  getReportSql(name: string, limit: number, offset: number = 0): Observable<any> {
+  getReportSql(name: string, limit: number, offset: number = 0): Observable<SqlProfile[]> {
     const params: HttpParams = new HttpParams()
       .set('limit', String(limit))
       .set('offset', String(offset));
 
-    return this.http.get(endpoint + 'analyzed-sql/reports/' + name, {params: params});
+    return this.http.get<SqlProfile[]>(endpoint + 'analyzed-sql/reports/' + name, {params: params});
   }
 
-  getTableStructure(schema: string, name: string) {
-    return this.http.get(endpoint + 'metadata/table/' + schema + '/' + name);
+  getTableStructure(schema: string, name: string): Observable<TableStructure> {
+    return this.http.get<TableStructure>(endpoint + 'metadata/table/' + schema + '/' + name);
   }
 
   getTableCreateStatement(schema: string, name: string): Observable<string> {
@@ -40,75 +51,75 @@ export class AnalyzedSqlService {
       {responseType: 'text'});
   }
 
-  cleanQuery(query: string) {
-    return this.http.post(endpoint + 'util/clean', query);
+  cleanQuery(query: string): Observable<CleanedSql> {
+    return this.http.post<CleanedSql>(endpoint + 'util/clean', query);
   }
 
-  normalizeQuery(query: string) {
-    return this.http.post(endpoint + 'util/normalize', query);
+  normalizeQuery(query: string): Observable<NormalizedQuery> {
+    return this.http.post<NormalizedQuery>(endpoint + 'util/normalize', query);
   }
 
-  getTags(path: string): Observable<any> {
+  getTags(path: string): Observable<Tag[]> {
     const params: HttpParams = new HttpParams().set('path', String(path));
-    return this.http.get(endpoint + 'tags/path', {params: params});
+    return this.http.get<Tag[]>(endpoint + 'tags/path', {params: params});
   }
 
-  autoCompleteTags(text: string) {
+  autoCompleteTags(text: string): Observable<string[]> {
     const params: HttpParams = new HttpParams().set('value', String(text));
-    return this.http.get(endpoint + 'tags/names', {params: params});
+    return this.http.get<string[]>(endpoint + 'tags/names', {params: params});
   }
 
-  addTag(name: string, path: string) {
-    return this.http.post(endpoint + 'tags', {name: name, path: path});
+  addTag(name: string, path: string): Observable<Tag> {
+    return this.http.post<Tag>(endpoint + 'tags', {name: name, path: path});
   }
 
-  removeTag(id: number) {
-    return this.http.delete(endpoint + 'tag/' + id);
+  removeTag(id: number): Observable<void> {
+    return this.http.delete<void>(endpoint + 'tag/' + id);
   }
 
-  getSqlByTag(tag: string) {
-    return this.http.get(endpoint + 'analyzed-sql/tag/' + tag);
+  getSqlByTag(tag: string): Observable<SqlProfile[]> {
+    return this.http.get<SqlProfile[]>(endpoint + 'analyzed-sql/tag/' + tag);
   }
 
-  getTagsByType(type: string) {
-    return this.http.get(endpoint + 'tags/type/' + type);
+  getTagsByType(type: string): Observable<string[]> {
+    return this.http.get<string[]>(endpoint + 'tags/type/' + type);
   }
 
-  getTablesByTag(tag: string) {
-    return this.http.get(endpoint + 'tables/tag/' + tag);
+  getTablesByTag(tag: string): Observable<TableRollup[]> {
+    return this.http.get<TableRollup[]>(endpoint + 'tables/tag/' + tag);
   }
 
-  getTableGraph() {
-    return this.http.get(endpoint + 'graph/all');
+  getTableGraph(): Observable<TableRelationships[]> {
+    return this.http.get<TableRelationships[]>(endpoint + 'graph/all');
   }
 
-  getTableGraphForSchema(schema: string) {
-    return this.http.get(endpoint + 'graph/schema/' + schema);
+  getTableGraphForSchema(schema: string): Observable<TableRelationships[]> {
+    return this.http.get<TableRelationships[]>(endpoint + 'graph/schema/' + schema);
   }
 
-  getTableGraphForTable(schema: string, table: string, depth: number) {
+  getTableGraphForTable(schema: string, table: string, depth: number): Observable<TableRelationships[]> {
     const params: HttpParams = new HttpParams().set('depth', String(depth));
-    return this.http.get(endpoint + 'graph/schema/' + schema + '/table/' + table, {params: params});
+    return this.http.get<TableRelationships[]>(endpoint + 'graph/schema/' + schema + '/table/' + table, {params: params});
   }
 
-  getTableGraphForTag(tag: string, depth: number) {
+  getTableGraphForTag(tag: string, depth: number): Observable<GroupedTableRelationships[]> {
     const params: HttpParams = new HttpParams().set('depth', String(depth)).set('threshold', '100');
-    return this.http.get(endpoint + 'graph/by-tag/' + tag, {params: params});
+    return this.http.get<GroupedTableRelationships[]>(endpoint + 'graph/by-tag/' + tag, {params: params});
   }
 
-  getTablesForSchema(schema: string) {
-    return this.http.get(endpoint + 'tables/' + schema);
+  getTablesForSchema(schema: string): Observable<TableRollup[]> {
+    return this.http.get<TableRollup[]>(endpoint + 'tables/' + schema);
   }
 
-  getSqlForTableAndJoin(schema: string, table: string, otherSchema: string, otherTable: string) {
-    return this.http.get(endpoint + 'table/' + schema + '/' + table + '/join/' + otherSchema + '/' + otherTable);
+  getSqlForTableAndJoin(schema: string, table: string, otherSchema: string, otherTable: string): Observable<Table> {
+    return this.http.get<Table>(endpoint + 'table/' + schema + '/' + table + '/join/' + otherSchema + '/' + otherTable);
   }
 
-  getTablesWithColumn(column: string) {
-      return this.http.get(endpoint + 'tables/with-column/' + column);
+  getTablesWithColumn(column: string): Observable<TableRollup[]> {
+    return this.http.get<TableRollup[]>(endpoint + 'tables/with-column/' + column);
   }
 
-  getSchemas() {
-    return this.http.get(endpoint + 'schemas');
+  getSchemas(): Observable<SchemaRollup[]> {
+    return this.http.get<SchemaRollup[]>(endpoint + 'schemas');
   }
 }

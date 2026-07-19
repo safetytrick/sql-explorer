@@ -6,7 +6,7 @@ import { Pipe, PipeTransform } from '@angular/core';
 })
 export class CallbackPipePipe implements PipeTransform {
 
-  transform(items: any[], callback: (item: any) => boolean): any {
+  transform<T>(items: T[], callback: (item: T) => boolean): T[] {
     if (!items || !callback) {
       return items;
     }

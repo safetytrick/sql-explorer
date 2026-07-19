@@ -1,6 +1,7 @@
 import {Component, Input, OnInit} from '@angular/core';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
 import { ColumnLinkComponent } from '../column-link/column-link.component';
+import { SqlProfile } from '../api-types';
 
 @Component({
     selector: 'app-sql-summary',
@@ -11,7 +12,7 @@ import { ColumnLinkComponent } from '../column-link/column-link.component';
 export class SqlSummaryComponent implements OnInit {
 
   @Input()
-  query: any;
+  query!: SqlProfile;
 
   constructor() { }
 

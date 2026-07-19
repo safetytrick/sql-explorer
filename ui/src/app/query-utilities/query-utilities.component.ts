@@ -21,7 +21,7 @@ export class QueryUtilitiesComponent implements OnInit {
   doNormalize() {
     if (this.inputControl.value) {
       this.sqlService.normalizeQuery(this.inputControl.value).subscribe(
-        (response: any) => {
+        response => {
           this.result = response.text;
         }
       );
@@ -31,7 +31,7 @@ export class QueryUtilitiesComponent implements OnInit {
   doClean() {
     if (this.inputControl.value) {
       this.sqlService.cleanQuery(this.inputControl.value).subscribe(
-        (response: any) => {
+        response => {
           this.result = response.sql;
         }
       );

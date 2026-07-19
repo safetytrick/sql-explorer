@@ -12,6 +12,7 @@ import {
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {MatIcon} from '@angular/material/icon';
 import {AsyncPipe} from '@angular/common';
+import {Tag} from '../api-types';
 
 @Component({
     selector: 'app-tag-view',
@@ -25,10 +26,10 @@ export class TagViewComponent implements OnInit {
   path!: string;
 
   @Input()
-  tags: any[] | null = null;
+  tags: Tag[] | null = null;
 
   tagInputControl = new UntypedFormControl('');
-  filteredTags!: Observable<any[]>;
+  filteredTags!: Observable<string[]>;
 
   constructor(public sqlService: AnalyzedSqlService) {}
 
@@ -39,13 +40,13 @@ export class TagViewComponent implements OnInit {
     this.filteredTags = this.tagInputControl.valueChanges.pipe(
       debounceTime(200),
       switchMap((value: string) => this.sqlService.autoCompleteTags(value || ''))
-    ) as Observable<any[]>;
+    ) as Observable<string[]>;
   }
 
   addTag(event: MatChipInputEvent) {
     const value = (event.value || '').trim();
     if (value) {
-      this.sqlService.addTag(value, this.path).subscribe((tag: any) => {
+      this.sqlService.addTag(value, this.path).subscribe(tag => {
         if (!this.tags) { this.tags = []; }
         this.tags = [...this.tags, tag];
       });
@@ -56,14 +57,14 @@ export class TagViewComponent implements OnInit {
 
   selectTag(event: MatAutocompleteSelectedEvent) {
     const tagName: string = event.option.value;
-    this.sqlService.addTag(tagName, this.path).subscribe((tag: any) => {
+    this.sqlService.addTag(tagName, this.path).subscribe(tag => {
       if (!this.tags) { this.tags = []; }
       this.tags = [...this.tags, tag];
     });
     this.tagInputControl.setValue(null);
   }
 
-  removeTag(tag: any) {
+  removeTag(tag: Tag) {
     this.sqlService.removeTag(tag.id).subscribe();
     this.tags = this.tags!.filter(t => t.id !== tag.id);
   }

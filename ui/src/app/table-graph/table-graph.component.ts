@@ -1,6 +1,13 @@
 import {Component, Input} from '@angular/core';
 import { ClusterNode, Edge, Layout, Node, GraphModule } from '@swimlane/ngx-graph';
 import {Observable} from 'rxjs';
+import { GroupedTableRelationships, TableReference, TableRelationships } from '../api-types';
+
+/** Node id for a table reference: normalized "schema.table" (or bare table when unscoped). */
+function refKey(ref: TableReference): string {
+  const schema = ref.normalizedSchemaName ?? ref.schemaName;
+  return schema ? `${schema}.${ref.normalizedTableName}` : ref.normalizedTableName;
+}
 
 @Component({
     selector: 'app-table-graph',
@@ -17,27 +24,31 @@ export class TableGraphComponent {
   layout: String | Layout = 'dagreCluster';
 
   @Input()
-  set query(query: Observable<any>) {
+  set query(query: Observable<TableRelationships[]>) {
     const groups = new GroupTracker();
 
     query.subscribe({
       next: tableJoins => {
-        const tableJoinsArray = tableJoins as any[];
-        tableJoinsArray.forEach(tableJoin => {
+        tableJoins.forEach(tableJoin => {
           groups.addTableJoins(tableJoin);
-          tableJoin.foreignKeyTables.forEach((relatedTable: string) => {
-            groups.addTable(relatedTable);
-            this.createLink(tableJoin.table, relatedTable, 'fk');
+          const source = refKey(tableJoin.table);
+
+          tableJoin.foreignKeyTables.forEach(relatedTable => {
+            const target = refKey(relatedTable);
+            groups.addTable(target);
+            this.createLink(source, target, 'fk');
           });
 
-          tableJoin.joinTables.forEach((relatedTable: string) => {
-            groups.addTable(relatedTable);
-            this.createLink(tableJoin.table, relatedTable, 'joins');
+          tableJoin.joinTables.forEach(relatedTable => {
+            const target = refKey(relatedTable);
+            groups.addTable(target);
+            this.createLink(source, target, 'joins');
           });
 
-          tableJoin.relatedTables.forEach((relatedTable: string) => {
-            groups.addTable(relatedTable);
-            this.createLink(tableJoin.table, relatedTable, 'queried with');
+          tableJoin.relatedTables.forEach(relatedTable => {
+            const target = refKey(relatedTable);
+            groups.addTable(target);
+            this.createLink(source, target, 'queried with');
           });
         });
 
@@ -87,11 +98,13 @@ class GroupTracker {
   private tableGroups = new Map<string, string>();
   private tables = new Set<string>();
 
-  addTableJoins(tableJoins: any) {
-    if (tableJoins.hasOwnProperty('group')) {
-      this.tableGroups.set(tableJoins.table, tableJoins.group);
+  addTableJoins(tableJoins: TableRelationships) {
+    const key = refKey(tableJoins.table);
+    const group = (tableJoins as Partial<GroupedTableRelationships>).group;
+    if (group) {
+      this.tableGroups.set(key, group);
     }
-    this.tables.add(tableJoins.table);
+    this.tables.add(key);
   }
 
   addTable(table: string) {

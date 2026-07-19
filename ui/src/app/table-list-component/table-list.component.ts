@@ -1,6 +1,7 @@
 import {Component, Input, OnInit} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
+import { TableRollup } from '../api-types';
 
 @Component({
     selector: 'app-table-list-component',
@@ -10,7 +11,7 @@ import { PicoViewComponent } from '../pico-view/pico-view.component';
 })
 export class TableListComponent implements OnInit {
   @Input()
-  tables!: any[];
+  tables!: TableRollup[];
 
   constructor() { }
 

@@ -3,6 +3,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { SmallSqlViewComponent } from '../small-sql-view/small-sql-view.component';
+import { SqlProfile } from '../api-types';
 
 @Component({
     selector: 'app-tagged-sql-view',
@@ -11,7 +12,7 @@ import { SmallSqlViewComponent } from '../small-sql-view/small-sql-view.componen
     imports: [SmallSqlViewComponent]
 })
 export class TaggedSqlViewComponent implements OnInit {
-  public taggedQueries!: any[];
+  public taggedQueries!: SqlProfile[];
   public tag!: string;
 
   constructor(public sqlService: AnalyzedSqlService,
@@ -30,7 +31,7 @@ export class TaggedSqlViewComponent implements OnInit {
 
   private getSqlByTag(tag: string) {
     this.sqlService.getSqlByTag(tag).subscribe(
-      (data: any) => {
+      data => {
         this.taggedQueries = data;
       }
     );

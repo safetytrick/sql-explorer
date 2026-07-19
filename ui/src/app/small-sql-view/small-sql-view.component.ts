@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { Highlight } from 'ngx-highlightjs';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
 import { ColumnLinkComponent } from '../column-link/column-link.component';
+import { SqlProfile } from '../api-types';
 
 @Component({
     selector: 'app-small-sql-view',
@@ -13,7 +14,7 @@ import { ColumnLinkComponent } from '../column-link/column-link.component';
 export class SmallSqlViewComponent implements OnInit {
 
   @Input()
-  query: any;
+  query!: SqlProfile;
 
   constructor() { }
 

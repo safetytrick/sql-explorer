@@ -4,6 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { Highlight } from 'ngx-highlightjs';
 import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
+import { SqlProfile } from '../api-types';
 
 @Component({
     selector: 'app-sql-list',
@@ -14,7 +15,7 @@ import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
 })
 export class SqlListComponent implements OnInit {
 
-  public sqlList: any = [];
+  public sqlList: SqlProfile[] = [];
   public limit = 10;
   public offset = 0;
   // true while the most recent page came back full, i.e. there may be another page
@@ -41,7 +42,7 @@ export class SqlListComponent implements OnInit {
 
   getReportSql() {
     this.sqlList = [];
-    this.sqlService.getReportSql(this.name!, this.limit, this.offset).subscribe((data: any) => {
+    this.sqlService.getReportSql(this.name!, this.limit, this.offset).subscribe(data => {
       this.sqlList = data;
       // the endpoint has no total count; a full page means there is likely more.
       this.hasNextPage = data.length === this.limit;

@@ -3,6 +3,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
+import { TableRollup } from '../api-types';
 
 @Component({
     selector: 'app-tagged-table-view',
@@ -12,7 +13,7 @@ import { TableListComponent } from '../table-list-component/table-list.component
 })
 export class TaggedTableViewComponent implements OnInit {
   tag!: string;
-  taggedTables!: any[];
+  taggedTables!: TableRollup[];
 
 
   constructor(public sqlService: AnalyzedSqlService,
@@ -34,7 +35,7 @@ export class TaggedTableViewComponent implements OnInit {
 
   private getTablesByTag(tag: string) {
     this.sqlService.getTablesByTag(tag).subscribe(
-      (data: any) => {
+      data => {
         this.taggedTables = data;
       }
     );

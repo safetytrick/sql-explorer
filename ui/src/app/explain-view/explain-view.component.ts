@@ -11,13 +11,13 @@ import { FormsModule } from '@angular/forms';
 })
 export class ExplainViewComponent implements OnInit {
 
-  dataSource = new MatTableDataSource<any>();
+  dataSource = new MatTableDataSource<ExplainRow>();
   displayedColumns = ['id', 'select_type', 'table',
     'type', 'possible_keys', 'key', 'key_len', 'ref', 'rows', 'filtered', 'Extra'];
 
   public text = '';
 
-  @ViewChild(MatTable, {static: true}) table!: MatTable<any>;
+  @ViewChild(MatTable, {static: true}) table!: MatTable<ExplainRow>;
 
 
   constructor() { }
@@ -31,13 +31,16 @@ export class ExplainViewComponent implements OnInit {
   }
 
   set textValue(textValue) {
-    this.dataSource = this.parseAndExtract(textValue);
+    this.dataSource.data = this.parseAndExtract(textValue);
     this.text = textValue;
   }
 
-  private parseAndExtract(text: string) {
-    return TSV.parse(text)
-      .filter((item: any) => item.hasOwnProperty('id') && item.id !== undefined && item.id !== '');
+  private parseAndExtract(text: string): ExplainRow[] {
+    return (TSV.parse(text) as ExplainRow[])
+      .filter(item => 'id' in item && item['id'] !== undefined && item['id'] !== '');
   }
 
 }
+
+/** One row of MySQL EXPLAIN output parsed from pasted TSV; columns are dynamic. */
+type ExplainRow = Record<string, string>;

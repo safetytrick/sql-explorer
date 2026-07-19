@@ -1,6 +1,7 @@
 import {Component, Input, OnInit} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CallbackPipePipe } from '../callback-pipe.pipe';
+import { TableStructure } from '../api-types';
 
 @Component({
     selector: 'app-small-table-view',
@@ -10,15 +11,15 @@ import { CallbackPipePipe } from '../callback-pipe.pipe';
 })
 export class SmallTableViewComponent implements OnInit {
 
-  private _table: any;
+  private _table!: TableStructure;
 
   @Input()
-  set table(table: any) {
+  set table(table: TableStructure) {
     this._table = table;
 
   }
 
-  get table() {
+  get table(): TableStructure {
     return this._table;
   }
 

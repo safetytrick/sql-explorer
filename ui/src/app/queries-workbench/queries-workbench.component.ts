@@ -29,6 +29,9 @@ const CHATTY_MAX_MS = 20;
 
 interface RangeState { min: number | null; max: number | null; }
 
+/** Component fields holding a tri-state Flag, toggled generically from the template. */
+type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'truncated' | 'multiSchema';
+
 @Component({
   selector: 'app-queries-workbench',
   templateUrl: './queries-workbench.component.html',
@@ -311,12 +314,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   // ── execution flag tri-states (template helpers) ──
 
-  flagValue(key: string): Flag {
-    return (this as any)[key] as Flag;
+  flagValue(key: FlagKey): Flag {
+    return this[key];
   }
 
-  setFlag(key: string, value: Flag) {
-    (this as any)[key] = value;
+  setFlag(key: FlagKey, value: Flag) {
+    this[key] = value;
     this.filtersChanged();
   }
 
@@ -353,8 +356,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       this.tagSuggestions = [];
       return;
     }
-    this.analyzedSqlService.autoCompleteTags(text).subscribe((names: any) => {
-      this.tagSuggestions = (names as string[]).filter(name => !this.tags.includes(name)).slice(0, 8);
+    this.analyzedSqlService.autoCompleteTags(text).subscribe(names => {
+      this.tagSuggestions = names.filter(name => !this.tags.includes(name)).slice(0, 8);
     });
   }
 

@@ -3,6 +3,7 @@ import {AnalyzedSqlService} from "../analyzed-sql.service";
 import {Title} from "@angular/platform-browser";
 import { RouterLink } from '@angular/router';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
+import { SchemaRollup } from '../api-types';
 
 @Component({
     selector: 'app-schema-list',
@@ -12,7 +13,7 @@ import { PicoViewComponent } from '../pico-view/pico-view.component';
 })
 export class SchemaListComponent implements OnInit {
 
-  schemas: any = [];
+  schemas: SchemaRollup[] = [];
   constructor(public sqlService: AnalyzedSqlService,
               private titleService: Title) {
     titleService.setTitle('::: schemas :::');
@@ -20,7 +21,7 @@ export class SchemaListComponent implements OnInit {
 
   ngOnInit() {
     this.schemas = [];
-    this.sqlService.getSchemas().subscribe((data: {}) => {
+    this.sqlService.getSchemas().subscribe(data => {
       this.schemas = data;
     });
   }

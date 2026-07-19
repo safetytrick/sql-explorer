@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { TagViewComponent } from '../tag-view/tag-view.component';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
@@ -9,6 +9,7 @@ import { Highlight } from 'ngx-highlightjs';
 import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
 import { ColumnLinkComponent } from '../column-link/column-link.component';
 import { CallbackPipePipe } from '../callback-pipe.pipe';
+import { Table } from '../api-types';
 
 @Component({
     selector: 'app-table-view',
@@ -18,7 +19,7 @@ import { CallbackPipePipe } from '../callback-pipe.pipe';
 })
 export class TableViewComponent implements OnInit {
 
-  table: any = null;
+  table: Table | null = null;
   showCreate = false;
   createStatement: string | null = null;
   createLoading = false;
@@ -50,7 +51,7 @@ export class TableViewComponent implements OnInit {
     });
   }
 
-  updateTitle(params: any) {
+  updateTitle(params: Params) {
     // no idea how this can be called with a null titleService
     if (this.titleService) {
       let root = params['schema'] + '.' + params['name'];
@@ -66,7 +67,7 @@ export class TableViewComponent implements OnInit {
   getSqlForTable(schema: string, name: string, column: string) {
     this.table = null;
     this.sqlService.getTable(schema, name, column).subscribe(
-      (data: {}) => {
+      data => {
         this.table = data;
       });
   }
@@ -74,7 +75,7 @@ export class TableViewComponent implements OnInit {
   getSqlForTableAndJoin(schema: string, table: string, otherSchema: string, otherTable: string) {
     this.table = null;
     this.sqlService.getSqlForTableAndJoin(schema, table, otherSchema, otherTable).subscribe(
-      (data: {}) => {
+      data => {
         this.table = data;
       }
     );
@@ -95,14 +96,14 @@ export class TableViewComponent implements OnInit {
     }
   }
 
-  otherTables(table: any) {
+  otherTables(table: Table) {
     return (tableName: string) => {
       return tableName !== table.name && tableName !== (table.schema + '.' + table.name);
     };
   }
 
-  skipPrimary(table: any) {
-    return table['name'] !== 'PRIMARY';
+  skipPrimary(index: { name: string }) {
+    return index['name'] !== 'PRIMARY';
   }
 
 }

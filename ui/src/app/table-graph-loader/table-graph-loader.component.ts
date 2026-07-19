@@ -4,6 +4,7 @@ import {ActivatedRoute} from '@angular/router';
 import {Observable} from 'rxjs';
 import {Title} from '@angular/platform-browser';
 import { TableGraphComponent } from '../table-graph/table-graph.component';
+import { TableRelationships } from '../api-types';
 
 @Component({
     selector: 'app-table-graph-loader',
@@ -18,7 +19,7 @@ export class TableGraphLoaderComponent implements OnInit {
   schema!: string;
   table!: string;
 
-  query!: Observable<any>;
+  query!: Observable<TableRelationships[]>;
 
   constructor(public sqlService: AnalyzedSqlService,
               private titleService: Title,
@@ -49,7 +50,7 @@ export class TableGraphLoaderComponent implements OnInit {
 
   }
 
-  private loadGraph() {
+  private loadGraph(): Observable<TableRelationships[]> {
     if (this.tag) {
       return this.sqlService.getTableGraphForTag(this.tag, this.depth);
     } if (this.table) {

@@ -18,15 +18,17 @@
     <li class="list-group-item">Status: {{query.queryActivityStatus}}</li>
     <li class="list-group-item">Last Seen: {{query.runtimeMetrics?.lastSeen}}</li>
     <li class="list-group-item">First Seen: {{query.runtimeMetrics?.firstSeen}}</li>
-    <li class="list-group-item">
-      Executed: {{query.runtimeMetrics.executed}}
-    </li>
-    <li class="list-group-item">
-      Pain: <app-pico-view [duration]="query.runtimeMetrics.totalTime"></app-pico-view>
-    </li>
-    <li class="list-group-item">
-      Average Scanned: {{query.runtimeMetrics.averageRowsScanned}}
-    </li>
+    @if (query.runtimeMetrics; as m) {
+      <li class="list-group-item">
+        Executed: {{m.executed}}
+      </li>
+      <li class="list-group-item">
+        Pain: <app-pico-view [duration]="m.totalTime"></app-pico-view>
+      </li>
+      <li class="list-group-item">
+        Average Scanned: {{m.averageRowsScanned}}
+      </li>
+    }
   </ul>
   @if (query.mismatchedJoins.length > 0) {
     <div>
@@ -36,10 +38,10 @@
           <li>
             <div class="alert alert-danger">
               <div>
-                <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+                <app-column-link [schema]="query.schemaName" [columnReference]="join.left.table.normalizedTableName + '.' + join.left.normalizedColumn"></app-column-link>
               </div>
               <div>
-                <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
+                <app-column-link [schema]="query.schemaName" [columnReference]="join.right.table.normalizedTableName + '.' + join.right.normalizedColumn"></app-column-link>
               </div>
             </div>
           </li>

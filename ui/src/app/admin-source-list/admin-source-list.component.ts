@@ -3,6 +3,7 @@ import {SourceService} from '../source.service';
 import {EnvironmentService, EnvironmentSummary} from '../environment.service';
 import { MatSelectionList, MatListOption } from '@angular/material/list';
 import { DatePipe } from '@angular/common';
+import { ImportedSqlSource, PersistedSource } from '../api-types';
 
 @Component({
     selector: 'app-admin-source-list',
@@ -12,9 +13,8 @@ import { DatePipe } from '@angular/common';
 })
 export class AdminSourceListComponent implements OnInit {
 
-  sources!: Array<any>;
-  active!: Array<any>;
-  all!: Array<any>;
+  active!: ImportedSqlSource[];
+  all!: PersistedSource[];
   currentEnvironment: string | null;
   environment: EnvironmentSummary | null = null;
   loading = false;
@@ -39,8 +39,8 @@ export class AdminSourceListComponent implements OnInit {
     });
   }
 
-  isActive(source: any) {
-    return this.active && this.active.find((value => value.source.sourceRef === source.sourceRef));
+  isActive(source: { sourceRef: string }): boolean {
+    return !!this.active && this.active.some(value => value.source.sourceRef === source.sourceRef);
   }
 
   applyChange(sourcesList: MatSelectionList) {
