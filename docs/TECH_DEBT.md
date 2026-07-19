@@ -175,8 +175,8 @@ A few items were fixed while this report was being compiled — see
 - **MED — Spotbugs is near-toothless.** `build.gradle:44-59` disables XML reports; `spotbugs-exclude-filter.xml`
   blanket-suppresses `EI/EI2/MS/CT/UuF/RCN` under a misleading "try-with-resources false positive" comment
   and references classes that no longer exist (stale).
-- **MED — `.nvmrc` says Node 16.20.2 (EOL); Dockerfile builds on node:22** — the two disagree and 16 can't
-  build Angular 21.
+- **~~MED — `.nvmrc` says Node 16.20.2 (EOL); Dockerfile builds on node:22~~ — fixed 2026-07-19**
+  (`ui/.nvmrc` now pins `22`, matching the Docker build).
 - **MED — `open-in-view: true`** (`application.yml:19`) — keeps a DB session open for the whole request
   render; hurts pool behavior.
 - **MED — No Gradle version catalog.** Versions hardcoded across `build.gradle` and `models/build.gradle`
@@ -195,14 +195,15 @@ A few items were fixed while this report was being compiled — see
 
 ## 4. Docs & repo hygiene
 
-- **MED — `CLAUDE.md` is materially stale** (contradicts the code): claims Angular 8 (it's 21), tslint +
-  Protractor (actually eslint + Playwright), wrong `ENVIRONMENT_PROFILE`, a partially-wrong route table
-  (`/table/:schema/:name` → `TableLensComponent`, not `TableViewComponent`), and backend class names that
-  don't match the tree (`QueryParser`/`SqlMetadataResource` vs `SqlParser`/`SchemaResource`).
-- **MED — Planning docs + an 87 KB HTML mockup left in-tree.** `docs/schema-lens.html` (87 KB static
-  mockup), `docs/SCHEMA_LENS_PLAN.md`, `docs/DATA_ENVIRONMENTS.md` (already partly stale — calls the app
-  "single-tenant" though multi-environment exists), `docs/NEXT_STEPS.md`, `docs/MIGRATION_ANALYSIS.md`
-  (Feb/Jun-2024 brainstorm notes). Move to a wiki or archive.
+- **~~MED — `CLAUDE.md` is materially stale~~ — fixed 2026-07-19.** Framework version, lint/e2e tooling,
+  `ENVIRONMENT_PROFILE`, the route table, and backend class names (`SqlParser`, `SchemaResource`) are now
+  corrected.
+- **~~MED — Planning docs + an 87 KB HTML mockup left in-tree~~ — fixed 2026-07-19.** Removed the five
+  completed/abandoned planning artifacts (`schema-lens.html`, `SCHEMA_LENS_PLAN.md`, `DATA_ENVIRONMENTS.md`,
+  `NEXT_STEPS.md`, `MIGRATION_ANALYSIS.md`) — both the schema-lens and environments plans are fully
+  implemented; the other two were abandoned brainstorms. `DATA_ENVIRONMENTS.md` contained useful
+  environment architecture notes; if as-built docs are wanted, reconstruct them from the code rather than
+  the stale plan.
 - **LOW — Repo hygiene** (mostly clean): build artifacts, `.env`, `.gradle`, `.ssh.pid` are correctly
   gitignored. Leftovers: `schemas/schema-dump.sql` is a 1-byte placeholder mounted as an init script;
   `.idea/runConfigurations/18185.xml` is an opaquely-named tracked run config.
@@ -220,6 +221,8 @@ Fixed while compiling this report (context so they aren't re-flagged):
   null-unsafe `runtimeMetrics` and `JoinColumns` array-indexing). _Note:_ these types are still
   **hand-mirrored** — the DTO-drift risk (backend M22 / frontend) remains until codegen exists.
 - **`QuerySearchServiceTest.tagFiltersMatchAnyAllAndUntagged`** — a failing test was repaired.
+- **Docs/config low-hanging fruit** — `CLAUDE.md` corrected to match the code, five completed/abandoned
+  planning docs removed, and `ui/.nvmrc` aligned with the Node 22 Docker build.
 
 ---
 

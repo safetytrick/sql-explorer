@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 SQL Explorer is a full-stack tool for analyzing MySQL performance. It reads queries from MySQL's Performance Schema (or CSV/Parquet files), parses and normalizes them, and surfaces insights about schema usage, query patterns, and performance impact ("Pain" metrics).
 
 - **Backend**: Java 21 + Spring Boot 4.0.6 (Gradle)
-- **Frontend**: Angular 8 + Material Design (`ui/`)
+- **Frontend**: Angular 21 (standalone components) + Material Design (`ui/`)
 - **Data models**: Apache Avro (`models/` subproject)
 - **Database**: MySQL 8.4.4, Liquibase migrations
 
@@ -27,9 +27,9 @@ SQL Explorer is a full-stack tool for analyzing MySQL performance. It reads quer
 npm install                 # Install dependencies
 npm start                   # Dev server at http://localhost:4200
 npm run build               # Production build
-npm run lint                # Run tslint
+npm run lint                # Run eslint (eslint src --ext .ts)
 ng test                     # Run Karma/Jasmine unit tests
-ng e2e                      # Run Protractor e2e tests
+npm run e2e                 # Run Playwright e2e tests
 ```
 
 ### Docker (local dev)
@@ -51,9 +51,9 @@ UI is accessible at `http://localhost:4200`. Backend runs on port 8080.
 
 The backend is organized by domain, not by layer. Code that changes together lives together.
 
-- **`analysis/`** — Core SQL parsing pipeline. `QueryParser` tokenizes SQL via jsqlparser; `QueryNormalizer` merges similar patterns; `SqlAnalyzer` extracts tables, columns, joins, aliases; `SqlAnalysisService` orchestrates the full flow. The `resolver/` subpackage handles column-to-table resolution including alias expansion.
+- **`analysis/`** — Core SQL parsing pipeline. `SqlParser` (in `analysis/parser/`) tokenizes SQL via jsqlparser; `QueryNormalizer` merges similar patterns; the `SqlAnalyzer` implementations (`TableNameAnalyzer`, `SchemaAnalyzer`, `JoinColumnAnalyzer`, …) extract tables, columns, joins, aliases; `SqlAnalysisService` orchestrates the full flow. The `resolver/` subpackage handles column-to-table resolution including alias expansion.
 
-- **`schema/`** — Introspects the connected MySQL databases for tables, columns, indexes, and foreign keys. `SqlMetadataResource` is the REST endpoint.
+- **`schema/`** — Introspects the connected MySQL databases for tables, columns, indexes, and foreign keys. `SchemaResource` is the REST endpoint (`/metadata/table/**`).
 
 - **`evidence/`** — Wraps Performance Schema execution statistics and metrics (exec counts, latency, etc.).
 
@@ -71,14 +71,20 @@ The backend is organized by domain, not by layer. Code that changes together liv
 
 Components map directly to the URL hierarchy:
 
-| URL pattern                   | Component                                       |
-|-------------------------------|-------------------------------------------------|
-| `/tables/:schema`             | SchemaListComponent → TableNamesComponent       |
-| `/table/:schema/:name`        | TableViewComponent                              |
-| `/analyzed-sql/:id`           | SqlViewComponent                                |
-| `/table-graph/schema/:schema` | TableGraphLoaderComponent → TableGraphComponent |
+| URL pattern                          | Component                                       |
+|--------------------------------------|-------------------------------------------------|
+| `/queries`                           | QueriesWorkbenchComponent                       |
+| `/graph`, `/graph/:schema`           | GraphLensComponent                              |
+| `/schemas`                           | SchemaListComponent                             |
+| `/tables`, `/tables/:schema`         | TableNamesComponent                             |
+| `/table/:schema/:name`               | TableLensComponent                              |
+| `/table/:schema/:name/queries` (+ `/join/**`, `/:column`) | TableViewComponent         |
+| `/analyzed-sql/:id`                  | SqlViewComponent                                |
+| `/table-graph/schema/:schema` (+ variants) | TableGraphLoaderComponent → TableGraphComponent |
 
-Key services: `AnalyzedSqlService` (query profiles), `SourceService` (data sources), `UserService` (auth).
+Note: the `*-lens` components (`TableLensComponent`, `GraphLensComponent`, `SchemaTreeComponent`) are the current UI; the older `TableViewComponent` / `TableGraph*` / `SchemaListComponent` are legacy and still routed (see `docs/TECH_DEBT.md`).
+
+Key services: `AnalyzedSqlService` / `SchemaLensService` (query profiles & schema data), `QuerySearchService` (the queries workbench), `SourceService` (data sources), `EnvironmentService` (active environment). Shared response types live in `ui/src/app/api-types.ts`.
 
 ### Data Flow
 
@@ -97,5 +103,5 @@ Key services: `AnalyzedSqlService` (query profiles), `SourceService` (data sourc
 ### Configuration
 
 - `src/main/resources/application.yml` — Spring config; backend listens on port 8080
-- `src/main/docker-local/local.env` — Docker env vars (`ENVIRONMENT_PROFILE=local,override`, JVM flags)
+- `src/main/docker-local/local.env` — Docker env vars (`ENVIRONMENT_PROFILE=override`, JVM flags)
 - `src/main/docker-local/config/` — TSV files for statement analysis classification
