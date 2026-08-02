@@ -1,3 +1,4 @@
+import { COMMON_TEST_PROVIDERS } from '../testing/common-test-providers';
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { TablesWithColumnComponent } from './tables-with-column.component';
@@ -8,7 +9,8 @@ describe('TablesWithColumnComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-    imports: [TablesWithColumnComponent]
+    imports: [TablesWithColumnComponent],
+      providers: [COMMON_TEST_PROVIDERS]
 })
     .compileComponents();
   }));

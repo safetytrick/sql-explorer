@@ -453,7 +453,7 @@
 
   &::-webkit-scrollbar { width: 4px; height: 4px; }
 
-  /* dark palette over the globally-loaded (light) highlight.js theme */
+  /* theme-aware syntax colors (tokens defined per theme in styles.css) */
   ::ng-deep code.hljs,
   ::ng-deep code {
     display: block;
@@ -464,17 +464,17 @@
     font-size: 11px;
   }
 
-  ::ng-deep .hljs-keyword { color: var(--blue); font-weight: 500; }
-  ::ng-deep .hljs-literal { color: var(--blue); }
-  ::ng-deep .hljs-string { color: var(--green); }
-  ::ng-deep .hljs-number { color: var(--amber); }
+  ::ng-deep .hljs-keyword { color: var(--hl-keyword); font-weight: 500; }
+  ::ng-deep .hljs-literal { color: var(--hl-keyword); }
+  ::ng-deep .hljs-string { color: var(--hl-string); }
+  ::ng-deep .hljs-number { color: var(--hl-number); }
   ::ng-deep .hljs-built_in,
-  ::ng-deep .hljs-type { color: var(--teal); }
+  ::ng-deep .hljs-type { color: var(--hl-type); }
   ::ng-deep .hljs-operator,
-  ::ng-deep .hljs-punctuation { color: var(--text2); }
-  ::ng-deep .hljs-comment { color: var(--text3); font-style: italic; }
+  ::ng-deep .hljs-punctuation { color: var(--hl-punct); }
+  ::ng-deep .hljs-comment { color: var(--hl-comment); font-style: italic; }
   ::ng-deep .hljs-variable,
-  ::ng-deep .hljs-attr { color: var(--purple); }
+  ::ng-deep .hljs-attr { color: var(--hl-variable); }
 }
 
 .banner {

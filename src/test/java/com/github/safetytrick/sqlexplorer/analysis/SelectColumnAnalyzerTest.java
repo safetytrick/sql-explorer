@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.Mockito.mock;
 
 public class SelectColumnAnalyzerTest {
 
@@ -20,7 +19,7 @@ public class SelectColumnAnalyzerTest {
 
     @BeforeEach
     public void setUp() {
-        ColumnTableResolver columnTableResolver = mock(ColumnTableResolver.class);
+        ColumnTableResolver columnTableResolver = new ColumnTableResolver(TestSchemas.all());
         sqlAnalysisService = new SqlAnalysisService(new SelectColumnAnalyzer(columnTableResolver));
         builder = SqlProfile.newBuilder();
     }

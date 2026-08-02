@@ -290,8 +290,8 @@ public class QuerySearchService {
     private static boolean matchesDates(DateRange range, LocalDateTime value) {
         if (range == null || (range.after() == null && range.before() == null)) return true;
         if (value == null) return false;
-        if (range.after() != null && value.toLocalDate().isBefore(range.after())) return false;
-        return range.before() == null || !value.toLocalDate().isAfter(range.before());
+        if (range.after() != null && value.isBefore(range.after())) return false;
+        return range.before() == null || !value.isAfter(range.before());
     }
 
     private static boolean matchesFlag(Flag flag, Boolean value) {

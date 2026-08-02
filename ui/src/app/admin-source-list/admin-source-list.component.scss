@@ -10,11 +10,11 @@ button {
   }
 
   .state-loaded {
-    color: #2e7d32;
+    color: var(--green);
   }
 
   .state-unloaded {
-    color: #9e9e9e;
+    color: var(--text3);
   }
 }
 
@@ -23,12 +23,12 @@ button {
   padding: 1px 8px;
   border-radius: 10px;
   font-size: 12px;
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: var(--green-dim);
+  color: var(--green);
 
   // a source attributed to an environment other than the selected one
   &.foreign {
-    background-color: #eeeeee;
-    color: #616161;
+    background-color: var(--bg4);
+    color: var(--text2);
   }
 }

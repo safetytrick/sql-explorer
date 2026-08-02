@@ -17,6 +17,8 @@ import {EnvironmentService} from '../environment.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 import {QueryScopeService} from '../query-scope.service';
 import {Highlight} from 'ngx-highlightjs';
+import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
+import {resolveDateExpr} from '../date-range-selector/date-math';
 
 const PAGE_SIZE = 50;
 
@@ -36,7 +38,7 @@ type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'tr
   selector: 'app-queries-workbench',
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, Highlight]
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, Highlight, DateRangeSelectorComponent]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
@@ -159,6 +161,17 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.searchTrigger.next();
   }
 
+  onDateRange(which: 'first' | 'last', value: DateRangeValue) {
+    if (which === 'first') {
+      this.firstAfter = value.from;
+      this.firstBefore = value.to;
+    } else {
+      this.lastAfter = value.from;
+      this.lastBefore = value.to;
+    }
+    this.filtersChanged();
+  }
+
   private buildRequest(offset: number): QuerySearchRequest {
     return {
       queryRegex: this.queryRegex.trim() || null,
@@ -170,8 +183,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       rowsSorted: range(this.rowsSorted),
       activity: this.activity === 'ANY' ? null : this.activity,
       types: this.types.length ? this.types : null,
-      firstSeen: dates(this.firstAfter, this.firstBefore),
-      lastSeen: dates(this.lastAfter, this.lastBefore),
+      firstSeen: dates(resolveDateExpr(this.firstAfter), resolveDateExpr(this.firstBefore, true)),
+      lastSeen: dates(resolveDateExpr(this.lastAfter), resolveDateExpr(this.lastBefore, true)),
       tags: this.tags.length ? this.tags : null,
       tagMode: this.tagMode,
       untaggedOnly: this.untaggedOnly || null,

@@ -1,6 +1,5 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -16,10 +15,6 @@ import static com.github.safetytrick.sqlexplorer.analysis.Assertions.assertConta
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class JoinColumnAnalyzerTest {
     private SqlAnalysisService sqlAnalysisService;
@@ -28,7 +23,7 @@ public class JoinColumnAnalyzerTest {
 
     @BeforeEach
     public void setUp() {
-        columnTableResolver = mock(ColumnTableResolver.class);
+        columnTableResolver = new ColumnTableResolver(TestSchemas.all());
         sqlAnalysisService = new SqlAnalysisService(new JoinColumnAnalyzer(columnTableResolver));
         builder = SqlProfile.newBuilder();
     }
@@ -264,13 +259,7 @@ public class JoinColumnAnalyzerTest {
             """;
 
         builder.setSchemaName("tdb");
-        when(columnTableResolver.getAllColumnNamesForTable("tdb", "customer_visit"))
-            .thenReturn(Arrays.asList("checkout_date", "checkin_date", "id", "customer_id"));
         sqlAnalysisService.analyzeSql(sql, builder);
-
-        verify(columnTableResolver, atLeastOnce())
-            .getAllColumnNamesForTable("tdb", "customer_visit");
-
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
 
@@ -318,19 +307,19 @@ public class JoinColumnAnalyzerTest {
                 SELECT
                     `username` ,
                     `last_store_id` AS `storeId` ,
-                    `client_password` . `salted_password` AS `saltedPassword` ,
-                    `client` . `id` AS `userId`
+                    `tenant_password` . `salted_password` AS `saltedPassword` ,
+                    `tenant` . `id` AS `userId`
                 FROM
-                    CLIENT
+                    TENANT
                 JOIN
-                    `client_password`
-                        ON `client` . `id` = `client_password` . `client_id`
+                    `tenant_password`
+                        ON `tenant` . `id` = `tenant_password` . `tenant_id`
                 WHERE
                     `username` = ?
-                    AND NOT `client` . `is_blocked`
-                    AND NOT `client` . `is_deleted`
+                    AND NOT `tenant` . `is_blocked`
+                    AND NOT `tenant` . `is_deleted`
                 ORDER BY
-                    `client_password` . `created_on` DESC LIMIT ?
+                    `tenant_password` . `created_on` DESC LIMIT ?
             """;
 
         builder.setSchemaName("tdb");
@@ -338,7 +327,7 @@ public class JoinColumnAnalyzerTest {
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
 
-        assertContainsJoinColumns(joinColumns, "CLIENT.id", "client_password.client_id");
+        assertContainsJoinColumns(joinColumns, "TENANT.id", "tenant_password.tenant_id");
     }
 
     @Test
@@ -346,26 +335,22 @@ public class JoinColumnAnalyzerTest {
         String sql = """
             SELECT
                     ? AS `relationship_type` ,
-                    `pfr` . `store_id` AS `relation_store_id` ,
+                    `csr` . `store_id` AS `relation_store_id` ,
                     `f` . `name` AS `relation_store_name` ,
                     `pi` . `customer_id` ,
-                    `pfr` . `identifier` AS `customer_identifier` ,
+                    `csr` . `identifier` AS `customer_identifier` ,
                     `pi` . `type` ,
-                    `pfr` . `effective_on` ,
+                    `csr` . `effective_on` ,
                     `deleted_on` ,
-                    `pfr` . `created_on`
+                    `csr` . `created_on`
                 FROM
-                    `tdb` . `deleted_customer_store_relationship` `pfr`
+                    `tdb` . `deleted_customer_store_relationship` `csr`
                 INNER JOIN
                     `customer_identifier` `pi`
-                        ON `pi` . `identifier` = `pfr` . `identifier`
-                        AND `pi` . `store_id` = `pfr`""";
+                        ON `pi` . `identifier` = `csr` . `identifier`
+                        AND `pi` . `store_id` = `csr`""";
 
         builder.setSchemaName("tdb");
-
-
-        when(columnTableResolver.selectTableNameFromCandidates(Arrays.asList("tdb.deleted_customer_store_relationship",
-                                                                             "customer_identifier"), "pfr")).thenReturn(null);
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
@@ -398,9 +383,6 @@ public class JoinColumnAnalyzerTest {
                 GROUP BY
                     `store_id`
                 """;
-
-        when(columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("store_config"), "store_id"))
-            .thenReturn("store_config");
 
         sqlAnalysisService.analyzeSql(sql, builder);
 

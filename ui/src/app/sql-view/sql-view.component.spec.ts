@@ -1,3 +1,4 @@
+import { COMMON_TEST_PROVIDERS } from '../testing/common-test-providers';
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { SqlViewComponent } from './sql-view.component';
@@ -8,7 +9,8 @@ describe('SqlViewComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-    imports: [SqlViewComponent]
+    imports: [SqlViewComponent],
+      providers: [COMMON_TEST_PROVIDERS]
 })
     .compileComponents();
   }));

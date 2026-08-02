@@ -1,3 +1,4 @@
+import { COMMON_TEST_PROVIDERS } from '../testing/common-test-providers';
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { TableNamesComponent } from './table-names.component';
@@ -8,7 +9,8 @@ describe('TableNamesComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-    imports: [TableNamesComponent]
+    imports: [TableNamesComponent],
+      providers: [COMMON_TEST_PROVIDERS]
 })
     .compileComponents();
   }));

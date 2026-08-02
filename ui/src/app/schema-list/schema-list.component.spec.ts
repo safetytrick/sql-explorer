@@ -1,3 +1,4 @@
+import { COMMON_TEST_PROVIDERS } from '../testing/common-test-providers';
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import {SchemaListComponent} from './schema-list.component';
@@ -8,7 +9,8 @@ describe('SchemaListComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-    imports: [SchemaListComponent]
+    imports: [SchemaListComponent],
+      providers: [COMMON_TEST_PROVIDERS]
 })
     .compileComponents();
   }));

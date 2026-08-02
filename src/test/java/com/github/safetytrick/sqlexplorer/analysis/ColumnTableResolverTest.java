@@ -23,23 +23,23 @@ class ColumnTableResolverTest {
         String customerRefCreate = """
             CREATE TABLE `customer_ref` (
               `id` varchar(36) NOT NULL,
-              `customer_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The ID of the customer to whom this REF belongs',
-              `reference_number` varchar(255) DEFAULT NULL COMMENT 'The reference number of master customer index number',
-              `store_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The store owning this REF',
+              `customer_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The ID of the customer owning this card number',
+              `loyalty_card_number` varchar(255) DEFAULT NULL COMMENT 'The loyalty card number or master customer index number',
+              `store_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The store issuing this card number',
               `created_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
               `data_source` varchar(36) NOT NULL,
               `last_seen` datetime NOT NULL,
               `ref_type` varchar(45) DEFAULT NULL,
               PRIMARY KEY (`id`) USING BTREE,
-              UNIQUE KEY `unique_ref_fid` (`reference_number`,`store_id`),
+              UNIQUE KEY `unique_ref_fid` (`loyalty_card_number`,`store_id`),
               KEY `customer_ref__customer_id_idx` (`customer_id`),
               KEY `customer_ref__store_id_idx` (`store_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='A Customers Reference Number. For rows where store_id';""";
+            ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='A Customers Loyalty Card Number. For rows where store_id';""";
 
         TableStructure customerRef = TableStructure.fromCreateTable(customerRefCreate).schema("tdb").build();
 
         String ccdCreate = """
-            CREATE TABLE `ccd` (
+            CREATE TABLE `doc` (
               `id` char(36) NOT NULL,
               `home_community_id` varchar(64) NOT NULL,
               `repository_unique_id` varchar(64) DEFAULT NULL,
@@ -66,16 +66,16 @@ class ColumnTableResolverTest {
               KEY `ccd__customer_visit_id_idx` (`customer_visit_id`,`date_created`)
             ) ENGINE=InnoDB DEFAULT CHARSET=latin1;""";
 
-        TableStructure ccd = TableStructure.fromCreateTable(ccdCreate).schema("ccd").build();
+        TableStructure doc = TableStructure.fromCreateTable(ccdCreate).schema("doc").build();
 
         ColumnTableResolver columnTableResolver =
-            new ColumnTableResolver(new LoadedSchema(Arrays.asList(customerRef, ccd)));
+            new ColumnTableResolver(new LoadedSchema(Arrays.asList(customerRef, doc)));
 
-        List<String> filteredNames = Arrays.asList("ccd.ccd", "customer_ref");
+        List<String> filteredNames = Arrays.asList("doc.doc", "customer_ref");
         String columnName = "customer_visit_id";
 
         String tableName = columnTableResolver.selectTableNameFromCandidates(filteredNames, columnName);
-        assertEquals("ccd.ccd", tableName);
+        assertEquals("doc.doc", tableName);
 
     }
 

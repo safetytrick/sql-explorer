@@ -1,7 +1,16 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
+
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Filter/sort/page criteria for {@code POST /queries/search}. Every field is
@@ -53,7 +62,45 @@ public record QuerySearchRequest(
 ) {
     public record Range(Double min, Double max) { }
 
-    public record DateRange(LocalDate after, LocalDate before) { }
+    /**
+     * Accepts ISO date-times ({@code 2026-07-01T14:30}, space separator also allowed)
+     * or plain dates. A plain date keeps its historic day-inclusive semantics:
+     * {@code after} expands to the start of the day, {@code before} to the end of it.
+     */
+    public record DateRange(
+        @JsonDeserialize(using = StartDateTimeDeserializer.class) LocalDateTime after,
+        @JsonDeserialize(using = EndDateTimeDeserializer.class) LocalDateTime before) { }
+
+    /** Parses a date-time, expanding date-only values to the start or end of the day. */
+    abstract static class FlexibleDateTimeDeserializer extends JsonDeserializer<LocalDateTime> {
+        private final LocalTime dateOnlyTime;
+
+        FlexibleDateTimeDeserializer(LocalTime dateOnlyTime) {
+            this.dateOnlyTime = dateOnlyTime;
+        }
+
+        @Override
+        public LocalDateTime deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            String text = parser.getValueAsString();
+            if (text == null || text.isBlank()) {
+                return null;
+            }
+            text = text.trim().replace(' ', 'T');
+            try {
+                return LocalDateTime.parse(text);
+            } catch (DateTimeParseException notDateTime) {
+                return LocalDate.parse(text).atTime(dateOnlyTime);
+            }
+        }
+    }
+
+    static final class StartDateTimeDeserializer extends FlexibleDateTimeDeserializer {
+        StartDateTimeDeserializer() { super(LocalTime.MIN); }
+    }
+
+    static final class EndDateTimeDeserializer extends FlexibleDateTimeDeserializer {
+        EndDateTimeDeserializer() { super(LocalTime.MAX); }
+    }
 
     public enum Activity { ANY, ACTIVE, DORMANT }
 

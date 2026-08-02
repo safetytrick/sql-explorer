@@ -46,9 +46,7 @@ export class AdminSourceListComponent implements OnInit {
   applyChange(sourcesList: MatSelectionList) {
     const selected = sourcesList.selectedOptions.selected.map(value => value.value);
     this.loading = true;
-    this.sourceService.loadSources(selected.map(value => {
-      return { 'sourceRef': value };
-    })).subscribe({
+    this.sourceService.loadSources(selected.map(value => ({ sourceRef: value }))).subscribe({
       next: complete => {
         console.log('Loaded: ' + selected.join(', '));
         this.loading = false;

@@ -1,7 +1,5 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
@@ -21,9 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class WhereClauseAnalyzerTest {
     private SqlAnalysisService sqlAnalysisService;
@@ -32,7 +27,7 @@ public class WhereClauseAnalyzerTest {
 
     @BeforeEach
     public void setUp() {
-        columnTableResolver = mock(ColumnTableResolver.class);
+        columnTableResolver = new ColumnTableResolver(TestSchemas.all());
         sqlAnalysisService = new SqlAnalysisService(new WhereClauseAnalyzer(columnTableResolver));
         builder = SqlProfile.newBuilder();
     }
@@ -76,8 +71,8 @@ public class WhereClauseAnalyzerTest {
     @Test
     public void testBigOlQuery() throws JSQLParserException {
         String sql = """
-            SELECT `cn` . `id` , `cnc` . `binary_content` FROM `client_notification` `cn` \
-            INNER JOIN `client_notification_content` `cnc` ON `cn` . `id` = `cnc` . `id` \
+            SELECT `cn` . `id` , `cnc` . `binary_content` FROM `tenant_notification` `cn` \
+            INNER JOIN `tenant_notification_content` `cnc` ON `cn` . `id` = `cnc` . `id` \
             WHERE `cn` . `completed_on` IS NULL \
             AND `cn` . `begin_processing` IS NULL \
             AND `cn` . `type` = ? AND `cn` . `event_time` > NOW ( ) - INTERVAL 6 SQL_TSI_DAY \
@@ -90,7 +85,7 @@ public class WhereClauseAnalyzerTest {
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
 
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("client_notification.completed_on"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("tenant_notification.completed_on"));
 
     }
 
@@ -122,13 +117,13 @@ public class WhereClauseAnalyzerTest {
     public void testMissingAlias() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `pfr` . *
+                    `csr` . *
                 FROM
                     `customer_identifier` `pi`
                 INNER JOIN
-                    `customer_store_relationship` `pfr`
-                        ON `pfr` . `identifier` = `pi` . `identifier`
-                        AND `pfr` . `assigning_auth` = `pi` . `store_id`
+                    `customer_store_relationship` `csr`
+                        ON `csr` . `identifier` = `pi` . `identifier`
+                        AND `csr` . `assigning_auth` = `pi` . `store_id`
                 WHERE
                     `pi` . `customer_id` = ?
                     AND (
@@ -136,9 +131,6 @@ public class WhereClauseAnalyzerTest {
                         OR `effective_on` <= NOW ( )
                     ) \
             """;
-
-        when(columnTableResolver.selectTableNameFromCandidates(eq(Arrays.asList("customer_identifier", "customer_store_relationship")), eq("effective_on")))
-            .thenReturn("customer_store_relationship");
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
@@ -291,12 +283,6 @@ public class WhereClauseAnalyzerTest {
 
         Statement statement = CCJSqlParserUtil.parse(sql);
 
-        when(columnTableResolver.getAllColumnNamesForTable("tdb", "notif_criteria"))
-            .thenReturn(Arrays.asList("id", "name"));
-
-        when(columnTableResolver.getAllColumnNamesForTable("tdb", "notif_criteria_met"))
-            .thenReturn(Arrays.asList("id", "notif_criteria_id", "customer_id", "created_on"));
-
         WhereClauseAnalyzer whereClauseAnalyzer = new WhereClauseAnalyzer(columnTableResolver);
         JoinColumnAnalyzer joinColumnAnalyzer = new JoinColumnAnalyzer(columnTableResolver);
 
@@ -356,8 +342,6 @@ public class WhereClauseAnalyzerTest {
         Statement statement = CCJSqlParserUtil.parse(sql);
 
         WhereClauseAnalyzer whereClauseAnalyzer = new WhereClauseAnalyzer(columnTableResolver);
-        when(columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("customer_referral"), "managing_store_id"))
-            .thenReturn("customer_referral");
 
         whereClauseAnalyzer.analyze(statement, builder);
 
@@ -439,14 +423,6 @@ public class WhereClauseAnalyzerTest {
         Statement statement = CCJSqlParserUtil.parse(sql);
 
         WhereClauseAnalyzer whereClauseAnalyzer = new WhereClauseAnalyzer(columnTableResolver);
-        when(columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("customer_visit"), "store_id"))
-            .thenReturn("customer_visit");
-
-        when(columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("customer_visit"), "id"))
-            .thenReturn("customer_visit");
-
-        when(columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("customer_visit"), "checkin_date"))
-            .thenReturn("customer_visit");
 
         whereClauseAnalyzer.analyze(statement, builder);
 
@@ -457,16 +433,16 @@ public class WhereClauseAnalyzerTest {
     }
 
     @Test
-    void CLIENT() throws JSQLParserException {
+    void TENANT() throws JSQLParserException {
         String sql = """
                 SELECT
                     `report_column` . `id` ,
                     `report_id` AS `reportId` ,
                     `report_column` . `created_on` AS `createdOn` ,
-                    `client` . `id` AS `createdBy` ,
-                    `CONCAT` ( `client` . `first_name` ,
+                    `tenant` . `id` AS `createdBy` ,
+                    `CONCAT` ( `tenant` . `first_name` ,
                     ? ,
-                    `client` . `last_name` ) AS `createdByName` ,
+                    `tenant` . `last_name` ) AS `createdByName` ,
                     `report_column` . `deleted_on` AS `deletedOn` ,
                     `report_column` . `deleted_by` AS `deletedBy`
                 FROM
@@ -475,19 +451,14 @@ public class WhereClauseAnalyzerTest {
                     `report`
                         ON `report_column` . `report_id` = `report` . `id`
                 JOIN
-                    CLIENT
-                        ON `report_column` . `created_by` = `client` . `id`
+                    TENANT
+                        ON `report_column` . `created_by` = `tenant` . `id`
                 WHERE
                     `report_id` = ?
                     AND `report` . `store_id` = ? \
             """;
 
         Statement statement = CCJSqlParserUtil.parse(sql);
-
-        when(columnTableResolver.selectTableNameFromCandidates(Arrays.asList("report_column", "report", "client"), "report_id")).thenReturn("report_column");
-
-        when(columnTableResolver.getAllColumnNamesForTable("tdb", "report_column"))
-            .thenReturn(Arrays.asList("id", "report_id", "created_on", "deleted_on", "deleted_by", "created_by"));
 
         WhereClauseAnalyzer whereClauseAnalyzer = new WhereClauseAnalyzer(columnTableResolver);
 
@@ -603,10 +574,10 @@ public class WhereClauseAnalyzerTest {
                 FROM
                     `store_config` `fc`
                 LEFT JOIN
-                    CLIENT `cliCre`
+                    TENANT `cliCre`
                         ON `fc` . `created_by` = `cliCre` . `id`
                 LEFT JOIN
-                    CLIENT `cliDel`
+                    TENANT `cliDel`
                         ON `fc` . `deleted_by` = `cliDel` . `id`
                 WHERE
                     `store_id` = ?
@@ -632,13 +603,13 @@ public class WhereClauseAnalyzerTest {
                     `report_config_field_type` AS `configFieldType` ,
                     VALUE ,
                     `report_config_field` . `created_on` AS `createdOn` ,
-                    `client` . `id` AS `createdBy` ,
-                    `CONCAT` ( `client` . `first_name` ,
+                    `tenant` . `id` AS `createdBy` ,
+                    `CONCAT` ( `tenant` . `first_name` ,
                     ? ,
-                    `client` . `last_name` ) AS `createdByName` ,
-                    `CONCAT` ( `client2` . `first_name` ,
+                    `tenant` . `last_name` ) AS `createdByName` ,
+                    `CONCAT` ( `tenant2` . `first_name` ,
                     ? ,
-                    `client2` . `last_name` ) AS `deletedByName` ,
+                    `tenant2` . `last_name` ) AS `deletedByName` ,
                     `report_config_field` . `deleted_on` AS `deletedOn` ,
                     `report_config_field` . `deleted_by` AS `deletedBy`
                 FROM
@@ -647,17 +618,14 @@ public class WhereClauseAnalyzerTest {
                     `report`
                         ON `report_config_field` . `report_id` = `report` . `id`
                 JOIN
-                    `tdb` . `client` AS CLIENT
-                        ON `report_config_field` . `created_by` = `client` . `id`
+                    `tdb` . `tenant` AS TENANT
+                        ON `report_config_field` . `created_by` = `tenant` . `id`
                 LEFT JOIN
-                    `tdb` . `client` AS `client2`
-                        ON `report_config_field` . `deleted_by` = `client2` . `id`
+                    `tdb` . `tenant` AS `tenant2`
+                        ON `report_config_field` . `deleted_by` = `tenant2` . `id`
                 WHERE
                     `report_id` = ? \
             """;
-
-        when(columnTableResolver.selectTableNameFromCandidates(Arrays.asList("report_config_field", "report", "tdb.client"), "report_id"))
-            .thenReturn("report_config_field");
 
         Statement statement = CCJSqlParserUtil.parse(sql);
 
@@ -675,9 +643,9 @@ public class WhereClauseAnalyzerTest {
         List<JoinColumns> joinColumns = builder.getJoinColumns();
 
         assertContainsJoinColumns(joinColumns, "report_config_field.report_id", "report.id");
-        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.client.id");
-        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.client.id");
-        assertContainsJoinColumns(joinColumns, "report_config_field.deleted_by", "tdb.client.id");
+        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.tenant.id");
+        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.tenant.id");
+        assertContainsJoinColumns(joinColumns, "report_config_field.deleted_by", "tdb.tenant.id");
     }
 
     @Test
@@ -726,19 +694,16 @@ public class WhereClauseAnalyzerTest {
                 FROM
                     `store_config` `fc`
                 LEFT JOIN
-                    CLIENT `cliCre`
+                    TENANT `cliCre`
                         ON `fc` . `created_by` = `cliCre` . `id`
                 LEFT JOIN
-                    CLIENT `cliDel`
+                    TENANT `cliDel`
                         ON `fc` . `deleted_by` = `cliDel` . `id`
                 WHERE
                     `store_id` = ?
                 ORDER BY
                     `fc` . `created_on` DESC LIMIT ? \
             """;
-
-        when(columnTableResolver.selectTableNameFromCandidates(Arrays.asList("store_config", "client"), "store_id"))
-            .thenReturn("store_config");
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
@@ -757,7 +722,7 @@ public class WhereClauseAnalyzerTest {
                     ( SELECT
                         COUNT ( `id` )
                     FROM
-                        `insights` . `contribution`
+                        `analytics` . `contribution`
                     WHERE
                         `content_id` = `c` . `content_id`
                         AND `contributor_id` != `c` . `contributor_id`
@@ -765,7 +730,7 @@ public class WhereClauseAnalyzerTest {
                     ( SELECT
                         COUNT ( `id` )
                     FROM
-                        `insights` . `contribution`
+                        `analytics` . `contribution`
                     WHERE
                         `content_id` = `c` . `content_id`
                         AND `contributor_id` != `c` . `contributor_id`
@@ -773,12 +738,12 @@ public class WhereClauseAnalyzerTest {
                     ( SELECT
                         GROUP_CONCAT ( DISTINCTROW `contributor_id` SEPARATOR ? )
                     FROM
-                        `insights` . `contribution`
+                        `analytics` . `contribution`
                     WHERE
                         `content_id` = `c` . `content_id`
                         AND `contributor_id` != `c` . `contributor_id` ) AS `collaborating_authors`
                 FROM
-                    `insights` . `contribution` `c`
+                    `analytics` . `contribution` `c`
                 WHERE
                     `contributor_id` IN (
                         ...
@@ -791,7 +756,7 @@ public class WhereClauseAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
-        assertContainsColumnReferences(criteriaColumns, "insights.contribution.contributor_id");
+        assertContainsColumnReferences(criteriaColumns, "analytics.contribution.contributor_id");
     }
 
     @Test

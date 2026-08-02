@@ -31,6 +31,14 @@
         </select>
       </li>
     }
+    <li class="nav-item">
+      <select class="nav-environment-select" title="Color theme"
+              (change)="onThemeChange($any($event.target).value)">
+        @for (theme of themes; track theme.id) {
+          <option [value]="theme.id" [selected]="theme.id === currentTheme">{{theme.label}}</option>
+        }
+      </select>
+    </li>
   </ul>
 
 

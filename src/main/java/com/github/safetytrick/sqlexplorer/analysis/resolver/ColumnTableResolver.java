@@ -73,8 +73,13 @@ public class ColumnTableResolver {
     }
 
     public List<String> getAllColumnNamesForTable(String schema, String table) {
-        return sqlSchemaService.getTable(TableReference.newTableReference(schema, table))
-            .columns()
+        TableStructure tableStructure = sqlSchemaService.getTable(TableReference.newTableReference(schema, table));
+        // A star can be projected off a derived-table alias or an otherwise
+        // unknown name; there are no known columns to expand in that case.
+        if (tableStructure == null) {
+            return Collections.emptyList();
+        }
+        return tableStructure.columns()
             .stream()
             .map(TableColumn::columnName)
             .collect(Collectors.toList());

@@ -1,4 +1,4 @@
--- b70717403a8e7889f4fff11d91d4b4da
+-- b70ac695b8c4e7f87c193bbd355ba1b3
 SELECT `this_` . `id` AS `id1_94_0_` ,
        `this_` . `customer_id` AS `customer_2_94_0_` , 
        `this_` . `store_id` AS `store3_94_0_` , 
@@ -18,6 +18,6 @@ SELECT `this_` . `id` AS `id1_94_0_` ,
        `this_` . `referred` AS `referre17_94_0_` ,
        `this_` . `letter` AS `letter18_94_0_` ,
        `this_` . `other_date` AS `other_d19_94_0_` ,
-       `this_` . `pcp_notified` AS `pcp_not20_94_0_` ,
+       `this_` . `rep_notified` AS `rep_not20_94_0_` ,
        CASE `this_` . `correspondence_type` WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? ELSE ? END AS `formula0_0_`
 FROM `customer_correspondence` `this_` WHERE `this_` . `customer_id` = ?

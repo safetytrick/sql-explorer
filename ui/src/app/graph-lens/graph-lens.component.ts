@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { GraphV2, SchemaLensService } from '../schema-lens.service';
 import { EnvironmentService } from '../environment.service';
+import { ThemeService } from '../theme.service';
 
 const NW = 130;
 const NH = 44;
@@ -60,13 +61,22 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private hovered: LayoutNode | null = null;
   private viewReady = false;
   private subscriptions = new Subscription();
+  /** Canvas colors resolved from the active theme's CSS variables. */
+  private palette = { blue: '#4a9eff', amber: '#f5a623', text: '#e8eaf0', text2: '#8b93a8',
+    bg: '#0f1117', bg2: '#161b27', bg3: '#1e2535', border2: 'rgba(255,255,255,0.14)' };
 
   constructor(private schemaLensService: SchemaLensService,
               private environmentService: EnvironmentService,
+              private themeService: ThemeService,
               private route: ActivatedRoute,
               private router: Router) { }
 
   ngOnInit() {
+    this.refreshPalette();
+    this.subscriptions.add(this.themeService.current$.subscribe(() => {
+      this.refreshPalette();
+      this.draw();
+    }));
     this.selectedTable = this.route.snapshot.queryParamMap.get('table');
     this.subscriptions.add(this.route.paramMap.subscribe(params => {
       const schema = params.get('schema');
@@ -309,6 +319,29 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // ── drawing ──
 
+  private refreshPalette() {
+    const style = getComputedStyle(document.documentElement);
+    const read = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+    this.palette = {
+      blue: read('--blue', '#4a9eff'),
+      amber: read('--amber', '#f5a623'),
+      text: read('--text', '#e8eaf0'),
+      text2: read('--text2', '#8b93a8'),
+      bg: read('--bg', '#0f1117'),
+      bg2: read('--bg2', '#161b27'),
+      bg3: read('--bg3', '#1e2535'),
+      border2: read('--border2', 'rgba(255,255,255,0.14)'),
+    };
+  }
+
+  /** #rrggbb → rgba(r,g,b,a); non-hex colors are returned unchanged. */
+  private alpha(color: string, a: number): string {
+    const match = /^#([0-9a-f]{6})$/i.exec(color);
+    if (!match) { return color; }
+    const n = parseInt(match[1], 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+
   private draw() {
     if (!this.viewReady) { return; }
     const canvas = this.graphCanvas.nativeElement;
@@ -317,11 +350,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (this.layers.co) {
       for (const edge of this.coEdges) {
-        this.drawArrow(ctx, edge, 'rgba(139,147,168,0.55)', true, 1, false);
+        this.drawArrow(ctx, edge, this.alpha(this.palette.text2, 0.55), true, 1, false);
         const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
         ctx.save();
         ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
-        ctx.fillStyle = 'rgba(139,147,168,0.9)';
+        ctx.fillStyle = this.alpha(this.palette.text2, 0.9);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.fmtExecs(edge.execs || 0), this.wx((x1 + x2) / 2), this.wy((y1 + y2) / 2));
@@ -330,16 +363,16 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     if (this.layers.fk) {
       for (const edge of this.fkEdges) {
-        this.drawArrow(ctx, edge, edge.warn ? '#f5a623' : 'rgba(74,158,255,0.7)', false, 1.5, true);
+        this.drawArrow(ctx, edge, edge.warn ? this.palette.amber : this.alpha(this.palette.blue, 0.7), false, 1.5, true);
         const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
         const mx = (x1 + x2) / 2;
         const my = (y1 + y2) / 2;
         ctx.save();
         ctx.font = `${Math.round(9 * this.scale)}px monospace`;
         const width = ctx.measureText(edge.label).width + 6;
-        ctx.fillStyle = 'rgba(15,17,23,0.85)';
+        ctx.fillStyle = this.alpha(this.palette.bg, 0.85);
         ctx.fillRect(this.wx(mx) - width / 2, this.wy(my) - 8 * this.scale, width, 16 * this.scale);
-        ctx.fillStyle = edge.warn ? '#f5a623' : 'rgba(74,158,255,0.9)';
+        ctx.fillStyle = edge.warn ? this.palette.amber : this.alpha(this.palette.blue, 0.9);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(edge.label, this.wx(mx), this.wy(my));
@@ -351,7 +384,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         const cx = this.wx(node.x + NW / 2);
         const cy = this.wy(node.y);
         ctx.save();
-        ctx.strokeStyle = 'rgba(139,147,168,0.5)';
+        ctx.strokeStyle = this.alpha(this.palette.text2, 0.5);
         ctx.lineWidth = 1.5 * this.scale;
         ctx.setLineDash([4 * this.scale, 3 * this.scale]);
         ctx.beginPath();
@@ -423,18 +456,20 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, r);
-    ctx.fillStyle = selected ? 'rgba(74,158,255,0.2)' : highlighted ? 'rgba(245,166,35,0.15)' : 'rgba(30,37,53,0.95)';
+    ctx.fillStyle = selected ? this.alpha(this.palette.blue, 0.2)
+      : highlighted ? this.alpha(this.palette.amber, 0.15)
+      : this.alpha(this.palette.bg3, 0.95);
     ctx.fill();
-    ctx.strokeStyle = selected ? '#4a9eff' : node.warn ? '#f5a623' : 'rgba(255,255,255,0.15)';
+    ctx.strokeStyle = selected ? this.palette.blue : node.warn ? this.palette.amber : this.palette.border2;
     ctx.lineWidth = (selected || node.warn ? 1.5 : 1) * this.scale;
     ctx.stroke();
     ctx.font = `500 ${Math.round(11 * this.scale)}px monospace`;
-    ctx.fillStyle = selected ? '#4a9eff' : node.warn ? '#f5a623' : '#e8eaf0';
+    ctx.fillStyle = selected ? this.palette.blue : node.warn ? this.palette.amber : this.palette.text;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(node.table, x + w / 2, y + h * 0.36, w - 8);
     ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
-    ctx.fillStyle = 'rgba(139,147,168,0.8)';
+    ctx.fillStyle = this.alpha(this.palette.text2, 0.8);
     ctx.fillText(`${node.schema} · ${node.columnCount ?? '?'}c · ${node.queryCount}q`, x + w / 2, y + h * 0.72, w - 8);
     ctx.restore();
   }
@@ -445,7 +480,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const mmW = minimap.width;
     const mmH = minimap.height;
     ctx.clearRect(0, 0, mmW, mmH);
-    ctx.fillStyle = 'rgba(22,27,39,0.95)';
+    ctx.fillStyle = this.alpha(this.palette.bg2, 0.95);
     ctx.fillRect(0, 0, mmW, mmH);
     if (!this.nodes.length) { return; }
     const xs = this.nodes.map(node => node.x);
@@ -459,7 +494,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const offY = (mmH - (maxY - minY) * msc) / 2 - minY * msc;
     if (this.layers.fk) {
       for (const edge of this.fkEdges) {
-        ctx.strokeStyle = edge.warn ? 'rgba(245,166,35,0.6)' : 'rgba(74,158,255,0.4)';
+        ctx.strokeStyle = edge.warn ? this.alpha(this.palette.amber, 0.6) : this.alpha(this.palette.blue, 0.4);
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(edge.from.x * msc + offX + NW * msc / 2, edge.from.y * msc + offY + NH * msc / 2);
@@ -468,8 +503,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
     for (const node of this.nodes) {
-      ctx.fillStyle = node.table === this.selectedTable ? 'rgba(74,158,255,0.3)' : node.warn ? 'rgba(245,166,35,0.2)' : 'rgba(30,37,53,0.8)';
-      ctx.strokeStyle = node.warn ? '#f5a623' : node.table === this.selectedTable ? '#4a9eff' : 'rgba(255,255,255,0.2)';
+      ctx.fillStyle = node.table === this.selectedTable ? this.alpha(this.palette.blue, 0.3)
+        : node.warn ? this.alpha(this.palette.amber, 0.2)
+        : this.alpha(this.palette.bg3, 0.8);
+      ctx.strokeStyle = node.warn ? this.palette.amber : node.table === this.selectedTable ? this.palette.blue : this.palette.border2;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(node.x * msc + offX, node.y * msc + offY, NW * msc, NH * msc, 2);
@@ -477,7 +514,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.stroke();
     }
     const canvas = this.graphCanvas.nativeElement;
-    ctx.strokeStyle = 'rgba(74,158,255,0.6)';
+    ctx.strokeStyle = this.alpha(this.palette.blue, 0.6);
     ctx.lineWidth = 1.5;
     ctx.strokeRect((-this.tx / this.scale) * msc + offX, (-this.ty / this.scale) * msc + offY,
       (canvas.width / this.scale) * msc, (canvas.height / this.scale) * msc);

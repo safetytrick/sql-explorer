@@ -10,8 +10,19 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-  <!-- prevent dark flash before Angular renders -->
-  <style>body { background-color: #fff; }</style>
+  <!-- apply the stored theme before Angular boots to prevent a flash of the wrong theme -->
+  <script>
+    try {
+      var theme = localStorage.getItem('sql-explorer.theme');
+      if (theme) { document.documentElement.setAttribute('data-theme', theme); }
+    } catch (e) { /* localStorage unavailable */ }
+  </script>
+  <style>
+    body { background-color: #0f1117; }
+    [data-theme="solarized-dark"] body { background-color: #002b36; }
+    [data-theme="solarized-light"] body { background-color: #fdf6e3; }
+    [data-theme="darcula"] body { background-color: #2b2b2b; }
+  </style>
 </head>
 <body class="container-fluid">
   <app-root class="mat-app-background"></app-root>

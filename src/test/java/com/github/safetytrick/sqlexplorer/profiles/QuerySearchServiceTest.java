@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
@@ -108,8 +109,47 @@ class QuerySearchServiceTest {
 
         assertThat(searchIds(request().activity(Activity.DORMANT).build())).containsExactly("stale");
         assertThat(searchIds(request()
-            .lastSeen(new DateRange(NOW.minusDays(10).toLocalDate(), null)).build()))
+            .lastSeen(new DateRange(NOW.minusDays(10), null)).build()))
             .containsExactly("recent");
+    }
+
+    @Test
+    void lastSeenFiltersAtHourGranularity() {
+        repositoryReturns(
+            profile("night-shift", metrics().lastSeen(NOW.minusHours(20)).build()),
+            profile("this-morning", metrics().lastSeen(NOW.minusHours(2)).build()));
+
+        assertThat(searchIds(request()
+            .lastSeen(new DateRange(NOW.minusHours(16), null)).build()))
+            .containsExactly("this-morning");
+        assertThat(searchIds(request()
+            .lastSeen(new DateRange(null, NOW.minusHours(16))).build()))
+            .containsExactly("night-shift");
+    }
+
+    @Test
+    void dateRangeJsonAcceptsDatesAndDateTimes() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+
+        // date-only strings keep their historic day-inclusive semantics
+        QuerySearchRequest dateOnly = mapper.readValue(
+            "{\"firstSeen\":{\"after\":\"2026-07-01\",\"before\":\"2026-07-30\"}}",
+            QuerySearchRequest.class);
+        assertThat(dateOnly.firstSeen().after()).isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
+        assertThat(dateOnly.firstSeen().before()).isEqualTo(LocalDateTime.of(2026, 7, 30, 23, 59, 59, 999_999_999));
+
+        // full date-times, with 'T' or space separator
+        QuerySearchRequest dateTime = mapper.readValue(
+            "{\"lastSeen\":{\"after\":\"2026-07-01T14:30\",\"before\":\"2026-07-02 06:15:30\"}}",
+            QuerySearchRequest.class);
+        assertThat(dateTime.lastSeen().after()).isEqualTo(LocalDateTime.of(2026, 7, 1, 14, 30));
+        assertThat(dateTime.lastSeen().before()).isEqualTo(LocalDateTime.of(2026, 7, 2, 6, 15, 30));
+
+        // nulls pass through
+        QuerySearchRequest open = mapper.readValue(
+            "{\"lastSeen\":{\"after\":null,\"before\":\"\"}}", QuerySearchRequest.class);
+        assertThat(open.lastSeen().after()).isNull();
+        assertThat(open.lastSeen().before()).isNull();
     }
 
     @Test

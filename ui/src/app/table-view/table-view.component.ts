@@ -97,9 +97,8 @@ export class TableViewComponent implements OnInit {
   }
 
   otherTables(table: Table) {
-    return (tableName: string) => {
-      return tableName !== table.name && tableName !== (table.schema + '.' + table.name);
-    };
+    return (tableName: string) =>
+      tableName !== table.name && tableName !== (table.schema + '.' + table.name);
   }
 
   skipPrimary(index: { name: string }) {

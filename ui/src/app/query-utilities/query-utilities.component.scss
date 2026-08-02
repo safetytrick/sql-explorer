@@ -18,8 +18,8 @@ pre span.line {
 pre span.line:before {
   content: counter(line);
   display: inline-block;
-  border-right: 1px solid #ddd;
+  border-right: 1px solid var(--border2);
   padding: 0 .5em;
   margin-right: .5em;
-  color: #888
+  color: var(--text3)
 }

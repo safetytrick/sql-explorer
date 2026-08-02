@@ -1,6 +1,6 @@
 import {Component, OnInit} from '@angular/core';
-import {AnalyzedSqlService} from "../analyzed-sql.service";
-import {Title} from "@angular/platform-browser";
+import {AnalyzedSqlService} from '../analyzed-sql.service';
+import {Title} from '@angular/platform-browser';
 import { SchemaListTableComponent } from '../schema-list-table/schema-list-table.component';
 import { SchemaRollup } from '../api-types';
 

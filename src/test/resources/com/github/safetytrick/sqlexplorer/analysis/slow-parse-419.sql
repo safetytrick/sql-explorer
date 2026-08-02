@@ -1,4 +1,4 @@
--- 419bf9f62616abf32fb38b2c9576ec86
+-- 419d7d9e16908713b9515c7a1954318d
 SELECT COUNT ( `id` ) AS `num_notifications` ,
  `visit_id` ,
  `destination_master_id` ,

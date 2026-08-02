@@ -1,0 +1,47 @@
+<button type="button" class="drs-trigger" #trigger (click)="toggle(trigger)" [class.set]="from || to">
+  <span class="drs-clock">◷</span>
+  <span class="drs-summary">{{ summary }}</span>
+  <span class="drs-caret">▾</span>
+</button>
+
+@if (open) {
+  <div class="drs-panel" [style.top.px]="panelTop" [style.left.px]="panelLeft">
+    <div class="drs-col drs-abs">
+      <div class="drs-title">Time range</div>
+
+      <label class="drs-field">
+        <span class="drs-field-label">from</span>
+        <input class="drs-expr" [(ngModel)]="draftFrom" [class.invalid]="invalid(draftFrom)"
+               placeholder="now-6d" (keydown.enter)="apply()" spellcheck="false">
+        <input type="date" class="drs-date" title="Pick an absolute date"
+               [ngModel]="dateOf(draftFrom)" (ngModelChange)="draftFrom = $event">
+      </label>
+      <div class="drs-preview" [class.err]="invalid(draftFrom)">{{ preview(draftFrom) }}</div>
+
+      <label class="drs-field">
+        <span class="drs-field-label">to</span>
+        <input class="drs-expr" [(ngModel)]="draftTo" [class.invalid]="invalid(draftTo)"
+               placeholder="now" (keydown.enter)="apply()" spellcheck="false">
+        <input type="date" class="drs-date" title="Pick an absolute date"
+               [ngModel]="dateOf(draftTo)" (ngModelChange)="draftTo = $event">
+      </label>
+      <div class="drs-preview" [class.err]="invalid(draftTo)">{{ preview(draftTo, true) }}</div>
+
+      <div class="drs-actions">
+        <button type="button" class="drs-apply" (click)="apply()"
+                [disabled]="invalid(draftFrom) || invalid(draftTo)">Apply</button>
+        <button type="button" class="drs-clear" (click)="clear()">Clear</button>
+      </div>
+
+      <div class="drs-hint">now · now-6d · -2w · now/M · 2026-07-01 14:30</div>
+    </div>
+
+    <div class="drs-col drs-quick">
+      <div class="drs-title">Quick ranges</div>
+      @for (range of quickRanges; track range.label) {
+        <button type="button" class="drs-quick-item" [class.active]="isActiveQuick(range)"
+                (click)="setQuick(range)">{{ range.label }}</button>
+      }
+    </div>
+  </div>
+}

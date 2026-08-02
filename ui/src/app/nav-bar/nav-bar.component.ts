@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
-import {AppComponent} from '../app.component';
+import {ExplainService} from '../explain.service';
 import { Router, RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
+import { ThemeService, THEMES, ThemeOption } from '../theme.service';
 
 @Component({
     selector: 'app-nav-bar',
@@ -13,12 +14,16 @@ export class NavBarComponent implements OnInit {
 
   environments: EnvironmentSummary[] = [];
   current: string | null = null;
+  themes: ThemeOption[] = THEMES;
+  currentTheme = '';
 
-  constructor(private appComponent: AppComponent,
+  constructor(private explainService: ExplainService,
               private environmentService: EnvironmentService,
+              private themeService: ThemeService,
               private router: Router) { }
 
   ngOnInit() {
+    this.currentTheme = this.themeService.getCurrent();
     this.current = this.environmentService.getCurrent();
     this.environmentService.getEnvironments().subscribe(list => {
       this.environments = list.environments;
@@ -39,8 +44,13 @@ export class NavBarComponent implements OnInit {
       .then(() => this.router.navigateByUrl(url));
   }
 
+  onThemeChange(id: string) {
+    this.themeService.setCurrent(id);
+    this.currentTheme = id;
+  }
+
   toggleExplain() {
-    this.appComponent.showExplain = !this.appComponent.showExplain;
+    this.explainService.toggle();
   }
 
 }

@@ -10,8 +10,8 @@ export interface Range {
 }
 
 export interface DateRange {
-  after?: string | null;   // ISO date
-  before?: string | null;
+  after?: string | null;   // ISO date-time (YYYY-MM-DDTHH:mm:ss); plain dates also accepted
+  before?: string | null;  // plain dates expand server-side to the whole day
 }
 
 export type Flag = 'ANY' | 'YES' | 'NO';

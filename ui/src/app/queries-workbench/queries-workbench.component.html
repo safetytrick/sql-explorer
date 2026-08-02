@@ -40,13 +40,13 @@
       </div>
       <div class="fg">
         <div class="fg-label">First seen</div>
-        <div class="date-row"><label>after</label><input type="date" [(ngModel)]="firstAfter" (change)="filtersChanged()"></div>
-        <div class="date-row"><label>before</label><input type="date" [(ngModel)]="firstBefore" (change)="filtersChanged()"></div>
+        <app-date-range-selector [from]="firstAfter" [to]="firstBefore"
+          (rangeChange)="onDateRange('first', $event)"></app-date-range-selector>
       </div>
       <div class="fg">
         <div class="fg-label">Last seen</div>
-        <div class="date-row"><label>after</label><input type="date" [(ngModel)]="lastAfter" (change)="filtersChanged()"></div>
-        <div class="date-row"><label>before</label><input type="date" [(ngModel)]="lastBefore" (change)="filtersChanged()"></div>
+        <app-date-range-selector [from]="lastAfter" [to]="lastBefore"
+          (rangeChange)="onDateRange('last', $event)"></app-date-range-selector>
       </div>
 
       <div class="section-hdr">Tags</div>

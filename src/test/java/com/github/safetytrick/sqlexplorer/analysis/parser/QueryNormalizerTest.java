@@ -34,7 +34,7 @@ public class QueryNormalizerTest {
                     `this_` . `sent_to_store_id` AS `sent18_92_0_` ,
                     `this_` . `customer_visit_id` AS `customer19_92_0_`\s
                 FROM
-                    `client_notification` `this_`\s
+                    `tenant_notification` `this_`\s
                 WHERE
                     `this_` . `store_id` = ?\s
                     AND `this_` . `sent_to_store_id` = ?\s
@@ -63,7 +63,7 @@ public class QueryNormalizerTest {
                     `this_` . `sent_to_store_id` AS `sent18_87_0_` ,
                     `this_` . `customer_visit_id` AS `customer19_87_0_`\s
                 FROM
-                    `client_notification` `this_`\s
+                    `tenant_notification` `this_`\s
                 WHERE
                     `this_` . `store_id` = ?\s
                     AND `this_` . `sent_to_store_id` = ?\s

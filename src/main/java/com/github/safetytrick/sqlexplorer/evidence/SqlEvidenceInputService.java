@@ -284,9 +284,11 @@ public class SqlEvidenceInputService {
             }
         }
 
+        // 5 chosen at random, has no special meaning
         if (nestingLevel > 5) {
             try {
-                // todo, refactor and solve this in the UI instead of in the backend.
+                // todo, refactor and solve this in the normalizer
+                //
                 String condensedQuery = RunFinder.reformatQuery(query);
                 builder.setQuery(condensedQuery);
             } catch (Exception e) {

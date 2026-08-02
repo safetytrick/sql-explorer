@@ -120,10 +120,19 @@ public record TableStructure(String schema,
                 builder.columns(createTable.getColumnDefinitions().stream().map(column -> {
                     ColDataType dt = column.getColDataType();
 
+                    // jsqlparser embeds the type arguments in the data type
+                    // string, e.g. "BIGINT (19)" or "DECIMAL (10, 2)"; split them
+                    // apart so the structure mirrors the JDBC path (base type name
+                    // with a separate size/scale).
+                    String rawType = dt.getDataType();
+                    int[] sizeAndScale = typeArguments(rawType);
+
                     // todo implement ... all of the rest of the attributes
                     TableColumn.Builder columnBuilder = TableColumn.builder();
                     columnBuilder.columnName(NameNormalizer.normalize(column.getColumnName()))
-                        .typeName(dt.getDataType())
+                        .typeName(baseTypeName(rawType))
+                        .columnSize(sizeAndScale[0])
+                        .decimalDigits(sizeAndScale[1])
                         .characterSet(dt.getCharacterSet());
 
                     return columnBuilder.build();
@@ -133,6 +142,43 @@ public record TableStructure(String schema,
         });
 
         return builder;
+    }
+
+    /** The base type name from a jsqlparser data type string, e.g. {@code "BIGINT (19)"} yields {@code "BIGINT"}. */
+    private static String baseTypeName(String rawType) {
+        if (rawType == null) {
+            return null;
+        }
+        int open = rawType.indexOf('(');
+        return (open < 0 ? rawType : rawType.substring(0, open)).trim();
+    }
+
+    /**
+     * The numeric size and scale from a jsqlparser data type string:
+     * {@code "INT (10)"} yields {@code [10, 0]}, {@code "DECIMAL (10, 2)"}
+     * yields {@code [10, 2]}. Non-numeric arguments (such as {@code ENUM(...)}
+     * values) and missing arguments yield 0, matching the default an
+     * unspecified size would carry.
+     */
+    private static int[] typeArguments(String rawType) {
+        int[] sizeAndScale = {0, 0};
+        if (rawType == null) {
+            return sizeAndScale;
+        }
+        int open = rawType.indexOf('(');
+        int close = rawType.lastIndexOf(')');
+        if (open < 0 || close <= open) {
+            return sizeAndScale;
+        }
+        String[] arguments = rawType.substring(open + 1, close).split(",");
+        for (int i = 0; i < arguments.length && i < sizeAndScale.length; i++) {
+            try {
+                sizeAndScale[i] = Integer.parseInt(arguments[i].trim());
+            } catch (NumberFormatException e) {
+                // non-numeric argument (e.g. ENUM values); leave as 0
+            }
+        }
+        return sizeAndScale;
     }
 
     private static ForeignKey toForeignKey(Table table, ForeignKeyIndex fkIndex) {
