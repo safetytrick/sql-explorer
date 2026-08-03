@@ -194,6 +194,8 @@
           <option value="LAST_SEEN">last seen ↓</option>
         </select>
         <span class="result-count">{{hits.length}}/{{total}}</span>
+        <button type="button" class="graph-results" (click)="graphResults()"
+                title="open the table graph scoped to the queries matching the current filters">graph results ↗</button>
       </div>
     </div>
 
@@ -256,6 +258,17 @@
           <div class="detail-scroll">
             <div class="detail-section sql-section">
               <pre class="sql-display"><code highlight="{{selected.profile.query}}"></code></pre>
+              @if (selected.profile.repeatedBlocks?.length) {
+                <div class="repeat-strip" title="blocks that repeated in the sampled SQL, collapsed to one occurrence">
+                  <span class="repeat-label">collapsed repeats</span>
+                  @for (repeat of selected.profile.repeatedBlocks; track repeat.start) {
+                    <span class="repeat-chip">
+                      <span class="mono">{{selected.profile.query | slice:repeat.start:repeat.end | slice:0:48}}</span>
+                      <span class="repeat-count">×{{repeat.count}}</span>
+                    </span>
+                  }
+                </div>
+              }
             </div>
             @if (selected.profile.mismatchedJoins.length > 0) {
               <div class="banner warn">Analyzer warning: join column type mismatch</div>

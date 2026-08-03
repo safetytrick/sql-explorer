@@ -58,6 +58,23 @@ class SchemaTreeServiceTest {
     }
 
     @Test
+    void viewFlagComesFromSchemaMetadata() {
+        when(sqlSchemaService.getTables()).thenReturn(List.of(
+            structure("app", "users", 14),
+            view("app", "active_users", 3)));
+        when(sqlRepositoryService.getAllAnalyzedSql()).thenReturn(Stream.of(
+            profile("q1", false, ref("app", "active_users")),
+            profile("q2", false, ref("app", "query_only"))));
+
+        assertThat(schema("app").tables())
+            .extracting(TableNode::name, TableNode::view)
+            .containsExactly(
+                tuple("active_users", true),
+                tuple("query_only", false),
+                tuple("users", false));
+    }
+
+    @Test
     void warnFlagsTablesTouchedByAnalyzerFindings() {
         when(sqlRepositoryService.getAllAnalyzedSql()).thenReturn(Stream.of(
             profile("clean", false, ref("app", "users")),
@@ -98,7 +115,12 @@ class SchemaTreeServiceTest {
 
     private static TableStructure structure(String schema, String table, int columns) {
         return new TableStructure(schema, table, "TABLE", null,
-            List.of(), List.of(), Collections.nCopies(columns, (TableColumn) null));
+            List.of(), List.of(), Collections.nCopies(columns, (TableColumn) null), null, null);
+    }
+
+    private static TableStructure view(String schema, String table, int columns) {
+        return new TableStructure(schema, table, "VIEW", null,
+            List.of(), List.of(), Collections.nCopies(columns, (TableColumn) null), null, null);
     }
 
     private static TableReference ref(String schema, String table) {

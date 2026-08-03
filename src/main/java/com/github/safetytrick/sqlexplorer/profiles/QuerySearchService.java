@@ -92,6 +92,29 @@ public class QuerySearchService {
             new QuerySearchResult.Facets(tableFacets, schemaFacets));
     }
 
+    /**
+     * Every profile matching the request's filters and scope — unsorted,
+     * unpaged (limit/offset ignored). Feeds set-oriented consumers like the
+     * graph; {@link #search} remains the paged/faceted entry point.
+     */
+    public List<SqlProfile> matchingProfiles(QuerySearchRequest request) {
+        QuerySearchRequest criteria = request == null ? QuerySearchRequest.UNCONSTRAINED : request;
+        Map<String, List<Tag>> tagsByQueryId = queryTagsById();
+        Pattern queryPattern = compileQueryPattern(criteria.queryRegex());
+
+        List<SqlProfile> matches = new ArrayList<>();
+        sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
+            QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
+            if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit)) {
+                return;
+            }
+            if (matchesScope(criteria, scopeKeys(profile))) {
+                matches.add(profile);
+            }
+        });
+        return matches;
+    }
+
     private List<Tag> tagsForQuery(SqlProfile profile, Map<String, List<Tag>> tags) {
         return profile.getAllIds()
             .stream()

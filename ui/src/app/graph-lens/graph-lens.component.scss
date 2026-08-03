@@ -29,6 +29,15 @@ canvas {
   z-index: 10;
   align-items: center;
 
+  .mode-chip {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--purple-dim);
+    color: var(--purple);
+    white-space: nowrap;
+  }
+
   .schema-select {
     font-size: 11px;
     height: 26px;
@@ -73,6 +82,7 @@ canvas {
   .leg-line.blue { background: var(--blue); }
   .leg-line.amber { background: var(--amber); }
   .leg-dash { border-top: 2px dashed var(--text3); width: 22px; }
+  .leg-dash.purple { border-top-color: var(--purple); }
 }
 
 .minimap {

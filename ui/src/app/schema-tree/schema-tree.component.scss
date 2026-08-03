@@ -287,4 +287,14 @@
     background: var(--amber);
     flex-shrink: 0;
   }
+
+  .t-view {
+    font-size: 9px;
+    line-height: 1;
+    padding: 1px 4px;
+    border-radius: 8px;
+    background: var(--purple-dim);
+    color: var(--purple);
+    flex-shrink: 0;
+  }
 }

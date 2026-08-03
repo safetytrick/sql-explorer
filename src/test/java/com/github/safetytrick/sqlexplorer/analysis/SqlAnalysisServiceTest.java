@@ -6,12 +6,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.Disabled;
@@ -25,17 +22,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SqlAnalysisServiceTest {
 
-    ColumnTableResolver columnTableResolver = new ColumnTableResolver(TestSchemas.all());
+    SchemaFixture fixture = SchemaFixture.allFixtures();
 
-    List<SqlAnalyzer> analyzerList = Arrays.asList(
+    SqlAnalysisService sqlAnalysisService = fixture.service(
         new TableNameAnalyzer(),
         new SchemaAnalyzer(),
-        new JoinColumnAnalyzer(columnTableResolver),
-        new WhereClauseAnalyzer(columnTableResolver),
-        new GeneratedSqlAnalyzer()
-    );
-
-    SqlAnalysisService sqlAnalysisService = new SqlAnalysisService(analyzerList.toArray(new SqlAnalyzer[0]));
+        new JoinColumnAnalyzer(fixture.resolver()),
+        new WhereClauseAnalyzer(fixture.resolver()),
+        new GeneratedSqlAnalyzer());
 
     @Test
     void schemaFromSql() throws JSQLParserException {
@@ -98,7 +92,7 @@ public class SqlAnalysisServiceTest {
         String sql = """
                 SELECT
                     `id` ,
-                    `store_id` AS `storeId` ,
+                    `branch_id` AS `branchId` ,
                     NAME ,
                     `invisible` ,
                     `mutual_exclusion_identifier` AS `mutualExclusionIdentifier` ,
@@ -106,8 +100,8 @@ public class SqlAnalysisServiceTest {
                     `group_identifier` AS `groupIdentifier` ,
                     `group_family_identifier` AS `groupFamilyIdentifier` ,
                     `show_on_list` AS `showOnList` ,
-                    `show_on_local_notif` AS `showOnLocalNotif` ,
-                    `show_on_remote_notif` AS `showOnRemoteNotif` ,
+                    `show_on_local_alert` AS `showOnLocalAlert` ,
+                    `show_on_remote_alert` AS `showOnRemoteAlert` ,
                     `description` ,
                     `mutual_exclusion_identifier` AS `mutualExclusionIdentifier` ,
                     `color` ,
@@ -115,12 +109,12 @@ public class SqlAnalysisServiceTest {
                     `created_by` AS `createdById` ,
                     `deleted_by` AS `deletedById` ,
                     `deleted_on` AS `deletedOn` ,
-                    `tenant_id` AS `tenantId` ,
+                    `org_id` AS `orgId` ,
                     `hide_on_groups_page` AS `hideOnGroupsPage`
                 FROM
-                    `customer_group`
+                    `member_group`
                 WHERE
-                    `store_id` = ?
+                    `branch_id` = ?
                     AND BINARY `group_identifier` = ?
                     AND `deleted_on` IS NULL
                     AND `deleted_by` IS NULL
@@ -137,19 +131,19 @@ public class SqlAnalysisServiceTest {
         String sql = """
                 SELECT
                     `pr` . `id` ,
-                    `pr` . `customer_id` AS `customerId` ,
-                    `pr` . `managing_store_id` AS `managingStoreId` ,
-                    `pr` . `managing_store_id` AS ? ,
-                    `pr` . `managing_store_status` AS `managingStoreStatusCode` ,
-                    `pr` . `referring_store_id` AS `referringStoreId` ,
-                    `pr` . `referring_store_id` AS ? ,
-                    `pr` . `referring_store_status` AS `referringStoreStatusCode` ,
+                    `pr` . `member_id` AS `memberId` ,
+                    `pr` . `managing_branch_id` AS `managingBranchId` ,
+                    `pr` . `managing_branch_id` AS ? ,
+                    `pr` . `managing_branch_status` AS `managingBranchStatusCode` ,
+                    `pr` . `referring_branch_id` AS `referringBranchId` ,
+                    `pr` . `referring_branch_id` AS ? ,
+                    `pr` . `referring_branch_status` AS `referringBranchStatusCode` ,
                     `pr` . `type`
                 FROM
-                    `customer_referral` `pr`
+                    `member_referral` `pr`
                 WHERE
-                    `pr` . `customer_id` = ?
-                    AND `pr` . `referring_store_id` = ?
+                    `pr` . `member_id` = ?
+                    AND `pr` . `referring_branch_id` = ?
                     AND `pr` . `type` = ?
             """;
 
@@ -163,30 +157,30 @@ public class SqlAnalysisServiceTest {
     void trailing_punctuation() throws JSQLParserException {
         String sql = """
             SELECT
-                    `store0_` . `id` AS `id1_35_0_` ,
-                    `store0_` . `name` AS `name2_35_0_` ,
-                    `store0_` . `address` AS `address3_35_0_` ,
-                    `store0_` . `phone` AS `phone4_35_0_` ,
-                    `store0_` . `contact_name` AS `contact_5_35_0_` ,
-                    `store0_` . `email` AS `email6_35_0_` ,
-                    `store0_` . `participating` AS `particip7_35_0_` ,
-                    `store0_` . `join_date` AS `join_dat8_35_0_` ,
-                    `store0_` . `city` AS `city9_35_0_` ,
-                    `store0_` . `zip` AS `zip10_35_0_` ,
-                    `store0_` . `county` AS `county11_35_0_` ,
-                    `store0_` . `state` AS `state12_35_0_` ,
-                    `store0_` . `latitude` AS `latitud13_35_0_` ,
-                    `store0_` . `longitude` AS `longitu14_35_0_` ,
-                    `store0_` . `url` AS `url15_35_0_` ,
-                    `store0_` . `type` AS `type16_35_0_` ,
-                    `store0_` . `created_on` AS `created17_35_0_` ,
-                    `store0_` . `last_update` AS `last_up18_35_0_` ,
-                    `store0_` . `created_by` AS `created19_35_0_` ,
-                    `store0_` . `parent_store_id` AS `parent_20_35_0_`
+                    `branch0_` . `id` AS `id1_35_0_` ,
+                    `branch0_` . `name` AS `name2_35_0_` ,
+                    `branch0_` . `address` AS `address3_35_0_` ,
+                    `branch0_` . `phone` AS `phone4_35_0_` ,
+                    `branch0_` . `contact_name` AS `contact_5_35_0_` ,
+                    `branch0_` . `email` AS `email6_35_0_` ,
+                    `branch0_` . `participating` AS `particip7_35_0_` ,
+                    `branch0_` . `join_date` AS `join_dat8_35_0_` ,
+                    `branch0_` . `city` AS `city9_35_0_` ,
+                    `branch0_` . `zip` AS `zip10_35_0_` ,
+                    `branch0_` . `county` AS `county11_35_0_` ,
+                    `branch0_` . `state` AS `state12_35_0_` ,
+                    `branch0_` . `latitude` AS `latitud13_35_0_` ,
+                    `branch0_` . `longitude` AS `longitu14_35_0_` ,
+                    `branch0_` . `url` AS `url15_35_0_` ,
+                    `branch0_` . `type` AS `type16_35_0_` ,
+                    `branch0_` . `created_on` AS `created17_35_0_` ,
+                    `branch0_` . `last_update` AS `last_up18_35_0_` ,
+                    `branch0_` . `created_by` AS `created19_35_0_` ,
+                    `branch0_` . `parent_branch_id` AS `parent_20_35_0_`
                 FROM
-                    `store` `store0_`
+                    `branch` `branch0_`
                 WHERE
-                    `store0_` .""";
+                    `branch0_` .""";
 
         SqlProfile.Builder builder = SqlProfile.newBuilder();
         sqlAnalysisService.analyzeSql(sql, builder);
@@ -200,14 +194,14 @@ public class SqlAnalysisServiceTest {
                 SELECT
                     `ANY_VALUE` ( `pn` . `first_name` ) AS ? ,
                     `ANY_VALUE` ( `pn` . `last_name` ) AS ? ,
-                    `ANY_VALUE` ( IF ( `pid` . `date_of_birth` IS NOT NULL ,
+                    `ANY_VALUE` ( IF ( `pid` . `date_of_signup` IS NOT NULL ,
                     `FLOOR` ( TIMESTAMPDIFF ( YEAR ,
-                    `pid` . `date_of_birth` ,
+                    `pid` . `date_of_signup` ,
                     `pv` . `checkin_date` ) ) ,
                     ? ) ) AS ? ,
                     `ANY_VALUE` ( `ref` . `loyalty_card_number` ) AS `REF` ,
                     `CONCAT` ( ? ,
-                    `pv` . `customer_id` ) AS ? ,
+                    `pv` . `member_id` ) AS ? ,
                     DATE ( `pv` . `checkin_date` ) AS ? ,
                     TIME ( `pv` . `checkin_date` ) AS ? ,
                     `pv` . `account_number` AS ? ,
@@ -217,9 +211,9 @@ public class SqlAnalysisServiceTest {
                     COALESCE ( ( SELECT
                         COUNT ( DISTINCTROW `content_id` )
                     FROM
-                        `customer_care_guideline`
+                        `member_care_guideline`
                     WHERE
-                        `customer_id` = `pv` . `customer_id`
+                        `member_id` = `pv` . `member_id`
                         AND `content_action` = ? ) ,
                     ? ) AS ? ,
                     `ANY_VALUE` ( IF ( `cp1` . `name` IS NOT NULL ,
@@ -249,8 +243,8 @@ public class SqlAnalysisServiceTest {
     void parsing_if() throws JSQLParserException {
         String sql = """
             SELECT
-                    DISTINCTROW IF ( `pident` . `date_of_birth` IS NOT NULL ,
-                    `pident` . `date_of_birth` ,
+                    DISTINCTROW IF ( `pident` . `date_of_signup` IS NOT NULL ,
+                    `pident` . `date_of_signup` ,
                     ? ) AS ? ,
                     IF ( `pdesc` . `gender` = ?,
                     ... ,
@@ -259,9 +253,9 @@ public class SqlAnalysisServiceTest {
                     `f` . `name` ? ,
                     DATE ( `pv` . `checkin_date` ) AS ? ,
                     TIME ( `pv` . `checkin_date` ) AS ? ,
-                    IF ( `pv` . `major_class` = ?
+                    IF ( `pv` . `main_class` = ?
                     OR ( `pv0` . `id` IS NOT NULL
-                    AND `pv` . `visit_type` = ? ) ,
+                    AND `pv` . `session_type` = ? ) ,
                     ?,
                     ... ) AS ? ,
                     DATE ( `pv` . `checkout_date` ) AS ? ,
@@ -280,12 +274,12 @@ public class SqlAnalysisServiceTest {
                     IF ( EXISTS ( SELECT
                         *
                     FROM
-                        `customer_feedback` `pd`
+                        `member_feedback` `pd`
                     JOIN
                         `dx_code` `dx0`
                             ON `pd` . `code` = `dx0` . `id`
                     WHERE
-                        `pd` . `customer_visit_id` = `pv` . `id`
+                        `pd` . `member_session_id` = `pv` . `id`
                         AND `dx0` . `code` IN (...) ) ,
                     ?,
                     ... ) AS ? ,
@@ -311,12 +305,12 @@ public class SqlAnalysisServiceTest {
                     ( SELECT
                         `pv1` . *
                     FROM
-                        `customer_visit` `pv1`
+                        `member_session` `pv1`
                     WHERE
-                        `pv1` . `visit_type` IN (
+                        `pv1` . `session_type` IN (
                             ?
                         )
-                        AND `pv1` . `store_id` IN (
+                        AND `pv1` . `branch_id` IN (
                             ...
                         )
                         AND `pv1` . `checkin_date` BETWEEN ? AND ?
@@ -328,11 +322,11 @@ public class SqlAnalysisServiceTest {
                                     SELECT
                                         `pv` . `id`
                                     FROM
-                                        `customer_visit` `pv`
+                                        `member_session` `pv`
                                     WHERE
-                                        `pv` . `customer_id` = `pv1` . `customer_id`
+                                        `pv` . `member_id` = `pv1` . `member_id`
                                         AND `pv` . `checkin_date` BETWEEN `pv1` . `checkin_date` AND `pv1` . `checkin_date` + INTERVAL ? SQL_TSI_HOUR
-                                        AND `pv` . `major_class` = ?
+                                        AND `pv` . `main_class` = ?
                                 )
                             )
                         )
@@ -340,9 +334,9 @@ public class SqlAnalysisServiceTest {
                             SELECT
                                 DISTINCTROW `cg1` . `content_id`
                             FROM
-                                `customer_care_guideline` `cg1`
+                                `member_care_guideline` `cg1`
                             WHERE
-                                `cg1` . `customer_id` = `pv1` . `customer_id`
+                                `cg1` . `member_id` = `pv1` . `member_id`
                                 AND `cg1` . `created_on` < `pv1` . `checkin_date`
                                 AND `cg1` . `category` = ?
                                 AND `cg1` . `content_action` IN (
@@ -352,7 +346,7 @@ public class SqlAnalysisServiceTest {
                                     SELECT
                                         `cg2` . `content_action`
                                     FROM
-                                        `customer_care_guideline` `cg2`
+                                        `member_care_guideline` `cg2`
                                     WHERE
                                         `cg2` . `content_id` = `cg1` . `content_id`
                                         AND `cg2` . `created_on` > `cg1` . `created_on`
@@ -363,9 +357,9 @@ public class SqlAnalysisServiceTest {
                                 SELECT
                                     DISTINCTROW `ch1` . `content_id`
                                 FROM
-                                    `customer_care_history` `ch1`
+                                    `member_care_history` `ch1`
                                 WHERE
-                                    `ch1` . `customer_id` = `pv1` . `customer_id`
+                                    `ch1` . `member_id` = `pv1` . `member_id`
                                     AND
             """;
 
@@ -379,29 +373,29 @@ public class SqlAnalysisServiceTest {
     void attempt_complete_equal() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `customervi0_` . `id` AS `id1_137_` ,
-                    `customervi0_` . `checkin_date` AS `checkin_da2_137_` ,
-                    `customervi0_` . `checkout_date` AS `checkout3_137_` ,
-                    `customervi0_` . `account_number` AS `account_4_137_` ,
-                    `customervi0_` . `billing_account_number` AS `billing_5_137_` ,
-                    `customervi0_` . `created_on` AS `created_6_137_` ,
-                    `customervi0_` . `checkout_disposition` AS `checkout7_137_` ,
-                    `customervi0_` . `visit_type` AS `visit_ty8_137_` ,
-                    `customervi0_` . `transfer_date` AS `transfer9_137_` ,
-                    `customervi0_` . `major_class` AS `major_c10_137_` ,
-                    `customervi0_` . `sensitive_categories` AS `sensiti11_137_` ,
-                    `customervi0_` . `data_source` AS `data_so12_137_` ,
-                    `customervi0_` . `customer_id` AS `customer13_137_` ,
-                    `customervi0_` . `store_id` AS `branch14_137_`
+                    `membervi0_` . `id` AS `id1_137_` ,
+                    `membervi0_` . `checkin_date` AS `checkin_da2_137_` ,
+                    `membervi0_` . `checkout_date` AS `checkout3_137_` ,
+                    `membervi0_` . `account_number` AS `account_4_137_` ,
+                    `membervi0_` . `billing_account_number` AS `billing_5_137_` ,
+                    `membervi0_` . `created_on` AS `created_6_137_` ,
+                    `membervi0_` . `checkout_disposition` AS `checkout7_137_` ,
+                    `membervi0_` . `session_type` AS `session_ty8_137_` ,
+                    `membervi0_` . `transfer_date` AS `transfer9_137_` ,
+                    `membervi0_` . `main_class` AS `main_c10_137_` ,
+                    `membervi0_` . `special_categories` AS `special11_137_` ,
+                    `membervi0_` . `data_source` AS `data_so12_137_` ,
+                    `membervi0_` . `member_id` AS `member13_137_` ,
+                    `membervi0_` . `branch_id` AS `branch14_137_`
                 FROM
-                    `customer_visit` `customervi0_` CROSS
+                    `member_session` `membervi0_` CROSS
                 JOIN
-                    `customer_membership` `customerins1_` CROSS
+                    `member_plan` `memberins1_` CROSS
                 JOIN
-                    `customer_feedback` `customerdia2_`
+                    `member_feedback` `memberdia2_`
                 WHERE
-                    `customervi0_` . `customer_id` = `customerins1_` . `customer_id`
-                    AND `customerdia2_` . `customer_visit_id` = \s
+                    `membervi0_` . `member_id` = `memberins1_` . `member_id`
+                    AND `memberdia2_` . `member_session_id` = \s
             """;
 
         SqlProfile.Builder builder = SqlProfile.newBuilder();
@@ -415,27 +409,27 @@ public class SqlAnalysisServiceTest {
     void attempt_complete_open_and() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `customermem0_` . `id` AS `id1_121_` ,
-                    `customermem0_` . `created_on` AS `created_2_121_` ,
-                    `customermem0_` . `service_start` AS `service_3_121_` ,
-                    `customermem0_` . `service_end` AS `service_4_121_` ,
-                    `customermem0_` . `last_seen` AS `last_see5_121_` ,
-                    `customermem0_` . `line_of_business` AS `line_of_6_121_` ,
-                    `customermem0_` . `provider` AS `provider7_121_` ,
-                    `customermem0_` . `account_number` AS `account_8_121_` ,
-                    `customermem0_` . `provider_id` AS `provider9_121_` ,
-                    `customermem0_` . `status` AS `status10_121_` ,
-                    `customermem0_` . `remote_identifier` AS `remote_11_121_` ,
-                    `customermem0_` . `data_source` AS `data_so12_121_` ,
-                    `customermem0_` . `store_id` AS `branch13_121_` ,
-                    `customermem0_` . `customer_id` AS `customer14_121_` ,
-                    `customermem0_` . `group_id` AS `group_i15_121_` ,
-                    `customermem0_` . `group_name` AS `group_n16_121_` ,
-                    `customermem0_` . `policy_number_suffix` AS `policy_17_121_`
+                    `membermem0_` . `id` AS `id1_121_` ,
+                    `membermem0_` . `created_on` AS `created_2_121_` ,
+                    `membermem0_` . `service_start` AS `service_3_121_` ,
+                    `membermem0_` . `service_end` AS `service_4_121_` ,
+                    `membermem0_` . `last_seen` AS `last_see5_121_` ,
+                    `membermem0_` . `line_of_business` AS `line_of_6_121_` ,
+                    `membermem0_` . `provider` AS `provider7_121_` ,
+                    `membermem0_` . `account_number` AS `account_8_121_` ,
+                    `membermem0_` . `provider_id` AS `provider9_121_` ,
+                    `membermem0_` . `status` AS `status10_121_` ,
+                    `membermem0_` . `remote_identifier` AS `remote_11_121_` ,
+                    `membermem0_` . `data_source` AS `data_so12_121_` ,
+                    `membermem0_` . `branch_id` AS `branch13_121_` ,
+                    `membermem0_` . `member_id` AS `member14_121_` ,
+                    `membermem0_` . `group_id` AS `group_i15_121_` ,
+                    `membermem0_` . `group_name` AS `group_n16_121_` ,
+                    `membermem0_` . `policy_number_suffix` AS `policy_17_121_`
                 FROM
-                    `customer_membership` `customermem0_`
+                    `member_plan` `membermem0_`
                 WHERE
-                    `customermem0_` . `customer_id` = ?
+                    `membermem0_` . `member_id` = ?
                     AND (
             """;
 
@@ -449,27 +443,27 @@ public class SqlAnalysisServiceTest {
     void odd_failure() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `customermem0_` . `id` AS `id1_127_` ,
-                    `customermem0_` . `created_on` AS `created_2_127_` ,
-                    `customermem0_` . `service_start` AS `service_3_127_` ,
-                    `customermem0_` . `service_end` AS `service_4_127_` ,
-                    `customermem0_` . `last_seen` AS `last_see5_127_` ,
-                    `customermem0_` . `line_of_business` AS `line_of_6_127_` ,
-                    `customermem0_` . `provider` AS `provider7_127_` ,
-                    `customermem0_` . `account_number` AS `account_8_127_` ,
-                    `customermem0_` . `provider_id` AS `provider9_127_` ,
-                    `customermem0_` . `status` AS `status10_127_` ,
-                    `customermem0_` . `remote_identifier` AS `remote_11_127_` ,
-                    `customermem0_` . `data_source` AS `data_so12_127_` ,
-                    `customermem0_` . `store_id` AS `branch13_127_` ,
-                    `customermem0_` . `customer_id` AS `customer14_127_` ,
-                    `customermem0_` . `group_id` AS `group_i15_127_` ,
-                    `customermem0_` . `group_name` AS `group_n16_127_` ,
-                    `customermem0_` . `policy_number_suffix` AS `policy_17_127_`
+                    `membermem0_` . `id` AS `id1_127_` ,
+                    `membermem0_` . `created_on` AS `created_2_127_` ,
+                    `membermem0_` . `service_start` AS `service_3_127_` ,
+                    `membermem0_` . `service_end` AS `service_4_127_` ,
+                    `membermem0_` . `last_seen` AS `last_see5_127_` ,
+                    `membermem0_` . `line_of_business` AS `line_of_6_127_` ,
+                    `membermem0_` . `provider` AS `provider7_127_` ,
+                    `membermem0_` . `account_number` AS `account_8_127_` ,
+                    `membermem0_` . `provider_id` AS `provider9_127_` ,
+                    `membermem0_` . `status` AS `status10_127_` ,
+                    `membermem0_` . `remote_identifier` AS `remote_11_127_` ,
+                    `membermem0_` . `data_source` AS `data_so12_127_` ,
+                    `membermem0_` . `branch_id` AS `branch13_127_` ,
+                    `membermem0_` . `member_id` AS `member14_127_` ,
+                    `membermem0_` . `group_id` AS `group_i15_127_` ,
+                    `membermem0_` . `group_name` AS `group_n16_127_` ,
+                    `membermem0_` . `policy_number_suffix` AS `policy_17_127_`
                 FROM
-                    `customer_membership` `customermem0_`
+                    `member_plan` `membermem0_`
                 WHERE
-                    `customermem0_` . `customer_id` = ?
+                    `membermem0_` . `member_id` = ?
                     AND (
             """;
 
@@ -485,11 +479,11 @@ public class SqlAnalysisServiceTest {
                 SELECT
                     `pv` . *
                 FROM
-                    `customer_visit` `pv` ,
-                    `customer_visit_details` `pvd` ,
-                    `customer_membership` `pm`
+                    `member_session` `pv` ,
+                    `member_session_details` `pvd` ,
+                    `member_plan` `pm`
                 WHERE
-                    `pv` . `customer_id` = `pm` . `customer_id`
+                    `pv` . `member_id` = `pm` . `member_id`
                     AND `pvd` . `id` = `pv` . `id`
                     AND `pv` . `checkin_date` >= ?
                     AND `pv` . `checkin_date` <= ?
@@ -502,10 +496,10 @@ public class SqlAnalysisServiceTest {
                         OR `pm` . `service_start` IS NULL
                     )
                     AND (
-                        `pv` . `visit_type` IN (
+                        `pv` . `session_type` IN (
                             ?
                         )
-                        OR `pv` . `major_class` IN (
+                        OR `pv` . `main_class` IN (
                             (
                                 _charset
                             ) ? , (
@@ -513,7 +507,7 @@ public class SqlAnalysisServiceTest {
                             ) ?
                         )
                     )
-                    AND `pm` . `store_id` = ?
+                    AND `pm` . `branch_id` = ?
                 GROUP BY
                     `pv` . `id`
                 ORDER BY
@@ -532,9 +526,9 @@ public class SqlAnalysisServiceTest {
                 SELECT
                     CAST ( `id` AS CHARACTER (?) )
                 FROM
-                    `customer_referral`
+                    `member_referral`
                 WHERE
-                    `customer_id` IN (
+                    `member_id` IN (
                         ...
                     )
             """;
@@ -581,7 +575,7 @@ public class SqlAnalysisServiceTest {
         String sql = """
                 SELECT
                     `tcl` . `id` ,
-                    `tcl` . `tenant_id` AS `tenantId` ,
+                    `tcl` . `org_id` AS `orgId` ,
                     `tcl` . `change_by` AS `changedById` ,
                     `tcl` . `created_on` AS `createdOn` ,
                     `tcl` . `approved_by` AS `approvedBy` ,
@@ -592,26 +586,26 @@ public class SqlAnalysisServiceTest {
                         ? ,
                         `first_name` )
                     FROM
-                        TENANT
+                        ORG
                     WHERE
                         `id` = `tcl` . `change_by` ) AS `changedBy`
                 FROM
-                    `tenant_change_log` `tcl`
+                    `org_change_log` `tcl`
                 JOIN
                     (
                         SELECT
-                            `tenant_id` ,
+                            `org_id` ,
                             MAX ( `created_on` ) `latest_created_on`
                         FROM
-                            `tenant_change_log`
+                            `org_change_log`
                         WHERE
-                            `tenant_id` IN (
+                            `org_id` IN (
                                 ...
                             )
                         GROUP BY
-                            `tenant_id`
+                            `org_id`
                     ) `m_tcl`
-                        ON `tcl` . `tenant_id` = `m_tcl` . `tenant_id`
+                        ON `tcl` . `org_id` = `m_tcl` . `org_id`
                         AND `m_tcl` . `latest_created_on` = `tcl` . `created_on`
             """;
 
@@ -632,20 +626,20 @@ public class SqlAnalysisServiceTest {
                     `first_name` AS `firstName` ,
                     `last_name` AS `lastName` ,
                     `email` ,
-                    `last_store_id` AS `lastStoreId`
+                    `last_branch_id` AS `lastBranchId`
                 FROM
-                    TENANT `c`
+                    ORG `c`
                 WHERE
                     NOT EXISTS (
                         SELECT
                             ?
                         FROM
-                            `store_config` `fc`
+                            `branch_config` `fc`
                         WHERE
                             `fc` . `name` = ?
                             AND `fc` . `value` = ?
                             AND `fc` . `deleted_on` IS NULL
-                            AND `fc` . `store_id` = `c` . `last_store_id`
+                            AND `fc` . `branch_id` = `c` . `last_branch_id`
                     )
                     AND `c` . `is_blocked` = ?
                     AND `c` . `is_deleted` = ?
@@ -681,7 +675,7 @@ public class SqlAnalysisServiceTest {
                         ON `r` . `id` = `re` . `report_id`
                 WHERE
                     `re` . `executed_on` >= NOW ( ) - INTERVAL ? SQL_TSI_DAY
-                    AND `r` . `store_id` = ?
+                    AND `r` . `branch_id` = ?
                     AND `re` . `status` = ?
                     AND `rcf` . `report_config_field_type` = ? IN (
                         `rcf` . `value` LIKE ?
@@ -710,7 +704,7 @@ public class SqlAnalysisServiceTest {
                     BINARY ( `state` ) ,
                     COUNT ( BINARY ( `state` ) )
                 FROM
-                    `tdb` . `store`
+                    `tdb` . `branch`
                 GROUP BY
                     BINARY ( `state` )
                 ORDER BY
@@ -727,20 +721,20 @@ public class SqlAnalysisServiceTest {
     void qualified_subquery() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `pv` . `store_id` ,
+                    `pv` . `branch_id` ,
                     `DATE_FORMAT` ( `pd` . `created_on` ,
                     ? ) AS ? ,
-                    COUNT ( DISTINCTROW `pv` . `customer_id` ) AS ?
+                    COUNT ( DISTINCTROW `pv` . `member_id` ) AS ?
                 FROM
-                    `customer_feedback` `pd`
+                    `member_feedback` `pd`
                 JOIN
-                    `customer_visit` `pv`
-                        ON `pd` . `customer_visit_id` = `pv` . `id`
+                    `member_session` `pv`
+                        ON `pd` . `member_session_id` = `pv` . `id`
                 WHERE
                     CODE IN (
                         ...
                     )
-                    AND `pv` . `store_id` IN (
+                    AND `pv` . `branch_id` IN (
                         ...
                     )
                     AND `pd` . `created_on` >= ?
@@ -749,19 +743,19 @@ public class SqlAnalysisServiceTest {
                         SELECT
                             MIN ( `pd1` . `created_on` )
                         FROM
-                            `customer_feedback` `pd1`
+                            `member_feedback` `pd1`
                         JOIN
-                            `customer_visit` `pv1`
-                                ON `pd1` . `customer_visit_id` = `pv1` . `id`
+                            `member_session` `pv1`
+                                ON `pd1` . `member_session_id` = `pv1` . `id`
                         WHERE
                             `pd1` . `code` IN (
                                 ...
                             )
-                            AND `pd1` . `customer_id` = `pd` . `customer_id`
-                            AND `pv` . `store_id` = `pv1` . `store_id`
+                            AND `pd1` . `member_id` = `pd` . `member_id`
+                            AND `pv` . `branch_id` = `pv1` . `branch_id`
                     )
                 GROUP BY
-                    `pv` . `store_id`
+                    `pv` . `branch_id`
             """;
 
 
@@ -782,29 +776,29 @@ public class SqlAnalysisServiceTest {
                     `pa` . `city` ,
                     `pa` . `state` ,
                     `pa` . `zip` ,
-                    `pi` . `date_of_birth` ,
+                    `pi` . `date_of_signup` ,
                     `f` . `name` ,
-                    `dcv` . `id` AS `VISITID` ,
-                    `dcv` . `customer_id`
+                    `dcv` . `id` AS `SESSIONID` ,
+                    `dcv` . `member_id`
                 FROM
-                    `tdb` . `customer_name` `pn`
+                    `tdb` . `member_name` `pn`
                 LEFT JOIN
-                    `tdb` . `customer_address` `pa`
-                        ON `pn` . `customer_id` = `pa` . `customer_id`
+                    `tdb` . `member_address` `pa`
+                        ON `pn` . `member_id` = `pa` . `member_id`
                 LEFT JOIN
-                    `tdb` . `customer_ident` `pi`
-                        ON `pn` . `customer_id` = `pi` . `customer_id`
+                    `tdb` . `member_ident` `pi`
+                        ON `pn` . `member_id` = `pi` . `member_id`
                 LEFT JOIN
-                    `tdb` . `deleted_customer_visit` `dcv`
-                        ON `pn` . `customer_id` = `dcv` . `customer_id`
+                    `tdb` . `deleted_member_session` `dcv`
+                        ON `pn` . `member_id` = `dcv` . `member_id`
                 LEFT JOIN
-                    `tdb` . `store` `f`
-                        ON `f` . `id` = `dcv` . `store_id`
+                    `tdb` . `branch` `f`
+                        ON `f` . `id` = `dcv` . `branch_id`
                 WHERE
                     `pn` . `first_name` LIKE ?
                     AND `pn` . `last_name` LIKE ?
                     AND `pa` . `street_address` LIKE ?
-                    AND `major_class` IN (
+                    AND `main_class` IN (
                         ...
                     )
                 ORDER BY
@@ -823,10 +817,10 @@ public class SqlAnalysisServiceTest {
 
                 SELECT
                     `tmp` . `contributor_id` ,
-                    COUNT ( DISTINCTROW `pi` . `customer_id` ) AS `num_customers` ,
+                    COUNT ( DISTINCTROW `pi` . `member_id` ) AS `num_members` ,
                     COUNT ( DISTINCTROW `tmp` . `content_id` ) AS `num_insights` ,
-                    COUNT ( DISTINCTROW `pal` . `id` ) AS `customer_page_views` ,
-                    COUNT ( DISTINCTROW `cn` . `id` ) AS `num_insight_shared_through_notification` ,
+                    COUNT ( DISTINCTROW `pal` . `id` ) AS `member_page_views` ,
+                    COUNT ( DISTINCTROW `cn` . `id` ) AS `num_insight_shared_through_alert` ,
                     ( SELECT
                         COUNT ( `id` )
                     FROM
@@ -834,13 +828,13 @@ public class SqlAnalysisServiceTest {
                     WHERE
                         `content_id` = `tmp` . `content_id`
                         AND `contributor_id` != `tmp` . `contributor_id`
-                        AND `store_id` = `tmp` . `store_id` ) AS `updates_at_same_store`
+                        AND `branch_id` = `tmp` . `branch_id` ) AS `updates_at_same_branch`
                 FROM
                     ( SELECT
                         `c` . `contributor_id` ,
                         `c` . `content_id` ,
                         MIN ( `c` . `created_on` ) AS `insight_created` ,
-                        `c` . `store_id`
+                        `c` . `branch_id`
                     FROM
                         `analytics` . `contribution` `c`
                     WHERE
@@ -854,11 +848,11 @@ public class SqlAnalysisServiceTest {
                     `analytics` . `insight` `i`
                         ON `tmp` . `content_id` = `i` . `content_id`
                 LEFT JOIN
-                    `customer_insight` `pi`
+                    `member_insight` `pi`
                         ON `i` . `id` = `pi` . `insight_id`
                 LEFT JOIN
-                    `customer_access_log` `pal`
-                        ON `pi` . `customer_id` = `pal` . `customer_id`
+                    `member_access_log` `pal`
+                        ON `pi` . `member_id` = `pal` . `member_id`
                         AND `pal` . `accessed_by` != `tmp` . `contributor_id`
                         AND `pal` .
             """;
@@ -877,10 +871,10 @@ public class SqlAnalysisServiceTest {
         String sql = """
                SELECT
                     `tmp` . `contributor_id` ,
-                    COUNT ( DISTINCTROW `pi` . `customer_id` ) AS `num_customers` ,
+                    COUNT ( DISTINCTROW `pi` . `member_id` ) AS `num_members` ,
                     COUNT ( DISTINCTROW `tmp` . `content_id` ) AS `num_insights` ,
-                    COUNT ( DISTINCTROW `pal` . `id` ) AS `customer_page_views` ,
-                    COUNT ( DISTINCTROW `cn` . `id` ) AS `num_insight_shared_through_notification` ,
+                    COUNT ( DISTINCTROW `pal` . `id` ) AS `member_page_views` ,
+                    COUNT ( DISTINCTROW `cn` . `id` ) AS `num_insight_shared_through_alert` ,
                     ( SELECT
                         COUNT ( `id` )
                     FROM
@@ -888,13 +882,13 @@ public class SqlAnalysisServiceTest {
                     WHERE
                         `content_id` = `tmp` . `content_id`
                         AND `contributor_id` != `tmp` . `contributor_id`
-                        AND `store_id` = `tmp` . `store_id` ) AS `updates_at_same_store`
+                        AND `branch_id` = `tmp` . `branch_id` ) AS `updates_at_same_branch`
                 FROM
                     ( SELECT
                         `c` . `contributor_id` ,
                         `c` . `content_id` ,
                         MIN ( `c` . `created_on` ) AS `insight_created` ,
-                        `c` . `store_id`
+                        `c` . `branch_id`
                     FROM
                         `analytics` . `contribution` `c`
                     WHERE
@@ -908,11 +902,11 @@ public class SqlAnalysisServiceTest {
                     `analytics` . `insight` `i`
                         ON `tmp` . `content_id` = `i` . `content_id`
                 LEFT JOIN
-                    `customer_insight` `pi`
+                    `member_insight` `pi`
                         ON `i` . `id` = `pi` . `insight_id`
                 LEFT JOIN
-                    `customer_access_log` `pal`
-                        ON `pi` . `customer_id` = `pal` . `customer_id`
+                    `member_access_log` `pal`
+                        ON `pi` . `member_id` = `pal` . `member_id`
                         AND `pal` . `accessed_by` != `tmp` . `contributor_id`
                         AND `pal` .
             """;
@@ -930,21 +924,21 @@ public class SqlAnalysisServiceTest {
     void nested_select_in_exists() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `f` . `id` AS `store_id` ,
+                    `f` . `id` AS `branch_id` ,
                     COUNT ( DISTINCTROW `pv` . `id` ) AS ?
                 FROM
-                    `store` `f`
+                    `branch` `f`
                 LEFT JOIN
-                    `customer_visit` `pv`
-                        ON `f` . `id` = `pv` . `store_id`
-                        AND `major_class` = ?
+                    `member_session` `pv`
+                        ON `f` . `id` = `pv` . `branch_id`
+                        AND `main_class` = ?
                         AND NOT EXISTS (
                             SELECT
                                 `id`
                         FROM
-                            `customer_visit`
+                            `member_session`
                         WHERE
-                            `customer_id` = `pv` . `customer_id`
+                            `member_id` = `pv` . `member_id`
                             AND `id` != `pv` . `id`
                             AND (
                                 `account_number` = `pv` . `account_number`
@@ -953,8 +947,8 @@ public class SqlAnalysisServiceTest {
                                     AND `billing_account_number` IS NOT NULL
                                 )
                             )
-                            AND `major_class` = ?
-                            AND `store_id` = `pv` . `store_id`
+                            AND `main_class` = ?
+                            AND `branch_id` = `pv` . `branch_id`
                     )
                     AND `checkin_date` >= ?
                     AND `checkin_date` < ? + INTERVAL ? SQL_TSI_DAY
@@ -970,11 +964,11 @@ public class SqlAnalysisServiceTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
         assertContainsColumnReferences(builder.getCriteriaColumns(),
-                                       "customer_visit.billing_account_number",
-                                       "customer_visit.account_number",
-                                       "customer_visit.major_class",
-                                       "customer_visit.store_id",
-                                       "customer_visit.checkin_date");
+                                       "member_session.billing_account_number",
+                                       "member_session.account_number",
+                                       "member_session.main_class",
+                                       "member_session.branch_id",
+                                       "member_session.checkin_date");
     }
 
     @Test

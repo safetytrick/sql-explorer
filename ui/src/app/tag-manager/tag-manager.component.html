@@ -27,6 +27,10 @@
               <td class="num mono">{{tag.schemas}}</td>
               <td class="dim">{{tag.lastUsed ? (tag.lastUsed | date:'MMM d, yy') : '—'}}</td>
               <td class="num">
+                @if (tag.queries > 0) {
+                  <a class="row-link" [routerLink]="['/graph']" [queryParams]="{tag: tag.name}"
+                     (click)="$event.stopPropagation()" title="graph the tables these queries touch">graph ↗</a>
+                }
                 <span class="delete" (click)="deleteTag(tag.name); $event.stopPropagation()">
                   {{confirmingDelete === tag.name ? 'really delete?' : 'delete'}}
                 </span>

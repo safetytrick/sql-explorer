@@ -20,23 +20,23 @@ class ColumnTableResolverTest {
     @Test
     void qualified_schema_and_default() throws JSQLParserException {
 
-        String customerRefCreate = """
-            CREATE TABLE `customer_ref` (
+        String memberRefCreate = """
+            CREATE TABLE `member_ref` (
               `id` varchar(36) NOT NULL,
-              `customer_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The ID of the customer owning this card number',
-              `loyalty_card_number` varchar(255) DEFAULT NULL COMMENT 'The loyalty card number or master customer index number',
-              `store_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The store issuing this card number',
+              `member_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The ID of the member owning this card number',
+              `loyalty_card_number` varchar(255) DEFAULT NULL COMMENT 'The loyalty card number or master member index number',
+              `branch_id` varchar(36) NOT NULL DEFAULT '0' COMMENT 'The branch issuing this card number',
               `created_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
               `data_source` varchar(36) NOT NULL,
               `last_seen` datetime NOT NULL,
               `ref_type` varchar(45) DEFAULT NULL,
               PRIMARY KEY (`id`) USING BTREE,
-              UNIQUE KEY `unique_ref_fid` (`loyalty_card_number`,`store_id`),
-              KEY `customer_ref__customer_id_idx` (`customer_id`),
-              KEY `customer_ref__store_id_idx` (`store_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='A Customers Loyalty Card Number. For rows where store_id';""";
+              UNIQUE KEY `unique_ref_fid` (`loyalty_card_number`,`branch_id`),
+              KEY `member_ref__member_id_idx` (`member_id`),
+              KEY `member_ref__branch_id_idx` (`branch_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='A Members Loyalty Card Number. For rows where branch_id';""";
 
-        TableStructure customerRef = TableStructure.fromCreateTable(customerRefCreate).schema("tdb").build();
+        TableStructure memberRef = TableStructure.fromCreateTable(memberRefCreate).schema("tdb").build();
 
         String ccdCreate = """
             CREATE TABLE `doc` (
@@ -53,26 +53,26 @@ class ColumnTableResolverTest {
               `document_type_code` varchar(45) DEFAULT NULL,
               `date_created` datetime DEFAULT NULL,
               `raw_document_meta` varchar(256) DEFAULT NULL,
-              `customer_id` char(36) NOT NULL,
+              `member_id` char(36) NOT NULL,
               `created_on` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
               `datasource` char(36) NOT NULL,
               `deleted_on` char(36) DEFAULT NULL,
               `deleted_by` char(36) DEFAULT NULL,
-              `customer_visit_id` varchar(36) DEFAULT NULL,
+              `member_session_id` varchar(36) DEFAULT NULL,
               PRIMARY KEY (`id`),
-              KEY `ccd__customer_id_idx` (`customer_id`,`date_created`),
+              KEY `ccd__member_id_idx` (`member_id`,`date_created`),
               KEY `ccd__document_id_idx` (`document_unique_id`),
               KEY `ccd__created_on_idx` (`created_on`),
-              KEY `ccd__customer_visit_id_idx` (`customer_visit_id`,`date_created`)
+              KEY `ccd__member_session_id_idx` (`member_session_id`,`date_created`)
             ) ENGINE=InnoDB DEFAULT CHARSET=latin1;""";
 
         TableStructure doc = TableStructure.fromCreateTable(ccdCreate).schema("doc").build();
 
         ColumnTableResolver columnTableResolver =
-            new ColumnTableResolver(new LoadedSchema(Arrays.asList(customerRef, doc)));
+            new ColumnTableResolver(new LoadedSchema(Arrays.asList(memberRef, doc)));
 
-        List<String> filteredNames = Arrays.asList("doc.doc", "customer_ref");
-        String columnName = "customer_visit_id";
+        List<String> filteredNames = Arrays.asList("doc.doc", "member_ref");
+        String columnName = "member_session_id";
 
         String tableName = columnTableResolver.selectTableNameFromCandidates(filteredNames, columnName);
         assertEquals("doc.doc", tableName);
@@ -81,10 +81,10 @@ class ColumnTableResolverTest {
 
     @Test
     void single_column_from_single_table() throws JSQLParserException {
-        String store_config_create = """
-            CREATE TABLE `store_config` (
+        String branch_config_create = """
+            CREATE TABLE `branch_config` (
               `id` char(36) NOT NULL,
-              `store_id` char(36) NOT NULL,
+              `branch_id` char(36) NOT NULL,
               `name` varchar(255) NOT NULL,
               `value` text,
               `created_by` char(36) NOT NULL DEFAULT '1',
@@ -92,16 +92,16 @@ class ColumnTableResolverTest {
               `deleted_by` char(36) DEFAULT NULL,
               `deleted_on` timestamp NULL DEFAULT NULL,
               PRIMARY KEY (`id`),
-              KEY `store_config__store_id_name_idx` (`store_id`,`name`)
+              KEY `branch_config__branch_id_name_idx` (`branch_id`,`name`)
             ) ENGINE=InnoDB DEFAULT CHARSET=latin1;""";
-        TableStructure store_config_table = TableStructure.fromCreateTable(store_config_create).schema("tdb").build();
+        TableStructure branch_config_table = TableStructure.fromCreateTable(branch_config_create).schema("tdb").build();
 
         ColumnTableResolver columnTableResolver =
-            new ColumnTableResolver(new LoadedSchema(Collections.singletonList(store_config_table)));
+            new ColumnTableResolver(new LoadedSchema(Collections.singletonList(branch_config_table)));
 
-        String table = columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("store_config"), "store_id");
+        String table = columnTableResolver.selectTableNameFromCandidates(Collections.singletonList("branch_config"), "branch_id");
 
-        assertEquals("store_config", table);
+        assertEquals("branch_config", table);
     }
 
     @Test

@@ -73,7 +73,7 @@ class ForeignKeyDetailServiceTest {
 
     private static TableStructure structure(TableReference table, List<ForeignKey> fks, TableColumn... columns) {
         return new TableStructure(table.getSchemaName(), table.getTableName(), "TABLE", null,
-            fks, List.of(), List.of(columns));
+            fks, List.of(), List.of(columns), null, null);
     }
 
     private static ForeignKey fk(String name, TableReference fromTable, String fromColumn,

@@ -1,6 +1,7 @@
 package com.github.safetytrick.sqlexplorer.graph;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -8,6 +9,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
@@ -39,24 +42,35 @@ public class GraphV2Service {
     }
 
     public GraphV2 getSchemaGraph(String schemaName) {
+        return buildGraph(
+            structure -> structure.schema() != null && structure.schema().equalsIgnoreCase(schemaName),
+            tables -> tables.stream().anyMatch(table -> schemaName.equalsIgnoreCase(table.getNormalizedSchemaName())),
+            sqlRepositoryService.getAllAnalyzedSql());
+    }
+
+    /** A graph over an arbitrary profile set (tag results, search results): nodes come from the profiles. */
+    public GraphV2 getGraphForProfiles(Collection<SqlProfile> profiles) {
+        return buildGraph(structure -> false, tables -> true, profiles.stream());
+    }
+
+    private GraphV2 buildGraph(Predicate<TableStructure> seed,
+                               Predicate<List<TableReference>> profileFilter,
+                               Stream<SqlProfile> profiles) {
         Map<String, NodeBuilder> nodes = new TreeMap<>();
         Map<String, CoQueryBuilder> coQueries = new TreeMap<>();
         List<TableStructure> structures = sqlSchemaService.getTables();
 
-        // metadata tables of the schema
+        // seed nodes (schema mode: every metadata table of the schema, queried or not)
         for (TableStructure structure : structures) {
-            if (structure.schema() != null && structure.schema().equalsIgnoreCase(schemaName)) {
-                node(nodes, structure.schema(), structure.name())
-                    .columnCount = structure.columns() == null ? null : structure.columns().size();
+            if (seed.test(structure)) {
+                node(nodes, structure.schema(), structure.name());
             }
         }
 
         // one pass over queries: node stats, co-query pairs, self-joins
-        sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
+        profiles.forEach(profile -> {
             List<TableReference> tables = distinctTables(profile);
-            boolean touchesSchema = tables.stream()
-                .anyMatch(table -> schemaName.equalsIgnoreCase(table.getNormalizedSchemaName()));
-            if (!touchesSchema) {
+            if (!profileFilter.test(tables)) {
                 return;
             }
             boolean warn = Boolean.TRUE.equals(profile.getAnalysisFailed())
@@ -83,6 +97,32 @@ public class GraphV2Service {
                 }
             }
         });
+
+        // view→base edges: a displayed view pulls its base tables into the graph
+        List<GraphV2.ViewEdge> viewEdges = new ArrayList<>();
+        for (TableStructure structure : structures) {
+            NodeBuilder viewNode = nodes.get(key(structure.schema(), structure.name()));
+            if (viewNode == null || !"VIEW".equalsIgnoreCase(structure.type()) || structure.underlyingTables() == null) {
+                continue;
+            }
+            for (TableReference base : structure.underlyingTables()) {
+                if (base.getNormalizedSchemaName() == null || base.getNormalizedTableName() == null) {
+                    continue;
+                }
+                NodeBuilder baseNode = node(nodes, base.getNormalizedSchemaName(), base.getNormalizedTableName());
+                viewEdges.add(new GraphV2.ViewEdge(viewNode.schema, viewNode.table, baseNode.schema, baseNode.table));
+            }
+        }
+
+        // decorate every displayed node with schema metadata (column count, view flag)
+        for (TableStructure structure : structures) {
+            NodeBuilder node = nodes.get(key(structure.schema(), structure.name()));
+            if (node == null) {
+                continue;
+            }
+            node.columnCount = structure.columns() == null ? null : structure.columns().size();
+            node.view = "VIEW".equalsIgnoreCase(structure.type());
+        }
 
         // FK edges between displayed nodes; column type comparison over the loaded structures
         Map<String, Map<String, TableColumn>> columnsByTable = new HashMap<>();
@@ -120,7 +160,7 @@ public class GraphV2Service {
         List<GraphV2.CoQueryEdge> coQueryEdges = coQueries.values().stream()
             .map(CoQueryBuilder::build)
             .toList();
-        return new GraphV2(nodeList, fkEdges, coQueryEdges);
+        return new GraphV2(nodeList, fkEdges, coQueryEdges, viewEdges);
     }
 
     private static List<TableReference> distinctTables(SqlProfile profile) {
@@ -180,6 +220,7 @@ public class GraphV2Service {
         private int queryCount;
         private boolean warn;
         private boolean selfJoin;
+        private boolean view;
 
         private NodeBuilder(String schema, String table) {
             this.schema = schema;
@@ -187,7 +228,7 @@ public class GraphV2Service {
         }
 
         private GraphV2.Node build() {
-            return new GraphV2.Node(schema, table, columnCount, queryCount, warn, selfJoin);
+            return new GraphV2.Node(schema, table, columnCount, queryCount, warn, selfJoin, view);
         }
     }
 

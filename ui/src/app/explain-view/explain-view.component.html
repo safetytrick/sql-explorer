@@ -1,66 +1,74 @@
+<div class="explain-wrap">
+  <textarea name="textValue" placeholder="paste EXPLAIN output — tabular, \G vertical, or FORMAT=JSON"
+            [ngModel]="text" (ngModelChange)="onTextChange($event)"></textarea>
 
+  @if (parsed.error && text.trim()) {
+    <div class="parse-error">{{parsed.error}}</div>
+  }
 
-<textarea name="textValue" [(ngModel)]='textValue'></textarea>
-
-<mat-table [dataSource]="dataSource" class="sql-explain table table-sm">
-  <ng-container matColumnDef="id">
-    <th class="num-cell" mat-header-cell *matHeaderCellDef>#</th>
-    <td class="num-cell" mat-cell *matCellDef="let row">{{row.id}}</td>
-  </ng-container>
-  <ng-container matColumnDef="select_type">
-    <th class="text-cell" mat-header-cell *matHeaderCellDef>select_type</th>
-    <td class="text-cell" mat-cell *matCellDef="let row">{{row.select_type}}</td>
-  </ng-container>
-  <ng-container matColumnDef="table">
-    <th class="text-cell" mat-header-cell *matHeaderCellDef>table</th>
-    <td class="text-cell" mat-cell *matCellDef="let row">{{row.table}}</td>
-  </ng-container>
-  <ng-container matColumnDef="partitions">
-    <th class="text-cell" mat-header-cell *matHeaderCellDef>partitions</th>
-    <td class="text-cell" mat-cell *matCellDef="let row">{{row.partitions}}</td>
-  </ng-container>
-  <ng-container matColumnDef="type">
-    <th class="text-cell" mat-header-cell *matHeaderCellDef>type</th>
-    <td class="text-cell" mat-cell *matCellDef="let row">{{row.type}}</td>
-  </ng-container>
-  <ng-container matColumnDef="possible_keys">
-    <th class="text-cell" mat-header-cell *matHeaderCellDef>possible_keys</th>
-    <td class="text-cell" mat-cell *matCellDef="let row">
-      @if (row.possible_keys) {
-        <ul>
-          @for (key of row.possible_keys.split(','); track key) {
-            <li>{{key}}</li>
+  @if (parsed.rows.length) {
+    <div class="parse-note">parsed as {{parsed.format}} · {{parsed.rows.length}} step{{parsed.rows.length === 1 ? '' : 's'}}</div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+        <tr>
+          <th>#</th><th>select type</th><th>table</th><th>partitions</th><th>access</th>
+          <th>possible keys</th><th>key</th><th>key len</th><th>ref</th>
+          <th class="num">rows</th><th class="num">filtered</th><th class="num">est. rows</th><th>extra</th>
+        </tr>
+        </thead>
+        <tbody>
+          @for (row of parsed.rows; track $index) {
+            <tr [class.full-scan]="fullScan(row)">
+              <td class="mono dim">{{row.id ?? '—'}}</td>
+              <td class="dim2">{{row.selectType ?? '—'}}</td>
+              <td>
+                @if (lensLink(row.table); as link) {
+                  <a class="mono tbl-link" [routerLink]="link">{{row.table}}</a>
+                } @else {
+                  <span class="mono">{{row.table ?? '—'}}</span>
+                }
+              </td>
+              <td class="dim">{{row.partitions ?? '—'}}</td>
+              <td>
+                @if (fullScan(row)) {
+                  <span class="badge b-scan" title="full table scan">ALL</span>
+                } @else if (indexScan(row)) {
+                  <span class="badge b-idxscan" title="full index scan">index</span>
+                } @else {
+                  <span class="mono dim2">{{row.type ?? '—'}}</span>
+                }
+              </td>
+              <td class="dim">
+                @for (key of row.possibleKeys; track key; let last = $last) {
+                  <span class="mono">{{key}}</span>@if (!last) {, }
+                }
+                @if (row.possibleKeys.length === 0) { <span class="dim">—</span> }
+              </td>
+              <td>
+                @if (row.key) {
+                  <span class="mono key">{{row.key}}</span>
+                } @else if (keyless(row)) {
+                  <span class="badge b-scan" title="no index used">no key</span>
+                } @else {
+                  <span class="dim">—</span>
+                }
+              </td>
+              <td class="mono dim">{{row.keyLen ?? '—'}}</td>
+              <td class="mono dim">{{row.ref ?? '—'}}</td>
+              <td class="num mono">{{row.rows !== null ? (row.rows | number) : '—'}}</td>
+              <td class="num mono dim">{{row.filtered !== null ? row.filtered + '%' : '—'}}</td>
+              <td class="num mono">{{estimatedRows(row) !== null ? (estimatedRows(row) | number) : '—'}}</td>
+              <td>
+                @for (flag of extraBadges(row); track flag) {
+                  <span class="badge b-extra">{{flag}}</span>
+                }
+                <span class="dim2 extra-text">{{row.extra ?? ''}}</span>
+              </td>
+            </tr>
           }
-        </ul>
-      }
-    </td>
-  </ng-container>
-  <ng-container matColumnDef="key">
-    <th class="text-cell" mat-header-cell *matHeaderCellDef>key</th>
-    <td class="text-cell index-key" mat-cell *matCellDef="let row">{{row.key}}</td>
-  </ng-container>
-
-  <ng-container matColumnDef="ref">
-    <th class="num-cell" mat-header-cell *matHeaderCellDef>ref</th>
-    <td class="num-cell" mat-cell *matCellDef="let row">{{row.ref}}</td>
-  </ng-container>
-  <ng-container matColumnDef="rows">
-    <th class="num-cell" mat-header-cell *matHeaderCellDef>rows</th>
-    <td class="num-cell" mat-cell *matCellDef="let row">{{row.rows}}</td>
-  </ng-container>
-  <ng-container matColumnDef="filtered">
-    <th class="num-cell" mat-header-cell *matHeaderCellDef>filtered</th>
-    <td class="num-cell" mat-cell *matCellDef="let row">{{row.filtered}}</td>
-  </ng-container>
-  <ng-container matColumnDef="key_len">
-    <th class="num-cell" mat-header-cell *matHeaderCellDef>key_len</th>
-    <td class="num-cell" mat-cell *matCellDef="let row">{{row.key_len}}</td>
-  </ng-container>
-  <ng-container matColumnDef="Extra">
-    <th class="text-cell" mat-header-cell *matHeaderCellDef>extra</th>
-    <td class="text-cell" mat-cell *matCellDef="let row">{{row.Extra}}</td>
-  </ng-container>
-  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-  <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-
-</mat-table>
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

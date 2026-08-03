@@ -1,6 +1,7 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import {Injectable} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {Observable} from 'rxjs';
+import {QuerySearchRequest} from './query-search.service';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -9,6 +10,7 @@ export interface TableNode {
   columnCount: number | null;
   queryCount: number;
   warn: boolean;
+  view: boolean;
 }
 
 export interface SchemaNode {
@@ -77,6 +79,26 @@ export interface TableIndex {
   columns: string[];
 }
 
+export interface ViewColumnSource {
+  table: { normalizedSchemaName: string | null; normalizedTableName: string };
+  normalizedColumn: string;
+}
+
+/** One view output column and the base columns it derives from. */
+export interface ViewColumnMeta {
+  name: string;
+  sources: ViewColumnSource[];
+  computed: boolean;
+}
+
+/** Subset of the metadata TableStructure the lens reads. */
+export interface TableMeta {
+  indices: TableIndex[];
+  type: string | null;
+  underlyingTables: { normalizedSchemaName: string | null; normalizedTableName: string }[] | null;
+  viewColumns: ViewColumnMeta[] | null;
+}
+
 export interface GraphNode {
   schema: string;
   table: string;
@@ -84,6 +106,7 @@ export interface GraphNode {
   queryCount: number;
   warn: boolean;
   selfJoin: boolean;
+  view: boolean;
 }
 
 export interface GraphFkEdge {
@@ -104,10 +127,19 @@ export interface GraphCoQueryEdge {
   executions: number;
 }
 
+/** A view selecting from one of its base tables. */
+export interface GraphViewEdge {
+  fromSchema: string;
+  fromTable: string;
+  toSchema: string;
+  toTable: string;
+}
+
 export interface GraphV2 {
   nodes: GraphNode[];
   fkEdges: GraphFkEdge[];
   coQueryEdges: GraphCoQueryEdge[];
+  viewEdges: GraphViewEdge[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -135,11 +167,19 @@ export class SchemaLensService {
     return this.http.get<ForeignKeyDetail[]>(`${endpoint}metadata/table/${schema}/${name}/foreign-keys`);
   }
 
-  getTableStructure(schema: string, name: string): Observable<{ indices: TableIndex[] } | null> {
-    return this.http.get<{ indices: TableIndex[] } | null>(`${endpoint}metadata/table/${schema}/${name}`);
+  getTableStructure(schema: string, name: string): Observable<TableMeta | null> {
+    return this.http.get<TableMeta | null>(`${endpoint}metadata/table/${schema}/${name}`);
   }
 
   getSchemaGraph(schema: string): Observable<GraphV2> {
     return this.http.get<GraphV2>(`${endpoint}graph/v2/schema/${schema}`);
+  }
+
+  getTagGraph(tag: string): Observable<GraphV2> {
+    return this.http.get<GraphV2>(`${endpoint}graph/v2/by-tag/${encodeURIComponent(tag)}`);
+  }
+
+  getSearchGraph(request: QuerySearchRequest | null): Observable<GraphV2> {
+    return this.http.post<GraphV2>(`${endpoint}graph/v2/search`, request ?? {});
   }
 }

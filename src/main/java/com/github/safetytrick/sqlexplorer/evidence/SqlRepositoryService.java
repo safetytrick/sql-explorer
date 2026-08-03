@@ -238,12 +238,15 @@ public class SqlRepositoryService {
             .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics().getTotalTime().doubleValue())
             .sum();
 
+        TableStructure structure = sqlSchemaService.getTable(reference);
+
         return TableRollup.builder()
             .name(reference.getNormalizedTableName())
             .schema(reference.getNormalizedSchemaName())
             .tags(tagLoader.findAllByPath("/schema/" + reference.getNormalizedSchemaName() + "/table/" + reference.getNormalizedTableName()))
             .numberOfQueries(sqlList.size())
             .totalQueryTime(totalQueryTime)
+            .view(structure != null && "VIEW".equalsIgnoreCase(structure.type()))
             .build();
     }
 

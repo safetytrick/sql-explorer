@@ -19,13 +19,13 @@ class ExtendedTableNamesFinderTest {
                     `report_config_field_type` AS `configFieldType` ,
                     VALUE ,
                     `report_config_field` . `created_on` AS `createdOn` ,
-                    `tenant` . `id` AS `createdBy` ,
-                    `CONCAT` ( `tenant` . `first_name` ,
+                    `org` . `id` AS `createdBy` ,
+                    `CONCAT` ( `org` . `first_name` ,
                     ? ,
-                    `tenant` . `last_name` ) AS `createdByName` ,
-                    `CONCAT` ( `tenant2` . `first_name` ,
+                    `org` . `last_name` ) AS `createdByName` ,
+                    `CONCAT` ( `org2` . `first_name` ,
                     ? ,
-                    `tenant2` . `last_name` ) AS `deletedByName` ,
+                    `org2` . `last_name` ) AS `deletedByName` ,
                     `report_config_field` . `deleted_on` AS `deletedOn` ,
                     `report_config_field` . `deleted_by` AS `deletedBy`
                 FROM
@@ -34,11 +34,11 @@ class ExtendedTableNamesFinderTest {
                     `report`
                         ON `report_config_field` . `report_id` = `report` . `id`
                 JOIN
-                    `tdb` . `tenant` AS TENANT
-                        ON `report_config_field` . `created_by` = `tenant` . `id`
+                    `tdb` . `org` AS ORG
+                        ON `report_config_field` . `created_by` = `org` . `id`
                 LEFT JOIN
-                    `tdb` . `tenant` AS `tenant2`
-                        ON `report_config_field` . `deleted_by` = `tenant2` . `id`
+                    `tdb` . `org` AS `org2`
+                        ON `report_config_field` . `deleted_by` = `org2` . `id`
                 WHERE
                     `report_id` = ?
             """;
@@ -47,6 +47,6 @@ class ExtendedTableNamesFinderTest {
 
         Map<String, String> aliases = new ExtendedTableNamesFinder().resolveAliases(statement);
 
-        assertEquals(Map.of("`report_config_field`", "`report_config_field`", "`report`", "`report`", "tenant", "`tdb`.`tenant`", "`tenant2`", "`tdb`.`tenant`"), aliases);
+        assertEquals(Map.of("`report_config_field`", "`report_config_field`", "`report`", "`report`", "org", "`tdb`.`org`", "`org2`", "`tdb`.`org`"), aliases);
     }
 }

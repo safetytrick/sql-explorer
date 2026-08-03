@@ -22,18 +22,20 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 public class WhereClauseAnalyzerTest {
     private SqlAnalysisService sqlAnalysisService;
-    private ColumnTableResolver columnTableResolver;
     private SqlProfile.Builder builder;
+    /** Several tests build their own analyzer combinations from this resolver. */
+    private ColumnTableResolver columnTableResolver;
 
     @BeforeEach
     public void setUp() {
-        columnTableResolver = new ColumnTableResolver(TestSchemas.all());
-        sqlAnalysisService = new SqlAnalysisService(new WhereClauseAnalyzer(columnTableResolver));
+        SchemaFixture fixture = SchemaFixture.allFixtures();
+        columnTableResolver = fixture.resolver();
+        sqlAnalysisService = fixture.service(new WhereClauseAnalyzer(columnTableResolver));
         builder = SqlProfile.newBuilder();
     }
 
     @Test
-    public void testNoCriteria() throws JSQLParserException {
+    public void testNoRule() throws JSQLParserException {
         String sql = """
             SELECT `id` , `report_column_id` AS `reportColumnId` , `report_column_config_field_type` AS `reportColumnConfigFieldType` , \
             `report_column_config_field_option` AS `columnConfigFieldOption` , \
@@ -71,13 +73,13 @@ public class WhereClauseAnalyzerTest {
     @Test
     public void testBigOlQuery() throws JSQLParserException {
         String sql = """
-            SELECT `cn` . `id` , `cnc` . `binary_content` FROM `tenant_notification` `cn` \
-            INNER JOIN `tenant_notification_content` `cnc` ON `cn` . `id` = `cnc` . `id` \
+            SELECT `cn` . `id` , `cnc` . `binary_content` FROM `org_alert` `cn` \
+            INNER JOIN `org_alert_content` `cnc` ON `cn` . `id` = `cnc` . `id` \
             WHERE `cn` . `completed_on` IS NULL \
             AND `cn` . `begin_processing` IS NULL \
             AND `cn` . `type` = ? AND `cn` . `event_time` > NOW ( ) - INTERVAL 6 SQL_TSI_DAY \
             AND `cn` . `request_time` > NOW ( ) - INTERVAL 0 SQL_TSI_HOUR \
-            AND `cn` . `sent_to_store_id` IN (?)\
+            AND `cn` . `sent_to_branch_id` IN (?)\
             """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
@@ -85,21 +87,21 @@ public class WhereClauseAnalyzerTest {
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
 
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("tenant_notification.completed_on"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("org_alert.completed_on"));
 
     }
 
     @Test
-    public void testCustomerVisit() throws JSQLParserException {
+    public void testMemberSession() throws JSQLParserException {
         String sql = """
-            SELECT `pvd`.`store_id`
-            FROM `customer_visit` `pvd`
-                   LEFT JOIN `store` `f` ON `f`.`id` = `pvd`.`store_id`
-                   LEFT JOIN `store_config` `fc` ON (`f`.`id` = `fc`.`id` AND `fc`.`name` = ?)
-            WHERE `pvd`.`customer_id` = ?
+            SELECT `pvd`.`branch_id`
+            FROM `member_session` `pvd`
+                   LEFT JOIN `branch` `f` ON `f`.`id` = `pvd`.`branch_id`
+                   LEFT JOIN `branch_config` `fc` ON (`f`.`id` = `fc`.`id` AND `fc`.`name` = ?)
+            WHERE `pvd`.`member_id` = ?
               AND `pvd`.`checkin_date` >= SUBDATE(NOW(), `IFNULL`(`fc`.`value`, ?))
               AND `f`.`type` IN (?)
-            GROUP BY `pvd`.`store_id`
+            GROUP BY `pvd`.`branch_id`
             """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
@@ -107,25 +109,25 @@ public class WhereClauseAnalyzerTest {
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
 
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("store.type"));
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_visit.customer_id"));
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_visit.checkin_date"));
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("store_config.value"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("branch.type"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("member_session.member_id"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("member_session.checkin_date"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("branch_config.value"));
     }
 
     @Test
     public void testMissingAlias() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `csr` . *
+                    `agent` . *
                 FROM
-                    `customer_identifier` `pi`
+                    `member_identifier` `pi`
                 INNER JOIN
-                    `customer_store_relationship` `csr`
-                        ON `csr` . `identifier` = `pi` . `identifier`
-                        AND `csr` . `assigning_auth` = `pi` . `store_id`
+                    `member_branch_relationship` `agent`
+                        ON `agent` . `identifier` = `pi` . `identifier`
+                        AND `agent` . `assigning_auth` = `pi` . `branch_id`
                 WHERE
-                    `pi` . `customer_id` = ?
+                    `pi` . `member_id` = ?
                     AND (
                         `effective_on` IS NULL
                         OR `effective_on` <= NOW ( )
@@ -137,8 +139,8 @@ public class WhereClauseAnalyzerTest {
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertNotNull(criteriaColumns);
 
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_identifier.customer_id"));
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_store_relationship.effective_on"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("member_identifier.member_id"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("member_branch_relationship.effective_on"));
     }
 
     @Test
@@ -147,8 +149,8 @@ public class WhereClauseAnalyzerTest {
 
                 SELECT
                     `pcg1` . `id` ,
-                    `pcg1` . `customer_id` AS `customerId` ,
-                    `pcg1` . `store_id` AS `storeId` ,
+                    `pcg1` . `member_id` AS `memberId` ,
+                    `pcg1` . `branch_id` AS `branchId` ,
                     `pcg1` . `using_guideline_id` AS `usingGuidelineId` ,
                     `pcg1` . `custom_fields` AS `customFields` ,
                     `pcg1` . `content_action` AS `contentAction` ,
@@ -158,35 +160,35 @@ public class WhereClauseAnalyzerTest {
                     `pcg1` . `created_by` AS `createdById` ,
                     `pcg1` . `created_on` AS `createdOn`
                 FROM
-                    `customer_care_guideline` AS `pcg1`
+                    `member_care_guideline` AS `pcg1`
                 INNER JOIN
                     (
                         SELECT
-                            `customer_id` ,
+                            `member_id` ,
                             MIN ( `created_on` ) AS `created_on`
                         FROM
-                            `customer_care_guideline`
+                            `member_care_guideline`
                         WHERE
-                            `customer_id` IN (
+                            `member_id` IN (
                                 ...
                             )
                             AND `content_action` IN (
                                 ...
                             )
-                            AND `store_id` = ?
+                            AND `branch_id` = ?
                         GROUP BY
-                            `customer_id`
+                            `member_id`
                     ) AS `pcg2`
-                        ON `pcg1` . `customer_id` = `pcg2` . `customer_id`
+                        ON `pcg1` . `member_id` = `pcg2` . `member_id`
                         AND `pcg1` . `created_on` = `pcg2` . `created_on` \
             """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_care_guideline.customer_id"));
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_care_guideline.content_action"));
-        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("customer_care_guideline.store_id"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("member_care_guideline.member_id"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("member_care_guideline.content_action"));
+        assertThat(criteriaColumns).anyMatch(column -> column.equalsNormalized("member_care_guideline.branch_id"));
     }
 
     @Test
@@ -196,33 +198,33 @@ public class WhereClauseAnalyzerTest {
             SELECT
                     `temp` . *
                 FROM
-                    `customer_visit` `mother_visit`
+                    `member_session` `mother_session`
                 JOIN
                     (
                         SELECT
                             `pv` . * ,
-                            `ins` . `customer_id` AS `mother`
+                            `ins` . `member_id` AS `mother`
                         FROM
-                            `customer_membership` `ins` ,
-                            `customer_membership` `ins2` ,
-                            `customer_ident` `ident` ,
-                            `customer_visit_membership` `pvi` ,
-                            `customer_visit` `pv`
+                            `member_plan` `ins` ,
+                            `member_plan` `ins2` ,
+                            `member_ident` `ident` ,
+                            `member_session_plan` `pvi` ,
+                            `member_session` `pv`
                         WHERE
-                            `pv` . `id` = `pvi` . `customer_visit_id`
+                            `pv` . `id` = `pvi` . `member_session_id`
                             AND `pv` . `checkout_date` >= ?
                             AND `pv` . `checkout_date` <= ?
                             AND (
-                                `pv` . `visit_type` = ?
-                                OR `pv` . `major_class` IN (
+                                `pv` . `session_type` = ?
+                                OR `pv` . `main_class` IN (
                                     ?
                                 )
                             )
-                            AND `ident` . `date_of_birth` > DATE_SUB ( NOW ( ) , INTERVAL ? SQL_TSI_DAY )
-                            AND `ins2` . `customer_id` = `ident` . `customer_id`
-                            AND `ins` . `store_id` = ?
+                            AND `ident` . `date_of_signup` > DATE_SUB ( NOW ( ) , INTERVAL ? SQL_TSI_DAY )
+                            AND `ins2` . `member_id` = `ident` . `member_id`
+                            AND `ins` . `branch_id` = ?
                             AND `ins2` . `account_number` = `ins` . `account_number`
-                            AND `pvi` . `customer_membership_id` = `ins2` . `id`
+                            AND `pvi` . `member_plan_id` = `ins2` . `id`
                             AND (
                                 DATE ( `pv` . `checkin_date` ) <= `ins` . `service_end`
                                 OR `ins` . `service_end` IS NULL
@@ -231,13 +233,13 @@ public class WhereClauseAnalyzerTest {
                                 DATE ( `pv` . `checkin_date` ) >= `ins` . `service_start`
                                 OR `ins` . `service_start` IS NULL
                             )
-                            AND `ins2` . `store_id` IS NULL
+                            AND `ins2` . `branch_id` IS NULL
                         GROUP BY
                             `pv` . `id`
                     ) AS `temp`
-                        ON `temp` . `mother` = `mother_visit` . `customer_id`
+                        ON `temp` . `mother` = `mother_session` . `member_id`
                 WHERE
-                    `mother_visit` . `customer_id` = `temp`"""
+                    `mother_session` . `member_id` = `temp`"""
             // + "."; // todo this was parsed by earlier versions of the jsqlparser library,
             //  it's certainly not valid sql but handling partial sql is a goal of this tool
             ;
@@ -245,7 +247,7 @@ public class WhereClauseAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
-        assertContainsJoinColumns(joinColumns, "customer_visit.id", "customer_visit_membership.customer_visit_id");
+        assertContainsJoinColumns(joinColumns, "member_session.id", "member_session_plan.member_session_id");
     }
 
     @Test
@@ -255,27 +257,27 @@ public class WhereClauseAnalyzerTest {
                     `dup` . `id`
                 FROM
                     ( SELECT
-                        `notif_criteria_id` ,
-                        `m` . `customer_id` ,
+                        `alert_rule_id` ,
+                        `m` . `member_id` ,
                         MIN ( `m` . `created_on` ) AS FIRST ,
                         COUNT ( * ) AS `count`
                     FROM
-                        `notif_criteria` `c`
+                        `alert_rule` `c`
                     INNER JOIN
-                        `notif_criteria_met` `m`
-                            ON `m` . `notif_criteria_id` = `c` . `id`
+                        `alert_rule_met` `m`
+                            ON `m` . `alert_rule_id` = `c` . `id`
                     WHERE
                         `c` . `name` = ?
                         AND `m` . `created_on` >= ?
                     GROUP BY
-                        `m` . `notif_criteria_id` ,
-                        `m` . `customer_id`
+                        `m` . `alert_rule_id` ,
+                        `m` . `member_id`
                     HAVING
                         `count` > ? ) `bad`
                 INNER JOIN
-                    `notif_criteria_met` `dup`
-                        ON `dup` . `customer_id` = `bad` . `customer_id`
-                        AND `dup` . `notif_criteria_id` = `bad` . `notif_criteria_id`
+                    `alert_rule_met` `dup`
+                        ON `dup` . `member_id` = `bad` . `member_id`
+                        AND `dup` . `alert_rule_id` = `bad` . `alert_rule_id`
                 WHERE
                     `dup` . `created_on` >= ?
                     AND `dup` . `created_on` != FIRST \
@@ -290,7 +292,7 @@ public class WhereClauseAnalyzerTest {
         joinColumnAnalyzer.analyze(statement, builder);
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
-        assertContainsJoinColumns(joinColumns, "notif_criteria_met.customer_id", "notif_criteria_met.customer_id");
+        assertContainsJoinColumns(joinColumns, "alert_rule_met.member_id", "alert_rule_met.member_id");
     }
 
     @Test
@@ -298,14 +300,14 @@ public class WhereClauseAnalyzerTest {
         String sql = """
                 INSERT
                 INTO
-                    `deleted_customer_referral` (
-                        `id` , `customer_id`, `deleted_on`
+                    `deleted_member_referral` (
+                        `id` , `member_id`, `deleted_on`
                     ) SELECT
                         `id` ,
-                        `customer_id` ,
+                        `member_id` ,
                         ?
                     FROM
-                        `customer_referral`
+                        `member_referral`
                     WHERE
                         `id` = ? \
             """;
@@ -317,7 +319,7 @@ public class WhereClauseAnalyzerTest {
         whereClauseAnalyzer.analyze(statement, builder);
 
         assertThat(builder.getCriteriaColumns())
-            .anyMatch(other -> ColumnReference.fromString("customer_referral.id").equalsNormalized(other));
+            .anyMatch(other -> ColumnReference.fromString("member_referral.id").equalsNormalized(other));
     }
 
     @Test
@@ -326,15 +328,15 @@ public class WhereClauseAnalyzerTest {
                 SELECT
                     *
                 FROM
-                    `customer_visit`
+                    `member_session`
                 WHERE
-                    `customer_id` IN (
+                    `member_id` IN (
                         SELECT
-                            `customer_id`
+                            `member_id`
                         FROM
-                            `customer_referral`
+                            `member_referral`
                         WHERE
-                            `managing_store_id` = ?
+                            `managing_branch_id` = ?
                     )
                     AND `checkin_date` <= ? \
             """;
@@ -347,9 +349,9 @@ public class WhereClauseAnalyzerTest {
 
         assertFalse(builder.getAnalysisFailed(), builder.getAnalysisFailureReason());
 
-        assertContainsColumnReferences(builder.getCriteriaColumns(), "customer_visit.checkin_date");
-        assertContainsColumnReferences(builder.getCriteriaColumns(), "customer_visit.customer_id");
-        assertContainsColumnReferences(builder.getCriteriaColumns(), "customer_referral.managing_store_id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(), "member_session.checkin_date");
+        assertContainsColumnReferences(builder.getCriteriaColumns(), "member_session.member_id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(), "member_referral.managing_branch_id");
 
     }
 
@@ -362,20 +364,20 @@ public class WhereClauseAnalyzerTest {
                 FROM
                     ( SELECT
                         `id` ,
-                        `customer_id` ,
+                        `member_id` ,
                         `created_on` ,
                         `identifier` ,
-                        @a := IF ( @a = `customer_id` ,
+                        @a := IF ( @a = `member_id` ,
                         @a + ?,
                         ? ) AS `day_rank` ,
-                        @a := `customer_id` AS `pat_id2`
+                        @a := `member_id` AS `pat_id2`
                     FROM
-                        `customer_identifier`
+                        `member_identifier`
                     WHERE
-                        `store_id` = ?
+                        `branch_id` = ?
                         AND TYPE = ?
                     ORDER BY
-                        `customer_id` ,
+                        `member_id` ,
                         `created_on` DESC ) `T1`
                 WHERE
                     `T1` . `day_rank` != ? \
@@ -388,31 +390,31 @@ public class WhereClauseAnalyzerTest {
         whereClauseAnalyzer.analyze(statement, builder);
 
         assertThat(builder.getCriteriaColumns())
-            .contains(ColumnReference.fromString("customer_identifier.store_id"))
-            .contains(ColumnReference.fromString("customer_identifier.type"));
+            .contains(ColumnReference.fromString("member_identifier.branch_id"))
+            .contains(ColumnReference.fromString("member_identifier.type"));
     }
 
     @Test
     void resolve_alias_in_subquery() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `f` . `name` AS `Store` ,
+                    `f` . `name` AS `Branch` ,
                     `fi` . `identifier`
                 FROM
-                    `store` `f`
+                    `branch` `f`
                 JOIN
-                    `store_identifier` `fi`
-                        ON `f` . `id` = `fi` . `store_id`
+                    `branch_identifier` `fi`
+                        ON `f` . `id` = `fi` . `branch_id`
                 WHERE
                     `fi` . `type` = ?
                     AND EXISTS (
                         SELECT
                             *
                         FROM
-                            `customer_visit`
+                            `member_session`
                         WHERE
                             `id` LIKE ?
-                            AND `store_id` = `f` . `id`
+                            AND `branch_id` = `f` . `id`
                             AND `checkin_date` >= CURDATE ( ) - INTERVAL ? WEEK
                     )
                 ORDER BY
@@ -426,23 +428,23 @@ public class WhereClauseAnalyzerTest {
 
         whereClauseAnalyzer.analyze(statement, builder);
 
-        assertContainsColumnReferences(builder.getCriteriaColumns(),"store_identifier.type");
-        assertContainsColumnReferences(builder.getCriteriaColumns(),"customer_visit.store_id");
-        assertContainsColumnReferences(builder.getCriteriaColumns(),"customer_visit.id");
-        assertContainsColumnReferences(builder.getCriteriaColumns(),"customer_visit.checkin_date");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"branch_identifier.type");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"member_session.branch_id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"member_session.id");
+        assertContainsColumnReferences(builder.getCriteriaColumns(),"member_session.checkin_date");
     }
 
     @Test
-    void TENANT() throws JSQLParserException {
+    void ORG() throws JSQLParserException {
         String sql = """
                 SELECT
                     `report_column` . `id` ,
                     `report_id` AS `reportId` ,
                     `report_column` . `created_on` AS `createdOn` ,
-                    `tenant` . `id` AS `createdBy` ,
-                    `CONCAT` ( `tenant` . `first_name` ,
+                    `org` . `id` AS `createdBy` ,
+                    `CONCAT` ( `org` . `first_name` ,
                     ? ,
-                    `tenant` . `last_name` ) AS `createdByName` ,
+                    `org` . `last_name` ) AS `createdByName` ,
                     `report_column` . `deleted_on` AS `deletedOn` ,
                     `report_column` . `deleted_by` AS `deletedBy`
                 FROM
@@ -451,11 +453,11 @@ public class WhereClauseAnalyzerTest {
                     `report`
                         ON `report_column` . `report_id` = `report` . `id`
                 JOIN
-                    TENANT
-                        ON `report_column` . `created_by` = `tenant` . `id`
+                    ORG
+                        ON `report_column` . `created_by` = `org` . `id`
                 WHERE
                     `report_id` = ?
-                    AND `report` . `store_id` = ? \
+                    AND `report` . `branch_id` = ? \
             """;
 
         Statement statement = CCJSqlParserUtil.parse(sql);
@@ -469,24 +471,24 @@ public class WhereClauseAnalyzerTest {
     void subjoin() throws JSQLParserException {
         String sql = """
             SELECT `num`.*
-            FROM ( `notif_criteria` `n`
+            FROM ( `alert_rule` `n`
                 INNER JOIN
-                `notif_criteria_met` `num`
-                ON `num`.`notif_criteria_id` = `n`.`id`
+                `alert_rule_met` `num`
+                ON `num`.`alert_rule_id` = `n`.`id`
                     AND `n`.`name` = ?
                      )
                      LEFT JOIN
                  (
-                     `notif_criteria` `d`
+                     `alert_rule` `d`
                          INNER JOIN
-                         `notif_criteria_met` `den`
-                         ON `den`.`notif_criteria_id` = `d`.`id`
+                         `alert_rule_met` `den`
+                         ON `den`.`alert_rule_id` = `d`.`id`
                              AND `d`.`name` = ?
                      )
-                 ON `den`.`store_id` = `num`.`store_id`
-                     AND `den`.`customer_id` = `num`.`customer_id`
+                 ON `den`.`branch_id` = `num`.`branch_id`
+                     AND `den`.`member_id` = `num`.`member_id`
             WHERE `num`.`created_on` >= ?
-              AND `den`.`customer_id` IS NULL
+              AND `den`.`member_id` IS NULL
             ORDER BY `num`.`created_on`""";
 
         Statement statement = CCJSqlParserUtil.parse(sql);
@@ -497,8 +499,8 @@ public class WhereClauseAnalyzerTest {
         whereClauseAnalyzer.analyze(statement, builder);
         // todo implement me: joinColumnAnalyzer.analyze(statement, builder);
 
-        assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("notif_criteria_met.created_on"));
-        assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("notif_criteria_met.customer_id"));
+        assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("alert_rule_met.created_on"));
+        assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("alert_rule_met.member_id"));
     }
 
     @Disabled
@@ -506,24 +508,24 @@ public class WhereClauseAnalyzerTest {
     void subjoin_join_analyzer() throws JSQLParserException {
         String sql = """
             SELECT `num`.*
-            FROM ( `notif_criteria` `n`
+            FROM ( `alert_rule` `n`
                 INNER JOIN
-                `notif_criteria_met` `num`
-                ON `num`.`notif_criteria_id` = `n`.`id`
+                `alert_rule_met` `num`
+                ON `num`.`alert_rule_id` = `n`.`id`
                     AND `n`.`name` = ?
                      )
                      LEFT JOIN
                  (
-                     `notif_criteria` `d`
+                     `alert_rule` `d`
                          INNER JOIN
-                         `notif_criteria_met` `den`
-                         ON `den`.`notif_criteria_id` = `d`.`id`
+                         `alert_rule_met` `den`
+                         ON `den`.`alert_rule_id` = `d`.`id`
                              AND `d`.`name` = ?
                      )
-                 ON `den`.`store_id` = `num`.`store_id`
-                     AND `den`.`customer_id` = `num`.`customer_id`
+                 ON `den`.`branch_id` = `num`.`branch_id`
+                     AND `den`.`member_id` = `num`.`member_id`
             WHERE `num`.`created_on` >= ?
-              AND `den`.`customer_id` IS NULL
+              AND `den`.`member_id` IS NULL
             ORDER BY `num`.`created_on`""";
 
         Statement statement = CCJSqlParserUtil.parse(sql);
@@ -543,9 +545,9 @@ public class WhereClauseAnalyzerTest {
                     ( SELECT
                         NAME
                     FROM
-                        `store`
+                        `branch`
                     WHERE
-                        `id` = `ds` . `store_id` )
+                        `id` = `ds` . `branch_id` )
                 FROM
                     `data_source` `ds`
                 WHERE
@@ -560,11 +562,11 @@ public class WhereClauseAnalyzerTest {
     }
 
     @Test
-    void qualified_store_id() throws JSQLParserException {
+    void qualified_branch_id() throws JSQLParserException {
         String sql = """
                 SELECT
                     `fc` . `id` ,
-                    `fc` . `store_id` AS `storeId` ,
+                    `fc` . `branch_id` AS `branchId` ,
                     `fc` . `name` AS NAME ,
                     `fc` . `value` AS VALUE ,
                     `cliCre` . `username` AS `createdBy` ,
@@ -572,15 +574,15 @@ public class WhereClauseAnalyzerTest {
                     `cliDel` . `username` AS `deletedBy` ,
                     `fc` . `deleted_on` AS `deletedOn`
                 FROM
-                    `store_config` `fc`
+                    `branch_config` `fc`
                 LEFT JOIN
-                    TENANT `cliCre`
+                    ORG `cliCre`
                         ON `fc` . `created_by` = `cliCre` . `id`
                 LEFT JOIN
-                    TENANT `cliDel`
+                    ORG `cliDel`
                         ON `fc` . `deleted_by` = `cliDel` . `id`
                 WHERE
-                    `store_id` = ?
+                    `branch_id` = ?
                 ORDER BY
                     `fc` . `created_on` DESC LIMIT ? \
             """;
@@ -603,13 +605,13 @@ public class WhereClauseAnalyzerTest {
                     `report_config_field_type` AS `configFieldType` ,
                     VALUE ,
                     `report_config_field` . `created_on` AS `createdOn` ,
-                    `tenant` . `id` AS `createdBy` ,
-                    `CONCAT` ( `tenant` . `first_name` ,
+                    `org` . `id` AS `createdBy` ,
+                    `CONCAT` ( `org` . `first_name` ,
                     ? ,
-                    `tenant` . `last_name` ) AS `createdByName` ,
-                    `CONCAT` ( `tenant2` . `first_name` ,
+                    `org` . `last_name` ) AS `createdByName` ,
+                    `CONCAT` ( `org2` . `first_name` ,
                     ? ,
-                    `tenant2` . `last_name` ) AS `deletedByName` ,
+                    `org2` . `last_name` ) AS `deletedByName` ,
                     `report_config_field` . `deleted_on` AS `deletedOn` ,
                     `report_config_field` . `deleted_by` AS `deletedBy`
                 FROM
@@ -618,11 +620,11 @@ public class WhereClauseAnalyzerTest {
                     `report`
                         ON `report_config_field` . `report_id` = `report` . `id`
                 JOIN
-                    `tdb` . `tenant` AS TENANT
-                        ON `report_config_field` . `created_by` = `tenant` . `id`
+                    `tdb` . `org` AS ORG
+                        ON `report_config_field` . `created_by` = `org` . `id`
                 LEFT JOIN
-                    `tdb` . `tenant` AS `tenant2`
-                        ON `report_config_field` . `deleted_by` = `tenant2` . `id`
+                    `tdb` . `org` AS `org2`
+                        ON `report_config_field` . `deleted_by` = `org2` . `id`
                 WHERE
                     `report_id` = ? \
             """;
@@ -643,19 +645,19 @@ public class WhereClauseAnalyzerTest {
         List<JoinColumns> joinColumns = builder.getJoinColumns();
 
         assertContainsJoinColumns(joinColumns, "report_config_field.report_id", "report.id");
-        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.tenant.id");
-        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.tenant.id");
-        assertContainsJoinColumns(joinColumns, "report_config_field.deleted_by", "tdb.tenant.id");
+        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.org.id");
+        assertContainsJoinColumns(joinColumns, "report_config_field.created_by", "tdb.org.id");
+        assertContainsJoinColumns(joinColumns, "report_config_field.deleted_by", "tdb.org.id");
     }
 
     @Test
     void expression_references_true() throws JSQLParserException {
         String sql = """
             SELECT `nd`.*
-            FROM `notif_criteria_destination` `ncd`
-                     JOIN `notif_destination` `nd` ON `ncd`.`notif_destination_id` = `nd`.`id`
-                     JOIN `notif_criteria` `nc` ON `ncd`.`notif_criteria_id` = `nc`.`id`
-            WHERE `ncd`.`notif_criteria_id` = ?
+            FROM `alert_rule_destination` `ncd`
+                     JOIN `alert_destination` `nd` ON `ncd`.`alert_destination_id` = `nd`.`id`
+                     JOIN `alert_rule` `nc` ON `ncd`.`alert_rule_id` = `nc`.`id`
+            WHERE `ncd`.`alert_rule_id` = ?
               AND `ncd`.`deleted_on` IS NULL
               AND `nd`.`deleted_on` IS NULL
               AND `nd`.`enabled` = TRUE
@@ -666,25 +668,25 @@ public class WhereClauseAnalyzerTest {
 
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
 
-        // [notif_criteria_destination.notif_criteria_id, notif_criteria_destination.deleted_on, notif_destination.deleted_on, notif_destination.enabled, notif_destination.enabled_on]
+        // [alert_rule_destination.alert_rule_id, alert_rule_destination.deleted_on, alert_destination.deleted_on, alert_destination.enabled, alert_destination.enabled_on]
 
         assertContainsColumnReferences(criteriaColumns,
-                                       "notif_criteria_destination.notif_criteria_id",
-                                       "notif_criteria_destination.deleted_on",
-                                       "notif_destination.deleted_on",
-                                       "notif_destination.enabled",
-                                       "notif_destination.enabled_on");
+                                       "alert_rule_destination.alert_rule_id",
+                                       "alert_rule_destination.deleted_on",
+                                       "alert_destination.deleted_on",
+                                       "alert_destination.enabled",
+                                       "alert_destination.enabled_on");
 
     }
 
 
 
     @Test
-    void table_for_store_id_not_found() throws JSQLParserException {
+    void table_for_branch_id_not_found() throws JSQLParserException {
         String sql = """
                 SELECT
                     `fc` . `id` ,
-                    `fc` . `store_id` AS `storeId` ,
+                    `fc` . `branch_id` AS `branchId` ,
                     `fc` . `name` AS NAME ,
                     `fc` . `value` AS VALUE ,
                     `cliCre` . `username` AS `createdBy` ,
@@ -692,15 +694,15 @@ public class WhereClauseAnalyzerTest {
                     `cliDel` . `username` AS `deletedBy` ,
                     `fc` . `deleted_on` AS `deletedOn`
                 FROM
-                    `store_config` `fc`
+                    `branch_config` `fc`
                 LEFT JOIN
-                    TENANT `cliCre`
+                    ORG `cliCre`
                         ON `fc` . `created_by` = `cliCre` . `id`
                 LEFT JOIN
-                    TENANT `cliDel`
+                    ORG `cliDel`
                         ON `fc` . `deleted_by` = `cliDel` . `id`
                 WHERE
-                    `store_id` = ?
+                    `branch_id` = ?
                 ORDER BY
                     `fc` . `created_on` DESC LIMIT ? \
             """;
@@ -708,7 +710,7 @@ public class WhereClauseAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
-        assertContainsColumnReferences(criteriaColumns, "store_config.store_id");
+        assertContainsColumnReferences(criteriaColumns, "branch_config.branch_id");
     }
 
     @Test
@@ -718,7 +720,7 @@ public class WhereClauseAnalyzerTest {
                     `c` . `contributor_id` ,
                     `c` . `content_id` ,
                     MIN ( `c` . `created_on` ) AS `insight_created` ,
-                    `c` . `store_id` ,
+                    `c` . `branch_id` ,
                     ( SELECT
                         COUNT ( `id` )
                     FROM
@@ -726,7 +728,7 @@ public class WhereClauseAnalyzerTest {
                     WHERE
                         `content_id` = `c` . `content_id`
                         AND `contributor_id` != `c` . `contributor_id`
-                        AND `store_id` != `c` . `store_id` ) AS `updates_at_different_store` ,
+                        AND `branch_id` != `c` . `branch_id` ) AS `updates_at_different_branch` ,
                     ( SELECT
                         COUNT ( `id` )
                     FROM
@@ -734,7 +736,7 @@ public class WhereClauseAnalyzerTest {
                     WHERE
                         `content_id` = `c` . `content_id`
                         AND `contributor_id` != `c` . `contributor_id`
-                        AND `store_id` = `c` . `store_id` ) AS `updates_at_same_store` ,
+                        AND `branch_id` = `c` . `branch_id` ) AS `updates_at_same_branch` ,
                     ( SELECT
                         GROUP_CONCAT ( DISTINCTROW `contributor_id` SEPARATOR ? )
                     FROM
@@ -764,23 +766,23 @@ public class WhereClauseAnalyzerTest {
         String sql = """
                 DELETE
                 FROM
-                    `deleted_criteria_label`
+                    `deleted_rule_label`
                 WHERE
-                    `store_id` = ?
+                    `branch_id` = ?
                     AND `id` IN (
                         SELECT
                             `label_id`
                         FROM
-                            `deleted_criteria_label_map`
+                            `deleted_rule_label_map`
                         WHERE
-                            `store_id` = ?
-                            AND `criteria_id` IN (
+                            `branch_id` = ?
+                            AND `rule_id` IN (
                                 ...
                             )
                     ) \
             """;
 
-        // todo keep this from throwing multiple tables found for column: store_id
+        // todo keep this from throwing multiple tables found for column: branch_id
     }
 
 

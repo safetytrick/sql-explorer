@@ -232,6 +232,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     return excluded.length ? excluded : null;
   }
 
+  /** Snapshot the current filters and open the graph scoped to their matches. */
+  graphResults() {
+    this.queryScopeService.setSearchSnapshot(this.buildRequest(0));
+    this.router.navigate(['/graph'], { queryParams: { source: 'search' } });
+  }
+
   private runSearch() {
     this.loading = true;
     this.querySearchService.search(this.buildRequest(0)).subscribe({

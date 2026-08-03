@@ -16,6 +16,12 @@ button {
   .state-unloaded {
     color: var(--text3);
   }
+
+  .refresh-hint {
+    margin: 2px 4px;
+    font-size: 12px;
+    color: var(--text3);
+  }
 }
 
 .env-badge {

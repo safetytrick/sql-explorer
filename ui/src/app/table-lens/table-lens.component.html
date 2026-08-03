@@ -1,6 +1,17 @@
 <div class="view-header">
   <span class="view-title mono tbl-name">{{table}}</span>
+  @if (isView) {
+    <span class="type-badge" title="this is a view, not a base table">view</span>
+  }
   <span class="view-sub">{{schema}} · {{columns.length}} columns</span>
+  @if (isView && underlyingTables.length) {
+    <span class="view-sub">over
+      @for (ref of underlyingTables; track ref.schema + '.' + ref.table; let last = $last) {
+        <a class="mono underlying-link" [routerLink]="['/table', ref.schema, ref.table]">{{ref.schema}}.{{ref.table}}</a>@if (!last) {,
+        }
+      }
+    </span>
+  }
   <div class="view-actions">
     <a class="btn" [routerLink]="['/table', schema, table, 'queries']">Queries ↗</a>
     <a class="btn" [routerLink]="['/graph', schema]" [queryParams]="{table: table}">Graph ↗</a>
@@ -136,12 +147,31 @@
         <div class="table-scroll">
           <table class="data-table">
             <thead>
-            <tr><th>column</th><th>type</th><th>attributes</th><th>charset</th><th class="ctr">nullable</th><th>query roles</th><th class="num">queries</th></tr>
+            <tr><th>column</th>@if (isView) {<th>source</th>}<th>type</th><th>attributes</th><th>charset</th><th class="ctr">nullable</th><th>query roles</th><th class="num">queries</th></tr>
             </thead>
             <tbody>
               @for (column of visibleColumns(); track column.name) {
                 <tr>
                   <td><span class="mono">{{column.name}}</span></td>
+                  @if (isView) {
+                    <td class="lineage">
+                      @if (lineageFor(column.name); as lineage) {
+                        @if (lineage.computed) {
+                          <span class="badge b-fx" title="computed expression">ƒ</span>
+                        }
+                        @for (source of lineage.sources; track source.table.normalizedTableName + '.' + source.normalizedColumn) {
+                          <a class="mono dim2 lineage-link"
+                             [routerLink]="['/table', source.table.normalizedSchemaName, source.table.normalizedTableName]"
+                             (click)="$event.stopPropagation()">{{source.table.normalizedTableName}}.{{source.normalizedColumn}}</a>
+                        }
+                        @if (lineage.sources.length === 0 && !lineage.computed) {
+                          <span class="dim" title="source could not be resolved">?</span>
+                        }
+                      } @else {
+                        <span class="dim">—</span>
+                      }
+                    </td>
+                  }
                   <td><span class="mono dim2">{{column.type}}({{column.size}})</span></td>
                   <td>
                     @if (column.primaryKey) { <span class="badge b-pk">PK</span> }

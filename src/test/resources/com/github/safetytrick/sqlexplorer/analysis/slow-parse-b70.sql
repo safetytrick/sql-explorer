@@ -1,11 +1,11 @@
--- b70ac695b8c4e7f87c193bbd355ba1b3
+-- fixture: slow-parse-b70
 SELECT `this_` . `id` AS `id1_94_0_` ,
-       `this_` . `customer_id` AS `customer_2_94_0_` , 
-       `this_` . `store_id` AS `store3_94_0_` , 
-       `this_` . `correspondence_date` AS `correspo4_94_0_` , 
-       `this_` . `correspondence_type` AS `correspo5_94_0_` , 
-       `this_` . `privacy_type` AS `privacy_6_94_0_` , 
-       `this_` . `customer_visit_id` AS `customer_7_94_0_` , 
+       `this_` . `member_id` AS `member_2_94_0_` , 
+       `this_` . `branch_id` AS `branch3_94_0_` , 
+       `this_` . `contact_date` AS `correspo4_94_0_` , 
+       `this_` . `contact_type` AS `correspo5_94_0_` , 
+       `this_` . `profile_type` AS `profile_6_94_0_` , 
+       `this_` . `member_session_id` AS `member_7_94_0_` , 
        `this_` . `additional_notes` AS `addition8_94_0_` , 
        `this_` . `created_by` AS `created_9_94_0_` , 
        `this_` . `created_on` AS `created10_94_0_` , 
@@ -18,6 +18,6 @@ SELECT `this_` . `id` AS `id1_94_0_` ,
        `this_` . `referred` AS `referre17_94_0_` ,
        `this_` . `letter` AS `letter18_94_0_` ,
        `this_` . `other_date` AS `other_d19_94_0_` ,
-       `this_` . `rep_notified` AS `rep_not20_94_0_` ,
-       CASE `this_` . `correspondence_type` WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? ELSE ? END AS `formula0_0_`
-FROM `customer_correspondence` `this_` WHERE `this_` . `customer_id` = ?
+       `this_` . `rep_alertied` AS `rep_not20_94_0_` ,
+       CASE `this_` . `contact_type` WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? ELSE ? END AS `formula0_0_`
+FROM `member_contact` `this_` WHERE `this_` . `member_id` = ?

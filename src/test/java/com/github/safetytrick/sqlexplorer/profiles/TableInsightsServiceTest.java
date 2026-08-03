@@ -101,7 +101,7 @@ class TableInsightsServiceTest {
                 column("id", "BIGINT", "NO", "YES", null, null),
                 column("user_id", "INT", "NO", "NO", null, null),
                 column("status", "VARCHAR", "YES", "NO", "utf8mb4", "utf8mb4_unicode_ci"),
-                column("token", "VARCHAR", "NO", "NO", "utf8mb4", "utf8mb4_bin")));
+                column("token", "VARCHAR", "NO", "NO", "utf8mb4", "utf8mb4_bin")), null, null);
     }
 
     private static TableColumn column(String name, String typeName, String nullable, String autoIncrement,

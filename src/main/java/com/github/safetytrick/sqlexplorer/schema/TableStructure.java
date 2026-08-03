@@ -1,6 +1,9 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
+import java.sql.JDBCType;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import com.github.safetytrick.sqlexplorer.analysis.NameNormalizer;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
@@ -11,8 +14,10 @@ import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.StatementVisitorAdapter;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
+import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.table.ForeignKeyIndex;
+import net.sf.jsqlparser.statement.create.view.CreateView;
 
 public record TableStructure(String schema,
                              String name,
@@ -20,11 +25,22 @@ public record TableStructure(String schema,
                              String remarks,
                              List<ForeignKey> foreignKeys,
                              List<TableIndex> indices,
-                             List<TableColumn> columns) {
+                             List<TableColumn> columns,
+                             /** Base tables a view selects from; null for base tables. */
+                             List<TableReference> underlyingTables,
+                             /** Per-column lineage for views; null for base tables. */
+                             List<ViewColumn> viewColumns) {
 
     public TableReference tableReference() {
         return TableReference.newTableReference(schema, name);
     }
+
+    /** Copy with the view's base tables and column lineage attached (see {@link ViewDefinitionService}). */
+    public TableStructure withViewDefinition(List<TableReference> underlyingTables, List<ViewColumn> viewColumns) {
+        return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns,
+            underlyingTables, viewColumns);
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -37,6 +53,8 @@ public record TableStructure(String schema,
         private List<ForeignKey> foreignKeys;
         private List<TableIndex> indices;
         private List<TableColumn> columns;
+        private List<TableReference> underlyingTables;
+        private List<ViewColumn> viewColumns;
 
         public Builder schema(String schema) {
             this.schema = schema;
@@ -72,8 +90,19 @@ public record TableStructure(String schema,
             return this;
         }
 
+        public Builder underlyingTables(List<TableReference> underlyingTables) {
+            this.underlyingTables = underlyingTables;
+            return this;
+        }
+
+        public Builder viewColumns(List<ViewColumn> viewColumns) {
+            this.viewColumns = viewColumns;
+            return this;
+        }
+
         public TableStructure build() {
-            return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns);
+            return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns,
+                underlyingTables, viewColumns);
         }
 
     }
@@ -93,19 +122,25 @@ public record TableStructure(String schema,
                 if (table.getSchemaName() == null) {
                     table.setSchemaName(defaultSchema);
                 }
-                builder.name(table.getName())
-                    .schema(table.getSchemaName());
+                String schemaName = NameNormalizer.normalize(table.getSchemaName());
+                String tableName = NameNormalizer.normalize(table.getName());
+                builder.name(tableName)
+                    .schema(schemaName)
+                    .type("TABLE");
 
                 builder.indices(createTable.getIndexes().stream().map(index -> {
 
                     TableIndex.Builder indexBuilder = TableIndex.builder();
                     for (int i = 0; i < index.getColumnsNames().size(); i++) {
                         String columnName = index.getColumnsNames().get(i);
-                        indexBuilder.addColumn((short) i, columnName);
+                        indexBuilder.addColumn((short) i, NameNormalizer.normalize(columnName));
                     }
-                    indexBuilder.name(NameNormalizer.normalize(index.getName()));
-
-                    // todo implement type, direction, unique, etc.
+                    // mirror the JDBC path: the primary key is named PRIMARY and is unique
+                    String indexType = index.getType() == null ? "" : index.getType().toUpperCase(Locale.ROOT);
+                    boolean primary = indexType.contains("PRIMARY");
+                    indexBuilder.name(primary ? "PRIMARY" : NameNormalizer.normalize(index.getName()));
+                    indexBuilder.unique(primary || indexType.contains("UNIQUE"));
+                    indexBuilder.schema(schemaName);
                     return indexBuilder.build();
                 }).toList());
 
@@ -117,7 +152,10 @@ public record TableStructure(String schema,
                         .toList()
                 );
 
-                builder.columns(createTable.getColumnDefinitions().stream().map(column -> {
+                List<TableColumn> columns = new ArrayList<>();
+                List<ColumnDefinition> definitions = createTable.getColumnDefinitions();
+                for (int ordinal = 0; ordinal < definitions.size(); ordinal++) {
+                    ColumnDefinition column = definitions.get(ordinal);
                     ColDataType dt = column.getColDataType();
 
                     // jsqlparser embeds the type arguments in the data type
@@ -126,22 +164,115 @@ public record TableStructure(String schema,
                     // with a separate size/scale).
                     String rawType = dt.getDataType();
                     int[] sizeAndScale = typeArguments(rawType);
+                    ColumnSpecs specs = ColumnSpecs.of(column.getColumnSpecs());
 
-                    // todo implement ... all of the rest of the attributes
-                    TableColumn.Builder columnBuilder = TableColumn.builder();
-                    columnBuilder.columnName(NameNormalizer.normalize(column.getColumnName()))
+                    columns.add(TableColumn.builder()
+                        .schema(schemaName)
+                        .table(tableName)
+                        .columnName(NameNormalizer.normalize(column.getColumnName()))
+                        .type(jdbcType(baseTypeName(rawType)))
                         .typeName(baseTypeName(rawType))
                         .columnSize(sizeAndScale[0])
                         .decimalDigits(sizeAndScale[1])
-                        .characterSet(dt.getCharacterSet());
+                        .ordinal(ordinal + 1)
+                        .isNullable(specs.notNull ? "NO" : "YES")
+                        .isAutoIncrement(specs.autoIncrement ? "YES" : "NO")
+                        .isGenerated(specs.generated ? "YES" : "NO")
+                        .columnDefault(specs.columnDefault)
+                        .characterSet(dt.getCharacterSet())
+                        .build());
+                }
+                builder.columns(List.copyOf(columns));
+                return null;
+            }
 
-                    return columnBuilder.build();
-                }).toList());
+            @Override
+            public <S> Void visit(CreateView createView, S context) {
+                Table view = createView.getView();
+                if (view.getSchemaName() == null) {
+                    view.setSchemaName(defaultSchema);
+                }
+                // columns are not derivable without resolving the view's select;
+                // callers get the name/type/underlying tables and an empty structure.
+                builder.name(NameNormalizer.normalize(view.getName()))
+                    .schema(NameNormalizer.normalize(view.getSchemaName()))
+                    .type("VIEW")
+                    .indices(List.of())
+                    .foreignKeys(List.of())
+                    .columns(List.of())
+                    .underlyingTables(createView.getSelect() == null
+                        ? List.of()
+                        : ViewDefinitionService.underlyingTables(createView.getSelect(), view.getSchemaName()));
                 return null;
             }
         });
 
         return builder;
+    }
+
+    /** The NOT NULL / AUTO_INCREMENT / DEFAULT / GENERATED parts of a column definition's trailing specs. */
+    private record ColumnSpecs(boolean notNull, boolean autoIncrement, boolean generated, String columnDefault) {
+
+        static ColumnSpecs of(List<String> specs) {
+            if (specs == null || specs.isEmpty()) {
+                return new ColumnSpecs(false, false, false, null);
+            }
+            String joined = String.join(" ", specs).toUpperCase(Locale.ROOT);
+            String columnDefault = null;
+            for (int i = 0; i < specs.size() - 1; i++) {
+                if ("DEFAULT".equalsIgnoreCase(specs.get(i))) {
+                    columnDefault = unquote(specs.get(i + 1));
+                    break;
+                }
+            }
+            return new ColumnSpecs(
+                joined.contains("NOT NULL"),
+                joined.contains("AUTO_INCREMENT"),
+                joined.contains("GENERATED") || joined.contains("VIRTUAL") || joined.contains("STORED"),
+                columnDefault);
+        }
+
+        /** Mirror JDBC: a NULL default is null, string defaults come back unquoted. */
+        private static String unquote(String value) {
+            if (value == null || "NULL".equalsIgnoreCase(value)) {
+                return null;
+            }
+            if (value.length() >= 2 && value.startsWith("'") && value.endsWith("'")) {
+                return value.substring(1, value.length() - 1);
+            }
+            return value;
+        }
+    }
+
+    /**
+     * The {@link JDBCType} the MySQL JDBC driver would report for a MySQL type
+     * name, so DDL-built structures mirror introspected ones.
+     */
+    private static JDBCType jdbcType(String baseTypeName) {
+        if (baseTypeName == null) {
+            return JDBCType.OTHER;
+        }
+        return switch (baseTypeName.toUpperCase(Locale.ROOT)) {
+            case "BIGINT" -> JDBCType.BIGINT;
+            case "INT", "INTEGER", "MEDIUMINT" -> JDBCType.INTEGER;
+            case "SMALLINT" -> JDBCType.SMALLINT;
+            case "TINYINT" -> JDBCType.TINYINT;
+            case "DECIMAL", "NUMERIC" -> JDBCType.DECIMAL;
+            case "FLOAT" -> JDBCType.REAL;
+            case "DOUBLE", "REAL" -> JDBCType.DOUBLE;
+            case "BIT" -> JDBCType.BIT;
+            case "BOOLEAN", "BOOL" -> JDBCType.BOOLEAN;
+            case "CHAR", "ENUM", "SET" -> JDBCType.CHAR;
+            case "VARCHAR" -> JDBCType.VARCHAR;
+            case "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "JSON" -> JDBCType.LONGVARCHAR;
+            case "DATE", "YEAR" -> JDBCType.DATE;
+            case "DATETIME", "TIMESTAMP" -> JDBCType.TIMESTAMP;
+            case "TIME" -> JDBCType.TIME;
+            case "BINARY" -> JDBCType.BINARY;
+            case "VARBINARY" -> JDBCType.VARBINARY;
+            case "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB" -> JDBCType.LONGVARBINARY;
+            default -> JDBCType.OTHER;
+        };
     }
 
     /** The base type name from a jsqlparser data type string, e.g. {@code "BIGINT (19)"} yields {@code "BIGINT"}. */

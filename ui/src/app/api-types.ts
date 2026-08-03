@@ -5,7 +5,7 @@
  * fields are serialized as numbers (picoseconds); Avro `local_timestamp_ms`
  * fields serialize as ISO strings.
  */
-import { SqlImportStats } from './environment.service';
+import {SqlImportStats} from './environment.service';
 
 export { SqlImportStats };
 
@@ -107,6 +107,8 @@ export interface TableRollup {
   totalQueryTime: number;
   schema: string;
   tags: Tag[];
+  /** True when the schema metadata knows this "table" is a view. */
+  view: boolean;
 }
 
 export interface TableColumn {
@@ -158,6 +160,8 @@ export interface TableStructure {
   foreignKeys: ForeignKey[];
   indices: TableIndex[];
   columns: TableColumn[];
+  /** Base tables a view selects from; null for base tables. */
+  underlyingTables: TableReference[] | null;
 }
 
 /** Per-table profile view (model/Table). */

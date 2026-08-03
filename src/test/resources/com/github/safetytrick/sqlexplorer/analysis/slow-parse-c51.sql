@@ -1,4 +1,4 @@
--- c514677fb2aa2e500a40ab38b2970808
+-- fixture: slow-parse-c51
 
 SELECT COUNT ( `created_on` ) ,
     DATE ( `created_on` )

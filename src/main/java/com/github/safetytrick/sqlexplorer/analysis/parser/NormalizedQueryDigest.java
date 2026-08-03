@@ -1,6 +1,7 @@
 package com.github.safetytrick.sqlexplorer.analysis.parser;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import com.google.common.hash.Hashing;
 import net.sf.jsqlparser.JSQLParserException;
@@ -19,15 +20,23 @@ public class NormalizedQueryDigest {
         this.sqlParser = sqlParser;
     }
 
-    public String normalizedDigest(String sql) throws JSQLParserException {
+    /** The digest plus the normalized serialization it hashed and the repeats collapsed along the way. */
+    public record DigestedQuery(String digest, String normalizedSql, List<QueryNormalizer.Repeat> repeats) { }
+
+    public DigestedQuery digestedQuery(String sql) throws JSQLParserException {
         // we need to reparse because the normalization modifies
         // the statement, and we don't want to do that as it could break other parsers
         Statement statement = sqlParser.parseSql(sql).statement();
 
-        String normalized = queryNormalizer.normalize(statement);
+        QueryNormalizer.NormalizedSql normalized = queryNormalizer.normalizeWithRepeats(statement);
 
-        return Hashing.sha256()
-            .hashString(normalized, StandardCharsets.UTF_8)
+        String digest = Hashing.sha256()
+            .hashString(normalized.sql(), StandardCharsets.UTF_8)
             .toString();
+        return new DigestedQuery(digest, normalized.sql(), normalized.repeats());
+    }
+
+    public String normalizedDigest(String sql) throws JSQLParserException {
+        return digestedQuery(sql).digest();
     }
 }

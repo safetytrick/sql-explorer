@@ -1,8 +1,8 @@
--- 419d7d9e16908713b9515c7a1954318d
-SELECT COUNT ( `id` ) AS `num_notifications` ,
- `visit_id` ,
+-- fixture: slow-parse-419
+SELECT COUNT ( `id` ) AS `num_alerts` ,
+ `session_id` ,
  `destination_master_id` ,
- `store_id` ,
+ `branch_id` ,
  `recipient` ,
- `event_type` FROM `scheduled_notification` WHERE `created_on` > ? AND STATUS = ? GROUP BY ?,
- ... HAVING `num_notifications` > ?
+ `event_type` FROM `scheduled_alert` WHERE `created_on` > ? AND STATUS = ? GROUP BY ?,
+ ... HAVING `num_alerts` > ?

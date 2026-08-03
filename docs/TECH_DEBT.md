@@ -159,10 +159,11 @@ A few items were fixed while this report was being compiled — see
 - **HIGH — Stack traces exposed in all environments.** `src/main/resources/application.yml:20-23`:
   `include-exception: true` + `include-stacktrace: always` in the **base** profile → info disclosure on
   any deployed instance.
-- **HIGH — Internal hostnames committed.** `.env.example` and `docs/LOCAL_CONFIG.md` contain a
-  real staging RDS endpoint and bastion host, present in git history since an early commit. (Working-tree
-  `.env` holds live-looking creds but was never committed and is correctly gitignored — rotate if the
-  machine is shared.)
+- **HIGH — Internal hostnames committed.** *(Working tree scrubbed 2026-08-02 — placeholders now in
+  `.env.example`, the obsolete local-config doc emptied pending `git rm`, example server keys renamed.
+  The strings remain in **git history** until the rewrite in `docs/plans/history-rewrite.md` runs.)*
+  (Working-tree `.env` holds live-looking creds but was never committed and is correctly gitignored —
+  rotate if the machine is shared.)
 - **HIGH (cumulative) — Frontend toolchain is Angular 21 riding on abandoned tooling.** `ui/package.json`
   mixes `@angular/* ^21` with `core-js ^2` (EOL), `jquery`/`bootstrap 4`/`popper.js 1`,
   `@typescript-eslint ^4` + `eslint ^7` (several majors behind), `@types/node ^12` (Docker builds on

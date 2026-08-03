@@ -142,6 +142,9 @@ public class SqlProfileExtension {
         }
 
         public static SqlProfile.Builder complete(@This SqlProfile.Builder thiz, String defaultSchema) {
+            if (thiz.getSchemaName() == null) {
+                thiz.setSchemaName(defaultSchema);
+            }
             if (thiz.getTables() != null) {
                 for (TableReference table : thiz.getTables()) {
                     addSchema(thiz, table.getNormalizedSchemaName());

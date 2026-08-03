@@ -1,4 +1,4 @@
--- 50e6efbb167ce33bd03a403411e4c6ad
+-- fixture: slow-parse-50e
 SELECT COUNT ( `created_on` ),
  DATE ( `created_on` )
 FROM `doc`

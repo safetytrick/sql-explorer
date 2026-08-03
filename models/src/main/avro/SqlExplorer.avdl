@@ -29,6 +29,19 @@ protocol SqlExplorer {
 		QueryActivityStatus queryActivityStatus;
 		boolean modifiedForAnalysis = false;
 		boolean isMultiSchema = false;
+		/** Repeated blocks collapsed by normalization; offsets index into query. */
+		array<RepeatedBlock> repeatedBlocks = [];
+	}
+
+	/**
+	 * One block the normalizer collapsed: the first kept instance sits at
+	 * [start, end) in the profile's query text and occurred count times in
+	 * the original sample.
+	 */
+	record RepeatedBlock {
+		int start;
+		int end;
+		int count;
 	}
 
 	enum QueryActivityStatus {

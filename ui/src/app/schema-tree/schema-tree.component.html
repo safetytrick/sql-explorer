@@ -1,13 +1,21 @@
 <div class="sidebar-search">
   <input placeholder="filter tables…" [value]="filter" (input)="filter = $any($event.target).value">
-  <button type="button" class="tag-toggle" [class.on]="tagFiltersOpen || tagFilterCount > 0"
+  <button type="button" class="tag-toggle" [class.on]="tagFiltersOpen || filterPanelActive"
           (click)="toggleTagFilters()">
-    tags@if (tagFilterCount > 0) {
+    filter@if (tagFilterCount > 0) {
       <span class="badge">{{tagFilterCount}}</span>
     }
   </button>
   @if (tagFiltersOpen) {
     <div class="tag-filters">
+      <div class="tag-row-hdr">
+        <span>type</span>
+        <div class="mode-toggle">
+          <button type="button" [class.on]="typeFilter === 'all'" (click)="setTypeFilter('all')">all</button>
+          <button type="button" [class.on]="typeFilter === 'tables'" (click)="setTypeFilter('tables')">tables</button>
+          <button type="button" [class.on]="typeFilter === 'views'" (click)="setTypeFilter('views')">views</button>
+        </div>
+      </div>
       <div class="tag-row-hdr">
         <span>include</span>
         <div class="mode-toggle">
@@ -88,6 +96,9 @@
              (click)="toggleTable(schema.name, table.name)">
           <span class="t-box" [class.on]="isTableSelected(schema.name, table.name)"></span>
           <span class="t-name">{{table.name}}</span>
+          @if (table.view) {
+            <span class="t-view" title="view">v</span>
+          }
           <span class="t-count">{{tableCount(schema.name, table.name)}}</span>
           @if (table.warn) {
             <span class="t-warn" title="has analyzer findings"></span>
@@ -98,6 +109,9 @@
            [routerLink]="['/table', schema.name, table.name]"
            routerLinkActive="active">
           <span class="t-name">{{table.name}}</span>
+          @if (table.view) {
+            <span class="t-view" title="view">v</span>
+          }
           @if (table.columnCount !== null) {
             <span class="t-cols">{{table.columnCount}}c</span>
           }

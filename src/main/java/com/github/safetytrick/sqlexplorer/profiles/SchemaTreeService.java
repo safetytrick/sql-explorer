@@ -1,7 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -61,14 +60,15 @@ public class SchemaTreeService {
             }
         });
 
-        // schema metadata: column counts (and tables with no queries at all)
+        // schema metadata: column counts and view flags (and tables with no queries at all)
         for (TableStructure structure : sqlSchemaService.getTables()) {
             if (structure.schema() == null) {
                 continue;
             }
-            stats.computeIfAbsent(structure.schema(), s -> newTableMap())
-                .computeIfAbsent(structure.name(), t -> new TableStats())
-                .columnCount = structure.columns() == null ? null : structure.columns().size();
+            TableStats tableStats = stats.computeIfAbsent(structure.schema(), s -> newTableMap())
+                .computeIfAbsent(structure.name(), t -> new TableStats());
+            tableStats.columnCount = structure.columns() == null ? null : structure.columns().size();
+            tableStats.view = "VIEW".equalsIgnoreCase(structure.type());
         }
 
         List<SchemaNode> schemas = stats.entrySet().stream()
@@ -76,7 +76,8 @@ public class SchemaTreeService {
                 .map(table -> new TableNode(table.getKey(),
                     table.getValue().columnCount,
                     table.getValue().queryCount,
-                    table.getValue().warn))
+                    table.getValue().warn,
+                    table.getValue().view))
                 .toList()))
             .sorted(Comparator
                         .comparing((SchemaNode node) -> ignoredSchemas.contains(node.name()))
@@ -98,6 +99,7 @@ public class SchemaTreeService {
         private Integer columnCount;
         private int queryCount;
         private boolean warn;
+        private boolean view;
 
         void addQuery(boolean warned) {
             queryCount++;

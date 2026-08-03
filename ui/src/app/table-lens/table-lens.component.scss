@@ -20,6 +20,22 @@
 
   .view-title { font-size: 14px; font-weight: 500; }
   .view-sub { font-size: 11px; color: var(--text3); }
+  .type-badge {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 500;
+    background: var(--purple-dim);
+    color: var(--purple);
+  }
+
+  .underlying-link {
+    font-size: 11px;
+    color: var(--text2);
+
+    &:hover { color: var(--link-hover); }
+  }
+
   .view-actions { margin-left: auto; display: flex; gap: 6px; }
 
   .btn {
@@ -33,6 +49,22 @@
     text-decoration: none;
 
     &:hover { border-color: var(--blue); color: var(--blue); }
+  }
+}
+
+td.lineage {
+  .lineage-link {
+    display: inline-block;
+    margin-right: 8px;
+    color: var(--text2);
+
+    &:hover { color: var(--link-hover); }
+  }
+
+  .b-fx {
+    background: var(--teal-dim);
+    color: var(--teal);
+    margin-right: 6px;
   }
 }
 

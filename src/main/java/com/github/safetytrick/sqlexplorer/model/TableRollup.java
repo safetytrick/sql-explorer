@@ -10,7 +10,8 @@ public record TableRollup(String name,
                          int numberOfQueries,
                          double totalQueryTime,
                          String schema,
-                         List<Tag> tags) {
+                         List<Tag> tags,
+                         boolean view) {
 
     public static Comparator<TableRollup> comparator(IgnoredSchemas ignoredSchemas) {
         return (o1, o2) -> {
@@ -36,6 +37,7 @@ public record TableRollup(String name,
         private double totalQueryTime;
         private String schema;
         private List<Tag> tags;
+        private boolean view;
 
         public Builder name(String name) {
             this.name = name;
@@ -57,8 +59,13 @@ public record TableRollup(String name,
             return this;
         }
 
+        public Builder view(boolean view) {
+            this.view = view;
+            return this;
+        }
+
         public TableRollup build() {
-            return new TableRollup(name, numberOfQueries, totalQueryTime, schema, tags);
+            return new TableRollup(name, numberOfQueries, totalQueryTime, schema, tags, view);
         }
 
         public Builder schema(String schema) {

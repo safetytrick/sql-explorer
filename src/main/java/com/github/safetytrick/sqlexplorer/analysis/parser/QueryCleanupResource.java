@@ -40,14 +40,14 @@ class QueryCleanupResource {
                 statement = CCJSqlParserUtil.parse(query);
             }
         } catch (JSQLParserException exception) {
-            return new NormalizedQuery("/* parse error */\n" + query);
+            return new NormalizedQuery("/* parse error */\n" + query, java.util.List.of());
         }
 
-        String normalized = queryNormalizer.normalize(statement);
-        return new NormalizedQuery(sqlFormatter.format(normalized));
-
+        QueryNormalizer.NormalizedSql normalized = queryNormalizer.normalizeWithRepeats(statement);
+        String text = sqlFormatter.format(normalized.sql());
+        return new NormalizedQuery(text, RepeatLocator.locate(text, normalized.repeats()));
     }
 
-    record NormalizedQuery(String text) { }
+    record NormalizedQuery(String text, java.util.List<RepeatLocator.Located> repeats) { }
 
 }

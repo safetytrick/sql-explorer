@@ -7,6 +7,11 @@
           (wheel)="onWheel($event)"></canvas>
 
   <div class="graph-toolbar">
+    @if (mode === 'tag') {
+      <span class="mode-chip" title="graph scoped to the queries carrying this tag">tag: {{tag}}</span>
+    } @else if (mode === 'search') {
+      <span class="mode-chip" title="graph scoped to the workbench search results (snapshot)">workbench results</span>
+    }
     <select class="schema-select" [(ngModel)]="schema" (change)="onSchemaChange()">
       @for (name of schemaNames; track name) {
         <option [value]="name">{{name}}</option>
@@ -18,6 +23,9 @@
     <button class="btn" [class.on]="layers.fk" (click)="toggle('fk')">FK</button>
     <button class="btn" [class.on]="layers.co" (click)="toggle('co')">co-query</button>
     <button class="btn" [class.on]="layers.self" (click)="toggle('self')">self-joins</button>
+    @if (hasViewEdges()) {
+      <button class="btn" [class.on]="layers.view" (click)="toggle('view')">views</button>
+    }
     @if (loading) { <span class="loading">loading…</span> }
   </div>
 
@@ -25,6 +33,9 @@
     <div class="leg-row"><div class="leg-line blue"></div> FK</div>
     <div class="leg-row"><div class="leg-dash"></div> co-query</div>
     <div class="leg-row"><div class="leg-line amber"></div> type mismatch</div>
+    @if (hasViewEdges()) {
+      <div class="leg-row"><div class="leg-dash purple"></div> view → base</div>
+    }
   </div>
 
   <div class="minimap"><canvas #minimapCanvas width="150" height="100" (click)="onMinimapClick($event)"></canvas></div>

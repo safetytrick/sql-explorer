@@ -72,6 +72,43 @@ class GraphV2ServiceTest {
     }
 
     @Test
+    void profileSetGraphSeedsNodesFromTheProfilesOnly() {
+        GraphV2 graph = service.getGraphForProfiles(List.of(
+            profile("q1", List.of(SESSIONS, USERS), metrics(100), join(SESSIONS, USERS))));
+
+        // no schema seeding: "unrelated" and "rollup" don't appear
+        assertThat(graph.nodes())
+            .extracting(GraphV2.Node::table, GraphV2.Node::columnCount, GraphV2.Node::queryCount)
+            .containsExactlyInAnyOrder(
+                tuple("sessions", 2, 1),
+                tuple("users", 1, 1));
+        assertThat(graph.coQueryEdges()).hasSize(1);
+        assertThat(graph.fkEdges())
+            .extracting(GraphV2.FkEdge::fromTable, GraphV2.FkEdge::toTable)
+            .containsExactly(tuple("sessions", "users"));
+    }
+
+    @Test
+    void displayedViewsPullTheirBaseTablesInWithViewEdges() {
+        when(sqlSchemaService.getTables()).thenReturn(List.of(
+            view("app", "active_sessions", List.of(SESSIONS)),
+            structure("app", "sessions", List.of(),
+                column("app", "sessions", "id", "BIGINT"))));
+
+        GraphV2 graph = service.getGraphForProfiles(List.of(
+            profile("q1", List.of(ref("app", "active_sessions")), metrics(5))));
+
+        assertThat(graph.nodes())
+            .extracting(GraphV2.Node::table, GraphV2.Node::view, GraphV2.Node::queryCount)
+            .containsExactlyInAnyOrder(
+                tuple("active_sessions", true, 1),
+                tuple("sessions", false, 0));
+        assertThat(graph.viewEdges())
+            .extracting(GraphV2.ViewEdge::fromTable, GraphV2.ViewEdge::toTable)
+            .containsExactly(tuple("active_sessions", "sessions"));
+    }
+
+    @Test
     void fkEdgesCarryColumnLabelAndMismatch() {
         GraphV2 graph = service.getSchemaGraph("app");
 
@@ -97,7 +134,11 @@ class GraphV2ServiceTest {
     }
 
     private static TableStructure structure(String schema, String table, List<ForeignKey> fks, TableColumn... columns) {
-        return new TableStructure(schema, table, "TABLE", null, fks, List.of(), List.of(columns));
+        return new TableStructure(schema, table, "TABLE", null, fks, List.of(), List.of(columns), null, null);
+    }
+
+    private static TableStructure view(String schema, String table, List<TableReference> underlying) {
+        return new TableStructure(schema, table, "VIEW", null, List.of(), List.of(), List.of(), underlying, null);
     }
 
     private static ForeignKey fk(TableReference from, String fromColumn, TableReference to, String toColumn) {

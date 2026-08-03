@@ -25,18 +25,18 @@ public class TableNameAnalyzerTest {
     @Test
     public void testTableNamesWithAliases() throws JSQLParserException {
         String sql = """
-            SELECT `pvd` . `store_id` FROM `customer_visit` `pvd` \
-            LEFT JOIN `store` `f` ON `f` . `id` = `pvd` . `store_id` \
-            LEFT JOIN `store_config` `fc` ON ( `f` . `id` = `fc` . `id` AND `fc` . `name` = ? ) \
-            WHERE `pvd` . `customer_id` = ? \
+            SELECT `pvd` . `branch_id` FROM `member_session` `pvd` \
+            LEFT JOIN `branch` `f` ON `f` . `id` = `pvd` . `branch_id` \
+            LEFT JOIN `branch_config` `fc` ON ( `f` . `id` = `fc` . `id` AND `fc` . `name` = ? ) \
+            WHERE `pvd` . `member_id` = ? \
             AND `pvd` . `checkin_date` >= SUBDATE ( NOW ( ) , `IFNULL` ( `fc` . `value` , ? ) ) \
-            AND `f` . `type` IN (?) GROUP BY `pvd` . `store_id` \
+            AND `f` . `type` IN (?) GROUP BY `pvd` . `branch_id` \
             """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
         List<String> tableNames = builder.getTables().stream().map(TableReference::getNormalizedTableName).collect(Collectors.toList());
         // jsqlparser 5.x's TablesNamesFinder no longer preserves source order; the set of tables is what matters.
-        assertThat(tableNames).containsExactlyInAnyOrder("customer_visit", "store", "store_config");
+        assertThat(tableNames).containsExactlyInAnyOrder("member_session", "branch", "branch_config");
 
     }
 }

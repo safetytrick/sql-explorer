@@ -19,7 +19,9 @@
     } @else {
       <p class="state-unloaded">No sources loaded</p>
     }
-    <button class="btn btn-secondary" (click)="refreshSchema()"> Refresh Schema </button>
+    <button class="btn btn-secondary" (click)="refreshSchema()"
+      title="Drops the cached schema so it reloads from the servers on next use. Re-apply sources afterwards to re-analyze queries against the refreshed schema."> Refresh Schema </button>
+    <p class="refresh-hint">Picks up DDL changes from the servers. Already-loaded sources keep their old analysis until re-applied.</p>
   </div>
 } @else if (currentEnvironment) {
   <p>Managing sources for environment: <strong>{{currentEnvironment}}</strong></p>

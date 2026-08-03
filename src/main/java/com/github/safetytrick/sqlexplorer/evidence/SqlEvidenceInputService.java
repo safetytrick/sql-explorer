@@ -20,8 +20,9 @@ import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.analysis.RegexTableExtractor;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
-import com.github.safetytrick.sqlexplorer.analysis.parser.RunFinder;
+import com.github.safetytrick.sqlexplorer.analysis.parser.RepeatLocator;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
@@ -252,13 +253,20 @@ public class SqlEvidenceInputService {
                 // optimistic merging decreases the amount of analysis we do but doesn't help
                 // much with anything else, most of the file processing time is spent in the sql parser.
                 long startNormalization = System.nanoTime();
-                String normalizedDigest = normalizedQueryDigest.normalizedDigest(query);
-                if (normalizedDigest != null) {
-                    builder.setNormalizedDigest(normalizedDigest);
-                    if (repository.attemptMerge(normalizedDigest, builder)) {
-                        return;
-                    }
+                NormalizedQueryDigest.DigestedQuery digested = normalizedQueryDigest.digestedQuery(query);
+                builder.setNormalizedDigest(digested.digest());
+                if (repository.attemptMerge(digested.digest(), builder)) {
+                    return;
                 }
+
+                // display the normalized form (raw formatted text set above
+                // remains the fallback for sql that doesn't parse), with the
+                // collapsed repeats located so the UI can badge "×N"
+                String display = sqlFormatter.format(digested.normalizedSql());
+                builder.setQuery(display);
+                builder.setRepeatedBlocks(RepeatLocator.locate(display, digested.repeats()).stream()
+                    .map(located -> new RepeatedBlock(located.start(), located.end(), located.count()))
+                    .toList());
 
                 Duration normalizedParseTime = Duration.ofNanos(System.nanoTime() - startNormalization);
                 if (MAX_PARSE.compareTo(normalizedParseTime) < 0) {
@@ -281,18 +289,6 @@ public class SqlEvidenceInputService {
                 }
 
                 builder.setAnalysisFailed(true);
-            }
-        }
-
-        // 5 chosen at random, has no special meaning
-        if (nestingLevel > 5) {
-            try {
-                // todo, refactor and solve this in the normalizer
-                //
-                String condensedQuery = RunFinder.reformatQuery(query);
-                builder.setQuery(condensedQuery);
-            } catch (Exception e) {
-                log.debug("Failed to reformat query: ", e);
             }
         }
 

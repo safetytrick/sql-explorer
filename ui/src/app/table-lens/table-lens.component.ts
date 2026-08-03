@@ -1,22 +1,22 @@
-import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { DecimalPipe } from '@angular/common';
+import {Component, OnInit} from '@angular/core';
+import {ActivatedRoute, RouterLink} from '@angular/router';
 import {
   ColumnUsage,
   CoQueriedTable,
   ForeignKeyDetail,
   SchemaLensService,
   TableIndex,
-  TableStats
+  TableStats,
+  ViewColumnMeta
 } from '../schema-lens.service';
-import { DurationPipe } from '../duration.pipe';
-import { TagViewComponent } from '../tag-view/tag-view.component';
+import {DurationPipe} from '../duration.pipe';
+import {TagViewComponent} from '../tag-view/tag-view.component';
 
 @Component({
   selector: 'app-table-lens',
   templateUrl: './table-lens.component.html',
   styleUrls: ['./table-lens.component.scss'],
-  imports: [RouterLink, DecimalPipe, DurationPipe, TagViewComponent]
+  imports: [RouterLink, DurationPipe, TagViewComponent]
 })
 export class TableLensComponent implements OnInit {
 
@@ -28,6 +28,11 @@ export class TableLensComponent implements OnInit {
   coQueried: CoQueriedTable[] = [];
   foreignKeys: ForeignKeyDetail[] = [];
   indexes: TableIndex[] = [];
+  isView = false;
+  /** Base tables this view selects from (views only). */
+  underlyingTables: { schema: string; table: string }[] = [];
+  /** Per-column lineage (views only), keyed by normalized column name. */
+  private viewLineage = new Map<string, ViewColumnMeta>();
 
   columnFilter: 'all' | 'used' | 'keys' = 'all';
 
@@ -47,12 +52,27 @@ export class TableLensComponent implements OnInit {
     this.coQueried = [];
     this.foreignKeys = [];
     this.indexes = [];
+    this.isView = false;
+    this.underlyingTables = [];
+    this.viewLineage = new Map();
     this.schemaLensService.getTableStats(this.schema, this.table).subscribe(stats => this.stats = stats);
     this.schemaLensService.getTableColumns(this.schema, this.table).subscribe(columns => this.columns = columns);
     this.schemaLensService.getCoQueried(this.schema, this.table).subscribe(coQueried => this.coQueried = coQueried);
     this.schemaLensService.getForeignKeys(this.schema, this.table).subscribe(fks => this.foreignKeys = fks);
     this.schemaLensService.getTableStructure(this.schema, this.table)
-      .subscribe(structure => this.indexes = structure?.indices || []);
+      .subscribe(structure => {
+        this.indexes = structure?.indices || [];
+        this.isView = structure?.type?.toUpperCase() === 'VIEW';
+        this.underlyingTables = (structure?.underlyingTables || [])
+          .filter(ref => ref.normalizedSchemaName && ref.normalizedTableName)
+          .map(ref => ({ schema: ref.normalizedSchemaName as string, table: ref.normalizedTableName }));
+        this.viewLineage = new Map((structure?.viewColumns || [])
+          .map(column => [column.name.toLowerCase(), column]));
+      });
+  }
+
+  lineageFor(columnName: string): ViewColumnMeta | null {
+    return this.viewLineage.get(columnName.toLowerCase()) ?? null;
   }
 
   visibleColumns(): ColumnUsage[] {

@@ -1,10 +1,11 @@
-import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
-import { GraphV2, SchemaLensService } from '../schema-lens.service';
-import { EnvironmentService } from '../environment.service';
-import { ThemeService } from '../theme.service';
+import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
+import {ActivatedRoute, Router} from '@angular/router';
+import {FormsModule} from '@angular/forms';
+import {Subscription} from 'rxjs';
+import {GraphV2, SchemaLensService} from '../schema-lens.service';
+import {EnvironmentService} from '../environment.service';
+import {QueryScopeService} from '../query-scope.service';
+import {ThemeService} from '../theme.service';
 
 const NW = 130;
 const NH = 44;
@@ -24,6 +25,7 @@ interface LayoutNode {
   queryCount: number;
   warn: boolean;
   selfJoin: boolean;
+  view: boolean;
   x: number;
   y: number;
 }
@@ -46,12 +48,17 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   schemaNames: string[] = [];
   schema = '';
   selectedTable: string | null = null;
-  layers = { fk: true, co: false, self: true };
+  layers = { fk: true, co: false, self: true, view: true };
   loading = false;
+
+  /** What scopes the graph: a schema, a tag's queries, or a workbench search snapshot. */
+  mode: 'schema' | 'tag' | 'search' = 'schema';
+  tag: string | null = null;
 
   private nodes: LayoutNode[] = [];
   private fkEdges: Edge[] = [];
   private coEdges: Edge[] = [];
+  private viewEdges: Edge[] = [];
   private tx = 0;
   private ty = 0;
   private scale = 1;
@@ -62,11 +69,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private viewReady = false;
   private subscriptions = new Subscription();
   /** Canvas colors resolved from the active theme's CSS variables. */
-  private palette = { blue: '#4a9eff', amber: '#f5a623', text: '#e8eaf0', text2: '#8b93a8',
+  private palette = { blue: '#4a9eff', amber: '#f5a623', purple: '#b48cff', text: '#e8eaf0', text2: '#8b93a8',
     bg: '#0f1117', bg2: '#161b27', bg3: '#1e2535', border2: 'rgba(255,255,255,0.14)' };
 
   constructor(private schemaLensService: SchemaLensService,
               private environmentService: EnvironmentService,
+              private queryScopeService: QueryScopeService,
               private themeService: ThemeService,
               private route: ActivatedRoute,
               private router: Router) { }
@@ -77,15 +85,34 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       this.refreshPalette();
       this.draw();
     }));
-    this.selectedTable = this.route.snapshot.queryParamMap.get('table');
-    this.subscriptions.add(this.route.paramMap.subscribe(params => {
-      const schema = params.get('schema');
+    this.subscriptions.add(this.route.paramMap.subscribe(() => this.applyRoute()));
+    this.subscriptions.add(this.route.queryParamMap.subscribe(() => this.applyRoute()));
+    this.subscriptions.add(this.environmentService.current$.subscribe(() => this.loadSchemas()));
+  }
+
+  /** Route decides the source: ?tag= → tag graph, ?source=search → workbench snapshot, else :schema. */
+  private applyRoute() {
+    const queryParams = this.route.snapshot.queryParamMap;
+    this.selectedTable = queryParams.get('table');
+    const tag = queryParams.get('tag');
+    const source = queryParams.get('source');
+    if (tag) {
+      this.mode = 'tag';
+      this.tag = tag;
+      this.loadGraph();
+    } else if (source === 'search') {
+      this.mode = 'search';
+      this.tag = null;
+      this.loadGraph();
+    } else {
+      this.mode = 'schema';
+      this.tag = null;
+      const schema = this.route.snapshot.paramMap.get('schema');
       if (schema) {
         this.schema = schema;
         this.loadGraph();
       }
-    }));
-    this.subscriptions.add(this.environmentService.current$.subscribe(() => this.loadSchemas()));
+    }
   }
 
   ngAfterViewInit() {
@@ -103,7 +130,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!this.schema && this.schemaNames.length) {
         this.schema = this.schemaNames[0];
       }
-      if (this.schema) {
+      if (this.schema && this.mode === 'schema') {
         this.loadGraph();
       }
     });
@@ -115,9 +142,14 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private loadGraph() {
-    if (!this.schema) { return; }
+    const source = this.mode === 'tag' && this.tag
+      ? this.schemaLensService.getTagGraph(this.tag)
+      : this.mode === 'search'
+        ? this.schemaLensService.getSearchGraph(this.queryScopeService.getSearchSnapshot())
+        : this.schema ? this.schemaLensService.getSchemaGraph(this.schema) : null;
+    if (!source) { return; }
     this.loading = true;
-    this.schemaLensService.getSchemaGraph(this.schema).subscribe({
+    source.subscribe({
       next: graph => {
         this.buildLayout(graph);
         this.loading = false;
@@ -142,6 +174,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         queryCount: node.queryCount,
         warn: node.warn,
         selfJoin: node.selfJoin,
+        view: node.view,
         x: 400 + radius * Math.cos(angle),
         y: 300 + radius * Math.sin(angle)
       };
@@ -155,11 +188,14 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.coEdges = graph.coQueryEdges
       .map(edge => ({ from: resolve(edge.aSchema, edge.aTable), to: resolve(edge.bSchema, edge.bTable), label: '', execs: edge.executions }))
       .filter(edge => edge.from && edge.to) as Edge[];
+    this.viewEdges = (graph.viewEdges || [])
+      .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable), label: 'over' }))
+      .filter(edge => edge.from && edge.to) as Edge[];
     this.runForceLayout();
   }
 
   private runForceLayout() {
-    const springs = [...this.fkEdges, ...this.coEdges];
+    const springs = [...this.fkEdges, ...this.coEdges, ...this.viewEdges];
     for (let iteration = 0; iteration < 220; iteration++) {
       const cooling = 1 - iteration / 220;
       // pairwise repulsion
@@ -229,9 +265,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.draw();
   }
 
-  toggle(layer: 'fk' | 'co' | 'self') {
+  toggle(layer: 'fk' | 'co' | 'self' | 'view') {
     this.layers[layer] = !this.layers[layer];
     this.draw();
+  }
+
+  hasViewEdges(): boolean {
+    return this.viewEdges.length > 0;
   }
 
   @HostListener('window:resize')
@@ -325,6 +365,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.palette = {
       blue: read('--blue', '#4a9eff'),
       amber: read('--amber', '#f5a623'),
+      purple: read('--purple', '#b48cff'),
       text: read('--text', '#e8eaf0'),
       text2: read('--text2', '#8b93a8'),
       bg: read('--bg', '#0f1117'),
@@ -359,6 +400,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         ctx.textBaseline = 'middle';
         ctx.fillText(this.fmtExecs(edge.execs || 0), this.wx((x1 + x2) / 2), this.wy((y1 + y2) / 2));
         ctx.restore();
+      }
+    }
+    if (this.layers.view) {
+      for (const edge of this.viewEdges) {
+        this.drawArrow(ctx, edge, this.alpha(this.palette.purple, 0.75), true, 1.5, true);
       }
     }
     if (this.layers.fk) {
@@ -471,6 +517,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
     ctx.fillStyle = this.alpha(this.palette.text2, 0.8);
     ctx.fillText(`${node.schema} · ${node.columnCount ?? '?'}c · ${node.queryCount}q`, x + w / 2, y + h * 0.72, w - 8);
+    if (node.view) {
+      ctx.font = `600 ${Math.round(8 * this.scale)}px sans-serif`;
+      ctx.fillStyle = this.palette.purple;
+      ctx.textAlign = 'right';
+      ctx.fillText('view', x + w - 5 * this.scale, y + 8 * this.scale);
+    }
     ctx.restore();
   }
 

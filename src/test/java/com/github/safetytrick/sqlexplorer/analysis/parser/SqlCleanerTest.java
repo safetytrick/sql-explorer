@@ -12,27 +12,27 @@ public class SqlCleanerTest {
     void remove_dangling_where() {
         String sql = """
                 SELECT
-                    `customer_membership` . `id` ,
-                    `customer_membership` . `customer_id` AS `customerId` ,
-                    `customer_membership` . `store_id` AS `storeId` ,
-                    `customer_membership` . `group_id` AS `groupId` ,
-                    `customer_membership` . `group_name` AS `groupName` ,
-                    `customer_membership` . `last_seen` AS `lastSeen` ,
-                    `customer_membership` . `line_of_business` AS `lineOfBusiness` ,
-                    `customer_membership` . `account_number` AS `accountNumber` ,
-                    `customer_membership` . `status` ,
-                    `customer_membership` . `policy_number_suffix` AS `policyNumberSuffix` ,
-                    `customer_membership` . `service_start` AS `serviceStart` ,
-                    `customer_membership` . `service_end` AS `serviceEnd` ,
-                    `customer_membership` . `provider_id` AS `providerId` ,
-                    `customer_membership` . `provider` ,
-                    `customer_membership` . `remote_identifier` AS `remoteIdentifier` ,
-                    `customer_membership` . `data_source` AS `dataSourceId`
+                    `member_plan` . `id` ,
+                    `member_plan` . `member_id` AS `memberId` ,
+                    `member_plan` . `branch_id` AS `branchId` ,
+                    `member_plan` . `group_id` AS `groupId` ,
+                    `member_plan` . `group_name` AS `groupName` ,
+                    `member_plan` . `last_seen` AS `lastSeen` ,
+                    `member_plan` . `line_of_business` AS `lineOfBusiness` ,
+                    `member_plan` . `account_number` AS `accountNumber` ,
+                    `member_plan` . `status` ,
+                    `member_plan` . `policy_number_suffix` AS `policyNumberSuffix` ,
+                    `member_plan` . `service_start` AS `serviceStart` ,
+                    `member_plan` . `service_end` AS `serviceEnd` ,
+                    `member_plan` . `provider_id` AS `providerId` ,
+                    `member_plan` . `provider` ,
+                    `member_plan` . `remote_identifier` AS `remoteIdentifier` ,
+                    `member_plan` . `data_source` AS `dataSourceId`
                 FROM
-                    `customer_visit_membership`
+                    `member_session_plan`
                 JOIN
-                    `customer_membership`
-                        ON `customer_visit_membership` . `customer_membership_id` = `customer_membership` . `id`
+                    `member_plan`
+                        ON `member_session_plan` . `member_plan_id` = `member_plan` . `id`
                 WHERE
                     \
             """;
@@ -46,7 +46,7 @@ public class SqlCleanerTest {
                 SELECT
                     *
                 FROM
-                    `store_identifier`
+                    `branch_identifier`
                 WHERE
                     `identifier` IN (
                         ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?
@@ -61,7 +61,7 @@ public class SqlCleanerTest {
 
     @Test
     void collapse_if_statements() {
-        String sql = "SELECT `pal` . `accessed_at` AS `viewed_store_id` , `f` . `type` AS ? , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) AS ? , `f` . `state` AS ? , `f` . `zip` AS ? , `DATE_FORMAT` ( `pal` . `accessed_on` , ? ) AS ? , COUNT ( DISTINCTROW `pal` . `id` ) ? , COUNT ( DISTINCTROW `pal`";
+        String sql = "SELECT `pal` . `accessed_at` AS `viewed_branch_id` , `f` . `type` AS ? , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... , IF ( `f` . `type` = ?, ... ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) ) AS ? , `f` . `state` AS ? , `f` . `zip` AS ? , `DATE_FORMAT` ( `pal` . `accessed_on` , ? ) AS ? , COUNT ( DISTINCTROW `pal` . `id` ) ? , COUNT ( DISTINCTROW `pal`";
 
         SqlCleaner.CleanedSql cleanedSql = new SqlCleaner().cleanSql(sql);
 

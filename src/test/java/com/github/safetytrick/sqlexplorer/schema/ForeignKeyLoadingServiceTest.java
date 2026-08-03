@@ -23,7 +23,7 @@ class ForeignKeyLoadingServiceTest {
     void groupsConstraintsByOwningTableAndConstraintName() throws SQLException {
         // ordered by owner, constraint, key_seq — as the query guarantees
         ResultSet keys = resultSet(
-            row("app", "orders", "fk_orders_customer", "customer_id", "app", "customers", "id"),
+            row("app", "orders", "fk_orders_member", "member_id", "app", "members", "id"),
             // composite FK: two rows, one constraint
             row("app", "orders", "fk_orders_line", "line_a", "app", "lines", "a"),
             row("app", "orders", "fk_orders_line", "line_b", "app", "lines", "b"),
@@ -34,10 +34,10 @@ class ForeignKeyLoadingServiceTest {
 
         List<ForeignKey> orders = byTable.get(ref("app", "orders"));
         assertThat(orders).hasSize(2);
-        assertThat(orders.getFirst().constraintName()).isEqualTo("fk_orders_customer");
+        assertThat(orders.getFirst().constraintName()).isEqualTo("fk_orders_member");
         assertThat(orders.getFirst().onUpdate()).isEqualTo("CASCADE");
         assertThat(orders.getFirst().onDelete()).isEqualTo("RESTRICT");
-        assertThat(columns(orders.get(0).from())).containsExactly("customer_id");
+        assertThat(columns(orders.get(0).from())).containsExactly("member_id");
         assertThat(columns(orders.get(1).from())).containsExactly("line_a", "line_b");
         assertThat(columns(orders.get(1).to())).containsExactly("a", "b");
 

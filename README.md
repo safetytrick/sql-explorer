@@ -139,7 +139,7 @@ datasources:
 x-statement-analysis:
   enabled: true
   hosts:
-    staging-db-primary:
+    staging-db-master:
       jdbcUrl: ${datasources.metadata.jdbcUrl}
 ```
 
@@ -159,7 +159,7 @@ datasources:
 x-statement-analysis:
   enabled: true
   hosts:
-    staging-db-primary:
+    staging-db-master:
       jdbcUrl: ${datasources.metadata.jdbcUrl}
       username: ${datasources.metadata.username}
       password: ${datasources.metadata.password}

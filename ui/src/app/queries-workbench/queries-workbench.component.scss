@@ -285,6 +285,20 @@
     }
 
     .result-count { font-size: 10px; color: var(--text3); white-space: nowrap; }
+
+    .graph-results {
+      font-size: 11px;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border2);
+      background: var(--bg3);
+      color: var(--text2);
+      cursor: pointer;
+      white-space: nowrap;
+
+      &:hover { border-color: var(--blue); color: var(--blue); }
+    }
   }
 }
 
@@ -426,6 +440,39 @@
   border-bottom: 1px solid var(--border);
 
   &.sql-section { flex: 2 1 340px; }
+
+  .repeat-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+
+    .repeat-label {
+      font-size: 10px;
+      color: var(--text3);
+    }
+
+    .repeat-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      padding: 1px 8px;
+      border-radius: 10px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      max-width: 340px;
+      overflow: hidden;
+      white-space: nowrap;
+
+      .repeat-count {
+        color: var(--amber);
+        font-weight: 600;
+      }
+    }
+  }
 }
 
 .ds-label {

@@ -89,7 +89,7 @@ class CoQueriedServiceTest {
             .addFromAndTo(new ColumnReference(from, "x", "x"), new ColumnReference(to, "id", "id"))
             .build();
         return new TableStructure(from.getSchemaName(), from.getTableName(), "TABLE", null,
-            List.of(fk), List.of(), List.of());
+            List.of(fk), List.of(), List.of(), null, null);
     }
 
     private static RuntimeMetrics metrics(long executions, double totalMs) {

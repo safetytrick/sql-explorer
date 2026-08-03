@@ -3,7 +3,6 @@ package com.github.safetytrick.sqlexplorer.analysis;
 import java.util.Collections;
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -19,12 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 public class JoinColumnAnalyzerTest {
     private SqlAnalysisService sqlAnalysisService;
     private SqlProfile.Builder builder;
-    private ColumnTableResolver columnTableResolver;
 
     @BeforeEach
     public void setUp() {
-        columnTableResolver = new ColumnTableResolver(TestSchemas.all());
-        sqlAnalysisService = new SqlAnalysisService(new JoinColumnAnalyzer(columnTableResolver));
+        SchemaFixture fixture = SchemaFixture.allFixtures();
+        sqlAnalysisService = fixture.service(new JoinColumnAnalyzer(fixture.resolver()));
         builder = SqlProfile.newBuilder();
     }
 
@@ -44,18 +42,18 @@ public class JoinColumnAnalyzerTest {
 
     @Test
     public void testSimpleJoin() throws JSQLParserException {
-        String sql = "SELECT * FROM store join store_config ON store.id = store_config.store_id";
+        String sql = "SELECT * FROM branch join branch_config ON branch.id = branch_config.branch_id";
         sqlAnalysisService.analyzeSql(sql, builder);
 
         assertNotNull(builder.getJoinColumns());
         JoinColumns joinPair = builder.getJoinColumns().getFirst();
-        assertEquals(joinPair.getLeft(), ColumnReference.fromString("store.id"));
-        assertEquals(joinPair.getRight(), ColumnReference.fromString("store_config.store_id"));
+        assertEquals(joinPair.getLeft(), ColumnReference.fromString("branch.id"));
+        assertEquals(joinPair.getRight(), ColumnReference.fromString("branch_config.branch_id"));
     }
 
     @Test
     public void testSimpleJoin_with_aliases() throws JSQLParserException {
-        String sql = "SELECT * FROM store f join store_config fc ON f.id = fc.store_id";
+        String sql = "SELECT * FROM branch f join branch_config fc ON f.id = fc.branch_id";
         sqlAnalysisService.analyzeSql(sql, builder);
 
 
@@ -63,43 +61,43 @@ public class JoinColumnAnalyzerTest {
         assertEquals(1, builder.getJoinColumns().size());
         JoinColumns joinPair = builder.getJoinColumns().getFirst();
 
-        assertEquals(joinPair.getLeft(), ColumnReference.fromString("store.id"));
-        assertEquals(joinPair.getRight(), ColumnReference.fromString("store_config.store_id"));
+        assertEquals(joinPair.getLeft(), ColumnReference.fromString("branch.id"));
+        assertEquals(joinPair.getRight(), ColumnReference.fromString("branch_config.branch_id"));
     }
 
     @Test
     public void testJoinWithOnAnd() throws JSQLParserException {
         String sql = """
                 SELECT
-                    DISTINCTROW `customer` . `id`\s
+                    DISTINCTROW `member` . `id`\s
                 FROM
-                    `customer`\s
+                    `member`\s
                 JOIN
-                    `current_customer_demographics`\s
-                        ON `current_customer_demographics` . `customer_id` = `customer` . `id`\s
+                    `current_member_demographics`\s
+                        ON `current_member_demographics` . `member_id` = `member` . `id`\s
                 JOIN
-                    `customer_name` `p`\s
-                        ON `p` . `customer_id` = `customer` . `id`\s
-                        AND `p` . `id` = `current_customer_demographics` . `customer_name_id`\s
+                    `member_name` `p`\s
+                        ON `p` . `member_id` = `member` . `id`\s
+                        AND `p` . `id` = `current_member_demographics` . `member_name_id`\s
                 WHERE
-                    `p` . `customer_id` IN (
+                    `p` . `member_id` IN (
                         SELECT
-                            DISTINCTROW `customer_id`\s
+                            DISTINCTROW `member_id`\s
                         FROM
-                            `customer_referral`\s
+                            `member_referral`\s
                         WHERE
                             (
-                                `referring_store_id` IN (
+                                `referring_branch_id` IN (
                                     ?
                                 )\s
-                                OR `managing_store_id` IN (
+                                OR `managing_branch_id` IN (
                                     ?
                                 )\s
-                                OR `coordinating_store_id` IN (
+                                OR `coordinating_branch_id` IN (
                                     ?
                                 )\s
                             )\s
-                            AND `managing_store_status` IN (
+                            AND `managing_branch_status` IN (
                                 ...
                             )\s
                     )\s
@@ -115,7 +113,7 @@ public class JoinColumnAnalyzerTest {
                             OR `p` . `first_name` = ?\s
                         )\s
                     )\s
-                    AND `current_customer_demographics` . `store_id` IN (
+                    AND `current_member_demographics` . `branch_id` IN (
                         ?
                     ) LIMIT ? \
             """;
@@ -126,64 +124,64 @@ public class JoinColumnAnalyzerTest {
         assertNotNull(builder.getJoinColumns());
         JoinColumns joinPair = builder.getJoinColumns().getFirst();
 
-        assertThat(joinPair.getLeft()).matches(left -> left.equalsNormalized("current_customer_demographics.customer_id"));
-        assertThat(joinPair.getRight()).matches(right -> right.equalsNormalized("customer.id"));
+        assertThat(joinPair.getLeft()).matches(left -> left.equalsNormalized("current_member_demographics.member_id"));
+        assertThat(joinPair.getRight()).matches(right -> right.equalsNormalized("member.id"));
         JoinColumns andJoin = builder.getJoinColumns().get(1);
 
-        assertThat(andJoin.getLeft()).matches(left -> left.equalsNormalized("customer_name.customer_id"));
-        assertThat(andJoin.getRight()).matches(right -> right.equalsNormalized("customer.id"));
+        assertThat(andJoin.getLeft()).matches(left -> left.equalsNormalized("member_name.member_id"));
+        assertThat(andJoin.getRight()).matches(right -> right.equalsNormalized("member.id"));
 
         JoinColumns secondHalf = builder.getJoinColumns().get(2);
 
-        assertThat(secondHalf.getLeft()).matches(left -> left.equalsNormalized("customer_name.id"));
-        assertThat(secondHalf.getRight()).matches(right -> right.equalsNormalized("current_customer_demographics.customer_name_id"));
+        assertThat(secondHalf.getLeft()).matches(left -> left.equalsNormalized("member_name.id"));
+        assertThat(secondHalf.getRight()).matches(right -> right.equalsNormalized("current_member_demographics.member_name_id"));
     }
 
     @Test
     public void testOnAndWhereColumnJoins() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `customer3_` . `id` AS `id81_` ,
-                    `customer3_` . `created_on` AS `created2_81_`
+                    `member3_` . `id` AS `id81_` ,
+                    `member3_` . `created_on` AS `created2_81_`
                 FROM
-                    `customer_name` `customernam0_`
+                    `member_name` `membernam0_`
                 INNER JOIN
-                    `customer` `customer3_`
-                        ON `customernam0_` . `customer_id` = `customer3_` . `id` CROSS
+                    `member` `member3_`
+                        ON `membernam0_` . `member_id` = `member3_` . `id` CROSS
                 JOIN
-                    `customer_ident` `customeride1_` CROSS
+                    `member_ident` `memberide1_` CROSS
                 JOIN
-                    `customer_address` `customeradd2_`
+                    `member_address` `memberadd2_`
                 WHERE
                     (
-                        `customernam0_` . `first_name` LIKE ?
-                        OR `customernam0_` . `first_name` = ?
+                        `membernam0_` . `first_name` LIKE ?
+                        OR `membernam0_` . `first_name` = ?
                     )
                     AND (
-                        `customernam0_` . `last_name` LIKE ?
-                        OR `customernam0_` . `last_name` = ?
+                        `membernam0_` . `last_name` LIKE ?
+                        OR `membernam0_` . `last_name` = ?
                     )
-                    AND `customeride1_` . `date_of_birth` = ?
+                    AND `memberide1_` . `date_of_signup` = ?
                     AND (
                         (
-                            `customeradd2_` . `street_address` LIKE ?
+                            `memberadd2_` . `street_address` LIKE ?
                         )
                         AND `length` (
                             ?
                         ) - ? >= ?
                         OR (
                             ? LIKE `concat` (
-                                ? , `customeradd2_` . `street_address` , ?
+                                ? , `memberadd2_` . `street_address` , ?
                             )
                         )
                         AND `length` (
-                            `customeradd2_` . `street_address`
+                            `memberadd2_` . `street_address`
                         ) >= ?
                     )
-                    AND `customeride1_` . `customer_id` = `customernam0_` . `customer_id`
-                    AND `customeride1_` . `customer_id` = `customeradd2_` . `customer_id`
+                    AND `memberide1_` . `member_id` = `membernam0_` . `member_id`
+                    AND `memberide1_` . `member_id` = `memberadd2_` . `member_id`
                 GROUP BY
-                    `customernam0_` . `customer_id`
+                    `membernam0_` . `member_id`
                 """;
 
         sqlAnalysisService = new SqlAnalysisService(new JoinColumnAnalyzer(), new WhereClauseAnalyzer());
@@ -193,18 +191,18 @@ public class JoinColumnAnalyzerTest {
         assertNotNull(builder.getJoinColumns());
         JoinColumns joinPair = builder.getJoinColumns().getFirst();
 
-        assertThat(joinPair.getLeft()).matches(left -> left.equalsNormalized("customer_name.customer_id"));
-        assertThat(joinPair.getRight()).matches(right -> right.equalsNormalized("customer.id"));
+        assertThat(joinPair.getLeft()).matches(left -> left.equalsNormalized("member_name.member_id"));
+        assertThat(joinPair.getRight()).matches(right -> right.equalsNormalized("member.id"));
 
         JoinColumns andJoin = builder.getJoinColumns().get(1);
 
-        assertThat(andJoin.getLeft()).matches(left -> left.equalsNormalized("customer_ident.customer_id"));
-        assertThat(andJoin.getRight()).matches(right -> right.equalsNormalized("customer_name.customer_id"));
+        assertThat(andJoin.getLeft()).matches(left -> left.equalsNormalized("member_ident.member_id"));
+        assertThat(andJoin.getRight()).matches(right -> right.equalsNormalized("member_name.member_id"));
 
         JoinColumns secondHalf = builder.getJoinColumns().get(2);
 
-        assertThat(secondHalf.getLeft()).matches(left -> left.equalsNormalized("customer_ident.customer_id"));
-        assertThat(secondHalf.getRight()).matches(right -> right.equalsNormalized("customer_address.customer_id"));
+        assertThat(secondHalf.getLeft()).matches(left -> left.equalsNormalized("member_ident.member_id"));
+        assertThat(secondHalf.getRight()).matches(right -> right.equalsNormalized("member_address.member_id"));
 
     }
 
@@ -214,33 +212,33 @@ public class JoinColumnAnalyzerTest {
             SELECT
                     temp . *
                 FROM
-                    customer_visit mother_visit
+                    member_session mother_session
                 JOIN
                     (
                         SELECT
                             pv . * ,
-                            ins . customer_id AS mother
+                            ins . member_id AS mother
                         FROM
-                            customer_membership ins ,
-                            customer_membership ins2 ,
-                            customer_ident ident ,
-                            customer_visit_membership pvi ,
-                            customer_visit pv
+                            member_plan ins ,
+                            member_plan ins2 ,
+                            member_ident ident ,
+                            member_session_plan pvi ,
+                            member_session pv
                         WHERE
-                            pv . id = pvi . customer_visit_id
+                            pv . id = pvi . member_session_id
                             AND pv . checkout_date >= ?
                             AND pv . checkout_date <= ?
                             AND (
-                                pv . visit_type = ?
-                                OR pv . major_class IN (
+                                pv . session_type = ?
+                                OR pv . main_class IN (
                                     ?
                                 )
                             )
-                            AND ident . date_of_birth > DATE_SUB ( NOW ( ) , INTERVAL ? SQL_TSI_DAY )
-                            AND ins2 . customer_id = ident . customer_id
-                            AND ins . store_id = ?
+                            AND ident . date_of_signup > DATE_SUB ( NOW ( ) , INTERVAL ? SQL_TSI_DAY )
+                            AND ins2 . member_id = ident . member_id
+                            AND ins . branch_id = ?
                             AND ins2 . account_number = ins . account_number
-                            AND pvi . customer_membership_id = ins2 . id
+                            AND pvi . member_plan_id = ins2 . id
                             AND (
                                 DATE ( pv . checkin_date ) <= ins . service_end
                                 OR ins . service_end IS NULL
@@ -249,13 +247,13 @@ public class JoinColumnAnalyzerTest {
                                 DATE ( pv . checkin_date ) >= ins . service_start
                                 OR ins . service_start IS NULL
                             )
-                            AND ins2 . store_id IS NULL
+                            AND ins2 . branch_id IS NULL
                         GROUP BY
                             pv . id
                     ) AS temp
-                        ON temp . mother = mother_visit . customer_id
+                        ON temp . mother = mother_session . member_id
                 WHERE
-                    mother_visit . customer_id = temp
+                    mother_session . member_id = temp
             """;
 
         builder.setSchemaName("tdb");
@@ -263,7 +261,7 @@ public class JoinColumnAnalyzerTest {
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
 
-        assertContainsJoinColumns(joinColumns, "customer_membership.customer_id", "customer_visit.customer_id");
+        assertContainsJoinColumns(joinColumns, "member_plan.member_id", "member_session.member_id");
 
     }
 
@@ -271,26 +269,26 @@ public class JoinColumnAnalyzerTest {
     public void testAndWithinOnClause() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `pvd` . `store_id`
+                    `pvd` . `branch_id`
                 FROM
-                    `customer_visit` `pvd`
+                    `member_session` `pvd`
                 LEFT JOIN
-                    `store` `f`
-                        ON `f` . `id` = `pvd` . `store_id`
+                    `branch` `f`
+                        ON `f` . `id` = `pvd` . `branch_id`
                 LEFT JOIN
-                    `store_config` `fc`
+                    `branch_config` `fc`
                         ON (
                             `f` . `id` = `fc` . `id`
                             AND `fc` . `name` = ?
                         )
                 WHERE
-                    `pvd` . `customer_id` = ?
+                    `pvd` . `member_id` = ?
                     AND `pvd` . `checkin_date` >= SUBDATE ( NOW ( ) , `IFNULL` ( `fc` . `value` , ? ) )
                     AND `f` . `type` IN (
                         ...
                     )
                 GROUP BY
-                    `pvd` . `store_id`
+                    `pvd` . `branch_id`
             """;
 
         builder.setSchemaName("tdb");
@@ -298,7 +296,7 @@ public class JoinColumnAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
-        assertContainsJoinColumns(joinColumns, "store.id", "store_config.id");
+        assertContainsJoinColumns(joinColumns, "branch.id", "branch_config.id");
     }
 
     @Test
@@ -306,20 +304,20 @@ public class JoinColumnAnalyzerTest {
         String sql = """
                 SELECT
                     `username` ,
-                    `last_store_id` AS `storeId` ,
-                    `tenant_password` . `salted_password` AS `saltedPassword` ,
-                    `tenant` . `id` AS `userId`
+                    `last_branch_id` AS `branchId` ,
+                    `org_password` . `salted_password` AS `saltedPassword` ,
+                    `org` . `id` AS `userId`
                 FROM
-                    TENANT
+                    ORG
                 JOIN
-                    `tenant_password`
-                        ON `tenant` . `id` = `tenant_password` . `tenant_id`
+                    `org_password`
+                        ON `org` . `id` = `org_password` . `org_id`
                 WHERE
                     `username` = ?
-                    AND NOT `tenant` . `is_blocked`
-                    AND NOT `tenant` . `is_deleted`
+                    AND NOT `org` . `is_blocked`
+                    AND NOT `org` . `is_deleted`
                 ORDER BY
-                    `tenant_password` . `created_on` DESC LIMIT ?
+                    `org_password` . `created_on` DESC LIMIT ?
             """;
 
         builder.setSchemaName("tdb");
@@ -327,7 +325,7 @@ public class JoinColumnAnalyzerTest {
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
 
-        assertContainsJoinColumns(joinColumns, "TENANT.id", "tenant_password.tenant_id");
+        assertContainsJoinColumns(joinColumns, "ORG.id", "org_password.org_id");
     }
 
     @Test
@@ -335,20 +333,20 @@ public class JoinColumnAnalyzerTest {
         String sql = """
             SELECT
                     ? AS `relationship_type` ,
-                    `csr` . `store_id` AS `relation_store_id` ,
-                    `f` . `name` AS `relation_store_name` ,
-                    `pi` . `customer_id` ,
-                    `csr` . `identifier` AS `customer_identifier` ,
+                    `agent` . `branch_id` AS `relation_branch_id` ,
+                    `f` . `name` AS `relation_branch_name` ,
+                    `pi` . `member_id` ,
+                    `agent` . `identifier` AS `member_identifier` ,
                     `pi` . `type` ,
-                    `csr` . `effective_on` ,
+                    `agent` . `effective_on` ,
                     `deleted_on` ,
-                    `csr` . `created_on`
+                    `agent` . `created_on`
                 FROM
-                    `tdb` . `deleted_customer_store_relationship` `csr`
+                    `tdb` . `deleted_member_branch_relationship` `agent`
                 INNER JOIN
-                    `customer_identifier` `pi`
-                        ON `pi` . `identifier` = `csr` . `identifier`
-                        AND `pi` . `store_id` = `csr`""";
+                    `member_identifier` `pi`
+                        ON `pi` . `identifier` = `agent` . `identifier`
+                        AND `pi` . `branch_id` = `agent`""";
 
         builder.setSchemaName("tdb");
 
@@ -357,38 +355,38 @@ public class JoinColumnAnalyzerTest {
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
 
-        assertContainsJoinColumns(joinColumns, "customer_identifier.identifier", "tdb.deleted_customer_store_relationship.identifier");
+        assertContainsJoinColumns(joinColumns, "member_identifier.identifier", "tdb.deleted_member_branch_relationship.identifier");
     }
 
     @Test
     void join_from_in_subselect() throws JSQLParserException {
         String sql = """
                 SELECT
-                    `store_id` ,
-                    COUNT ( `customer_id` )
+                    `branch_id` ,
+                    COUNT ( `member_id` )
                 FROM
-                    `customer_store_relationship`
+                    `member_branch_relationship`
                 WHERE
-                    `customer_id` = ?
-                    AND `store_id` IN (
+                    `member_id` = ?
+                    AND `branch_id` IN (
                         SELECT
-                            `store_id`
+                            `branch_id`
                         FROM
-                            `store_config`
+                            `branch_config`
                         WHERE
                             NAME = ?
                             AND VALUE = ?
                             AND `deleted_by` IS NULL
                     )
                 GROUP BY
-                    `store_id`
+                    `branch_id`
                 """;
 
         sqlAnalysisService.analyzeSql(sql, builder);
 
 
         List<JoinColumns> joinColumns = builder.getJoinColumns();
-        assertContainsJoinColumns(joinColumns, "customer_store_relationship.store_id", "store_config.store_id");
+        assertContainsJoinColumns(joinColumns, "member_branch_relationship.branch_id", "branch_config.branch_id");
     }
 
     @Test

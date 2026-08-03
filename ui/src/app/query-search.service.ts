@@ -75,6 +75,13 @@ export interface RuntimeMetrics {
   lastSeen: string | null;
 }
 
+/** A block the normalizer collapsed: [start, end) in query text, seen count times. */
+export interface RepeatedBlock {
+  start: number;
+  end: number;
+  count: number;
+}
+
 export interface QueryProfile {
   id: string;
   query: string;
@@ -86,6 +93,7 @@ export interface QueryProfile {
   analysisFailureReason: string | null;
   mismatchedJoins: unknown[];
   runtimeMetrics: RuntimeMetrics | null;
+  repeatedBlocks?: RepeatedBlock[];
 }
 
 export interface QueryTag {

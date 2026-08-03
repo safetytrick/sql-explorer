@@ -20,6 +20,9 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
   filter = '';
   loading = true;
 
+  /** Show all objects, only base tables, or only views. */
+  typeFilter: 'all' | 'tables' | 'views' = 'all';
+
   /** In filter mode the tree scopes the queries workbench instead of navigating. */
   active = false;
   private facets: QueryFacets = { tables: {}, schemas: {} };
@@ -114,16 +117,25 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     const needle = this.filter.trim().toLowerCase();
     return this.schemas
       .filter(schema => this.matchesTagFilters(schema.name))
-      .map(schema => {
-        if (!needle) {
-          return schema;
-        }
-        return {
-          name: schema.name,
-          tables: schema.tables.filter(table => table.name.toLowerCase().includes(needle))
-        };
-      })
+      .map(schema => ({
+        name: schema.name,
+        tables: schema.tables
+          .filter(table => !needle || table.name.toLowerCase().includes(needle))
+          .filter(table => this.matchesTypeFilter(table.view))
+      }))
       .filter(schema => schema.tables.length > 0);
+  }
+
+  private matchesTypeFilter(isView: boolean): boolean {
+    switch (this.typeFilter) {
+      case 'tables': return !isView;
+      case 'views': return isView;
+      default: return true;
+    }
+  }
+
+  setTypeFilter(value: 'all' | 'tables' | 'views') {
+    this.typeFilter = value;
   }
 
   private matchesTagFilters(schemaName: string): boolean {
@@ -141,6 +153,11 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
 
   get tagFilterCount(): number {
     return this.includeTags.length + this.excludeTags.length;
+  }
+
+  /** Anything set in the filter panel (tags or type) lights the toggle. */
+  get filterPanelActive(): boolean {
+    return this.tagFilterCount > 0 || this.typeFilter !== 'all';
   }
 
   toggleTagFilters() {

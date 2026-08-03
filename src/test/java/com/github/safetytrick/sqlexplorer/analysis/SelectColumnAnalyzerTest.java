@@ -2,7 +2,6 @@ package com.github.safetytrick.sqlexplorer.analysis;
 
 import java.util.List;
 
-import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
@@ -19,8 +18,8 @@ public class SelectColumnAnalyzerTest {
 
     @BeforeEach
     public void setUp() {
-        ColumnTableResolver columnTableResolver = new ColumnTableResolver(TestSchemas.all());
-        sqlAnalysisService = new SqlAnalysisService(new SelectColumnAnalyzer(columnTableResolver));
+        SchemaFixture fixture = SchemaFixture.allFixtures();
+        sqlAnalysisService = fixture.service(new SelectColumnAnalyzer(fixture.resolver()));
         builder = SqlProfile.newBuilder();
     }
 
