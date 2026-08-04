@@ -185,9 +185,10 @@ A few items were fixed while this report was being compiled — see
   `suppression.xml` is an empty stub. Image pinning inconsistent: `mysql:8.4.4` pinned, but `ui/Dockerfile`
   uses floating `node:22` / `nginx`.
 - **MED — Docker hardening gaps.** `MYSQL_ROOT_PASSWORD: password` in `docker-compose.yml` and committed
-  `application-secrets.yml` (`root`/`password`) — local-only but copy-paste seeds. Backend
-  `src/main/docker/Dockerfile` runs as **root** (hardening lines commented out with a `# todo`), no
-  healthcheck; compose uses `depends_on` only (shared-tags works around it with a poll loop).
+  `application-secrets.yml` (`root`/`password`) — local-only but copy-paste seeds. No healthcheck;
+  compose uses `depends_on` only (shared-tags works around it with a poll loop). *(Resolved 2026-08-04:
+  the backend runtime stage now runs as the non-root `sqlexplorer` user with `/parquet` ownership; the
+  old `src/main/docker/Dockerfile` staging flow was removed.)*
 - **LOW — Misc.** OpenAPI plugin commented out (`// todo, get this working`); `bootJar`
   `duplicatesStrategy = WARN` masks duplicate jar entries; heavy Hadoop/Parquet footprint for local file
   I/O; `auth/` domain is a documented non-feature (`auth/TODO.md`) yet ships `User*`/`/user` classes.

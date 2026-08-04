@@ -32,13 +32,21 @@ RUN --mount=type=cache,target=/root/.gradle \
 # ── runtime stage ─────────────────────────────────────────────────────────
 FROM amazoncorretto:21
 
+# Non-root runtime user. The app reads /app + the config mounts and writes
+# only the parquet sink (/parquet, bind-mounted by compose) and /tmp.
+RUN yum install -y shadow-utils && yum clean all && \
+    useradd --system --uid 1001 --user-group --home-dir /app --shell /sbin/nologin sqlexplorer && \
+    mkdir -p /parquet && chown sqlexplorer:sqlexplorer /parquet
+
 ENV ARTIFACT=sql-explorer.jar
 ENV APP_PROP_CONFIG_DIR=/etc/sql-explorer/config/,optional:/etc/sql-explorer/secrets/
 
 WORKDIR /app
-COPY --from=builder /workspace/build/libs/sql-explorer.jar $ARTIFACT
+COPY --from=builder --chown=sqlexplorer:sqlexplorer /workspace/build/libs/sql-explorer.jar $ARTIFACT
 
 VOLUME /etc/sql-explorer/config
+
+USER sqlexplorer
 
 ENTRYPOINT exec java $JAVA_OPTS \
     -Dspring.config.additional-location=$APP_PROP_CONFIG_DIR \
