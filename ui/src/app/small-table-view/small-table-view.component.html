@@ -1,3 +1,4 @@
+@if (table) {
 <h2>
   <a routerLink="/table/{{table.schema}}/{{table.name}}">{{table.schema}}.{{table.name}}</a>
 </h2>
@@ -18,4 +19,5 @@
       }
     </tbody>
   </table>
+}
 }

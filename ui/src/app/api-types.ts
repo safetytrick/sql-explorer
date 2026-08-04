@@ -162,6 +162,9 @@ export interface TableStructure {
   columns: TableColumn[];
   /** Base tables a view selects from; null for base tables. */
   underlyingTables: TableReference[] | null;
+  /** Per-column lineage for views; null for base tables. */
+  viewColumns: { name: string; computed: boolean;
+    sources: { table: TableReference; normalizedColumn: string }[] }[] | null;
 }
 
 /** Per-table profile view (model/Table). */

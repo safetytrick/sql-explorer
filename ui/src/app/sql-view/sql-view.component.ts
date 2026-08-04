@@ -2,13 +2,13 @@ import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
-import { Highlight } from 'ngx-highlightjs';
-import { TagViewComponent } from '../tag-view/tag-view.component';
-import { PicoViewComponent } from '../pico-view/pico-view.component';
-import { TableLinkComponent } from '../table-link/table-link.component';
-import { ColumnLinkComponent } from '../column-link/column-link.component';
-import { SmallTableViewComponent } from '../small-table-view/small-table-view.component';
-import { SqlProfile, TableStructure } from '../api-types';
+import {Highlight} from 'ngx-highlightjs';
+import {TagViewComponent} from '../tag-view/tag-view.component';
+import {PicoViewComponent} from '../pico-view/pico-view.component';
+import {TableLinkComponent} from '../table-link/table-link.component';
+import {ColumnLinkComponent} from '../column-link/column-link.component';
+import {SmallTableViewComponent} from '../small-table-view/small-table-view.component';
+import {SqlProfile, TableStructure} from '../api-types';
 
 @Component({
     selector: 'app-sql-view',
@@ -40,8 +40,13 @@ export class SqlViewComponent implements OnInit {
       data.tables.forEach(ref => {
         const schema = ref.schemaName ?? data.schemaName;
         this.sqlService.getTableStructure(schema, ref.tableName).subscribe(tableStructure => {
-          this.tables!.push(tableStructure);
-          this.changeDetectorRef.markForCheck();
+          // the metadata endpoint returns an empty body for tables the loaded
+          // schema doesn't know (dropped tables, other servers, misextracted
+          // references) — those have nothing to render
+          if (tableStructure) {
+            this.tables!.push(tableStructure);
+            this.changeDetectorRef.markForCheck();
+          }
         });
       });
       this.titleService.setTitle('sql: ' + data.tables.map(ref => ref.tableName).join(', '));

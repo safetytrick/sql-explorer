@@ -1,5 +1,6 @@
 <div class="sidebar-search">
-  <input placeholder="filter tables…" [value]="filter" (input)="filter = $any($event.target).value">
+  <input placeholder="filter schema.table…" title="matches schema.table — '.users' matches table names only"
+         [value]="filter" (input)="filter = $any($event.target).value">
   <button type="button" class="tag-toggle" [class.on]="tagFiltersOpen || filterPanelActive"
           (click)="toggleTagFilters()">
     filter@if (tagFilterCount > 0) {

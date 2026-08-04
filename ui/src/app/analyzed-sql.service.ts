@@ -42,8 +42,9 @@ export class AnalyzedSqlService {
     return this.http.get<SqlProfile[]>(endpoint + 'analyzed-sql/reports/' + name, {params: params});
   }
 
-  getTableStructure(schema: string, name: string): Observable<TableStructure> {
-    return this.http.get<TableStructure>(endpoint + 'metadata/table/' + schema + '/' + name);
+  /** Null when the loaded schema doesn't know the table (the endpoint returns an empty body). */
+  getTableStructure(schema: string, name: string): Observable<TableStructure | null> {
+    return this.http.get<TableStructure | null>(endpoint + 'metadata/table/' + schema + '/' + name);
   }
 
   getTableCreateStatement(schema: string, name: string): Observable<string> {

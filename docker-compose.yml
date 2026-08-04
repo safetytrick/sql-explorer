@@ -1,7 +1,8 @@
 
 services:
   sql-explorer:
-    build: build/docker
+    # complete in-image build (see Dockerfile) — no host gradle required
+    build: .
     container_name: sql-explorer
     image: sql-explorer/sql-explorer
     ports:
@@ -28,7 +29,8 @@ services:
   schema-mysql:
     image: mysql:8.4.4
     container_name: schema-mysql
-    profiles: [ "remote-metadata" ]
+    profiles:
+      - remote-metadata
     ports:
       - "3939:3306"
     environment:
@@ -54,6 +56,8 @@ services:
       retries: 10
 
   explorer-shared-tags:
+    profiles:
+      - manual-only
     build: shared-tags/src/main/docker
     image: explorer-shared-tags
     volumes:

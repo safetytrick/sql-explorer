@@ -2,6 +2,7 @@ import {Component, Input} from '@angular/core';
 import {RouterLink} from '@angular/router';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {TableRollup} from '../api-types';
+import {matchesTypeFilter, TypeFilter} from '../schema-tree/tree-filter';
 
 @Component({
     selector: 'app-table-list-component',
@@ -14,24 +15,20 @@ export class TableListComponent {
   tables!: TableRollup[];
 
   /** Show all objects, only base tables, or only views. */
-  typeFilter: 'all' | 'tables' | 'views' = 'all';
+  typeFilter: TypeFilter = 'all';
 
   visibleTables(): TableRollup[] {
     if (!this.tables) {
       return [];
     }
-    switch (this.typeFilter) {
-      case 'tables': return this.tables.filter(table => !table.view);
-      case 'views': return this.tables.filter(table => table.view);
-      default: return this.tables;
-    }
+    return this.tables.filter(table => matchesTypeFilter(this.typeFilter, table.view));
   }
 
   hasViews(): boolean {
     return !!this.tables && this.tables.some(table => table.view);
   }
 
-  setTypeFilter(value: 'all' | 'tables' | 'views') {
+  setTypeFilter(value: TypeFilter) {
     this.typeFilter = value;
   }
 }

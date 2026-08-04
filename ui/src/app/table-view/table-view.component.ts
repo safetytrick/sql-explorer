@@ -1,15 +1,15 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
+import {ActivatedRoute, Params, Router, RouterLink} from '@angular/router';
 import {Title} from '@angular/platform-browser';
-import { TagViewComponent } from '../tag-view/tag-view.component';
-import { PicoViewComponent } from '../pico-view/pico-view.component';
-import { TableLinkComponent } from '../table-link/table-link.component';
-import { Highlight } from 'ngx-highlightjs';
-import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
-import { ColumnLinkComponent } from '../column-link/column-link.component';
-import { CallbackPipePipe } from '../callback-pipe.pipe';
-import { Table } from '../api-types';
+import {TagViewComponent} from '../tag-view/tag-view.component';
+import {PicoViewComponent} from '../pico-view/pico-view.component';
+import {TableLinkComponent} from '../table-link/table-link.component';
+import {Highlight} from 'ngx-highlightjs';
+import {SqlSummaryComponent} from '../sql-summary/sql-summary.component';
+import {ColumnLinkComponent} from '../column-link/column-link.component';
+import {CallbackPipePipe} from '../callback-pipe.pipe';
+import {Table} from '../api-types';
 
 @Component({
     selector: 'app-table-view',
@@ -25,6 +25,14 @@ export class TableViewComponent implements OnInit {
   createLoading = false;
   column: string | null = null;
 
+  /**
+   * The page's identity comes from the route, not from the fetched payload —
+   * the header and outbound links must stay correct even when the backend
+   * echoes an empty schema (e.g. for references it couldn't resolve).
+   */
+  schema = '';
+  name = '';
+
 
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,
               private router: Router, private titleService: Title) { }
@@ -35,6 +43,8 @@ export class TableViewComponent implements OnInit {
       this.showCreate = false;
       this.createStatement = null;
       this.createLoading = false;
+      this.schema = params['schema'];
+      this.name = params['name'];
       if (params['joinSchema'] && params['joinTable']) {
         this.getSqlForTableAndJoin(params['schema'],
           params['name'],
@@ -85,7 +95,7 @@ export class TableViewComponent implements OnInit {
     this.showCreate = !this.showCreate;
     if (this.showCreate && this.createStatement === null && this.table) {
       this.createLoading = true;
-      this.sqlService.getTableCreateStatement(this.table.schema, this.table.name).subscribe(
+      this.sqlService.getTableCreateStatement(this.schema, this.name).subscribe(
         (create: string) => {
           this.createStatement = create;
           this.createLoading = false;
@@ -96,9 +106,9 @@ export class TableViewComponent implements OnInit {
     }
   }
 
-  otherTables(table: Table) {
+  otherTables(_table: Table) {
     return (tableName: string) =>
-      tableName !== table.name && tableName !== (table.schema + '.' + table.name);
+      tableName !== this.name && tableName !== (this.schema + '.' + this.name);
   }
 
   skipPrimary(index: { name: string }) {

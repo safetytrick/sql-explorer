@@ -5,6 +5,7 @@ import {SchemaLensService, SchemaNode} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {QueryFacets, TagMode} from '../query-search.service';
 import {QueryScopeService, tableKey} from '../query-scope.service';
+import {matchesTreeFilter, matchesTypeFilter, TypeFilter} from './tree-filter';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 
@@ -21,7 +22,7 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
   loading = true;
 
   /** Show all objects, only base tables, or only views. */
-  typeFilter: 'all' | 'tables' | 'views' = 'all';
+  typeFilter: TypeFilter = 'all';
 
   /** In filter mode the tree scopes the queries workbench instead of navigating. */
   active = false;
@@ -120,21 +121,13 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
       .map(schema => ({
         name: schema.name,
         tables: schema.tables
-          .filter(table => !needle || table.name.toLowerCase().includes(needle))
-          .filter(table => this.matchesTypeFilter(table.view))
+          .filter(table => matchesTreeFilter(schema.name, table.name, needle))
+          .filter(table => matchesTypeFilter(this.typeFilter, table.view))
       }))
       .filter(schema => schema.tables.length > 0);
   }
 
-  private matchesTypeFilter(isView: boolean): boolean {
-    switch (this.typeFilter) {
-      case 'tables': return !isView;
-      case 'views': return isView;
-      default: return true;
-    }
-  }
-
-  setTypeFilter(value: 'all' | 'tables' | 'views') {
+  setTypeFilter(value: TypeFilter) {
     this.typeFilter = value;
   }
 

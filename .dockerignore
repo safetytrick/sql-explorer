@@ -1,0 +1,15 @@
+# context for the backend image build (Dockerfile at the repo root):
+# only the gradle build inputs are needed
+.gradle
+.idea
+build
+models/build
+ui
+mcp
+shared-tags
+docs
+schemas
+*.md
+.env
+.env.example
+src/main/docker-local

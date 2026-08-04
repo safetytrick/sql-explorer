@@ -92,12 +92,13 @@ Local Setup
 Build the application with:
 
 ```bash
-./gradlew assemble
-
 docker compose build
 ```
 
-To avoid startup race conditions startup the mysql container first: `docker compose up -d explorer-mysql`
+The backend image is a complete two-stage build (gradle runs inside the
+image with a BuildKit cache mount for dependencies), so no JDK or gradle is
+needed on the host. `./gradlew assemble` still works for running outside
+Docker.
 
 Startup the application with: `docker compose up -d sql-explorer`
 
