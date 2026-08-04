@@ -5,7 +5,7 @@ import {SchemaLensService, SchemaNode} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {QueryFacets, TagMode} from '../query-search.service';
 import {QueryScopeService, tableKey} from '../query-scope.service';
-import {matchesTreeFilter, matchesTypeFilter, TypeFilter} from './tree-filter';
+import {filterSchemaTree, TypeFilter} from './tree-filter';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 
@@ -103,45 +103,33 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
       return;
     }
     const paths = schemas.map(schema => '/schema/' + schema.name);
-    this.analyzedSqlService.getTagsForPaths(paths).subscribe(byPath => {
-      const map = new Map<string, string[]>();
-      for (const schema of schemas) {
-        const tags = byPath['/schema/' + schema.name] ?? [];
-        map.set(schema.name.toLowerCase(), tags.map(tag => tag.name));
-      }
-      this.tagsBySchema = map;
-      this.publishTagScope();
+    this.analyzedSqlService.getTagsForPaths(paths).subscribe({
+      next: byPath => {
+        const map = new Map<string, string[]>();
+        for (const schema of schemas) {
+          const tags = byPath['/schema/' + schema.name] ?? [];
+          map.set(schema.name.toLowerCase(), tags.map(tag => tag.name));
+        }
+        this.tagsBySchema = map;
+        this.publishTagScope();
+      },
+      // an empty tag map silently turns include filters into "hide everything"
+      // and exclude filters into no-ops — make that state diagnosable
+      error: error => console.error('schema tag load failed; tag include/exclude will not work', error)
     });
   }
 
   visibleSchemas(): SchemaNode[] {
-    const needle = this.filter.trim().toLowerCase();
-    return this.schemas
-      .filter(schema => this.matchesTagFilters(schema.name))
-      .map(schema => ({
-        name: schema.name,
-        tables: schema.tables
-          .filter(table => matchesTreeFilter(schema.name, table.name, needle))
-          .filter(table => matchesTypeFilter(this.typeFilter, table.view))
-      }))
-      .filter(schema => schema.tables.length > 0);
+    return filterSchemaTree(this.schemas, {
+      needle: this.filter,
+      typeFilter: this.typeFilter,
+      tagFilter: { includeTags: this.includeTags, excludeTags: this.excludeTags, tagMode: this.tagMode },
+      tagsBySchema: this.tagsBySchema
+    });
   }
 
   setTypeFilter(value: TypeFilter) {
     this.typeFilter = value;
-  }
-
-  private matchesTagFilters(schemaName: string): boolean {
-    const tags = this.tagsBySchema.get(schemaName.toLowerCase()) ?? [];
-    if (this.excludeTags.some(tag => tags.includes(tag))) {
-      return false;
-    }
-    if (!this.includeTags.length) {
-      return true;
-    }
-    return this.tagMode === 'ALL'
-      ? this.includeTags.every(tag => tags.includes(tag))
-      : this.includeTags.some(tag => tags.includes(tag));
   }
 
   get tagFilterCount(): number {
