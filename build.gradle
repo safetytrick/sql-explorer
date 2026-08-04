@@ -57,26 +57,6 @@ allprojects {
             html.required = true
         }
     }
-
-
-    tasks.register('dockerSourceCopy', Copy) {
-        from "src/main/docker"
-        into project.layout.buildDirectory.dir('docker')
-        dependsOn "assemble"
-    }
-
-    tasks.register('dockerLibCopy', Copy) {
-        from "build"
-        include "libs/*"
-        into project.layout.buildDirectory.dir('docker')
-        dependsOn "assemble"
-    }
-
-    tasks.register('dockerStage') {
-        dependsOn(dockerSourceCopy, dockerLibCopy)
-    }
-
-    jar.finalizedBy(dockerStage)
 }
 
 dependencies {
