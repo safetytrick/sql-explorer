@@ -2,7 +2,6 @@ import {enableProdMode, importProvidersFrom, provideZoneChangeDetection} from '@
 
 import {environment} from './environments/environment';
 import {AnalyzedSqlService} from './app/analyzed-sql.service';
-import {MAT_SNACK_BAR_DEFAULT_OPTIONS, MatSnackBarModule} from '@angular/material/snack-bar';
 import {HIGHLIGHT_OPTIONS, HighlightModule} from 'ngx-highlightjs';
 import {provideHttpClient, withInterceptors, withInterceptorsFromDi} from '@angular/common/http';
 import {environmentInterceptor} from './app/environment.interceptor';
@@ -25,14 +24,7 @@ import {NoteViewComponent} from './app/note-view/note-view.component';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {bootstrapApplication} from '@angular/platform-browser';
 import {provideAnimations} from '@angular/platform-browser/animations';
-import {MatTableModule} from '@angular/material/table';
 import {NgxGraphModule} from '@swimlane/ngx-graph';
-import {MatChipsModule} from '@angular/material/chips';
-import {MatAutocompleteModule} from '@angular/material/autocomplete';
-import {MatFormFieldModule} from '@angular/material/form-field';
-import {MatInputModule} from '@angular/material/input';
-import {MatIconModule} from '@angular/material/icon';
-import {MatListModule} from '@angular/material/list';
 import {AppComponent} from './app/app.component';
 import {TableLensComponent} from './app/table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './app/queries-workbench/queries-workbench.component';
@@ -213,9 +205,8 @@ bootstrapApplication(AppComponent, {
     providers: [
         provideZoneChangeDetection({ eventCoalescing: true }),
         provideAnimations(),
-        importProvidersFrom(FormsModule, ReactiveFormsModule, HighlightModule, MatTableModule, NgxGraphModule, MatChipsModule, MatAutocompleteModule, MatFormFieldModule, MatInputModule, MatIconModule, MatListModule, MatSnackBarModule),
+        importProvidersFrom(FormsModule, ReactiveFormsModule, HighlightModule, NgxGraphModule),
         AnalyzedSqlService,
-        { provide: MAT_SNACK_BAR_DEFAULT_OPTIONS, useValue: { duration: 250000, verticalPosition: 'top' } },
         {
             provide: HIGHLIGHT_OPTIONS,
             useValue: {

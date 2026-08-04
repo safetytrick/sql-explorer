@@ -1,24 +1,22 @@
 <div class="tag-view">
-  <mat-chip-grid #chipGrid>
-    @for (tag of tags; track tag) {
-      <mat-chip-row
-        (removed)="removeTag(tag)">
-        {{tag.name}}
-        <button matChipRemove>
-          <mat-icon>cancel</mat-icon>
-        </button>
-      </mat-chip-row>
+  <div class="tag-input-area">
+    @for (tag of tags; track tag.id) {
+      <span class="tag-chip"
+            [style.background]="chipStyle(tag.name).background"
+            [style.color]="chipStyle(tag.name).color">
+        {{tag.name}} <span class="rx" title="remove tag" (click)="removeTag(tag)">×</span>
+      </span>
     }
-    <input
-      placeholder="Add tag..."
-      [matChipInputFor]="chipGrid"
-      [formControl]="tagInputControl"
-      [matAutocomplete]="auto"
-      (matChipInputTokenEnd)="addTag($event)">
-  </mat-chip-grid>
-  <mat-autocomplete #auto="matAutocomplete" (optionSelected)="selectTag($event)">
-    @for (tag of filteredTags | async; track tag) {
-      <mat-option [value]="tag">{{tag}}</mat-option>
-    }
-  </mat-autocomplete>
+    <input placeholder="add tag…"
+           [value]="tagInput"
+           (input)="onInput($any($event.target).value)"
+           (keydown.enter)="addTag(tagInput)">
+  </div>
+  @if (suggestions.length) {
+    <div class="tag-sugg-wrap">
+      @for (name of suggestions; track name) {
+        <span class="tag-sugg-item" (mousedown)="addTag(name)">{{name}}</span>
+      }
+    </div>
+  }
 </div>

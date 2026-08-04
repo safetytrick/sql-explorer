@@ -1,15 +1,14 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {SourceService} from '../source.service';
 import {EnvironmentService, EnvironmentSummary} from '../environment.service';
-import { MatSelectionList, MatListOption } from '@angular/material/list';
-import { DatePipe } from '@angular/common';
-import { ImportedSqlSource, PersistedSource } from '../api-types';
+import {DatePipe} from '@angular/common';
+import {ImportedSqlSource, PersistedSource} from '../api-types';
 
 @Component({
     selector: 'app-admin-source-list',
     templateUrl: './admin-source-list.component.html',
     styleUrls: ['./admin-source-list.component.scss'],
-    imports: [MatSelectionList, MatListOption, DatePipe]
+    imports: [DatePipe]
 })
 export class AdminSourceListComponent implements OnInit {
 
@@ -18,6 +17,9 @@ export class AdminSourceListComponent implements OnInit {
   currentEnvironment: string | null;
   environment: EnvironmentSummary | null = null;
   loading = false;
+
+  /** sourceRefs ticked in the list; seeded from the active sources. */
+  selected = new Set<string>();
 
   constructor(private sourceService: SourceService, private environmentService: EnvironmentService) {
     this.currentEnvironment = environmentService.getCurrent();
@@ -29,7 +31,10 @@ export class AdminSourceListComponent implements OnInit {
 
   private refresh() {
     this.sourceService.getActiveSources()
-      .subscribe(active => this.active = active);
+      .subscribe(active => {
+        this.active = active;
+        this.resetSelection();
+      });
     this.sourceService.getAllSources().subscribe(
       all => this.all = all);
     this.environmentService.getEnvironments().subscribe(list => {
@@ -43,11 +48,19 @@ export class AdminSourceListComponent implements OnInit {
     return !!this.active && this.active.some(value => value.source.sourceRef === source.sourceRef);
   }
 
-  applyChange(sourcesList: MatSelectionList) {
-    const selected = sourcesList.selectedOptions.selected.map(value => value.value);
+  toggle(sourceRef: string) {
+    if (this.selected.has(sourceRef)) {
+      this.selected.delete(sourceRef);
+    } else {
+      this.selected.add(sourceRef);
+    }
+  }
+
+  applyChange() {
+    const selected = [...this.selected];
     this.loading = true;
     this.sourceService.loadSources(selected.map(value => ({ sourceRef: value }))).subscribe({
-      next: complete => {
+      next: () => {
         console.log('Loaded: ' + selected.join(', '));
         this.loading = false;
         this.refresh();
@@ -59,10 +72,8 @@ export class AdminSourceListComponent implements OnInit {
     });
   }
 
-  cancelChange(sourcesList: MatSelectionList) {
-    sourcesList.options.forEach(option => {
-      option.selected = this.isActive({'sourceRef': option.value});
-    });
+  cancelChange() {
+    this.resetSelection();
     console.log('Options Reset');
   }
 
@@ -72,5 +83,9 @@ export class AdminSourceListComponent implements OnInit {
     }
     this.environmentService.refreshSchema(this.currentEnvironment)
       .subscribe(() => this.refresh());
+  }
+
+  private resetSelection() {
+    this.selected = new Set((this.active ?? []).map(value => value.source.sourceRef));
   }
 }

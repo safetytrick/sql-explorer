@@ -26,13 +26,17 @@
 } @else if (currentEnvironment) {
   <p>Managing sources for environment: <strong>{{currentEnvironment}}</strong></p>
 }
-<mat-selection-list #sourcesList [disabled]="loading">
+<ul class="source-list">
   @for (item of all; track item.source.sourceRef) {
-    <mat-list-option togglePosition="before" [selected]="isActive(item.source)" [value]="item.source.sourceRef">
-      <span>{{item.source.sourceRef}} - Last Updated: {{item.source.createdOn | date: 'short'}}</span>
-      <span class="env-badge" [class.foreign]="item.environmentName !== currentEnvironment">{{item.environmentName}}</span>
-    </mat-list-option>
+    <li>
+      <label class="source-row">
+        <input type="checkbox" [checked]="selected.has(item.source.sourceRef)" [disabled]="loading"
+               (change)="toggle(item.source.sourceRef)">
+        <span>{{item.source.sourceRef}} - Last Updated: {{item.source.createdOn | date: 'short'}}</span>
+        <span class="env-badge" [class.foreign]="item.environmentName !== currentEnvironment">{{item.environmentName}}</span>
+      </label>
+    </li>
   }
-  <button class="btn btn-primary" [disabled]="loading" (click)="applyChange(sourcesList)"> {{loading ? 'Loading…' : 'Apply'}} </button>
-  <button class="btn btn-secondary" [disabled]="loading" (click)="cancelChange(sourcesList)"> Cancel </button>
-</mat-selection-list>
+</ul>
+<button class="btn btn-primary" [disabled]="loading" (click)="applyChange()"> {{loading ? 'Loading…' : 'Apply'}} </button>
+<button class="btn btn-secondary" [disabled]="loading" (click)="cancelChange()"> Cancel </button>

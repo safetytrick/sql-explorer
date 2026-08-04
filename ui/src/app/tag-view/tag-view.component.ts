@@ -1,26 +1,22 @@
-import {Component, Input, OnInit} from '@angular/core';
-import {Observable} from 'rxjs';
+import {Component, Input, OnDestroy, OnInit} from '@angular/core';
+import {Subject, Subscription} from 'rxjs';
 import {debounceTime, switchMap} from 'rxjs/operators';
-import {FormsModule, ReactiveFormsModule, UntypedFormControl} from '@angular/forms';
-import {MatChipGrid, MatChipInput, MatChipInputEvent, MatChipRemove, MatChipRow} from '@angular/material/chips';
-import {
-  MatAutocomplete,
-  MatAutocompleteSelectedEvent,
-  MatAutocompleteTrigger,
-  MatOption
-} from '@angular/material/autocomplete';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {MatIcon} from '@angular/material/icon';
-import {AsyncPipe} from '@angular/common';
+import {ChipStyle, TagColorsService} from '../tag-colors.service';
 import {Tag} from '../api-types';
 
+/**
+ * Tag chip editor: colored chips (tag colors via TagColorsService) with a
+ * plain-text add input and debounced autocomplete suggestions. Hand-rolled
+ * in the sidebar's chip vocabulary — no Material.
+ */
 @Component({
     selector: 'app-tag-view',
     templateUrl: './tag-view.component.html',
     styleUrls: ['./tag-view.component.scss'],
-    imports: [MatChipGrid, MatChipRow, MatChipRemove, MatIcon, MatChipInput, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatAutocomplete, MatOption, AsyncPipe]
+    imports: []
 })
-export class TagViewComponent implements OnInit {
+export class TagViewComponent implements OnInit, OnDestroy {
 
   @Input()
   path!: string;
@@ -28,44 +24,59 @@ export class TagViewComponent implements OnInit {
   @Input()
   tags: Tag[] | null = null;
 
-  tagInputControl = new UntypedFormControl('');
-  filteredTags!: Observable<string[]>;
+  tagInput = '';
+  suggestions: string[] = [];
 
-  constructor(public sqlService: AnalyzedSqlService) {}
+  private readonly input$ = new Subject<string>();
+  private subscriptions = new Subscription();
+
+  constructor(private sqlService: AnalyzedSqlService,
+              private tagColorsService: TagColorsService) {}
 
   ngOnInit() {
     if (this.tags === null) {
       this.sqlService.getTags(this.path).subscribe(data => this.tags = data);
     }
-    this.filteredTags = this.tagInputControl.valueChanges.pipe(
+    this.subscriptions.add(this.input$.pipe(
       debounceTime(200),
-      switchMap((value: string) => this.sqlService.autoCompleteTags(value || ''))
-    ) as Observable<string[]>;
+      switchMap(value => this.sqlService.autoCompleteTags(value))
+    ).subscribe(names => this.suggestions = names.filter(name => !this.hasTag(name))));
   }
 
-  addTag(event: MatChipInputEvent) {
-    const value = (event.value || '').trim();
-    if (value) {
+  ngOnDestroy() {
+    this.subscriptions.unsubscribe();
+  }
+
+  onInput(value: string) {
+    this.tagInput = value;
+    if (value.trim()) {
+      this.input$.next(value.trim());
+    } else {
+      this.suggestions = [];
+    }
+  }
+
+  addTag(name: string) {
+    const value = name.trim();
+    if (value && !this.hasTag(value)) {
       this.sqlService.addTag(value, this.path).subscribe(tag => {
-        if (!this.tags) { this.tags = []; }
-        this.tags = [...this.tags, tag];
+        this.tags = [...(this.tags ?? []), tag];
       });
     }
-    event.chipInput!.clear();
-    this.tagInputControl.setValue(null);
-  }
-
-  selectTag(event: MatAutocompleteSelectedEvent) {
-    const tagName: string = event.option.value;
-    this.sqlService.addTag(tagName, this.path).subscribe(tag => {
-      if (!this.tags) { this.tags = []; }
-      this.tags = [...this.tags, tag];
-    });
-    this.tagInputControl.setValue(null);
+    this.tagInput = '';
+    this.suggestions = [];
   }
 
   removeTag(tag: Tag) {
     this.sqlService.removeTag(tag.id).subscribe();
     this.tags = this.tags!.filter(t => t.id !== tag.id);
+  }
+
+  chipStyle(name: string): ChipStyle {
+    return this.tagColorsService.chipStyle(name);
+  }
+
+  private hasTag(name: string): boolean {
+    return (this.tags ?? []).some(tag => tag.name.toLowerCase() === name.toLowerCase());
   }
 }

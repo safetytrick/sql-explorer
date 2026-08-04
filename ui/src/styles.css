@@ -191,10 +191,7 @@ a:hover {
   text-decoration: none;
 }
 
-/* .mat-app-background needed: the Material prebuilt theme paints it #fafafa
-   with near-black text at class specificity, beating the element selector */
-app-root,
-.mat-app-background {
+app-root {
   display: flex;
   flex-direction: column;
   background-color: var(--bg);
