@@ -94,16 +94,16 @@ describe('resolveSchemaTagScope', () => {
 
   it('is unconstrained without filters', () => {
     expect(resolveSchemaTagScope(names, tagsBySchema, { includeTags: [], excludeTags: [], tagMode: 'ANY' }))
-      .toEqual({ includedSchemas: null, excludedSchemas: [] });
+      .toEqual({ includedSchemas: null, excludedSchemas: [], excludedTables: [] });
   });
 
   it('resolves include tags by ANY or ALL, exclude wins', () => {
     expect(resolveSchemaTagScope(names, tagsBySchema, { includeTags: ['core'], excludeTags: [], tagMode: 'ANY' }))
-      .toEqual({ includedSchemas: ['tdb', 'app_main'], excludedSchemas: [] });
+      .toEqual({ includedSchemas: ['tdb', 'app_main'], excludedSchemas: [], excludedTables: [] });
     expect(resolveSchemaTagScope(names, tagsBySchema, { includeTags: ['core', 'legacy'], excludeTags: [], tagMode: 'ALL' }))
-      .toEqual({ includedSchemas: ['app_main'], excludedSchemas: [] });
+      .toEqual({ includedSchemas: ['app_main'], excludedSchemas: [], excludedTables: [] });
     expect(resolveSchemaTagScope(names, tagsBySchema, { includeTags: ['core'], excludeTags: ['legacy'], tagMode: 'ANY' }))
-      .toEqual({ includedSchemas: ['tdb'], excludedSchemas: ['app_main', 'other'] });
+      .toEqual({ includedSchemas: ['tdb'], excludedSchemas: ['app_main', 'other'], excludedTables: [] });
   });
 });
 
@@ -113,7 +113,7 @@ describe('buildSearchRequest', () => {
     const state = defaultSearchState();
     state.scope = { schemas: ['tdb', 'other'], tables: ['tdb.branch'], tableMode: 'ALL' };
     const request = buildSearchRequest(state,
-      { includedSchemas: ['tdb', 'app_main'], excludedSchemas: ['other'] },
+      { includedSchemas: ['tdb', 'app_main'], excludedSchemas: ['other'], excludedTables: [] },
       { limit: null, offset: null });
     expect(request.schemas).toEqual(['tdb']);          // selected ∩ tag-included
     expect(request.excludeSchemas).toEqual(['other']);
@@ -173,5 +173,81 @@ describe('two excluded schema tags in the URL', () => {
       { includeTags: [], excludeTags: ['a', 'b'], tagMode: 'ANY' });
 
     expect(scope.excludedSchemas.sort()).toEqual(['sa', 'sb']);
+  });
+});
+
+describe('table-tag exclusion', () => {
+
+  const schemaNames = ['sa', 'sb', 'sc'];
+  const tagsBySchema = new Map([['sa', ['system']], ['sb', []], ['sc', []]]);
+  const tablesByTag = new Map([['clickhouse', ['sb.stat_one', 'sc.stat_two']]]);
+
+  it('resolves a table tag to the tables it covers', () => {
+    const scope = resolveSchemaTagScope(schemaNames, tagsBySchema,
+      { includeTags: [], excludeTags: ['clickhouse'], tagMode: 'ANY' }, tablesByTag);
+
+    expect(scope.excludedSchemas).toEqual([]);
+    expect(scope.excludedTables).toEqual(['sb.stat_one', 'sc.stat_two']);
+  });
+
+  it('a schema tag and a table tag excluded together resolve to both lists', () => {
+    const scope = resolveSchemaTagScope(schemaNames, tagsBySchema,
+      { includeTags: [], excludeTags: ['system', 'clickhouse'], tagMode: 'ANY' }, tablesByTag);
+
+    expect(scope.excludedSchemas).toEqual(['sa']);
+    expect(scope.excludedTables).toEqual(['sb.stat_one', 'sc.stat_two']);
+  });
+
+  it('both reach the request, neither cancelling the other', () => {
+    const scope = resolveSchemaTagScope(schemaNames, tagsBySchema,
+      { includeTags: [], excludeTags: ['system', 'clickhouse'], tagMode: 'ANY' }, tablesByTag);
+    const request = buildSearchRequest(defaultSearchState(), scope, { limit: 50, offset: 0 });
+
+    expect(request.excludeSchemas).toEqual(['sa']);
+    expect(request.excludeTables).toEqual(['sb.stat_one', 'sc.stat_two']);
+  });
+
+  it('a tag on both schemas and tables contributes to both', () => {
+    const scope = resolveSchemaTagScope(schemaNames, new Map([['sa', ['both']]]),
+      { includeTags: [], excludeTags: ['both'], tagMode: 'ANY' },
+      new Map([['both', ['sb.t']]]));
+
+    expect(scope.excludedSchemas).toEqual(['sa']);
+    expect(scope.excludedTables).toEqual(['sb.t']);
+  });
+
+  it('two tags covering the same table list it once', () => {
+    const scope = resolveSchemaTagScope(schemaNames, tagsBySchema,
+      { includeTags: [], excludeTags: ['a', 'b'], tagMode: 'ANY' },
+      new Map([['a', ['sb.shared']], ['b', ['sb.shared', 'sc.only']]]));
+
+    expect(scope.excludedTables).toEqual(['sb.shared', 'sc.only']);
+  });
+
+  it('omitting the table map leaves table exclusion empty, which is what include-only needs', () => {
+    const scope = resolveSchemaTagScope(schemaNames, tagsBySchema,
+      { includeTags: [], excludeTags: ['clickhouse'], tagMode: 'ANY' });
+
+    expect(scope.excludedTables).toEqual([]);
+  });
+
+  it('survives the URL round trip alongside a schema tag', () => {
+    const state = defaultSearchState();
+    state.schemaTagFilter = { includeTags: [], excludeTags: ['system', 'clickhouse'], tagMode: 'ANY' };
+    const query = new URLSearchParams(encodeSearchParams(state)).toString();
+    const back = new URLSearchParams(query);
+    const decoded = decodeSearchParams({
+      get: (name: string) => back.get(name),
+      has: (name: string) => back.has(name)
+    });
+
+    expect(decoded.schemaTagFilter.excludeTags).toEqual(['system', 'clickhouse']);
+
+    // and the decoded intent still resolves to both exclusion lists
+    const request = buildSearchRequest(decoded,
+      resolveSchemaTagScope(schemaNames, tagsBySchema, decoded.schemaTagFilter, tablesByTag),
+      { limit: 50, offset: 0 });
+    expect(request.excludeSchemas).toEqual(['sa']);
+    expect(request.excludeTables).toEqual(['sb.stat_one', 'sc.stat_two']);
   });
 });

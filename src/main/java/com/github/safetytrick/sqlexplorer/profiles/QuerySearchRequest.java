@@ -43,6 +43,13 @@ public record QuerySearchRequest(
     List<String> tables,
     /** ANY = query references any selected table; ALL = it references all of them. */
     TableMode tableMode,
+    /**
+     * Normalized {@code schema.table} keys; a query that references any of
+     * these is excluded. The table-level twin of {@link #excludeSchemas()},
+     * and applied the same way — exclusion wins over any include, and it
+     * applies whether or not {@link #tables()} narrows the search.
+     */
+    List<String> excludeTables,
     Flag fullScan,
     Flag tmpTable,
     Flag tmpDisk,
@@ -120,5 +127,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null);
+        null, null, null, null, null, null);
 }

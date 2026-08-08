@@ -204,6 +204,17 @@ public class QuerySearchService {
 
     /** ANY = references any selected table; ALL = references all of them. Empty = unconstrained. */
     private static boolean matchesTables(QuerySearchRequest r, Set<String> tableKeys) {
+        // exclusion is checked before the "no tables selected" short circuit,
+        // exactly as matchesSchemas does: excluding a table has to work on
+        // its own, and the common case is no table selection at all
+        if (r.excludeTables() != null && !r.excludeTables().isEmpty()) {
+            boolean touchesExcluded = r.excludeTables().stream()
+                .map(t -> t.toLowerCase(Locale.ROOT))
+                .anyMatch(tableKeys::contains);
+            if (touchesExcluded) {
+                return false;
+            }
+        }
         if (r.tables() == null || r.tables().isEmpty()) {
             return true;
         }

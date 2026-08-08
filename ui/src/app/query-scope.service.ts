@@ -28,11 +28,13 @@ export interface SchemaTagFilter {
 export interface SchemaTagScope {
   includedSchemas: string[] | null;
   excludedSchemas: string[];
+  /** `schema.table` keys covered by an excluded *table* tag. */
+  excludedTables: string[];
 }
 
 const EMPTY_FACETS: QueryFacets = { tables: {}, schemas: {} };
 const EMPTY_TAG_FILTER: SchemaTagFilter = { includeTags: [], excludeTags: [], tagMode: 'ANY' };
-const EMPTY_TAG_SCOPE: SchemaTagScope = { includedSchemas: null, excludedSchemas: [] };
+const EMPTY_TAG_SCOPE: SchemaTagScope = { includedSchemas: null, excludedSchemas: [], excludedTables: [] };
 
 /**
  * Shared state linking the schema tree and the queries workbench. The workbench
@@ -129,7 +131,8 @@ export class QueryScopeService {
   publishSchemaTagScope(scope: SchemaTagScope): void {
     this.schemaTagScope$.next({
       includedSchemas: scope.includedSchemas === null ? null : [...scope.includedSchemas],
-      excludedSchemas: [...scope.excludedSchemas]
+      excludedSchemas: [...scope.excludedSchemas],
+      excludedTables: [...scope.excludedTables]
     });
   }
 

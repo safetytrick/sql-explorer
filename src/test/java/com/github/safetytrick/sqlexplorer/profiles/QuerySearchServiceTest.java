@@ -287,6 +287,43 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void excludeTablesDropsQueriesThatReferenceAnyExcludedTable() {
+        repositoryReturns(
+            withTables("orders", "app.orders"),
+            withTables("audit", "app.audit_log"),
+            withTables("cross", "app.orders", "app.audit_log"));
+
+        // on its own, with no table selection at all — the case that catches
+        // the exclusion being checked after the "nothing selected" short circuit
+        assertThat(searchIds(request().excludeTables(List.of("app.audit_log")).build()))
+            .containsExactly("orders");
+        // case-insensitive, like every other scope key
+        assertThat(searchIds(request().excludeTables(List.of("APP.AUDIT_LOG")).build()))
+            .containsExactly("orders");
+        // exclusion beats an include naming the same table
+        assertThat(searchIds(request()
+            .tables(List.of("app.audit_log")).excludeTables(List.of("app.audit_log")).build()))
+            .isEmpty();
+    }
+
+    @Test
+    void schemaAndTableExclusionsBothApply() {
+        repositoryReturns(
+            withTables("orders", "app.orders"),
+            withTables("audit", "app.audit_log"),
+            withTables("billing", "billing.invoices"));
+
+        assertThat(searchIds(request().excludeSchemas(List.of("billing")).build()))
+            .containsExactlyInAnyOrder("orders", "audit");
+        assertThat(searchIds(request().excludeTables(List.of("app.audit_log")).build()))
+            .containsExactlyInAnyOrder("orders", "billing");
+        // together they are additive — each drops its own, neither cancels the other
+        assertThat(searchIds(request()
+            .excludeSchemas(List.of("billing")).excludeTables(List.of("app.audit_log")).build()))
+            .containsExactly("orders");
+    }
+
+    @Test
     void facetsCountEachTableOncePerProfileOverTheNonScopeSet() {
         repositoryReturns(
             withTables("orders", "app.orders", "app.orders"), // self-join lists a table twice
@@ -460,7 +497,7 @@ class QuerySearchServiceTest {
         private DateRange lastSeen;
         private List<String> tags;
         private TagMode tagMode;
-        private List<String> schemas, excludeSchemas, tables;
+        private List<String> schemas, excludeSchemas, tables, excludeTables;
         private TableMode tableMode;
         private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
@@ -478,6 +515,7 @@ class QuerySearchServiceTest {
         RequestBuilder tagMode(TagMode v) { this.tagMode = v; return this; }
         RequestBuilder schemas(List<String> v) { this.schemas = v; return this; }
         RequestBuilder excludeSchemas(List<String> v) { this.excludeSchemas = v; return this; }
+        RequestBuilder excludeTables(List<String> v) { this.excludeTables = v; return this; }
         RequestBuilder tables(List<String> v) { this.tables = v; return this; }
         RequestBuilder tableMode(TableMode v) { this.tableMode = v; return this; }
         RequestBuilder untaggedOnly(Boolean v) { this.untaggedOnly = v; return this; }
@@ -496,7 +534,7 @@ class QuerySearchServiceTest {
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
-                schemas, excludeSchemas, tables, tableMode,
+                schemas, excludeSchemas, tables, tableMode, excludeTables,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
                 analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);

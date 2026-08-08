@@ -172,21 +172,32 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
 }
 
 /** No tag constraints: `includedSchemas: null` = unconstrained. */
-export const UNCONSTRAINED_TAG_SCOPE: SchemaTagScope = { includedSchemas: null, excludedSchemas: [] };
+export const UNCONSTRAINED_TAG_SCOPE: SchemaTagScope =
+  { includedSchemas: null, excludedSchemas: [], excludedTables: [] };
 
 /**
- * Resolve the schema-tag filter to schema name lists (the schema tree's
- * logic, shared so the graph resolves a link identically). Names and map
- * keys are lower-cased normalized schema names.
+ * Resolve the tag filter to the name lists the backend filters on (the schema
+ * tree's logic, shared so the graph resolves a link identically). Schema names
+ * and map keys are lower-cased normalized names.
+ *
+ * A tag can sit on schemas, on tables, or on both, and the two resolve to
+ * different request fields — `excludeSchemas` and `excludeTables`. Excluding a
+ * tag means "drop everything it marks", so a tag on both contributes to both
+ * lists. `tablesByTag` is tag → `schema.table` keys; omit it and only the
+ * schema half resolves, which is all an *include* filter uses.
  */
 export function resolveSchemaTagScope(schemaNames: string[],
                                       tagsBySchema: Map<string, string[]>,
-                                      filter: SchemaTagFilter): SchemaTagScope {
+                                      filter: SchemaTagFilter,
+                                      tablesByTag?: Map<string, string[]>): SchemaTagScope {
   const excluded = filter.excludeTags.length
     ? schemaNames.filter(name => {
         const tags = tagsBySchema.get(name) ?? [];
         return filter.excludeTags.some(tag => tags.includes(tag));
       })
+    : [];
+  const excludedTables = tablesByTag
+    ? [...new Set(filter.excludeTags.flatMap(tag => tablesByTag.get(tag) ?? []))]
     : [];
   let included: string[] | null = null;
   if (filter.includeTags.length) {
@@ -200,7 +211,7 @@ export function resolveSchemaTagScope(schemaNames: string[],
         : filter.includeTags.some(tag => tags.includes(tag));
     });
   }
-  return { includedSchemas: included, excludedSchemas: excluded };
+  return { includedSchemas: included, excludedSchemas: excluded, excludedTables };
 }
 
 /**
@@ -228,6 +239,7 @@ export function buildSearchRequest(state: SearchUrlState,
     untaggedOnly: state.untaggedOnly || null,
     schemas: resolveRequestSchemas(state.scope.schemas, tagScope.includedSchemas),
     excludeSchemas: tagScope.excludedSchemas.length ? tagScope.excludedSchemas : null,
+    excludeTables: tagScope.excludedTables.length ? tagScope.excludedTables : null,
     tables: state.scope.tables.length ? state.scope.tables : null,
     tableMode: state.scope.tableMode,
     fullScan: flag(state.fullScan),

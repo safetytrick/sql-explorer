@@ -1,6 +1,6 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {RouterLink, RouterLinkActive} from '@angular/router';
-import {Subscription} from 'rxjs';
+import {forkJoin, Subscription} from 'rxjs';
 import {SchemaLensService, SchemaNode} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {QueryFacets, TagMode} from '../query-search.service';
@@ -8,6 +8,7 @@ import {QueryScopeService, tableKey} from '../query-scope.service';
 import {filterSchemaTree, TypeFilter, inertTags} from './tree-filter';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
+import {resolveSchemaTagScope} from '../search-url';
 
 @Component({
   selector: 'app-schema-tree',
@@ -32,6 +33,10 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
   private tagsBySchema = new Map<string, string[]>();
   /** Known schema-type tag names for suggestions. */
   private schemaTagNames: string[] = [];
+  /** tag → the `schema.table` keys it covers; drives table-tag exclusion. */
+  private tablesByTag = new Map<string, string[]>();
+  /** Known table-type tag names, also offered as exclusion suggestions. */
+  private tableTagNames: string[] = [];
 
   includeInput = '';
   excludeInput = '';
@@ -97,6 +102,31 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     this.analyzedSqlService.getTagsByType('schema').subscribe(names => {
       this.schemaTagNames = names;
     });
+    this.loadTableTags();
+  }
+
+  /**
+   * tag → the `schema.table` keys it covers. Resolved per tag through the
+   * tables-by-tag endpoint rather than by asking for every table's tags:
+   * table tags are few, tables are thousands.
+   */
+  private loadTableTags() {
+    this.analyzedSqlService.getTagsByType('table').subscribe(names => {
+      this.tableTagNames = names;
+      if (!names.length) {
+        this.tablesByTag = new Map();
+        this.publishTagScope();
+        return;
+      }
+      forkJoin(names.map(name => this.analyzedSqlService.getTablesByTag(name))).subscribe({
+        next: perTag => {
+          this.tablesByTag = new Map(names.map((name, index) =>
+            [name, perTag[index].map(table => tableKey(table.schema, table.name))]));
+          this.publishTagScope();
+        },
+        error: error => console.error('table tag load failed; table tags will not exclude', error)
+      });
+    });
   }
 
   private loadSchemaTags(schemas: SchemaNode[]) {
@@ -140,22 +170,33 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Tags in the filter that no schema carries. This filter resolves tags to
-   * schemas, so a table-level tag (or a typo) changes nothing — flagged in the
-   * chip rather than left to look like a filter that silently failed.
+   * Inertness is asymmetric, because the two filters reach different things.
+   * Exclusion drops both tagged schemas and tagged tables, so an exclude chip
+   * is only dead if the tag marks neither. Include narrows *schemas* only, so
+   * a table tag there still does nothing and must keep saying so — the point
+   * is never to show a chip that looks active but cannot be.
    */
-  get inertTagNames(): Set<string> {
-    return inertTags([...this.includeTags, ...this.excludeTags], this.tagsBySchema);
+  isInertTag(name: string): boolean {
+    return this.isInertExcludeTag(name) || (this.includeTags.includes(name) && this.isInertIncludeTag(name));
   }
 
-  isInertTag(name: string): boolean {
-    return this.inertTagNames.has(name);
+  private isInertIncludeTag(name: string): boolean {
+    return inertTags([name], { tagsBySchema: this.tagsBySchema }).has(name);
+  }
+
+  private isInertExcludeTag(name: string): boolean {
+    return this.excludeTags.includes(name)
+      && inertTags([name], { tagsBySchema: this.tagsBySchema, tablesByTag: this.tablesByTag }).has(name);
   }
 
   /** Why a chip is inert, shown on hover. */
   inertReason(name: string): string {
-    return `no schema is tagged "${name}" — this filter matches schema tags only, `
-      + 'so a tag applied to tables has no effect here';
+    if (this.excludeTags.includes(name)) {
+      return `nothing is tagged "${name}" — no schema and no table carries it, `
+        + 'so this exclusion cannot drop anything';
+    }
+    return `no schema is tagged "${name}" — including narrows schemas only, `
+      + 'so a table tag has no effect here (it does work as an exclusion)';
   }
 
   /** Anything set in the filter panel (tags or type) lights the toggle. */
@@ -185,33 +226,18 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     // the schemaTagFilter$ subscription in ngOnInit resolves + publishes
   }
 
-  /** Resolve include/exclude tag filters to schema name lists for the queries workbench. */
+  /**
+   * Resolve the tag filter to the lists the workbench sends. This used to be a
+   * copy of `resolveSchemaTagScope`, kept in step by hand with the graph
+   * page's copy; it now calls it, so a shared link and the sidebar cannot
+   * disagree about what a tag means.
+   */
   private publishTagScope() {
-    const schemaNames = this.schemas.map(schema => schema.name.toLowerCase());
-    const excluded = this.excludeTags.length
-      ? schemaNames.filter(name => {
-          const tags = this.tagsBySchema.get(name) ?? [];
-          return this.excludeTags.some(tag => tags.includes(tag));
-        })
-      : [];
-
-    let included: string[] | null = null;
-    if (this.includeTags.length) {
-      included = schemaNames.filter(name => {
-        if (excluded.includes(name)) {
-          return false;
-        }
-        const tags = this.tagsBySchema.get(name) ?? [];
-        return this.tagMode === 'ALL'
-          ? this.includeTags.every(tag => tags.includes(tag))
-          : this.includeTags.some(tag => tags.includes(tag));
-      });
-    }
-
-    this.queryScopeService.publishSchemaTagScope({
-      includedSchemas: included,
-      excludedSchemas: excluded
-    });
+    this.queryScopeService.publishSchemaTagScope(resolveSchemaTagScope(
+      this.schemas.map(schema => schema.name.toLowerCase()),
+      this.tagsBySchema,
+      { includeTags: this.includeTags, excludeTags: this.excludeTags, tagMode: this.tagMode },
+      this.tablesByTag));
   }
 
   // ── include / exclude chips ──
@@ -223,15 +249,17 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
 
   onExcludeInput(value: string) {
     this.excludeInput = value;
-    this.excludeSuggestions = this.suggestTags(value, this.excludeTags, this.includeTags);
+    // exclusion reaches tables as well as schemas, so offer both tag families
+    this.excludeSuggestions = this.suggestTags(
+      value, this.excludeTags, this.includeTags, [...this.schemaTagNames, ...this.tableTagNames]);
   }
 
-  private suggestTags(text: string, already: string[], other: string[]): string[] {
+  private suggestTags(text: string, already: string[], other: string[], pool = this.schemaTagNames): string[] {
     const needle = text.trim().toLowerCase();
     if (!needle) {
       return [];
     }
-    return this.schemaTagNames
+    return [...new Set(pool)]
       .filter(name => !already.includes(name) && !other.includes(name))
       .filter(name => name.toLowerCase().includes(needle))
       .slice(0, 8);

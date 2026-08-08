@@ -38,6 +38,7 @@ export interface QuerySearchRequest {
   excludeSchemas?: string[] | null;
   tables?: string[] | null;        // normalized "schema.table" keys
   tableMode?: TableMode | null;
+  excludeTables?: string[] | null; // normalized "schema.table" keys, dropped from results
   fullScan?: Flag | null;
   tmpTable?: Flag | null;
   tmpDisk?: Flag | null;

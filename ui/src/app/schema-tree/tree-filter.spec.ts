@@ -173,17 +173,17 @@ describe('inertTags', () => {
   const tagsBySchema = new Map([['sa', ['schema-tag']], ['sb', []]]);
 
   it('flags a tag no schema carries', () => {
-    expect([...inertTags(['schema-tag', 'table-only-tag'], tagsBySchema)]).toEqual(['table-only-tag']);
+    expect([...inertTags(['schema-tag', 'table-only-tag'], { tagsBySchema })]).toEqual(['table-only-tag']);
   });
 
   it('flags a typo the same way', () => {
-    expect(inertTags(['schema-taag'], tagsBySchema).has('schema-taag')).toBe(true);
+    expect(inertTags(['schema-taag'], { tagsBySchema }).has('schema-taag')).toBe(true);
   });
 
   it('flags nothing while the tag map is still empty', () => {
     // first paint, before the tags request lands — flagging here would mark
     // every chip inert for a moment
-    expect([...inertTags(['schema-tag', 'anything'], new Map())]).toEqual([]);
+    expect([...inertTags(['schema-tag', 'anything'], { tagsBySchema: new Map() })]).toEqual([]);
   });
 
   it('an inert exclude tag genuinely changes nothing, which is why it is flagged', () => {
@@ -196,5 +196,42 @@ describe('inertTags', () => {
       { needle: '', typeFilter: 'all', tagsBySchema,
         tagFilter: { includeTags: [], excludeTags: ['table-only-tag'], tagMode: 'ANY' } });
     expect(after).toEqual(before);
+  });
+});
+
+describe('inertTags with table tags', () => {
+
+  const tagsBySchema = new Map([['sa', ['schema-tag']], ['sb', []]]);
+  const tablesByTag = new Map([['table-tag', ['sa.orders', 'sb.audit']], ['empty-tag', []]]);
+
+  it('a table tag is NOT inert for exclusion — exclusion reaches tables', () => {
+    expect(inertTags(['table-tag'], { tagsBySchema, tablesByTag }).has('table-tag')).toBe(false);
+  });
+
+  it('a table tag IS still inert for include — including narrows schemas only', () => {
+    expect(inertTags(['table-tag'], { tagsBySchema }).has('table-tag')).toBe(true);
+  });
+
+  it('a genuinely dead tag stays inert either way', () => {
+    expect(inertTags(['ghost'], { tagsBySchema, tablesByTag }).has('ghost')).toBe(true);
+    expect(inertTags(['ghost'], { tagsBySchema }).has('ghost')).toBe(true);
+  });
+
+  it('a tag whose table list came back empty is inert', () => {
+    expect(inertTags(['empty-tag'], { tagsBySchema, tablesByTag }).has('empty-tag')).toBe(true);
+  });
+
+  it('a schema tag stays active', () => {
+    expect(inertTags(['schema-tag'], { tagsBySchema, tablesByTag }).has('schema-tag')).toBe(false);
+  });
+
+  it('nothing is inert while both carriers are still empty', () => {
+    expect([...inertTags(['anything'], { tagsBySchema: new Map(), tablesByTag: new Map() })]).toEqual([]);
+  });
+
+  it('table tags alone are enough to leave the loading state', () => {
+    // schema tags may legitimately be absent; the table map having loaded
+    // means we can already tell a dead tag from a live one
+    expect([...inertTags(['ghost'], { tagsBySchema: new Map(), tablesByTag })]).toEqual(['ghost']);
   });
 });

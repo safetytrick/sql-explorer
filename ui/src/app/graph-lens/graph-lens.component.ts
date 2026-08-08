@@ -1,12 +1,13 @@
 import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import {map, of, Subscription, switchMap} from 'rxjs';
+import {forkJoin, map, of, Subscription, switchMap} from 'rxjs';
 import {GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
 import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, graphOwnedParamPatch, GraphSource} from './graph-url';
+import {tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 
 const NW = 130;
@@ -210,14 +211,25 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadSearchGraph() {
     const state = decodeSearchParams(this.route.snapshot.queryParamMap);
     const filter = state.schemaTagFilter;
+    // exclusion reaches tagged tables as well as tagged schemas, so a shared
+    // link has to resolve both halves — otherwise the same params mean one
+    // thing on /queries and another here
+    const tablesByTag$ = filter.excludeTags.length
+      ? forkJoin(filter.excludeTags.map(tag => this.analyzedSqlService.getTablesByTag(tag))).pipe(
+          map(perTag => new Map<string, string[]>(filter.excludeTags.map((tag, index) =>
+            [tag, perTag[index].map(table => tableKey(table.schema, table.name))]))))
+      : of(new Map<string, string[]>());
     const tagScope$ = filter.includeTags.length || filter.excludeTags.length
       ? this.schemaLensService.getSchemaTree().pipe(switchMap(tree => {
           const names = tree.schemas.map(schema => schema.name.toLowerCase());
           const paths = tree.schemas.map(schema => '/schema/' + schema.name);
-          return this.analyzedSqlService.getTagsForPaths(paths).pipe(map(byPath => {
+          return forkJoin({
+            byPath: this.analyzedSqlService.getTagsForPaths(paths),
+            tablesByTag: tablesByTag$
+          }).pipe(map(({ byPath, tablesByTag }) => {
             const tagsBySchema = new Map<string, string[]>(tree.schemas.map(schema =>
               [schema.name.toLowerCase(), (byPath['/schema/' + schema.name] ?? []).map(tag => tag.name)]));
-            return resolveSchemaTagScope(names, tagsBySchema, filter);
+            return resolveSchemaTagScope(names, tagsBySchema, filter, tablesByTag);
           }));
         }))
       : of(UNCONSTRAINED_TAG_SCOPE);

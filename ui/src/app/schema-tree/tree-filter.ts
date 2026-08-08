@@ -37,29 +37,43 @@ export function matchesTagFilter(schemaTags: string[], filter: TagFilterState): 
 }
 
 /**
- * Tags in the filter that no schema carries, so they cannot change anything.
- *
- * This filter is **schema-level**: it resolves tags through the schema→tags
- * map. A tag that exists but is applied to *tables* (or a name with a typo)
- * resolves to no schemas at all, so excluding it silently does nothing while
- * the chip sits there looking active — the symptom being "I excluded two tags
- * and only the first one took effect". Callers mark these chips so the no-op
- * is visible rather than mistaken for a broken filter.
- *
- * An empty map means the tags simply haven't loaded yet; nothing is called
- * inert in that state, or every chip would be flagged on first paint.
+ * What a tag can act on. Include filters narrow schemas, so they only ever
+ * resolve through `tagsBySchema`; exclusion also works at table level, so it
+ * additionally consults `tablesByTag`. Passing only the schema map is
+ * therefore the correct call for an include chip, not an oversight.
  */
-export function inertTags(tags: string[], tagsBySchema: Map<string, string[]>): Set<string> {
-  if (!tagsBySchema.size) {
+export interface TagCarriers {
+  /** schema name (lower) → tags on that schema */
+  tagsBySchema: Map<string, string[]>;
+  /** tag → the `schema.table` keys it covers; exclusion only */
+  tablesByTag?: Map<string, string[]>;
+}
+
+/**
+ * Tags the given carriers cannot act on, so they cannot change anything.
+ *
+ * A tag that matches neither a schema nor (for exclusion) a table is a typo
+ * or a dead tag from a shared URL. Its chip has to say so: an inert chip that
+ * looks active is indistinguishable from a filter that silently failed, which
+ * is what "I excluded two tags and only the first one worked" turned out to
+ * be.
+ *
+ * Nothing is inert while every carrier is still empty — that is the loading
+ * state, and flagging there would mark every chip on first paint.
+ */
+export function inertTags(tags: string[], carriers: TagCarriers): Set<string> {
+  const tablesByTag = carriers.tablesByTag ?? new Map<string, string[]>();
+  if (!carriers.tagsBySchema.size && !tablesByTag.size) {
     return new Set();
   }
-  const carried = new Set<string>();
-  for (const schemaTags of tagsBySchema.values()) {
+  const carriedBySchema = new Set<string>();
+  for (const schemaTags of carriers.tagsBySchema.values()) {
     for (const tag of schemaTags) {
-      carried.add(tag);
+      carriedBySchema.add(tag);
     }
   }
-  return new Set(tags.filter(tag => !carried.has(tag)));
+  return new Set(tags.filter(tag =>
+    !carriedBySchema.has(tag) && !(tablesByTag.get(tag)?.length)));
 }
 
 export interface TreeFilterContext {
