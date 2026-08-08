@@ -58,20 +58,24 @@ public class ParquetSink {
     }
 
     /**
-     * Read the profiles back — the file must be {@link #close()}d first.
-     *
-     * <p>The reader refuses {@code @java-class} stringables unless they are
-     * named as trusted, and the profile schema is full of them: every latency
-     * on {@code RuntimeMetrics} and {@code MergedChild.averageTime} is a
-     * BigDecimal. Without this the read fails with "Forbidden
-     * java.math.BigDecimal", which is why nothing ever read this file back.
+     * Any reader of a profile file needs this. The reader refuses
+     * {@code @java-class} stringables unless they are named as trusted, and
+     * the profile schema is full of them: every latency on
+     * {@code RuntimeMetrics} and {@code MergedChild.averageTime} is a
+     * BigDecimal. Without it the read fails with "Forbidden
+     * java.math.BigDecimal" — which nothing had ever hit, because nothing
+     * had ever successfully read this file back.
      */
+    static PlainParquetConfiguration readerConfiguration() {
+        return new PlainParquetConfiguration(
+            Map.of("parquet.avro.serializable.classes", BigDecimal.class.getName()));
+    }
+
+    /** Read the profiles back — the file must be {@link #close()}d first. */
     public List<SqlProfile> readAll(Path parquetFile) throws IOException {
         List<SqlProfile> profiles = new ArrayList<>();
         try (ParquetReader<SqlProfile> parquetReader = AvroParquetReader.<SqlProfile>builder(
-                new LocalInputFile(parquetFile),
-                new PlainParquetConfiguration(
-                    Map.of("parquet.avro.serializable.classes", BigDecimal.class.getName())))
+                new LocalInputFile(parquetFile), readerConfiguration())
             .build()) {
 
             SqlProfile profile = parquetReader.read();

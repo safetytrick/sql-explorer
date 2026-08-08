@@ -20,9 +20,15 @@ a real file and reads it back:
 Manual smoke once it's deployed: find a query whose detail shows "merged N
 variants" (roughly 1 in 10 profiles in the regression corpus), open it, and
 check the per-variant repeat counts and the `differs` flag. Copy buttons sit
-on both digest boxes and every group row. Then **reload the source** and
-confirm the group is still there — that reload is the thing that never
-worked before, and the only way to exercise the parquet path end to end.
+on both digest boxes and every group row.
+
+On "durable": the **write** side is verified — the test writes a real
+parquet file and reads the group back. The production **read** path is
+`ParquetSqlRepository`, which nothing currently wires up; it was also
+passing a bare reader config and would have thrown "Forbidden
+java.math.BigDecimal" on the first profile, so it has never worked. That
+config is fixed, but a warm start from parquet is still untested end to
+end — there is no reload-from-parquet flow to smoke yet.
 
 Watch for: a merge group that looks short. Rows are processed on a
 work-stealing pool and `attemptMerge` races, so two rows sharing a digest

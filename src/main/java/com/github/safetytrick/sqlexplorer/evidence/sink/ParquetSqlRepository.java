@@ -82,7 +82,7 @@ public class ParquetSqlRepository implements SqlRepository {
 
         if (parquetFile.toFile().exists()) {
             try (ParquetReader<SqlProfile> parquetReader = AvroParquetReader.<SqlProfile>builder(
-                    new LocalInputFile(parquetFile), new PlainParquetConfiguration())
+                    new LocalInputFile(parquetFile), ParquetSink.readerConfiguration())
                 .withDataModel(SpecificData.getForClass(SqlProfile.class))
                 .build()) {
 
