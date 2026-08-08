@@ -6,7 +6,6 @@ M = 1–3 days, L = a week+.
 
 | Plan                                     | Item                                                                                                    | Effort            |
 |------------------------------------------|---------------------------------------------------------------------------------------------------------|-------------------|
-| [repeat-merge-ui.md](repeat-merge-ui.md) | Visualize normalization merges: perf-schema digest link, per-child repeat differences                   | M                 |
 | [legacy-ui.md](legacy-ui.md)             | Update legacy UI pages to new formatting / finish the lens migration                                    | M–L               |
 | [history-rewrite.md](history-rewrite.md) | Scrub older git history (working-tree scrub already done)                                               | S + coordination  |
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
@@ -18,15 +17,22 @@ Supporting plan (not a WORK_TODO item, feeds the normalizer follow-ups):
 Completed plans are removed from the tree (their full content lives in
 git history): views-vs-tables, parser-test-framework, secret-scrub,
 normalizer, graph-generalization, gradle-docker-cleanup,
-tag-widget-cleanup. Newly completed, still in the tree with a status
-block until the next docs commit: graph-url-state (v1 presentation
-params + v2 shareable search handoff).
+tag-widget-cleanup, graph-url-state. Newly completed, still in the tree
+with a status block until the next docs commit: repeat-merge-ui (merge
+groups persisted to parquet + the workbench expander; its status block
+also corrects three premises the plan had wrong, which is why it is worth
+reading before the next plan is written).
+
+Note: repeat-merge-ui turned out **not** to require
+[normalization-versioning.md](normalization-versioning.md) — normalizer
+`VERSION` governs digest identity, and surfacing already-computed repeat
+data behind a defaulted Avro field re-keys nothing. That plan stands on
+its own and is unscheduled.
 
 ## Suggested order
 
-**repeat-merge-ui** (the substantial new feature; coordinate with
-normalization-versioning) → **legacy-ui** (rolling background work) →
-**history-rewrite** (one coordinated cutover, any time).
+**legacy-ui** (rolling background work) → **history-rewrite** (one
+coordinated cutover, any time).
 
 **mcp-server** and **explain-parser** sit at the bottom deliberately:
 both are shipped and awaiting Michael's hands-on testing before the items

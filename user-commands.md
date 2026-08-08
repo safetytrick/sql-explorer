@@ -1,5 +1,34 @@
 # Commands to run locally
 
+## Merge groups: persisted and shown (2026-08-07)
+
+Verified natively here — backend 192 tests / 0 failures, UI 103/103, lint
+clean. Docker was down, so **nothing was rebuilt or deployed**; a container
+build is still owed before this reaches a running instance:
+
+```bash
+./gradlew cleanTest test && cd ui && npm run test:ci
+```
+
+The parquet claim is covered by `MergeGroupPersistenceTest`, which writes
+a real file and reads it back:
+
+```bash
+./gradlew test --tests 'com.github.safetytrick.sqlexplorer.evidence.MergeGroupPersistenceTest'
+```
+
+Manual smoke once it's deployed: find a query whose detail shows "merged N
+variants" (roughly 1 in 10 profiles in the regression corpus), open it, and
+check the per-variant repeat counts and the `differs` flag. Copy buttons sit
+on both digest boxes and every group row. Then **reload the source** and
+confirm the group is still there — that reload is the thing that never
+worked before, and the only way to exercise the parquet path end to end.
+
+Watch for: a merge group that looks short. Rows are processed on a
+work-stealing pool and `attemptMerge` races, so two rows sharing a digest
+can each become a representative; the display still groups them but the
+persisted group misses one. Pre-existing, not introduced here.
+
 ## MCP tag writes (2026-08-07)
 
 `add_tag` / `remove_tag` shipped — 18 tools now, and the server is no

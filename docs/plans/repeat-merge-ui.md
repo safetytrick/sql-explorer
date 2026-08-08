@@ -1,64 +1,85 @@
 # UI visualization of normalization merges and repeats
 
-Follow-up to the normalizer work (repeat collapsing before hashing —
-shipped; see git history of `normalizer.md`). WORK_TODO asks for: a link
-directly to the performance-schema digest, and showing the repeat
-difference for each merged child.
+> **Status: implemented 2026-08-07.** Michael's calls on the two open
+> decisions: **persist** the group (Avro field, durable through parquet,
+> not in-memory), and a **self-contained copy button** for the digest —
+> the legacy `grafana.local` / `rundeck.local` machinery in
+> `SqlGraphService` stays untouched and no per-environment URL config was
+> added. Shipped as `MergedChild` + `SqlProfile.mergedChildren`,
+> merge-time capture in `SqlEvidenceInputService`, and a "merged N
+> variants" expander plus copy buttons in the workbench detail.
 
-## Current state
+## What the original plan got wrong
 
-- **Merge groups exist but are invisible.** When a query's normalized
-  digest matches an earlier profile, `SqlRepositoryBuilder.attemptMerge`
-  folds it in; the merged children's MySQL digests accumulate in
-  `RuntimeMetrics.digestList` (`models/src/main/avro/SqlExplorer.avdl:60`,
-  populated via `RuntimeMetrics` merging). The frontend type carries it
-  (`ui/src/app/api-types.ts:55` `digestList: string[]`) but **nothing
-  renders it** — a user can't see that a profile represents N merged
-  performance-schema digests.
-- **Repeat metadata is rendered** for the kept representative: the
-  workbench detail shows "collapsed repeats" chips from
-  `SqlProfile.repeatedBlocks` (offsets + ×count into the displayed
-  normalized SQL). But the *per-child* repeat difference (child A had ×12,
-  child B ×10 of the same block) is not stored — merging happens before the
-  children's own repeat counts are kept (`attemptMerge` returns before
-  normalization metadata for the child is recorded, and only the first
-  profile's `repeatedBlocks` persist).
-- **No performance-schema digest link.** The profile's own `digest` (MySQL
-  statement digest) renders nowhere as a copyable/linkable value; digests
-  are only used as route ids (`/analyzed-sql/:digest`).
+This section is kept because the plan's *Current state* misdescribed the
+code, and the corrections are what shaped the implementation.
 
-## Proposed approach
+- **"Merged children aren't stored" — they were.** `attemptMerge` builds
+  the child profile and calls `addToIndex`, so every child was already in
+  `digestAnalyzedSqlRepository` under the shared normalized digest, and
+  `MergedSqlProfile` already wrapped the group as `sourceList`. The
+  children were full `SqlProfile`s with their own `RuntimeMetrics` — so
+  the per-child *metrics* the plan treated as an open question were free
+  all along, and the new Avro record only had to carry a slim view.
+- **"The digest renders nowhere" — it did.** The detail pane already
+  showed `digest` (labeled `perf_schema`) and `normalizedDigest`. What was
+  missing was a copy affordance, not the rendering. There was also more
+  precedent than the plan knew: `SqlGraphService` already builds a Grafana
+  `var-digest=` URL and a Rundeck job running exactly the
+  `events_statements_summary_by_digest` query the plan proposed writing —
+  against hardcoded hosts. That reframed the decision as "promote those to
+  per-environment config" vs "self-contained copy", and the copy won.
+- **"Bumps the normalizer version story" — it doesn't.** Normalizer
+  `VERSION` is about *digest identity*; this change never touches
+  `QueryNormalizer`, it only surfaces what the normalizer already computed.
+  Adding a defaulted Avro field re-keys nothing.
+  [normalization-versioning.md](normalization-versioning.md) is
+  independent of this work and stays deferred.
+- **Two things the plan didn't know.** `SqlProfile.digest` is *not* the
+  MySQL digest — `complete()` overwrites it with the normalized digest, so
+  every member of a group reports the same value there and only
+  `RuntimeMetrics.digest` keeps the performance-schema one. And a merge
+  group's members are not one-per-digest: in the live corpus a profile had
+  22 members and a single distinct digest, which is why the UI counts
+  distinct digests.
 
-1. **Capture per-child repeat counts at merge time (backend, M).** In
-   `SqlEvidenceInputService.processRow`, compute `digestedQuery` *before*
-   the merge attempt (already done); on a successful merge, record the
-   child's digest + its repeats. Model: new Avro record
-   `MergedChild { string digest; array<RepeatedBlock> repeatedBlocks; long executed; }`
-   and `array<MergedChild> mergedChildren = []` on `SqlProfile`
-   (locate offsets against the kept display text so ×counts are
-   comparable). `digestList` stays for compatibility.
-2. **Render the merge group (frontend, M).** In the workbench detail (and
-   the full view), under the SQL: "merged N variants" expander listing each
-   child digest (`mono`, copy-to-clipboard) with its repeat chips —
-   highlighting where a child's ×count differs from the representative's.
-3. **Performance-schema digest link (S).** Render the profile's `digest`
-   as a copyable value with a "search performance_schema" affordance —
-   simplest useful form: a copy button plus a canned SQL snippet
-   (`select * from performance_schema.events_statements_summary_by_digest where digest = '…'`)
-   surfaced in a tooltip/expander, since the app can't link into MySQL
-   directly. If live-EXPLAIN-style opt-in server queries land later
-   (explain-parser plan), this could become a real drill-through.
+## What shipped
 
-## Open questions
+1. **Avro.** `MergedChild { digest, repeatedBlocks, executed, averageTime }`
+   and `array<MergedChild> mergedChildren = []` on `SqlProfile`, defaulted
+   so the schema stays compatible. Registered with the
+   `SpecificRecordBaseSerde` mixin — without it Jackson walks into the
+   generated `getSchema()` and truncates the response, the same bug the
+   `RepeatedBlock` mixin fixed.
+2. **Merge-time capture.** The normalized display text and its repeats are
+   now located *before* the merge check rather than after, so a child has
+   its own counts to contribute; offsets still line up because the whole
+   group normalizes to the same text. The child's MySQL digest is read off
+   its `RuntimeMetrics`.
+3. **Parquet.** The per-row write is gone. It serialized a representative
+   before any child had merged into it, and merged children returned before
+   the write entirely — so groups could not have survived a reload however
+   they were recorded. The builder tracks which profiles own a row
+   (representatives and ungrouped queries, never children) and writes them
+   once the load is complete. `ParquetSink.close()` no longer reads a
+   footer-less file and prints it to stdout, and `readAll` names BigDecimal
+   in `parquet.avro.serializable.classes` — without which the reader
+   rejects the profile schema's `@java-class` stringables, which is why
+   nothing had ever read the file back.
+4. **UI.** A "merged N variants" expander in the workbench detail, N being
+   distinct digests, with executions, execution-weighted average time, the
+   collapsed-repeat counts, and a `differs` flag where they diverge from
+   the representative. Copy buttons on the digest boxes and on every row.
 
-- Is "link directly to the performance schema digest" meant as the copyable
-  digest + query snippet (proposed), or as a live server-side lookup of
-  the digest row (needs the same opt-in decision as live EXPLAIN)?
-- Are per-child *metrics* (executions, avg time) wanted alongside the
-  repeat difference? `MergedChild.executed` is included in the proposal
-  since the data is at hand during merge.
-- Bumps the normalizer version story (new Avro fields, merge-time
-  behavior) — coordinate with
-  [normalization-versioning.md](normalization-versioning.md).
+## Known limitation (pre-existing, untouched)
 
-## Effort: M overall (backend capture + Avro + UI expander).
+Rows are processed on a work-stealing pool and `attemptMerge` checks
+`containsKey` without holding a lock across the representative's eventual
+`addToIndex`, so two rows sharing a normalized digest can both miss the
+check and each become a representative. `mergeByDigest` still groups them
+for display, but the persisted `mergedChildren` will be short. That race
+predates this work; the merge tests drive the builder seam directly rather
+than pretend it isn't there.
+
+## Effort: delivered at roughly S–M — smaller than the original M once the
+premises were corrected.

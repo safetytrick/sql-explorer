@@ -5,11 +5,6 @@
 
 ### Improve the explain plan parser
 
-### Normalize repeated sql blocks before normalized hashing
-
-Add UI visualization of this (provide a link directly to the performance schema digest, 
-show the repeat difference for the child)
-
 ### Clean all history so queries look anonymous
 
 Scrub older git history
@@ -22,6 +17,18 @@ higher level concept to link environments in a dev-test-prod way?
 ---
 
 ## Resolved
+
+### Normalize repeated sql blocks before normalized hashing
+
+Done 2026-08-07. Repeat collapsing shipped earlier; the UI half landed now
+as a "merged N variants" expander in the workbench detail — per-child
+repeat counts (flagged where they differ from the query shown), executions
+and weighted average time, N counting *distinct* perf_schema digests
+because a group's members often share one. The digest link became a
+self-contained copy button rather than a live lookup. The group is durable:
+new Avro `MergedChild` / `mergedChildren`, written to parquet once at the
+end of a load instead of per row, which is why groups never survived a
+reload before.
 
 ### Update the Graph UI to work on any query result or tag result
 
