@@ -1,12 +1,15 @@
 import {Component, Input} from '@angular/core';
 import { ClusterNode, Edge, Layout, Node, GraphModule } from '@swimlane/ngx-graph';
 import {Observable} from 'rxjs';
-import { GroupedTableRelationships, TableReference, TableRelationships } from '../api-types';
+import { GroupedTableRelationships, TableRef, TableRelationships } from '../api-types';
 
-/** Node id for a table reference: normalized "schema.table" (or bare table when unscoped). */
-function refKey(ref: TableReference): string {
-  const schema = ref.normalizedSchemaName ?? ref.schemaName;
-  return schema ? `${schema}.${ref.normalizedTableName}` : ref.normalizedTableName;
+/**
+ * Node id for a table reference. The backend already sends the normalized
+ * "schema.table" string, so the reference *is* the key — this used to rebuild
+ * it from object fields that never arrive, producing "undefined" node ids.
+ */
+function refKey(ref: TableRef): string {
+  return ref;
 }
 
 @Component({

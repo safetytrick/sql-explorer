@@ -9,6 +9,7 @@ import {TableLinkComponent} from '../table-link/table-link.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
 import {SmallTableViewComponent} from '../small-table-view/small-table-view.component';
 import {SqlProfile, TableStructure} from '../api-types';
+import {parseTableRef} from '../refs';
 
 @Component({
     selector: 'app-sql-view',
@@ -37,9 +38,13 @@ export class SqlViewComponent implements OnInit {
     this.sqlService.getSql(id).subscribe(data => {
       this.query = data;
       this.tables = [];
-      data.tables.forEach(ref => {
-        const schema = ref.schemaName ?? data.schemaName;
-        this.sqlService.getTableStructure(schema, ref.tableName).subscribe(tableStructure => {
+      // `tables` is a list of "schema.table" strings, not objects — reading
+      // `.tableName` off them fetched /metadata/table/<schema>/undefined, so
+      // this panel was always empty
+      data.tables.forEach(tableRef => {
+        const ref = parseTableRef(tableRef);
+        const schema = ref.schema ?? data.schemaName;
+        this.sqlService.getTableStructure(schema, ref.table).subscribe(tableStructure => {
           // the metadata endpoint returns an empty body for tables the loaded
           // schema doesn't know (dropped tables, other servers, misextracted
           // references) — those have nothing to render
@@ -49,7 +54,7 @@ export class SqlViewComponent implements OnInit {
           }
         });
       });
-      this.titleService.setTitle('sql: ' + data.tables.map(ref => ref.tableName).join(', '));
+      this.titleService.setTitle('sql: ' + data.tables.map(ref => parseTableRef(ref).table).join(', '));
     });
   }
 }

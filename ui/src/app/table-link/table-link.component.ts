@@ -1,5 +1,6 @@
 import {Component, Input, OnInit} from '@angular/core';
 import { RouterLink } from '@angular/router';
+import {parseTableRef, TableRef} from '../refs';
 
 @Component({
     selector: 'app-table-link',
@@ -59,16 +60,15 @@ export class TableLinkComponent implements OnInit {
     this._defaultSchema = schema;
   }
 
+  /**
+   * A `"schema.table"` reference as the backend serializes it. Parsed right to
+   * left, so a schema containing a dot doesn't shift the table out of place.
+   */
   @Input()
-  set tableReference(ref: string) {
-    const pair = ref.split('.');
-    if (pair.length > 1) {
-      this._schema = pair[0];
-      this._table = pair[1];
-    } else {
-      this._schema = this._defaultSchema;
-      this._table = pair[0];
-    }
+  set tableReference(ref: TableRef) {
+    const parsed = parseTableRef(ref);
+    this._schema = parsed.schema ?? this._defaultSchema;
+    this._table = parsed.table;
   }
 
   constructor() { }

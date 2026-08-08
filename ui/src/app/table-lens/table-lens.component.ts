@@ -11,6 +11,7 @@ import {
 } from '../schema-lens.service';
 import {DurationPipe} from '../duration.pipe';
 import {TagViewComponent} from '../tag-view/tag-view.component';
+import {parseColumnRef, parseTableRef} from '../refs';
 
 @Component({
   selector: 'app-table-lens',
@@ -63,12 +64,19 @@ export class TableLensComponent implements OnInit {
       .subscribe(structure => {
         this.indexes = structure?.indices || [];
         this.isView = structure?.type?.toUpperCase() === 'VIEW';
+        // refs arrive as "schema.table" strings; the old object-shaped filter
+        // read undefined on both fields and dropped every one of them
         this.underlyingTables = (structure?.underlyingTables || [])
-          .filter(ref => ref.normalizedSchemaName && ref.normalizedTableName)
-          .map(ref => ({ schema: ref.normalizedSchemaName as string, table: ref.normalizedTableName }));
+          .map(ref => parseTableRef(ref))
+          .filter((ref): ref is { schema: string; table: string } => !!ref.schema && !!ref.table);
         this.viewLineage = new Map((structure?.viewColumns || [])
           .map(column => [column.name.toLowerCase(), column]));
       });
+  }
+
+  /** Split a lineage source string for display and linking. */
+  sourceParts(source: string): { schema: string | null; table: string | null; column: string } {
+    return parseColumnRef(source);
   }
 
   lineageFor(columnName: string): ViewColumnMeta | null {

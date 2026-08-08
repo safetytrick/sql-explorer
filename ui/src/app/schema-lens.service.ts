@@ -2,6 +2,7 @@ import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {QuerySearchRequest} from './query-search.service';
+import type {ColumnRef, TableRef} from './refs';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -79,10 +80,12 @@ export interface TableIndex {
   columns: string[];
 }
 
-export interface ViewColumnSource {
-  table: { normalizedSchemaName: string | null; normalizedTableName: string };
-  normalizedColumn: string;
-}
+/**
+ * A view column's source, as sent: a `"schema.table.column"` string. It was
+ * declared as an object, so every lineage link read `undefined` and the table
+ * lens rendered none of them. See refs.ts.
+ */
+export type ViewColumnSource = ColumnRef;
 
 /** One view output column and the base columns it derives from. */
 export interface ViewColumnMeta {
@@ -95,7 +98,7 @@ export interface ViewColumnMeta {
 export interface TableMeta {
   indices: TableIndex[];
   type: string | null;
-  underlyingTables: { normalizedSchemaName: string | null; normalizedTableName: string }[] | null;
+  underlyingTables: TableRef[] | null;
   viewColumns: ViewColumnMeta[] | null;
 }
 

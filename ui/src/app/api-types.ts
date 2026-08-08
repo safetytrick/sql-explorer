@@ -6,29 +6,21 @@
  * fields serialize as ISO strings.
  */
 import {SqlImportStats} from './environment.service';
+import type {ColumnRef, JoinPair, TableRef} from './refs';
 
 export { SqlImportStats };
+export type { ColumnRef, JoinPair, TableRef };
 
 export type QueryActivityStatus = 'ACTIVE' | 'DORMANT' | 'UNKNOWN';
 
-export interface TableReference {
-  schemaName: string | null;
-  tableName: string;
-  normalizedTableName: string;
-  normalizedSchemaName: string | null;
-}
-
-export interface ColumnReference {
-  table: TableReference;
-  column: string;
-  normalizedColumn: string;
-}
-
-export interface JoinColumns {
-  left: ColumnReference;
-  right: ColumnReference;
-  joinType: string | null;
-}
+/*
+ * `TableReference`, `ColumnReference` and `JoinColumns` used to be declared
+ * here as objects. They are not: `model/TableReferenceSerde` and its siblings
+ * serialize all three to strings, so the wire carries "schema.table",
+ * "schema.table.column" and ["left", "right"]. The object shapes are gone
+ * rather than merely unused — leaving them was what let call sites compile
+ * against fields the server never sends. See refs.ts.
+ */
 
 export interface RuntimeMetrics {
   fullTableScan: boolean;
@@ -59,12 +51,12 @@ export interface RuntimeMetrics {
 export interface SqlProfile {
   id: string;
   query: string;
-  tables: TableReference[];
+  tables: TableRef[];
   type: string;
-  joinColumns: JoinColumns[];
-  criteriaColumns: ColumnReference[];
-  selectColumns: ColumnReference[];
-  groupByColumns: ColumnReference[];
+  joinColumns: JoinPair[];
+  criteriaColumns: ColumnRef[];
+  selectColumns: ColumnRef[];
+  groupByColumns: ColumnRef[];
   generatedSource: string | null;
   truncated: boolean;
   analysisFailed: boolean;
@@ -75,7 +67,7 @@ export interface SqlProfile {
   normalizedDigest: string;
   schemaName: string;
   schemas: string[];
-  mismatchedJoins: JoinColumns[];
+  mismatchedJoins: JoinPair[];
   lineNumber: number | null;
   analysisFailureReason: string | null;
   sourceFileName: string | null;
@@ -162,8 +154,8 @@ export interface TableIndex {
 }
 
 export interface ForeignKey {
-  from: ColumnReference[];
-  to: ColumnReference[];
+  from: ColumnRef[];
+  to: ColumnRef[];
   constraintName: string | null;
   onUpdate: string | null;
   onDelete: string | null;
@@ -178,10 +170,9 @@ export interface TableStructure {
   indices: TableIndex[];
   columns: TableColumn[];
   /** Base tables a view selects from; null for base tables. */
-  underlyingTables: TableReference[] | null;
+  underlyingTables: TableRef[] | null;
   /** Per-column lineage for views; null for base tables. */
-  viewColumns: { name: string; computed: boolean;
-    sources: { table: TableReference; normalizedColumn: string }[] }[] | null;
+  viewColumns: { name: string; computed: boolean; sources: ColumnRef[] }[] | null;
 }
 
 /** Per-table profile view (model/Table). */
@@ -192,9 +183,9 @@ export interface Table {
   queries: SqlProfile[];
   structure: TableStructure | null;
   schema: string;
-  foreignKeyTables: TableReference[];
-  joinTables: TableReference[];
-  relatedTables: TableReference[];
+  foreignKeyTables: TableRef[];
+  joinTables: TableRef[];
+  relatedTables: TableRef[];
 }
 
 export interface CleanedSql {
@@ -235,10 +226,10 @@ export interface SourceRefRequest {
 }
 
 export interface TableRelationships {
-  table: TableReference;
-  foreignKeyTables: TableReference[];
-  joinTables: TableReference[];
-  relatedTables: TableReference[];
+  table: TableRef;
+  foreignKeyTables: TableRef[];
+  joinTables: TableRef[];
+  relatedTables: TableRef[];
 }
 
 export interface GroupedTableRelationships extends TableRelationships {

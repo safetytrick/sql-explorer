@@ -1,5 +1,6 @@
 import {Component, Input, OnInit} from '@angular/core';
 import { RouterLink } from '@angular/router';
+import {ColumnRef, parseColumnRef} from '../refs';
 
 @Component({
     selector: 'app-column-link',
@@ -33,19 +34,21 @@ export class ColumnLinkComponent implements OnInit {
     this._schema = schema;
   }
 
+  /**
+   * A `"schema.table.column"` (or `"table.column"`) reference — the shape the
+   * backend actually serializes. Parsed right to left by {@link parseColumnRef};
+   * the previous hand-rolled split indexed from the left, so anything with an
+   * unexpected segment count landed in the wrong slot. An unqualified
+   * reference keeps whatever the separate `schema` input supplied.
+   */
   @Input()
-  set columnReference(ref: string) {
-    const pair = ref.split('.');
-    // ugly hack, raw strings are being passed around
-    // this needs to be refactored so the underlying models convey the whole path
-    if (pair.length > 2) {
-      this._schema = pair[0];
-      this._table = pair[1];
-      this._column = pair[2];
-    } else {
-      this._table = pair[0];
-      this._column = pair[1];
+  set columnReference(ref: ColumnRef) {
+    const parsed = parseColumnRef(ref);
+    if (parsed.schema) {
+      this._schema = parsed.schema;
     }
+    this._table = parsed.table ?? this._table;
+    this._column = parsed.column;
   }
 
   constructor() { }
