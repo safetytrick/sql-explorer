@@ -93,7 +93,8 @@ export interface QueryProfile {
   analysisFailureReason: string | null;
   mismatchedJoins: unknown[];
   runtimeMetrics: RuntimeMetrics | null;
-  repeatedBlocks?: RepeatedBlock[];
+  /** Null (not absent) when the query had no collapsed repeats. */
+  repeatedBlocks: RepeatedBlock[] | null;
 }
 
 export interface QueryTag {

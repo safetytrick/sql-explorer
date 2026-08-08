@@ -8,6 +8,7 @@ import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 
 public class MergedSqlProfile extends SqlProfile {
 
@@ -124,6 +125,12 @@ public class MergedSqlProfile extends SqlProfile {
     @Override
     public String getAnalysisFailureReason() {
         return first().getAnalysisFailureReason();
+    }
+
+    /** Offsets index into the query text, which comes from {@link #first()}, so the repeats must too. */
+    @Override
+    public List<RepeatedBlock> getRepeatedBlocks() {
+        return first().getRepeatedBlocks();
     }
 
     @Override
