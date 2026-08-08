@@ -18,10 +18,18 @@ public class RegexTableExtractor {
      * uses: {@code ON DUPLICATE KEY UPDATE col = …} (which would capture the
      * first assigned column as a table) and {@code … FOR UPDATE SKIP LOCKED}
      * (which would capture the lock modifier).
+     *
+     * <p>The table name is closed by a zero-width lookahead rather than by
+     * consuming the whitespace after it. Consuming it cost two kinds of hit:
+     * a table at the very end of the query never matched at all (nothing
+     * follows it to consume), and in {@code FROM a JOIN b} the space eaten
+     * after {@code a} was the same space the next match needed for its
+     * leading {@code \s}, so every table after the first was dropped unless
+     * an alias happened to sit in between.
      */
     private static final Pattern FROM_TABLE = Pattern.compile(
         "\\s(INSERT\\s+INTO|(?<!KEY\\s{1,20})(?<!FOR\\s{1,20})UPDATE|FROM|JOIN)\\s+"
-            + "(`?(?<schema>[a-zA-Z_]\\w*)`?\\s*\\.\\s*)?`?(?<table>[a-zA-Z_]\\w*)`?\\s+",
+            + "(`?(?<schema>[a-zA-Z_]\\w*)`?\\s*\\.\\s*)?`?(?<table>[a-zA-Z_]\\w*)`?(?=\\s|$)",
         Pattern.MULTILINE | Pattern.CASE_INSENSITIVE);
 
     public List<TableReference> extractTables(String schema, String query) {

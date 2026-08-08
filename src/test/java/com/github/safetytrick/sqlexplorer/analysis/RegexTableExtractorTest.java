@@ -74,4 +74,40 @@ class RegexTableExtractorTest {
             .extracting(TableReference::getNormalizedTableName)
             .containsExactly("branch");
     }
+
+    /**
+     * The performance schema hands over queries with no trailing whitespace,
+     * so the last table in the statement sat right against the end of the
+     * string. The pattern used to close the table name by consuming the
+     * whitespace after it, so this found nothing at all — and an empty result
+     * made {@link IgnoredSchemas#ignoreAll} vacuously true, which skipped
+     * analysis of the query entirely.
+     */
+    @Test
+    void findsATableThatEndsTheQuery() {
+        assertThat(extract("\n    SELECT\n        `time_updated` \n    FROM\n        `trigger_stat_get_user_list`"))
+            .extracting(TableReference::getNormalizedSchemaName, TableReference::getNormalizedTableName)
+            .containsExactly(tuple("tdb", "trigger_stat_get_user_list"));
+
+        assertThat(extract(" SELECT * FROM `other` . `branch`"))
+            .extracting(TableReference::getNormalizedSchemaName, TableReference::getNormalizedTableName)
+            .containsExactly(tuple("other", "branch"));
+    }
+
+    /**
+     * Without an alias between them, the whitespace consumed after one table
+     * was the same whitespace the next keyword needed to match on — so only
+     * the first table was ever reported. The existing multi-table case passes
+     * only because its tables happen to carry aliases.
+     */
+    @Test
+    void findsEveryTableWhenNoAliasSeparatesThem() {
+        assertThat(extract(" SELECT * FROM `a` JOIN `b` ON `a` . `id` = `b` . `a_id` "))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactly("a", "b");
+
+        assertThat(extract(" SELECT * FROM a JOIN b JOIN c ON x "))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactly("a", "b", "c");
+    }
 }
