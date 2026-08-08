@@ -1,11 +1,13 @@
 import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import {Subscription} from 'rxjs';
+import {map, of, Subscription, switchMap} from 'rxjs';
 import {GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
-import {QueryScopeService} from '../query-scope.service';
+import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
+import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, graphOwnedParamPatch, GraphSource} from './graph-url';
+import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 
 const NW = 130;
 const NH = 44;
@@ -48,12 +50,15 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   schemaNames: string[] = [];
   schema = '';
   selectedTable: string | null = null;
-  layers = { fk: true, co: false, self: true, view: true };
+  layers: GraphLayers = { ...DEFAULT_LAYERS };
   loading = false;
 
   /** What scopes the graph: a schema, a tag's queries, or a workbench search snapshot. */
-  mode: 'schema' | 'tag' | 'search' = 'schema';
+  mode: GraphSource = 'schema';
   tag: string | null = null;
+
+  /** Scope of the last fetch — lets URL writes for selection/layers redraw without refetching. */
+  private loadedScope: string | null = null;
 
   private nodes: LayoutNode[] = [];
   private fkEdges: Edge[] = [];
@@ -74,7 +79,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(private schemaLensService: SchemaLensService,
               private environmentService: EnvironmentService,
-              private queryScopeService: QueryScopeService,
+              private analyzedSqlService: AnalyzedSqlService,
               private themeService: ThemeService,
               private route: ActivatedRoute,
               private router: Router) { }
@@ -90,29 +95,60 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.subscriptions.add(this.environmentService.current$.subscribe(() => this.loadSchemas()));
   }
 
-  /** Route decides the source: ?tag= → tag graph, ?source=search → workbench snapshot, else :schema. */
+  /**
+   * Route decides the source (?tag= → tag graph, ?source=search → workbench
+   * snapshot, else :schema) and carries graph-owned state (var-table,
+   * var-layers). Only a *scope* change refetches; selection/layer changes —
+   * including our own replaceUrl writes and browser back/forward — redraw.
+   */
   private applyRoute() {
-    const queryParams = this.route.snapshot.queryParamMap;
-    this.selectedTable = queryParams.get('table');
-    const tag = queryParams.get('tag');
-    const source = queryParams.get('source');
-    if (tag) {
+    const state = decodeGraphParams(this.route.snapshot.queryParamMap);
+    this.selectedTable = state.table;
+    this.layers = state.layers;
+    if (state.tag) {
       this.mode = 'tag';
-      this.tag = tag;
-      this.loadGraph();
-    } else if (source === 'search') {
+      this.tag = state.tag;
+    } else if (state.source === 'search') {
       this.mode = 'search';
       this.tag = null;
-      this.loadGraph();
     } else {
       this.mode = 'schema';
       this.tag = null;
       const schema = this.route.snapshot.paramMap.get('schema');
       if (schema) {
         this.schema = schema;
-        this.loadGraph();
       }
     }
+    if (this.scopeKey() === this.loadedScope) {
+      this.draw();
+    } else if (this.mode !== 'schema' || this.schema) {
+      this.loadGraph();
+    }
+    // schema mode without a schema: loadSchemas() picks a default and loads
+  }
+
+  private scopeKey(): string {
+    if (this.mode === 'search') {
+      // the search params are the scope — normalize through the codec so
+      // var- params and param order can't cause spurious refetches
+      const search = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
+      return 'search|' + JSON.stringify(search);
+    }
+    return `${this.mode}|${this.tag ?? ''}|${this.mode === 'schema' ? this.schema : ''}`;
+  }
+
+  /**
+   * Reflect graph-owned state into the URL without a history entry
+   * (workbench pattern). A merge patch: the co-resident search params of
+   * `source=search` links must survive selection/layer clicks.
+   */
+  private writeUrl() {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: graphOwnedParamPatch(this.selectedTable, this.layers),
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   ngAfterViewInit() {
@@ -138,18 +174,57 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onSchemaChange() {
     this.selectedTable = null;
-    this.router.navigate(['/graph', this.schema]);
+    // layer toggles survive the schema switch; selection does not
+    this.router.navigate(['/graph', this.schema], {
+      queryParams: encodeGraphParams({ table: null, layers: this.layers, tag: null, source: null })
+    });
   }
 
   private loadGraph() {
+    this.loadedScope = this.scopeKey();
+    if (this.mode === 'search') {
+      this.loadSearchGraph();
+      return;
+    }
     const source = this.mode === 'tag' && this.tag
       ? this.schemaLensService.getTagGraph(this.tag)
-      : this.mode === 'search'
-        ? this.schemaLensService.getSearchGraph(this.queryScopeService.getSearchSnapshot())
-        : this.schema ? this.schemaLensService.getSchemaGraph(this.schema) : null;
+      : this.schema ? this.schemaLensService.getSchemaGraph(this.schema) : null;
     if (!source) { return; }
     this.loading = true;
     source.subscribe({
+      next: graph => {
+        this.buildLayout(graph);
+        this.loading = false;
+        this.resetView();
+      },
+      error: () => this.loading = false
+    });
+  }
+
+  /**
+   * `source=search`: the URL carries the full workbench search (shared
+   * vocabulary — see search-url.ts). The schema-tag filter arrives as
+   * intent, so resolve it against the live tag map exactly like the tree
+   * does, then post the assembled request.
+   */
+  private loadSearchGraph() {
+    const state = decodeSearchParams(this.route.snapshot.queryParamMap);
+    const filter = state.schemaTagFilter;
+    const tagScope$ = filter.includeTags.length || filter.excludeTags.length
+      ? this.schemaLensService.getSchemaTree().pipe(switchMap(tree => {
+          const names = tree.schemas.map(schema => schema.name.toLowerCase());
+          const paths = tree.schemas.map(schema => '/schema/' + schema.name);
+          return this.analyzedSqlService.getTagsForPaths(paths).pipe(map(byPath => {
+            const tagsBySchema = new Map<string, string[]>(tree.schemas.map(schema =>
+              [schema.name.toLowerCase(), (byPath['/schema/' + schema.name] ?? []).map(tag => tag.name)]));
+            return resolveSchemaTagScope(names, tagsBySchema, filter);
+          }));
+        }))
+      : of(UNCONSTRAINED_TAG_SCOPE);
+    this.loading = true;
+    tagScope$.pipe(switchMap(tagScope =>
+      this.schemaLensService.getSearchGraph(buildSearchRequest(state, tagScope, { limit: null, offset: null }))
+    )).subscribe({
       next: graph => {
         this.buildLayout(graph);
         this.loading = false;
@@ -265,9 +340,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.draw();
   }
 
-  toggle(layer: 'fk' | 'co' | 'self' | 'view') {
-    this.layers[layer] = !this.layers[layer];
+  toggle(layer: keyof GraphLayers) {
+    this.layers = { ...this.layers, [layer]: !this.layers[layer] };
     this.draw();
+    this.writeUrl();
   }
 
   hasViewEdges(): boolean {
@@ -316,7 +392,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         `<div class="tt-name">${found.table}</div>`
         + (fkOut.length ? `<div class="tt-line">FK → ${fkOut.join(', ')}</div>` : '')
         + (fkIn.length ? `<div class="tt-line">FK ← ${fkIn.join(', ')}</div>` : '')
-        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to view</div>`;
+        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to select, again to open</div>`;
     } else {
       tooltip.style.display = 'none';
     }
@@ -327,8 +403,16 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const mx = this.worldX(event.clientX - rect.left);
     const my = this.worldY(event.clientY - rect.top);
     const found = this.nodes.find(node => mx >= node.x && mx <= node.x + NW && my >= node.y && my <= node.y + NH);
-    if (found) {
+    if (found && found.table === this.selectedTable) {
+      // second click on the selected node opens it
       this.router.navigate(['/table', found.schema, found.table]);
+      return;
+    }
+    const table = found ? found.table : null;
+    if (table !== this.selectedTable) {
+      this.selectedTable = table;
+      this.draw();
+      this.writeUrl();
     }
   }
 

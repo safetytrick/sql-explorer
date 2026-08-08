@@ -61,6 +61,9 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
         this.includeSuggestions = [];
         this.excludeSuggestions = [];
       }
+      // external set (e.g. the workbench seeding a shared URL) — resolve it;
+      // harmless re-publish for tree-local edits
+      this.publishTagScope();
     }));
     this.subscriptions.add(this.tagColorsService.getSummaries().subscribe());
   }
@@ -160,7 +163,7 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
       excludeTags: patch.excludeTags ?? current.excludeTags,
       tagMode: patch.tagMode ?? current.tagMode
     });
-    this.publishTagScope();
+    // the schemaTagFilter$ subscription in ngOnInit resolves + publishes
   }
 
   /** Resolve include/exclude tag filters to schema name lists for the queries workbench. */

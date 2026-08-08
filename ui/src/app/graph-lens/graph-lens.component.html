@@ -10,7 +10,7 @@
     @if (mode === 'tag') {
       <span class="mode-chip" title="graph scoped to the queries carrying this tag">tag: {{tag}}</span>
     } @else if (mode === 'search') {
-      <span class="mode-chip" title="graph scoped to the workbench search results (snapshot)">workbench results</span>
+      <span class="mode-chip" title="graph scoped to a workbench search — the URL carries the full search, so this link is shareable">workbench results</span>
     }
     <select class="schema-select" [(ngModel)]="schema" (change)="onSchemaChange()">
       @for (name of schemaNames; track name) {

@@ -1,83 +1,73 @@
 # Commands to run locally
 
-## Post-commit cleanup (2026-08-04)
+## Collapsed-repeat badges over the wire (2026-08-07)
 
-The session's remaining work is committed locally (5 commits, not
-pushed). The sandbox can create/rename but not delete files, so the
-committed deletions left their old copies behind as *untracked* files,
-and git's stale locks/temp objects were renamed aside instead of
-removed. One-time cleanup:
+The `RepeatedBlock` Jackson mixin fix. Verified here — `./gradlew test`
+is green (186 tests, 8 skipped, 0 failures) including the new
+`RepeatedBlockSerializationTest`:
 
 ```bash
-rm -r src/main/docker                          # deleted in the gradle commit
-rm docs/plans/views-vs-tables.md docs/plans/parser-test-framework.md \
-   docs/plans/secret-scrub.md docs/plans/normalizer.md \
-   docs/plans/graph-generalization.md docs/plans/gradle-docker-cleanup.md \
-   docs/plans/tag-widget-cleanup.md            # deleted in the docs commit
-rm .git/dead-lock-*                            # stale locks moved aside
-find .git/objects -name 'tmp_obj_*' -delete    # loose-object temp litter
-git status                                     # should be clean (plus your .idea/)
+./gradlew test --tests 'com.github.safetytrick.sqlexplorer.model.RepeatedBlockSerializationTest'
 ```
 
-## Material removal + non-root Docker user (2026-08-04)
+Note `./gradlew test` alone reports `UP-TO-DATE` and runs nothing once a
+previous run cached; use `./gradlew cleanTest test` when you want to see
+the suite actually execute.
 
-`@angular/material` and `@angular/cdk` are removed from package.json —
-`npm ci` prunes them and shrinks the install. New/updated Karma specs:
-`tag-view.component.spec.ts` (chips, add/remove, dedupe, debounced
-suggestions):
+Manual smoke: open a query in the workbench whose SQL had repeated
+blocks collapsed — the "collapsed repeats" chips should render, and the
+whole `/queries/search` response should arrive intact (the old failure
+truncated the entire payload, not just the field).
+
+## Shareable search-scoped graph links (2026-08-04)
+
+The whole workbench search — including schema-tree selections and tag
+filters — now travels in the URL, with identical param names on
+`/queries` and `/graph?source=search`. Specs: `search-url.spec.ts`
+(codec + tag resolution + request assembly) and
+`queries-workbench.component.spec.ts` (RouterTestingHarness seeding).
+Both **now run green in a real browser here** — 95/95, and `npm run
+lint` is clean (6 pre-existing style warnings, 0 errors):
 
 ```bash
-cd ui && npm ci && npm run test:ci
+cd ui && npm run test:ci
 ```
 
-The backend image now runs as the non-root `sqlexplorer` user (uid 1001).
-Docker isn't available in the sandbox — please build and smoke-test,
-including a source load so the parquet sink write is exercised. On a
-Linux host the bind-mounted `./src/main/docker-local/parquet` dir must be
-writable by uid 1001 (`chown 1001` or `chmod g+w`); on macOS Docker
-Desktop it works as-is:
+**Gotcha worth knowing before writing new specs:** `jasmine.objectContaining`
+is broken under this Karma/Jasmine build — it throws
+`ReferenceError: i is not defined` with a stack that points only at
+`<Jasmine>`, even in a bare `createSpy` test with no Angular involved.
+Assert against `spy.calls.mostRecent().args` with plain `toEqual`
+instead; that also reads stronger, since it catches params leaking into
+a link rather than only the ones you named.
+
+Manual smoke:
+
+1. On Queries: pick tables/schemas in the sidebar, add a schema tag
+   include, set a filter or two → the URL should carry `tables=`,
+   `schemas=`, `schemaTags=`, etc. Reload → everything, including the
+   tree checkboxes and tag chips, comes back.
+2. Click "graph results" → the graph URL carries the same params; copy it
+   into another window (or profile) → same graph. Layer toggles/selection
+   on that page must not drop the search params from the URL.
+3. Old bookmarks: `/graph/<schema>?table=x` still highlights.
+
+## Graph URL state (2026-08-04)
+
+Graph selection + layer toggles now round-trip through `var-table` /
+`var-layers` query params (legacy `?table=` links still work). New Karma
+spec: `graph-url.spec.ts` (encode/decode, defaults, legacy fallback,
+round-trips):
 
 ```bash
-docker compose build sql-explorer && docker compose up -d sql-explorer
-docker exec sql-explorer id            # expect uid=1001(sqlexplorer)
-docker compose logs -f sql-explorer    # watch a source load complete without permission errors
+cd ui && npm run test:ci
 ```
 
-## Gradle docker-staging cleanup (2026-08-04)
-
-The `dockerStage` task flow is gone from `build.gradle` (every jar build
-stops paying for the staging copies). Sandbox can't delete files or run
-gradle:
-
-```bash
-./gradlew assemble test               # gate — confirms the build file edit
-docker compose build sql-explorer     # unchanged path, sanity only
-```
-
-(`src/main/docker/Dockerfile` is deleted in the commit itself — the
-leftover untracked copy is covered by the cleanup section above.)
-
-## Sidebar tag include/exclude (2026-08-04)
-
-I could not find a broken line of code: the include/exclude wiring is
-byte-identical to the pre-session working state at every layer (component,
-QueryScopeService, workbench subscription, /tags/path endpoint), and the
-whole filter chain — tags → schema.table needle → type toggle — now lives
-in `tree-filter.ts` as `filterSchemaTree` with specs covering every
-composition (all green under node). The one failure mode that produces
-exactly "include shows nothing, exclude does nothing" is the schema-tags
-request silently failing or returning mismatched keys, leaving the tag map
-empty — that state is now logged loudly. Please retest with the console
-open; if it persists, send me the console error and the response body of
-`POST /api/sql-explorer/tags/path` from the network tab.
-
-```bash
-cd ui && npm run test:ci   # new specs: matchesTagFilter + filterSchemaTree suites
-```
-
-## Self-contained backend Docker build (2026-08-03)
-
-
+Manual smoke: on `/graph/<schema>`, toggle a layer and click a node —
+the URL should update in place (no history spam); reload/share it and the
+same selection + layers should come back. Click the selected node again
+to open its table page. Back/forward should replay selection changes
+without refetching the graph.
 
 ---
 

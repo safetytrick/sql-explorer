@@ -1,6 +1,6 @@
 import {Injectable} from '@angular/core';
 import {BehaviorSubject} from 'rxjs';
-import {QueryFacets, QuerySearchRequest, TableMode, TagMode} from './query-search.service';
+import {QueryFacets, TableMode, TagMode} from './query-search.service';
 
 /** Normalized "schema.table" key, lower-cased to line up with the backend's facet keys. */
 export function tableKey(schema: string, table: string): string {
@@ -53,21 +53,6 @@ export class QueryScopeService {
   readonly schemaTagFilter$ = new BehaviorSubject<SchemaTagFilter>(EMPTY_TAG_FILTER);
   readonly schemaTagScope$ = new BehaviorSubject<SchemaTagScope>(EMPTY_TAG_SCOPE);
 
-  /**
-   * Snapshot of the workbench's last search, for the graph lens ("graph these
-   * results" navigates then reads it). A snapshot, not a live subscription —
-   * the graph shouldn't re-layout under the user when the workbench changes.
-   */
-  private searchSnapshot: QuerySearchRequest | null = null;
-
-  setSearchSnapshot(request: QuerySearchRequest): void {
-    this.searchSnapshot = request;
-  }
-
-  getSearchSnapshot(): QuerySearchRequest | null {
-    return this.searchSnapshot;
-  }
-
   get scope(): QueryScope {
     return this.scope$.value;
   }
@@ -86,6 +71,11 @@ export class QueryScopeService {
 
   publishFacets(facets: QueryFacets | null | undefined): void {
     this.facets$.next(facets ?? EMPTY_FACETS);
+  }
+
+  /** Replace the whole selection — seeding from a shared URL. */
+  setScope(scope: QueryScope): void {
+    this.scope$.next({ schemas: [...scope.schemas], tables: [...scope.tables], tableMode: scope.tableMode });
   }
 
   toggleTable(key: string): void {

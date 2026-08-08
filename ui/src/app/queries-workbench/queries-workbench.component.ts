@@ -18,7 +18,7 @@ import {ChipStyle, TagColorsService} from '../tag-colors.service';
 import {QueryScopeService} from '../query-scope.service';
 import {Highlight} from 'ngx-highlightjs';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
-import {resolveDateExpr} from '../date-range-selector/date-math';
+import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
 
 const PAGE_SIZE = 50;
 
@@ -28,8 +28,6 @@ export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'A
 /** SqlProfileReportService.SLOW_THRESHOLD / CHATTY_THRESHOLD, in ms. */
 const SLOW_MIN_MS = 1000;
 const CHATTY_MAX_MS = 20;
-
-interface RangeState { min: number | null; max: number | null; }
 
 /** Component fields holding a tri-state Flag, toggled generically from the template. */
 type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'truncated' | 'multiSchema';
@@ -106,8 +104,13 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.searchTrigger.pipe(debounceTime(250)).subscribe(() => this.runSearch()));
     this.subscriptions.add(this.environmentService.current$.subscribe(() => this.searchTrigger.next()));
     this.subscriptions.add(this.tagColorsService.getSummaries().subscribe());
-    // the schema tree drives the schema/table scope; a change there re-runs the search
-    this.subscriptions.add(this.queryScopeService.scope$.subscribe(() => this.searchTrigger.next()));
+    // the schema tree drives the schema/table scope; a change there re-runs
+    // the search and (once the URL has seeded us) is reflected back into it
+    this.subscriptions.add(this.queryScopeService.scope$.subscribe(() => {
+      this.writeFiltersToUrl();
+      this.searchTrigger.next();
+    }));
+    this.subscriptions.add(this.queryScopeService.schemaTagFilter$.subscribe(() => this.writeFiltersToUrl()));
     this.subscriptions.add(this.queryScopeService.schemaTagScope$.subscribe(() => this.searchTrigger.next()));
     this.queryScopeService.setActive(true);
     this.readFiltersFromUrl();
@@ -172,70 +175,54 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.filtersChanged();
   }
 
-  private buildRequest(offset: number): QuerySearchRequest {
+  /** Everything the search is made of, in the shared URL vocabulary. */
+  private currentState(): SearchUrlState {
     return {
-      queryRegex: this.queryRegex.trim() || null,
-      avgTimeMs: range(this.avgTime),
-      maxTimeMs: range(this.maxTime),
-      avgRowsScanned: range(this.avgRows),
-      selectivity: this.selectivityPct.min === null && this.selectivityPct.max === null ? null
-        : { min: pctToFraction(this.selectivityPct.min), max: pctToFraction(this.selectivityPct.max) },
-      rowsSorted: range(this.rowsSorted),
-      activity: this.activity === 'ANY' ? null : this.activity,
-      types: this.types.length ? this.types : null,
-      firstSeen: dates(resolveDateExpr(this.firstAfter), resolveDateExpr(this.firstBefore, true)),
-      lastSeen: dates(resolveDateExpr(this.lastAfter), resolveDateExpr(this.lastBefore, true)),
-      tags: this.tags.length ? this.tags : null,
+      queryRegex: this.queryRegex,
+      activity: this.activity,
+      types: this.types,
+      firstAfter: this.firstAfter,
+      firstBefore: this.firstBefore,
+      lastAfter: this.lastAfter,
+      lastBefore: this.lastBefore,
+      tags: this.tags,
       tagMode: this.tagMode,
-      untaggedOnly: this.untaggedOnly || null,
-      schemas: this.resolvedSchemas(),
-      excludeSchemas: this.resolvedExcludeSchemas(),
-      tables: this.queryScopeService.scope.tables.length ? this.queryScopeService.scope.tables : null,
-      tableMode: this.queryScopeService.scope.tableMode,
-      fullScan: flag(this.fullScan),
-      tmpTable: flag(this.tmpTable),
-      tmpDisk: flag(this.tmpDisk),
-      errors: flag(this.errors),
-      warnings: flag(this.warnings),
-      truncated: flag(this.truncated),
-      multiSchema: flag(this.multiSchema),
-      analyzerWarnings: this.analyzerWarnings || null,
-      analysisFailed: this.analysisFailed || null,
-      cleanAnalysis: this.cleanAnalysis || null,
-      analysisSkipped: this.analysisSkipped || null,
+      untaggedOnly: this.untaggedOnly,
+      avgTime: this.avgTime,
+      maxTime: this.maxTime,
+      avgRows: this.avgRows,
+      selectivityPct: this.selectivityPct,
+      rowsSorted: this.rowsSorted,
+      fullScan: this.fullScan,
+      tmpTable: this.tmpTable,
+      tmpDisk: this.tmpDisk,
+      errors: this.errors,
+      warnings: this.warnings,
+      truncated: this.truncated,
+      multiSchema: this.multiSchema,
+      analyzerWarnings: this.analyzerWarnings,
+      analysisFailed: this.analysisFailed,
+      cleanAnalysis: this.cleanAnalysis,
+      analysisSkipped: this.analysisSkipped,
       failureKind: this.failureKind,
       sort: this.sort,
-      limit: PAGE_SIZE,
-      offset
+      scope: this.queryScopeService.scope,
+      schemaTagFilter: this.queryScopeService.schemaTagFilter
     };
   }
 
+  private buildRequest(offset: number): QuerySearchRequest {
+    return buildSearchRequest(this.currentState(), this.queryScopeService.schemaTagScope,
+      { limit: PAGE_SIZE, offset });
+  }
+
   /**
-   * Manual schema checkboxes ∩ schema-tag include list.
-   * {@code null} = unconstrained; empty array = include tags active but no schemas match.
+   * Open the graph scoped to these results. A pure URL translation — the
+   * graph carries the same search params, so the link is shareable.
    */
-  private resolvedSchemas(): string[] | null {
-    const selected = this.queryScopeService.scope.schemas;
-    const tagIncluded = this.queryScopeService.schemaTagScope.includedSchemas;
-    if (tagIncluded === null) {
-      return selected.length ? selected : null;
-    }
-    if (!selected.length) {
-      return tagIncluded;
-    }
-    const allowed = new Set(tagIncluded);
-    return selected.filter(schema => allowed.has(schema));
-  }
-
-  private resolvedExcludeSchemas(): string[] | null {
-    const excluded = this.queryScopeService.schemaTagScope.excludedSchemas;
-    return excluded.length ? excluded : null;
-  }
-
-  /** Snapshot the current filters and open the graph scoped to their matches. */
   graphResults() {
-    this.queryScopeService.setSearchSnapshot(this.buildRequest(0));
-    this.router.navigate(['/graph'], { queryParams: { source: 'search' } });
+    this.router.navigate(['/graph'],
+      { queryParams: { source: 'search', ...encodeSearchParams(this.currentState()) } });
   }
 
   private runSearch() {
@@ -470,91 +457,63 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     return (fraction * 100).toFixed(1) + '%';
   }
 
-  // ── URL state ──
+  // ── URL state (shared vocabulary: see search-url.ts) ──
+
+  /** Guards against writing the URL before it has been read once. */
+  private urlReady = false;
 
   private writeFiltersToUrl() {
-    const params: Record<string, string> = {};
-    const put = (key: string, value: string | null) => { if (value) { params[key] = value; } };
-    const putRange = (key: string, r: RangeState) => {
-      if (r.min !== null) { params[key + 'Min'] = String(r.min); }
-      if (r.max !== null) { params[key + 'Max'] = String(r.max); }
-    };
-    put('q', this.queryRegex.trim() || null);
-    if (this.activity !== 'ANY') { params['activity'] = this.activity; }
-    if (this.types.length) { params['queryTypes'] = this.types.join(','); }
-    put('firstAfter', this.firstAfter);
-    put('firstBefore', this.firstBefore);
-    put('lastAfter', this.lastAfter);
-    put('lastBefore', this.lastBefore);
-    if (this.tags.length) { params['tags'] = this.tags.join(','); }
-    if (this.tagMode !== 'ANY') { params['tagMode'] = this.tagMode; }
-    if (this.untaggedOnly) { params['untagged'] = '1'; }
-    putRange('avgTime', this.avgTime);
-    putRange('maxTime', this.maxTime);
-    putRange('avgRows', this.avgRows);
-    putRange('sel', this.selectivityPct);
-    putRange('sorted', this.rowsSorted);
-    for (const [key, value] of Object.entries(
-      { fullScan: this.fullScan, tmpTable: this.tmpTable, tmpDisk: this.tmpDisk, errors: this.errors, warnings: this.warnings, truncated: this.truncated, multiSchema: this.multiSchema })) {
-      if (value !== 'ANY') { params[key] = value; }
-    }
-    if (this.analyzerWarnings) { params['analWarn'] = '1'; }
-    if (this.analysisFailed) { params['analFail'] = '1'; }
-    if (this.cleanAnalysis) { params['analClean'] = '1'; }
-    if (this.analysisSkipped) { params['analSkipped'] = '1'; }
-    if (this.failureKind) { params['failKind'] = this.failureKind; }
-    if (this.sort !== 'IMPACT') { params['sort'] = this.sort; }
-    this.router.navigate([], { relativeTo: this.route, queryParams: params, replaceUrl: true });
+    if (!this.urlReady) { return; }
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: encodeSearchParams(this.currentState()),
+      replaceUrl: true
+    });
   }
 
   private readFiltersFromUrl() {
-    const params = this.route.snapshot.queryParamMap;
-    const readRange = (key: string): RangeState => ({
-      min: params.has(key + 'Min') ? Number(params.get(key + 'Min')) : null,
-      max: params.has(key + 'Max') ? Number(params.get(key + 'Max')) : null
-    });
-    this.queryRegex = params.get('q') || '';
-    this.activity = (params.get('activity') as Activity) || 'ANY';
-    this.types = params.get('queryTypes')?.split(',').filter(Boolean) || [];
-    this.firstAfter = params.get('firstAfter');
-    this.firstBefore = params.get('firstBefore');
-    this.lastAfter = params.get('lastAfter');
-    this.lastBefore = params.get('lastBefore');
-    this.tags = params.get('tags')?.split(',').filter(Boolean) || [];
-    this.tagMode = (params.get('tagMode') as TagMode) || 'ANY';
-    this.untaggedOnly = params.get('untagged') === '1';
-    this.avgTime = readRange('avgTime');
-    this.maxTime = readRange('maxTime');
-    this.avgRows = readRange('avgRows');
-    this.selectivityPct = readRange('sel');
-    this.rowsSorted = readRange('sorted');
-    this.fullScan = (params.get('fullScan') as Flag) || 'ANY';
-    this.tmpTable = (params.get('tmpTable') as Flag) || 'ANY';
-    this.tmpDisk = (params.get('tmpDisk') as Flag) || 'ANY';
-    this.errors = (params.get('errors') as Flag) || 'ANY';
-    this.warnings = (params.get('warnings') as Flag) || 'ANY';
-    this.truncated = (params.get('truncated') as Flag) || 'ANY';
-    this.multiSchema = (params.get('multiSchema') as Flag) || 'ANY';
-    this.analyzerWarnings = params.get('analWarn') === '1';
-    this.analysisFailed = params.get('analFail') === '1';
-    this.cleanAnalysis = params.get('analClean') === '1';
-    this.analysisSkipped = params.get('analSkipped') === '1';
-    this.failureKind = (params.get('failKind') as 'ANALYZER' | 'PARSE') || null;
-    this.sort = (params.get('sort') as SortKey) || 'IMPACT';
+    const state = decodeSearchParams(this.route.snapshot.queryParamMap);
+    this.queryRegex = state.queryRegex;
+    this.activity = state.activity;
+    this.types = state.types;
+    this.firstAfter = state.firstAfter;
+    this.firstBefore = state.firstBefore;
+    this.lastAfter = state.lastAfter;
+    this.lastBefore = state.lastBefore;
+    this.tags = state.tags;
+    this.tagMode = state.tagMode;
+    this.untaggedOnly = state.untaggedOnly;
+    this.avgTime = state.avgTime;
+    this.maxTime = state.maxTime;
+    this.avgRows = state.avgRows;
+    this.selectivityPct = state.selectivityPct;
+    this.rowsSorted = state.rowsSorted;
+    this.fullScan = state.fullScan;
+    this.tmpTable = state.tmpTable;
+    this.tmpDisk = state.tmpDisk;
+    this.errors = state.errors;
+    this.warnings = state.warnings;
+    this.truncated = state.truncated;
+    this.multiSchema = state.multiSchema;
+    this.analyzerWarnings = state.analyzerWarnings;
+    this.analysisFailed = state.analysisFailed;
+    this.cleanAnalysis = state.cleanAnalysis;
+    this.analysisSkipped = state.analysisSkipped;
+    this.failureKind = state.failureKind;
+    this.sort = state.sort;
+    // seed the schema-tree scope from a shared link; the tree renders from
+    // the service, so its checkboxes and tag chips light up automatically
+    if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY') {
+      this.queryScopeService.setScope(state.scope);
+    }
+    if (state.schemaTagFilter.includeTags.length || state.schemaTagFilter.excludeTags.length) {
+      this.queryScopeService.setSchemaTagFilter(state.schemaTagFilter);
+    }
+    this.urlReady = true;
+    // sync back so in-session tree scope shows up even on a bare /queries URL
+    this.writeFiltersToUrl();
     this.searchTrigger.next();
   }
-}
-
-function range(state: RangeState): { min: number | null, max: number | null } | null {
-  return state.min === null && state.max === null ? null : { min: state.min, max: state.max };
-}
-
-function pctToFraction(value: number | null): number | null {
-  return value === null ? null : value / 100;
-}
-
-function dates(after: string | null, before: string | null) {
-  return !after && !before ? null : { after: after || null, before: before || null };
 }
 
 function flag(value: Flag): Flag | null {

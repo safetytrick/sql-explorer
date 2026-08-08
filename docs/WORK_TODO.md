@@ -10,18 +10,29 @@
 Add UI visualization of this (provide a link directly to the performance schema digest, 
 show the repeat difference for the child)
 
-### Update the Graph UI to work on any query result or tag result
-
-Move schema and table selection into url parameters (would it make sense to use a var- prefix 
-so pages can have a clean namespace for url params) 
-
 ### Clean all history so queries look anonymous
 
 Scrub older git history
 
+### Improve the way we manage environments in sql-explorer
+
+Brainstorm on this, do we attach them to a user session? Does that require that we add user auth first? Do we add a 
+higher level concept to link environments in a dev-test-prod way?
+
 ---
 
 ## Resolved
+
+### Update the Graph UI to work on any query result or tag result
+
+Done in three passes: tag/search scopes + view edges (graph
+generalization); graph presentation state in `var-table`/`var-layers`
+(`var-` = page-owned presentation params, legacy `?table=` still read);
+and 2026-08-04 the shareable handoff — the *entire* search, including the
+schema-tree selections and tag filters, travels in the URL with identical
+param names on `/queries` and `/graph?source=search` (`search-url.ts`).
+Tag filters share as intent and re-resolve live; the in-memory search
+snapshot is gone. Workbench links now also carry the tree scope.
 
 ### Tag selection component UI cleanup
 
