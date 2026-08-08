@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.evidence;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -21,6 +22,7 @@ import com.github.safetytrick.sqlexplorer.analysis.RegexTableExtractor;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
 import com.github.safetytrick.sqlexplorer.analysis.parser.RepeatLocator;
+import com.github.safetytrick.sqlexplorer.avro.MergedChild;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
@@ -161,6 +163,14 @@ public class SqlEvidenceInputService {
             }
         }
 
+        // every child has been folded into its representative by now, and the
+        // profiles are still plain SqlProfiles — MergedSqlProfile overrides
+        // getters, not the Avro accessors parquet writes through, so this has
+        // to happen before mergeByDigest wraps them.
+        repository.writeParquet(parquetSink);
+        log.info("Parquet rows written: {} (of {} profiles, the rest are merged children)",
+                 repository.parquetRowCount(), repository.sqlProfiles.size());
+
         repository.sqlProfiles = mergeByDigest(repository.sqlProfiles);
         repository.sqlProfiles.sort(SqlProfileExtension.comparator);
         for (SqlProfile sqlProfile : repository.sqlProfiles) {
@@ -255,18 +265,23 @@ public class SqlEvidenceInputService {
                 long startNormalization = System.nanoTime();
                 NormalizedQueryDigest.DigestedQuery digested = normalizedQueryDigest.digestedQuery(query);
                 builder.setNormalizedDigest(digested.digest());
-                if (repository.attemptMerge(digested.digest(), builder)) {
-                    return;
-                }
 
                 // display the normalized form (raw formatted text set above
                 // remains the fallback for sql that doesn't parse), with the
-                // collapsed repeats located so the UI can badge "×N"
+                // collapsed repeats located so the UI can badge "×N".
+                // Done before the merge attempt, not after: a merged child's
+                // own repeat counts are the point of the merge-group view, and
+                // they only line up against the representative's text because
+                // the whole group normalizes to the same form.
                 String display = sqlFormatter.format(digested.normalizedSql());
                 builder.setQuery(display);
                 builder.setRepeatedBlocks(RepeatLocator.locate(display, digested.repeats()).stream()
                     .map(located -> new RepeatedBlock(located.start(), located.end(), located.count()))
                     .toList());
+
+                if (repository.attemptMerge(digested.digest(), builder)) {
+                    return;
+                }
 
                 Duration normalizedParseTime = Duration.ofNanos(System.nanoTime() - startNormalization);
                 if (MAX_PARSE.compareTo(normalizedParseTime) < 0) {
@@ -293,7 +308,6 @@ public class SqlEvidenceInputService {
         }
 
         SqlProfile sqlProfile = builder.completeBuild(row.getSchemaName());
-        parquetSink.write(sqlProfile);
 
         repository.addToIndex(sqlProfile);
     }
@@ -379,12 +393,22 @@ public class SqlEvidenceInputService {
         private final ListMultimap<String, SqlProfile> digestAnalyzedSqlRepository = Multimaps.synchronizedListMultimap(ArrayListMultimap.create());
         private List<SqlProfile> sqlProfiles = new ArrayList<>();
         private final ListMultimap<TableReference, SqlProfile> tableNameAnalyzedSqlRepository = ArrayListMultimap.create();
+        /**
+         * Profiles that own a parquet row: representatives and ungrouped
+         * queries, never merged children. A child's contribution is durable
+         * inside its representative's {@code mergedChildren}, so writing it
+         * again as its own row would double-count it on reload.
+         */
+        private final List<SqlProfile> parquetRows = new ArrayList<>();
 
         public SqlRepositoryBuilder(SqlSource source) {
             this.source = source;
         }
 
-        private boolean attemptMerge(String normalizedDigest, SqlProfile.Builder builder) {
+        // package-private: the merge decision is the seam MergeGroupPersistenceTest
+        // drives directly, because through the executor which row wins the race
+        // to be the representative is not deterministic.
+        boolean attemptMerge(String normalizedDigest, SqlProfile.Builder builder) {
 
             if (!digestAnalyzedSqlRepository.containsKey(normalizedDigest)) {
                 statsBuilder.notMerged();
@@ -406,12 +430,46 @@ public class SqlEvidenceInputService {
                 .setType(existingEntry.getType());
 
             SqlProfile sqlProfile = builder.completeBuild(existingEntry.getSchemaName());
-            addToIndex(sqlProfile);
+            recordMergedChild(existingEntry, sqlProfile);
+            index(sqlProfile);
 
             return true;
         }
 
-        private void addToIndex(SqlProfile sqlProfile) {
+        /**
+         * Fold the child's identity, repeat counts and metrics onto the
+         * representative. This is what makes the merge group durable: the
+         * child never gets a parquet row of its own, and the representative
+         * is written once at the end of the load, by which time every child
+         * has landed here.
+         */
+        private void recordMergedChild(SqlProfile representative, SqlProfile child) {
+            RuntimeMetrics metrics = child.getRuntimeMetrics();
+            // the *MySQL* digest, which is what makes a child worth listing —
+            // SqlProfile.digest is overwritten with the normalized digest in
+            // complete(), so every member of a group reports the same value
+            // there and only the metrics keep the performance-schema one
+            MergedChild merged = MergedChild.newBuilder()
+                .setDigest(metrics == null ? child.getDigest() : metrics.getDigest())
+                .setRepeatedBlocks(child.getRepeatedBlocks())
+                .setExecuted(metrics == null ? 0L : metrics.getExecuted())
+                .setAverageTime(metrics == null ? BigDecimal.ZERO : metrics.getAverageTime())
+                .build();
+            synchronized (lock) {
+                List<MergedChild> children = new ArrayList<>(representative.getMergedChildren());
+                children.add(merged);
+                representative.setMergedChildren(children);
+            }
+        }
+
+        void addToIndex(SqlProfile sqlProfile) {
+            synchronized (lock) {
+                parquetRows.add(sqlProfile);
+            }
+            index(sqlProfile);
+        }
+
+        private void index(SqlProfile sqlProfile) {
 
             if (sqlProfile.getNormalizedDigest() != null) {
                 String digest = sqlProfile.getNormalizedDigest();
@@ -442,6 +500,26 @@ public class SqlEvidenceInputService {
             }
 
             statsBuilder.count();
+        }
+
+        /**
+         * Write one parquet row per representative, after every child has
+         * been folded in. Writing per row during processing (as this used to)
+         * meant a representative was serialized before its children existed,
+         * so merge groups never survived a reload.
+         */
+        void writeParquet(ParquetSink sink) {
+            synchronized (lock) {
+                for (SqlProfile sqlProfile : parquetRows) {
+                    sink.write(sqlProfile);
+                }
+            }
+        }
+
+        int parquetRowCount() {
+            synchronized (lock) {
+                return parquetRows.size();
+            }
         }
 
         public SqlRepository build() {

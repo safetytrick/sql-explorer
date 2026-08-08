@@ -1,7 +1,9 @@
 package com.github.safetytrick.sqlexplorer.model;
 
+import java.math.BigDecimal;
 import java.util.List;
 
+import com.github.safetytrick.sqlexplorer.avro.MergedChild;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -68,6 +70,64 @@ class RepeatedBlockSerializationTest {
         assertThat(merged.getQuery()).isEqualTo(profileWithRepeats().getQuery());
         assertThat(merged.getRepeatedBlocks())
             .containsExactly(new RepeatedBlock(29, 30, 10));
+    }
+
+    /**
+     * Same trap as {@link RepeatedBlock}: a new Avro record reaching the wire
+     * without its mixin makes Jackson walk into the generated {@code Schema}
+     * and abort mid-response, truncating everything after it.
+     */
+    @Test
+    void mergedChildSerializesItsDigestRepeatsAndMetrics() {
+        String json = mapper.writeValueAsString(new MergedChild(
+            "abc123", List.of(new RepeatedBlock(29, 30, 4)), 17L, new BigDecimal("1.5")));
+
+        assertThat(json)
+            .contains("\"digest\":\"abc123\"")
+            .contains("\"repeatedBlocks\":[{")
+            .contains("\"count\":4")
+            .contains("\"executed\":17")
+            .contains("1.5")
+            .doesNotContain("\"schema\"");
+    }
+
+    /** The array shape the workbench expander reads off a profile. */
+    @Test
+    void profileSerializesItsMergedChildren() {
+        String json = mapper.writeValueAsString(representativeWithGroup());
+
+        assertThat(json)
+            .contains("\"mergedChildren\":[{")
+            .contains("\"digest\":\"child-digest\"")
+            .contains("\"executed\":3")
+            .doesNotContain("\"schema\"");
+    }
+
+    /**
+     * The group is recorded on the representative at import, so the wrapper has
+     * to read through to it — its own Avro field is never populated.
+     */
+    @Test
+    void mergedProfileExposesTheGroupRecordedOnTheRepresentative() {
+        MergedSqlProfile merged =
+            new MergedSqlProfile(List.of(representativeWithGroup(), profileWithRepeats()));
+
+        assertThat(merged.getMergedChildren())
+            .extracting(MergedChild::getDigest)
+            .containsExactly("child-digest");
+    }
+
+    private static SqlProfile representativeWithGroup() {
+        return SqlProfile.newBuilder()
+            .setQuery("SELECT ? FROM t WHERE id IN (?)")
+            .setType("SELECT")
+            .setQueryActivityStatus(QueryActivityStatus.ACTIVE)
+            .setRuntimeMetrics(null)
+            .setLineNumber(1)
+            .setRepeatedBlocks(List.of(new RepeatedBlock(29, 30, 10)))
+            .setMergedChildren(List.of(new MergedChild(
+                "child-digest", List.of(new RepeatedBlock(29, 30, 4)), 3L, BigDecimal.ONE)))
+            .completeBuild("tdb");
     }
 
     private static SqlProfile profileWithRepeats() {

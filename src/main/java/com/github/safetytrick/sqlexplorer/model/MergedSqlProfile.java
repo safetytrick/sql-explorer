@@ -8,6 +8,7 @@ import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.avro.MergedChild;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 
 public class MergedSqlProfile extends SqlProfile {
@@ -131,6 +132,16 @@ public class MergedSqlProfile extends SqlProfile {
     @Override
     public List<RepeatedBlock> getRepeatedBlocks() {
         return first().getRepeatedBlocks();
+    }
+
+    /**
+     * The merge group is recorded on the representative at load time, so it
+     * reads through {@link #first()} like the repeats do — this wrapper's own
+     * Avro field is never populated.
+     */
+    @Override
+    public List<MergedChild> getMergedChildren() {
+        return first().getMergedChildren();
     }
 
     @Override

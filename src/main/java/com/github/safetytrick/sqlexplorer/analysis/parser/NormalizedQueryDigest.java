@@ -15,7 +15,7 @@ public class NormalizedQueryDigest {
     private final SqlParser sqlParser;
 
 
-    NormalizedQueryDigest(QueryNormalizer queryNormalizer, SqlParser sqlParser) {
+    public NormalizedQueryDigest(QueryNormalizer queryNormalizer, SqlParser sqlParser) {
         this.queryNormalizer = queryNormalizer;
         this.sqlParser = sqlParser;
     }

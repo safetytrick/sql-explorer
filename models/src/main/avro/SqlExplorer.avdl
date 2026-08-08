@@ -31,6 +31,8 @@ protocol SqlExplorer {
 		boolean isMultiSchema = false;
 		/** Repeated blocks collapsed by normalization; offsets index into query. */
 		array<RepeatedBlock> repeatedBlocks = [];
+		/** Profiles folded into this one by normalized-digest merging. */
+		array<MergedChild> mergedChildren = [];
 	}
 
 	/**
@@ -42,6 +44,20 @@ protocol SqlExplorer {
 		int start;
 		int end;
 		int count;
+	}
+
+	/**
+	 * One profile folded into the representative by normalized-digest
+	 * merging: its own MySQL digest, the repeats it collapsed, and the
+	 * metrics it contributed. Every member of a merge group normalizes to
+	 * the same text, so these offsets index into the representative's query
+	 * the same way its own repeatedBlocks do — only the counts differ.
+	 */
+	record MergedChild {
+		string digest;
+		array<RepeatedBlock> repeatedBlocks = [];
+		long executed;
+		@java-class("java.math.BigDecimal") string averageTime;
 	}
 
 	enum QueryActivityStatus {

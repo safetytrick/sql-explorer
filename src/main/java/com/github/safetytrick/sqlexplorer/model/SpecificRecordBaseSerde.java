@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import tools.jackson.databind.module.SimpleModule;
+import com.github.safetytrick.sqlexplorer.avro.MergedChild;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -33,6 +34,7 @@ public class SpecificRecordBaseSerde {
         module.setMixInAnnotation(SqlProfile.class, JacksonSpecificRecordBaseMixin.class);
         module.setMixInAnnotation(RuntimeMetrics.class, JacksonSpecificRecordBaseMixin.class);
         module.setMixInAnnotation(RepeatedBlock.class, JacksonSpecificRecordBaseMixin.class);
+        module.setMixInAnnotation(MergedChild.class, JacksonSpecificRecordBaseMixin.class);
         return module;
     }
 }
