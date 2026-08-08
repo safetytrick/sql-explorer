@@ -19,6 +19,7 @@ import {QueryScopeService} from '../query-scope.service';
 import {Highlight} from 'ngx-highlightjs';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
+import {MergeVariant, mergeVariants} from './merge-group';
 
 const PAGE_SIZE = 50;
 
@@ -79,6 +80,9 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   total = 0;
   loading = false;
   selected: QueryHit | null = null;
+  mergeGroupOpen = false;
+  /** Digest most recently copied, for the transient "copied" affordance. */
+  copied: string | null = null;
 
   // ── resizable detail panel (bottom half) ──
   detailHeight = 320;
@@ -435,6 +439,33 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (value >= 60000) { return (value / 60000).toFixed(1) + 'm'; }
     if (value >= 1000) { return (value / 1000).toFixed(1) + 's'; }
     return value.toFixed(1) + 'ms';
+  }
+
+  /** The merge group behind the selected query, one row per distinct digest. */
+  get mergeVariants(): MergeVariant[] {
+    if (!this.selected) { return []; }
+    return mergeVariants(this.selected.profile.mergedChildren, this.selected.profile.repeatedBlocks);
+  }
+
+  toggleMergeGroup() {
+    this.mergeGroupOpen = !this.mergeGroupOpen;
+  }
+
+  /**
+   * Copy a digest. Self-contained on purpose — no deep link into Grafana or
+   * a job runner, so nothing here depends on per-environment URL config.
+   */
+  copy(value: string) {
+    navigator.clipboard.writeText(value).then(
+      () => this.flashCopied(value),
+      () => this.copied = null);
+  }
+
+  private flashCopied(value: string) {
+    this.copied = value;
+    setTimeout(() => {
+      if (this.copied === value) { this.copied = null; }
+    }, 1500);
   }
 
   rows(value: number | null | undefined): string {

@@ -83,6 +83,23 @@ export interface SqlProfile {
   queryActivityStatus: QueryActivityStatus;
   modifiedForAnalysis: boolean;
   isMultiSchema: boolean;
+  repeatedBlocks: RepeatedBlock[] | null;
+  mergedChildren: MergedChild[] | null;
+}
+
+/** A block the normalizer collapsed: [start, end) in query text, seen count times. */
+export interface RepeatedBlock {
+  start: number;
+  end: number;
+  count: number;
+}
+
+/** A query folded into a profile because it normalized identically. */
+export interface MergedChild {
+  digest: string;
+  repeatedBlocks: RepeatedBlock[] | null;
+  executed: number;
+  averageTime: number;
 }
 
 export interface Tag {

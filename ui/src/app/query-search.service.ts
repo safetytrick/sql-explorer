@@ -82,6 +82,18 @@ export interface RepeatedBlock {
   count: number;
 }
 
+/**
+ * A query folded into this one because it normalized identically. Its
+ * repeatedBlocks index into the *representative's* query text, so they can be
+ * compared against it directly — only the counts differ.
+ */
+export interface MergedChild {
+  digest: string;
+  repeatedBlocks: RepeatedBlock[] | null;
+  executed: number;
+  averageTime: number;
+}
+
 export interface QueryProfile {
   id: string;
   query: string;
@@ -95,6 +107,8 @@ export interface QueryProfile {
   runtimeMetrics: RuntimeMetrics | null;
   /** Null (not absent) when the query had no collapsed repeats. */
   repeatedBlocks: RepeatedBlock[] | null;
+  /** Queries merged into this one; empty when nothing merged. */
+  mergedChildren: MergedChild[] | null;
 }
 
 export interface QueryTag {

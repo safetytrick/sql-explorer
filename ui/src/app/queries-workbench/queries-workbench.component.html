@@ -269,6 +269,66 @@
                   }
                 </div>
               }
+              @if (mergeVariants.length) {
+                <div class="merge-group">
+                  <button type="button" class="merge-toggle" (click)="toggleMergeGroup()"
+                          [attr.aria-expanded]="mergeGroupOpen">
+                    <span class="merge-caret">{{mergeGroupOpen ? '▾' : '▸'}}</span>
+                    merged {{mergeVariants.length}}
+                    {{mergeVariants.length === 1 ? 'variant' : 'variants'}}
+                    <span class="merge-hint" title="queries that normalized to this same text, folded in at import">
+                      same normalized SQL
+                    </span>
+                  </button>
+                  @if (mergeGroupOpen) {
+                    <table class="data-table merge-table">
+                      <thead>
+                        <tr>
+                          <th>perf_schema digest</th>
+                          <th class="num">executed</th>
+                          <th class="num">avg</th>
+                          <th>repeats</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (variant of mergeVariants; track variant.digest) {
+                          <tr [class.differs]="variant.differs">
+                            <td>
+                              <span class="mono digest-cell">{{variant.digest}}</span>
+                              <button type="button" class="copy-btn" (click)="copy(variant.digest)"
+                                      [title]="'copy ' + variant.digest">
+                                {{copied === variant.digest ? '✓' : '⧉'}}
+                              </button>
+                              @if (variant.members > 1) {
+                                <span class="merge-members" title="members sharing this digest">
+                                  ×{{variant.members}}
+                                </span>
+                              }
+                            </td>
+                            <td class="num">{{variant.executed | number}}</td>
+                            <td class="num">{{ms(variant.averageTime)}}</td>
+                            <td>
+                              @if (variant.repeatCounts.length) {
+                                @for (count of variant.repeatCounts; track $index) {
+                                  <span class="repeat-count">×{{count}}</span>
+                                }
+                                @if (variant.differs) {
+                                  <span class="merge-differs"
+                                        title="this variant collapsed a different number of repeats than the query shown above">
+                                    differs
+                                  </span>
+                                }
+                              } @else {
+                                <span class="muted">—</span>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  }
+                </div>
+              }
             </div>
             @if (selected.profile.mismatchedJoins.length > 0) {
               <div class="banner warn">Analyzer warning: join column type mismatch</div>
@@ -279,9 +339,21 @@
             <div class="detail-section">
               <div class="ds-label">Digests</div>
               <div class="digest-tag dt-ps">perf_schema</div>
-              <div class="digest-box">{{selected.profile.digest}}</div>
+              <div class="digest-box">
+                {{selected.profile.digest}}
+                <button type="button" class="copy-btn" (click)="copy(selected.profile.digest)"
+                        [title]="'copy ' + selected.profile.digest">
+                  {{copied === selected.profile.digest ? '✓' : '⧉'}}
+                </button>
+              </div>
               <div class="digest-tag dt-app">app norm</div>
-              <div class="digest-box">{{selected.profile.normalizedDigest}}</div>
+              <div class="digest-box">
+                {{selected.profile.normalizedDigest}}
+                <button type="button" class="copy-btn" (click)="copy(selected.profile.normalizedDigest)"
+                        [title]="'copy ' + selected.profile.normalizedDigest">
+                  {{copied === selected.profile.normalizedDigest ? '✓' : '⧉'}}
+                </button>
+              </div>
             </div>
             @if (selected.profile.runtimeMetrics; as m) {
               <div class="detail-section">
