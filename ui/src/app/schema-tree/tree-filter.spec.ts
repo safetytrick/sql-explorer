@@ -1,4 +1,4 @@
-import {filterSchemaTree, matchesTagFilter, matchesTreeFilter, matchesTypeFilter, TreeFilterContext} from './tree-filter';
+import {filterSchemaTree, inertTags, matchesTagFilter, matchesTreeFilter, matchesTypeFilter, TreeFilterContext} from './tree-filter';
 
 describe('matchesTreeFilter', () => {
 
@@ -124,5 +124,77 @@ describe('filterSchemaTree (the whole sidebar chain)', () => {
     expect(filterSchemaTree(schemas, context({
       tagsBySchema: new Map(), tagFilter: { includeTags: ['core'], excludeTags: [], tagMode: 'ANY' }
     }))).toEqual([]);
+  });
+});
+
+describe('two excluded tags', () => {
+
+  const tagsBySchema = new Map([['sa', ['a']], ['sb', ['b']], ['sc', ['c']]]);
+  const tree = [
+    { name: 'sa', tables: [{ name: 't' }] },
+    { name: 'sb', tables: [{ name: 't' }] },
+    { name: 'sc', tables: [{ name: 't' }] }
+  ];
+
+  it('hides schemas carrying either excluded tag, not just the first', () => {
+    const filter = { includeTags: [], excludeTags: ['a', 'b'], tagMode: 'ANY' as const };
+    expect(matchesTagFilter(['a'], filter)).toBe(false);
+    expect(matchesTagFilter(['b'], filter)).toBe(false);
+    expect(matchesTagFilter(['c'], filter)).toBe(true);
+  });
+
+  it('drops both schemas from the tree', () => {
+    const kept = filterSchemaTree(tree, {
+      needle: '',
+      typeFilter: 'all',
+      tagFilter: { includeTags: [], excludeTags: ['a', 'b'], tagMode: 'ANY' },
+      tagsBySchema
+    });
+    expect(kept.map(schema => schema.name)).toEqual(['sc']);
+  });
+
+  it('order does not matter', () => {
+    const context = (excludeTags: string[]): TreeFilterContext => ({
+      needle: '', typeFilter: 'all', tagsBySchema,
+      tagFilter: { includeTags: [], excludeTags, tagMode: 'ANY' }
+    });
+    expect(filterSchemaTree(tree, context(['a', 'b'])).map(schema => schema.name))
+      .toEqual(filterSchemaTree(tree, context(['b', 'a'])).map(schema => schema.name));
+  });
+});
+
+/**
+ * The real defect behind "I excluded two tags and only the first one worked":
+ * the second tag was a *table* tag. This filter is schema-level, so it
+ * resolved to no schemas and did nothing — while the chip looked active.
+ */
+describe('inertTags', () => {
+
+  const tagsBySchema = new Map([['sa', ['schema-tag']], ['sb', []]]);
+
+  it('flags a tag no schema carries', () => {
+    expect([...inertTags(['schema-tag', 'table-only-tag'], tagsBySchema)]).toEqual(['table-only-tag']);
+  });
+
+  it('flags a typo the same way', () => {
+    expect(inertTags(['schema-taag'], tagsBySchema).has('schema-taag')).toBe(true);
+  });
+
+  it('flags nothing while the tag map is still empty', () => {
+    // first paint, before the tags request lands — flagging here would mark
+    // every chip inert for a moment
+    expect([...inertTags(['schema-tag', 'anything'], new Map())]).toEqual([]);
+  });
+
+  it('an inert exclude tag genuinely changes nothing, which is why it is flagged', () => {
+    const before = filterSchemaTree(
+      [{ name: 'sa', tables: [{ name: 't' }] }, { name: 'sb', tables: [{ name: 't' }] }],
+      { needle: '', typeFilter: 'all', tagsBySchema,
+        tagFilter: { includeTags: [], excludeTags: [], tagMode: 'ANY' } });
+    const after = filterSchemaTree(
+      [{ name: 'sa', tables: [{ name: 't' }] }, { name: 'sb', tables: [{ name: 't' }] }],
+      { needle: '', typeFilter: 'all', tagsBySchema,
+        tagFilter: { includeTags: [], excludeTags: ['table-only-tag'], tagMode: 'ANY' } });
+    expect(after).toEqual(before);
   });
 });

@@ -152,6 +152,24 @@
     color: var(--red);
   }
 
+  // a tag no schema carries: it cannot change the result, so it must not
+  // read as an active filter — struck through and drained of colour, with
+  // the reason on hover
+  &.inert,
+  &.exclude.inert {
+    background: var(--bg3);
+    color: var(--text3);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  .inert-mark {
+    margin-left: 4px;
+    font-size: 9px;
+    text-decoration: none;
+    opacity: 0.85;
+  }
+
   .rx { cursor: pointer; opacity: 0.6; }
   .rx:hover { opacity: 1; }
 }

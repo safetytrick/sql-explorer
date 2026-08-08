@@ -29,8 +29,12 @@
       </div>
       <div class="tag-input-area">
         @for (tag of includeTags; track tag) {
-          <span class="tag-chip" [style.background]="tagStyle(tag).background" [style.color]="tagStyle(tag).color">
-            {{tag}} <span class="rx" (click)="removeIncludeTag(tag)">×</span>
+          <span class="tag-chip" [class.inert]="isInertTag(tag)"
+                [title]="isInertTag(tag) ? inertReason(tag) : ''"
+                [style.background]="isInertTag(tag) ? '' : tagStyle(tag).background"
+                [style.color]="isInertTag(tag) ? '' : tagStyle(tag).color">
+            {{tag}}@if (isInertTag(tag)) {<span class="inert-mark">no schemas</span>}
+            <span class="rx" (click)="removeIncludeTag(tag)">×</span>
           </span>
         }
         <input placeholder="add…"
@@ -51,8 +55,10 @@
       </div>
       <div class="tag-input-area">
         @for (tag of excludeTags; track tag) {
-          <span class="tag-chip exclude">
-            −{{tag}} <span class="rx" (click)="removeExcludeTag(tag)">×</span>
+          <span class="tag-chip exclude" [class.inert]="isInertTag(tag)"
+                [title]="isInertTag(tag) ? inertReason(tag) : ''">
+            −{{tag}}@if (isInertTag(tag)) {<span class="inert-mark">no schemas</span>}
+            <span class="rx" (click)="removeExcludeTag(tag)">×</span>
           </span>
         }
         <input placeholder="add…"

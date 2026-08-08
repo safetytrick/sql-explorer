@@ -5,7 +5,7 @@ import {SchemaLensService, SchemaNode} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {QueryFacets, TagMode} from '../query-search.service';
 import {QueryScopeService, tableKey} from '../query-scope.service';
-import {filterSchemaTree, TypeFilter} from './tree-filter';
+import {filterSchemaTree, TypeFilter, inertTags} from './tree-filter';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 
@@ -137,6 +137,25 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
 
   get tagFilterCount(): number {
     return this.includeTags.length + this.excludeTags.length;
+  }
+
+  /**
+   * Tags in the filter that no schema carries. This filter resolves tags to
+   * schemas, so a table-level tag (or a typo) changes nothing — flagged in the
+   * chip rather than left to look like a filter that silently failed.
+   */
+  get inertTagNames(): Set<string> {
+    return inertTags([...this.includeTags, ...this.excludeTags], this.tagsBySchema);
+  }
+
+  isInertTag(name: string): boolean {
+    return this.inertTagNames.has(name);
+  }
+
+  /** Why a chip is inert, shown on hover. */
+  inertReason(name: string): string {
+    return `no schema is tagged "${name}" — this filter matches schema tags only, `
+      + 'so a tag applied to tables has no effect here';
   }
 
   /** Anything set in the filter panel (tags or type) lights the toggle. */

@@ -138,3 +138,40 @@ describe('buildSearchRequest', () => {
     expect(request.firstSeen).toBeNull();
   });
 });
+
+describe('two excluded schema tags in the URL', () => {
+
+  const params = (record: Record<string, string>) => ({
+    get: (name: string) => (name in record ? record[name] : null),
+    has: (name: string) => name in record
+  });
+
+  it('survives encode → decode', () => {
+    const state = defaultSearchState();
+    state.schemaTagFilter = { includeTags: [], excludeTags: ['a', 'b'], tagMode: 'ANY' };
+
+    expect(decodeSearchParams(params(encodeSearchParams(state))).schemaTagFilter.excludeTags)
+      .toEqual(['a', 'b']);
+  });
+
+  it('survives a real query string, where the comma could have been escaped', () => {
+    const state = defaultSearchState();
+    state.schemaTagFilter = { includeTags: [], excludeTags: ['a', 'b'], tagMode: 'ANY' };
+    const roundTripped = new URLSearchParams(new URLSearchParams(encodeSearchParams(state)).toString());
+
+    const decoded = decodeSearchParams({
+      get: (name: string) => roundTripped.get(name),
+      has: (name: string) => roundTripped.has(name)
+    });
+    expect(decoded.schemaTagFilter.excludeTags).toEqual(['a', 'b']);
+  });
+
+  it('both reach the request as excluded schemas', () => {
+    const scope = resolveSchemaTagScope(
+      ['sa', 'sb', 'sc'],
+      new Map([['sa', ['a']], ['sb', ['b']], ['sc', ['c']]]),
+      { includeTags: [], excludeTags: ['a', 'b'], tagMode: 'ANY' });
+
+    expect(scope.excludedSchemas.sort()).toEqual(['sa', 'sb']);
+  });
+});

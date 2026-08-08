@@ -36,6 +36,32 @@ export function matchesTagFilter(schemaTags: string[], filter: TagFilterState): 
     : filter.includeTags.some(tag => schemaTags.includes(tag));
 }
 
+/**
+ * Tags in the filter that no schema carries, so they cannot change anything.
+ *
+ * This filter is **schema-level**: it resolves tags through the schema→tags
+ * map. A tag that exists but is applied to *tables* (or a name with a typo)
+ * resolves to no schemas at all, so excluding it silently does nothing while
+ * the chip sits there looking active — the symptom being "I excluded two tags
+ * and only the first one took effect". Callers mark these chips so the no-op
+ * is visible rather than mistaken for a broken filter.
+ *
+ * An empty map means the tags simply haven't loaded yet; nothing is called
+ * inert in that state, or every chip would be flagged on first paint.
+ */
+export function inertTags(tags: string[], tagsBySchema: Map<string, string[]>): Set<string> {
+  if (!tagsBySchema.size) {
+    return new Set();
+  }
+  const carried = new Set<string>();
+  for (const schemaTags of tagsBySchema.values()) {
+    for (const tag of schemaTags) {
+      carried.add(tag);
+    }
+  }
+  return new Set(tags.filter(tag => !carried.has(tag)));
+}
+
 export interface TreeFilterContext {
   needle: string;
   typeFilter: TypeFilter;
