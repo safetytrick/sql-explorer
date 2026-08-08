@@ -15,12 +15,29 @@
 > reports, tags, the graph, and the clean/normalize utilities (with
 > collapsed repeats). Per-tool optional `environment` argument maps to the
 > `X-Sql-Explorer-Environment` header; 60k-char response truncation guards
-> the context window. Writes (tags/notes) deliberately not exposed —
-> revisit as v2 with confirmation UX. Tested end-to-end in `mcp/test.mjs`:
-> real stdio transport against a stubbed backend (routing, headers,
-> environment overrides, text endpoints, error mapping, crash resilience).
-> Setup docs in `mcp/README.md`. The `getAllAnalyzedSql()` per-call rebuild
+> the context window. Tested end-to-end in `mcp/test.mjs`: real stdio
+> transport against a stubbed backend (routing, headers, environment
+> overrides, text endpoints, error mapping, crash resilience). Setup docs
+> in `mcp/README.md`. The `getAllAnalyzedSql()` per-call rebuild
 > (TECH_DEBT #2) still amplifies under tool loops — unchanged, flagged.
+>
+> **Update 2026-08-07 — tag writes are in v1 (18 tools).** `add_tag` and
+> `remove_tag` shipped; Michael confirmed this as intended v1 scope. This
+> supersedes the plan's original "read-only for v1, revisit writes as v2
+> with confirmation UX" position, which was a guess at the risk, not a
+> constraint anyone asked for. What changed the calculus: tagging is the
+> one place the tool is *meant* to write — it's how a human curates the
+> corpus, and an assistant that can read every query but not label what it
+> found makes the human retype its conclusions. The blast radius is small
+> and reversible by construction: a tag is an annotation, never query or
+> schema data; `add_tag` on an existing tag is a no-op rather than a
+> duplicate; `remove_tag` deletes one tagging, not the tag everywhere it
+> is used; and the tool name regex rejects anything but
+> `[A-Za-z0-9_-]`. `remove_tag` resolves the id by path first and errors
+> with the tags that *are* there when it finds no match, so a wrong guess
+> issues no DELETE. Notes and source loading stay unexposed — notes are
+> free text (no cheap validation) and source loading is neither an
+> annotation nor reversible.
 
 ## Current state
 
@@ -70,7 +87,10 @@ amplify that; consider fixing that first.
 - Who's the consumer — Claude Desktop/Cowork over stdio, or HTTP (streamable)
   transport for remote use? Determines transport module and auth story (the app
   currently has none — `auth/UserResource` is a stub).
+  *Answered: stdio for Claude Desktop/Cowork.*
 - Should tag/note *writes* be exposed, or read-only for v1?
+  *Answered 2026-08-07: tag writes yes, notes no — see the status block.*
 - Same JVM vs sidecar module calling REST?
+  *Answered: sidecar — see the status block.*
 
 ## Effort: M for a read-only in-process server with ~10 tools.

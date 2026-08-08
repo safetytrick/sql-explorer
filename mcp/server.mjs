@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * SQL Explorer MCP server — read-only, stdio transport.
+ * SQL Explorer MCP server — stdio transport.
  *
  * Proxies a running SQL Explorer instance's REST API as MCP tools for
- * Claude Desktop / Cowork. Nothing here writes: tags, notes, and source
- * management are deliberately not exposed.
+ * Claude Desktop / Cowork. Everything is read-only except `add_tag` and
+ * `remove_tag`; notes and source management are deliberately not exposed.
  *
  * Configuration (environment variables):
  *   SQL_EXPLORER_URL          base API url, default http://localhost:8080/api/sql-explorer
@@ -170,6 +170,61 @@ server.tool('get_queries_by_tag',
   'The analyzed queries carrying a tag.',
   { tag: z.string(), environment },
   safely(({ tag, environment }) => api(`/analyzed-sql/tag/${encodeURIComponent(tag)}`, { environment })));
+
+// ── tag writes ──
+
+/**
+ * The path a tag hangs off: /query/{digest}, /schema/{name}, or
+ * /schema/{name}/table/{name}. Stored verbatim, so no URL encoding here —
+ * the backend derives the tag's type from the last two segments.
+ */
+function tagPath({ queryDigest, schema, table }) {
+  if (queryDigest) {
+    if (schema || table) {
+      throw new Error('tag either a query or a schema/table, not both');
+    }
+    return `/query/${queryDigest}`;
+  }
+  if (!schema) {
+    throw new Error('name a target: queryDigest, schema, or schema + table');
+  }
+  return table ? `/schema/${schema}/table/${table}` : `/schema/${schema}`;
+}
+
+const tagTarget = {
+  queryDigest: z.string().optional()
+    .describe('tag a query — its `digest` field from search_queries / get_query. Use that field, ' +
+      'not `id`: the UI hangs query tags off the digest, and a tag on anything else stays invisible there'),
+  schema: z.string().optional().describe('tag this schema, or with `table`, a table in it'),
+  table: z.string().optional().describe('tag this table inside `schema`')
+};
+
+server.tool('add_tag',
+  'Tag a query, table, or schema. Re-tagging something returns the existing tag rather than duplicating it.',
+  {
+    tag: z.string().regex(/^[\w-]+$/, 'letters, numbers, underscores and hyphens only')
+      .describe('tag name'),
+    ...tagTarget,
+    environment
+  },
+  safely(({ tag, queryDigest, schema, table, environment }) =>
+    api('/tags', { method: 'POST', body: { name: tag, path: tagPath({ queryDigest, schema, table }) }, environment })));
+
+server.tool('remove_tag',
+  'Remove a tag from a query, table, or schema. Only that one tagging is deleted — the tag stays on everything else carrying it.',
+  { tag: z.string().describe('tag name, matched case-insensitively'), ...tagTarget, environment },
+  safely(async ({ tag, queryDigest, schema, table, environment }) => {
+    const path = tagPath({ queryDigest, schema, table });
+    const existing = await api(`/tags/path?path=${encodeURIComponent(path)}`, { environment });
+    const match = existing.find(candidate => candidate.name.toLowerCase() === tag.toLowerCase());
+    if (!match) {
+      const names = existing.map(candidate => candidate.name);
+      throw new Error(`no tag "${tag}" on ${path} — ` +
+        (names.length ? `tags there: ${names.join(', ')}` : 'it has no tags'));
+    }
+    await api(`/tag/${match.id}`, { method: 'DELETE', asText: true, environment });
+    return { removed: match };
+  }));
 
 // ── SQL utilities (stateless) ──
 

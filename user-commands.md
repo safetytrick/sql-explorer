@@ -1,5 +1,20 @@
 # Commands to run locally
 
+## MCP tag writes (2026-08-07)
+
+`add_tag` / `remove_tag` shipped — 18 tools now, and the server is no
+longer read-only. Verified here (real stdio transport against a stubbed
+backend, including the tag-write request shapes):
+
+```bash
+cd mcp && npm test
+```
+
+Manual smoke, against a running instance from a stdio client: tag a
+query by its `digest` (not `id` — the UI hangs query tags off the
+digest, so a tag on anything else stays invisible there), then confirm
+the chip shows up in the workbench.
+
 ## Collapsed-repeat badges over the wire (2026-08-07)
 
 The `RepeatedBlock` Jackson mixin fix. Verified here — `./gradlew test`

@@ -10,6 +10,24 @@ import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 // ── stub backend ──
 
 const requests = [];
+
+/** Bodies reach the stub as text — some routes post SQL, not JSON. */
+function jsonBody(body) {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return {};
+  }
+}
+
+/** Only /schema/tdb/table/branch carries a tag; every other path is bare. */
+function tagsOnPath(url) {
+  const path = new URL(url, 'http://stub').searchParams.get('path');
+  return path === '/schema/tdb/table/branch'
+    ? [{ id: 7, name: 'hot', path, type: 'table' }]
+    : [];
+}
+
 const stub = http.createServer((request, response) => {
   let body = '';
   request.on('data', chunk => body += chunk);
@@ -33,10 +51,17 @@ const stub = http.createServer((request, response) => {
         facets: { tables: { 'tdb.member_session': 1 }, schemas: { tdb: 1 } }
       },
       'POST /api/sql-explorer/util/normalize': { text: 'select 1', repeats: [{ start: 0, end: 8, count: 3 }] },
-      'GET /api/sql-explorer/analyzed-sql/reports/slow': [{ id: 'q9' }]
+      'GET /api/sql-explorer/analyzed-sql/reports/slow': [{ id: 'q9' }],
+      // echoes the posted path back, the way createTag returns the saved row
+      'POST /api/sql-explorer/tags': { id: 7, name: 'hot', path: jsonBody(body).path, type: 'table' },
+      'GET /api/sql-explorer/tags/path': tagsOnPath(request.url)
     };
     if (route === 'GET /api/sql-explorer/boom') {
       response.writeHead(500); response.end('kaboom'); return;
+    }
+    // DELETE /tag/{id} — void on the Java side, so an empty 200 body like the real thing
+    if (/^DELETE \/api\/sql-explorer\/tag\/\d+$/.test(route)) {
+      response.writeHead(200); response.end(); return;
     }
     const payload = routes[route];
     if (payload === undefined) {
@@ -60,13 +85,41 @@ const transport = new StdioClientTransport({
 const client = new Client({ name: 'sql-explorer-mcp-test', version: '0.0.0' });
 await client.connect(transport);
 
+async function shutdown() {
+  clearTimeout(watchdog);
+  await client.close().catch(() => {});
+  stub.close();
+}
+
+/**
+ * Neither a wedged stdio handshake nor a failed assertion may leave the stub
+ * and the server child holding handles open — the first would hang a CI run,
+ * the second used to kill the child by EPIPE and bury the real failure.
+ */
+const watchdog = setTimeout(async () => {
+  console.error('mcp tests timed out after 30s');
+  await shutdown();
+  process.exit(1);
+}, 30_000);
+watchdog.unref();
+
+// A failed assertion in top-level await arrives as uncaughtException, not as
+// unhandledRejection; hook both so cleanup runs either way.
+for (const event of ['uncaughtException', 'unhandledRejection']) {
+  process.on(event, async error => {
+    console.error(error);
+    await shutdown();
+    process.exit(1);
+  });
+}
+
 const parse = result => JSON.parse(result.content[0].text);
 
 // tool inventory
 const tools = await client.listTools();
 const names = tools.tools.map(tool => tool.name).sort();
 assert.ok(names.includes('search_queries') && names.includes('get_table_structure') && names.includes('normalize_sql'));
-assert.equal(names.length, 16);
+assert.equal(names.length, 18);
 
 // simple GET + default environment header
 const schemas = parse(await client.callTool({ name: 'list_schemas', arguments: {} }));
@@ -105,6 +158,58 @@ const report = parse(await client.callTool({ name: 'run_report', arguments: { na
 assert.equal(report[0].id, 'q9');
 assert.ok(requests.at(-1).url.endsWith('/reports/slow?limit=5'));
 
+// add_tag posts {name, path} — no type, the backend derives it — for each target shape
+const added = parse(await client.callTool({ name: 'add_tag', arguments: { tag: 'hot', schema: 'tdb', table: 'branch' } }));
+assert.equal(added.id, 7);
+assert.equal(requests.at(-1).method, 'POST');
+assert.equal(requests.at(-1).url, '/api/sql-explorer/tags');
+assert.equal(requests.at(-1).environment, 'staging');
+assert.deepEqual(JSON.parse(requests.at(-1).body), { name: 'hot', path: '/schema/tdb/table/branch' });
+
+await client.callTool({ name: 'add_tag', arguments: { tag: 'hot', schema: 'tdb' } });
+assert.equal(JSON.parse(requests.at(-1).body).path, '/schema/tdb');
+
+await client.callTool({ name: 'add_tag', arguments: { tag: 'hot', queryDigest: 'abc123', environment: 'prod' } });
+assert.deepEqual(JSON.parse(requests.at(-1).body), { name: 'hot', path: '/query/abc123' });
+assert.equal(requests.at(-1).environment, 'prod');
+
+// bad tag names and missing/conflicting targets never reach the backend
+const before = requests.length;
+const badName = await client.callTool({ name: 'add_tag', arguments: { tag: 'not a tag', schema: 'tdb' } });
+assert.equal(badName.isError, true);
+const noTarget = await client.callTool({ name: 'add_tag', arguments: { tag: 'hot' } });
+assert.equal(noTarget.isError, true);
+assert.ok(noTarget.content[0].text.includes('name a target'));
+const bothTargets = await client.callTool({ name: 'add_tag', arguments: { tag: 'hot', queryDigest: 'abc123', schema: 'tdb' } });
+assert.equal(bothTargets.isError, true);
+assert.equal(requests.length, before);
+
+// remove_tag resolves the id by path, then deletes it (empty 200 body must not read as failure)
+const removed = parse(await client.callTool({ name: 'remove_tag', arguments: { tag: 'HOT', schema: 'tdb', table: 'branch' } }));
+assert.equal(removed.removed.id, 7);
+assert.equal(requests.at(-2).method, 'GET');
+assert.equal(requests.at(-2).url, '/api/sql-explorer/tags/path?path=%2Fschema%2Ftdb%2Ftable%2Fbranch');
+assert.equal(requests.at(-1).method, 'DELETE');
+assert.equal(requests.at(-1).url, '/api/sql-explorer/tag/7');
+assert.equal(requests.at(-1).environment, 'staging');
+
+// removing a tag that isn't there is an error, and issues no DELETE
+const beforeMiss = requests.length;
+const missing = await client.callTool({ name: 'remove_tag', arguments: { tag: 'cold', schema: 'tdb', table: 'branch' } });
+assert.equal(missing.isError, true);
+assert.ok(missing.content[0].text.includes('tags there: hot'));
+assert.equal(requests.length, beforeMiss + 1);
+assert.equal(requests.at(-1).method, 'GET');
+
+// removing from an untagged path says so, and still issues no DELETE
+const beforeBare = requests.length;
+const bare = await client.callTool({ name: 'remove_tag', arguments: { tag: 'hot', queryDigest: 'abc123' } });
+assert.equal(bare.isError, true);
+assert.ok(bare.content[0].text.includes('/query/abc123'));
+assert.ok(bare.content[0].text.includes('it has no tags'));
+assert.equal(requests.length, beforeBare + 1);
+assert.equal(requests.at(-1).url, '/api/sql-explorer/tags/path?path=%2Fquery%2Fabc123');
+
 // backend failure → tool error, not crash
 const failure = await client.callTool({ name: 'get_query', arguments: { id: 'missing' } });
 assert.equal(failure.isError, true);
@@ -114,6 +219,5 @@ assert.ok(failure.content[0].text.includes('HTTP 404'));
 const again = parse(await client.callTool({ name: 'list_schemas', arguments: {} }));
 assert.equal(again[0].name, 'tdb');
 
-await client.close();
-stub.close();
+await shutdown();
 console.log('all mcp server scenarios pass');
