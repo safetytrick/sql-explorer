@@ -57,7 +57,7 @@
         @for (tag of excludeTags; track tag) {
           <span class="tag-chip exclude" [class.inert]="isInertTag(tag)"
                 [title]="isInertTag(tag) ? inertReason(tag) : ''">
-            −{{tag}}@if (isInertTag(tag)) {<span class="inert-mark">no schemas</span>}
+            −{{tag}}@if (isInertTag(tag)) {<span class="inert-mark">no matches</span>}
             <span class="rx" (click)="removeExcludeTag(tag)">×</span>
           </span>
         }
