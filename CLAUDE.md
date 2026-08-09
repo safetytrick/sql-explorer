@@ -86,6 +86,30 @@ Note: the `*-lens` components (`TableLensComponent`, `GraphLensComponent`, `Sche
 
 Key services: `AnalyzedSqlService` / `SchemaLensService` (query profiles & schema data), `QuerySearchService` (the queries workbench), `SourceService` (data sources), `EnvironmentService` (active environment). Shared response types live in `ui/src/app/api-types.ts`.
 
+#### Every view is a link: state belongs in the URL
+
+**Any filtering or view state must be reflected in the URL, so that every view
+can be shared as a link.** If a colleague can see it, they must be able to send
+it. A filter that lives only in component state is a bug, not a shortcut.
+
+In practice:
+
+- Write state back with `router.navigate([], { queryParams, replaceUrl: true })`
+  so filtering doesn't spam browser history, and seed the component from
+  `route.snapshot.queryParamMap` on init.
+- Encode and decode through a shared pure codec rather than ad-hoc reads —
+  `search-url.ts` is the vocabulary for anything search-shaped (the workbench
+  and `/graph?source=search` speak it identically), and `graph-url.ts` covers
+  page-owned *presentation* params, which are prefixed `var-` so they can't
+  collide with cross-cutting ones.
+- Omit defaults so an untouched view keeps a clean URL.
+- Share intent, not resolved results: a tag filter travels as the tag name and
+  is re-resolved against live data when the link opens, the same way date-math
+  expressions like `now-7d` stay relative. A snapshot of what the tag matched
+  at share time would go stale.
+- Reflect *derived* view state too — an open drill-down, a selected row, an
+  expanded panel — not just the text in filter boxes.
+
 ### Data Flow
 
 1. SQL loaded from Performance Schema or CSV/Parquet files
