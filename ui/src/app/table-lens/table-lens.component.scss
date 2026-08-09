@@ -330,10 +330,12 @@ tr.drillable {
     color: var(--text2);
   }
 
+  // No height cap: the list exists to be read, and a 120px window meant even
+  // a six-line query opened with a scrollbar. Height follows the query.
+  // Horizontal scroll stays — one very wide line should not stretch the card.
   .query-sql {
     margin: 0;
-    max-height: 120px;
-    overflow: auto;
+    overflow-x: auto;
     font-size: 11px;
   }
 }
