@@ -74,6 +74,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   analysisSkipped = false;
   failureKind: 'ANALYZER' | 'PARSE' | null = null;
   sort: SortKey = 'IMPACT';
+  /**
+   * Column drill-down, arriving from a table-lens link. The workbench has no
+   * control for it, but it must survive: dropping it here would silently widen
+   * a shared search on the first filter change.
+   */
+  columns: string[] = [];
 
   // ── results ──
   hits: QueryHit[] = [];
@@ -210,6 +216,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       analysisSkipped: this.analysisSkipped,
       failureKind: this.failureKind,
       sort: this.sort,
+      columns: this.columns,
       scope: this.queryScopeService.scope,
       schemaTagFilter: this.queryScopeService.schemaTagFilter
     };
@@ -532,6 +539,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.analysisSkipped = state.analysisSkipped;
     this.failureKind = state.failureKind;
     this.sort = state.sort;
+    this.columns = state.columns;
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically
     if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY') {

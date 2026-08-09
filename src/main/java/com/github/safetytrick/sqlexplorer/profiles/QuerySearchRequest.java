@@ -50,6 +50,15 @@ public record QuerySearchRequest(
      * applies whether or not {@link #tables()} narrows the search.
      */
     List<String> excludeTables,
+    /**
+     * {@code schema.table.column} (or {@code table.column}) references; a query
+     * matching <em>any</em> of them is kept. "Matching" is
+     * {@code SqlProfile.constrainedBy} — the column appears in a join or in the
+     * criteria — so a query that merely selects the column does not match. That
+     * is the drill-down the table view has always offered, and this delegates to
+     * the same method rather than restating it.
+     */
+    List<String> columns,
     Flag fullScan,
     Flag tmpTable,
     Flag tmpDisk,
@@ -127,5 +136,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null);
+        null, null, null, null, null, null, null);
 }

@@ -13,10 +13,26 @@
     </span>
   }
   <div class="view-actions">
+    <button type="button" class="btn" (click)="toggleCreate()">{{showCreate ? 'hide DDL' : 'show DDL'}}</button>
     <a class="btn" [routerLink]="['/table', schema, table, 'queries']">Queries ↗</a>
     <a class="btn" [routerLink]="['/graph', schema]" [queryParams]="{'var-table': table}">Graph ↗</a>
   </div>
 </div>
+
+@if (remarks) {
+  <div class="table-remarks">{{remarks}}</div>
+}
+@if (showCreate) {
+  <div class="ddl-panel">
+    @if (createLoading) {
+      <div class="card-empty">loading DDL…</div>
+    } @else if (createStatement) {
+      <pre class="sql-display"><code highlight="{{createStatement}}"></code></pre>
+    } @else {
+      <div class="card-empty">no DDL available for this table</div>
+    }
+  </div>
+}
 
 <div class="lens-body">
   <div class="lens-grid">
@@ -53,11 +69,25 @@
       <!-- Foreign keys -->
       <div class="lens-card">
         <div class="card-head">
-          <span class="card-head-title">Foreign key relationships</span>
+          <button type="button" class="card-collapse" (click)="toggleFk()" [attr.aria-expanded]="fkOpen">
+            <span class="merge-caret">{{fkOpen ? '▾' : '▸'}}</span>
+            <span class="card-head-title">Foreign key relationships</span>
+          </button>
           <span class="card-head-note">{{outgoingCount()}} out · {{incomingCount()}} in</span>
         </div>
         @if (foreignKeys.length === 0) {
           <div class="card-empty">no foreign keys</div>
+        } @else if (!fkOpen) {
+          <div class="rel-names">
+            @for (fk of foreignKeys; track fk.constraintName) {
+              <button type="button" class="rel-name" [class.on]="joinWith === fk.otherSchema + '.' + fk.otherTable"
+                      (click)="drillIntoJoin(fk.otherSchema, fk.otherTable)"
+                      [title]="'queries joining ' + table + ' with ' + fk.otherTable">
+                <span class="badge" [class.fk-out]="fk.direction === 'out'" [class.fk-in]="fk.direction === 'in'">{{fk.direction}}</span>
+                <span class="mono">{{fk.otherTable}}</span>
+              </button>
+            }
+          </div>
         } @else {
           <div class="table-scroll">
             <table class="data-table">
@@ -66,7 +96,8 @@
               </thead>
               <tbody>
                 @for (fk of foreignKeys; track fk.constraintName) {
-                  <tr [routerLink]="['/table', fk.otherSchema, fk.otherTable]">
+                  <tr class="rel-row" [class.on]="joinWith === fk.otherSchema + '.' + fk.otherTable"
+                      (click)="drillIntoJoin(fk.otherSchema, fk.otherTable)">
                     <td><span class="badge" [class.fk-out]="fk.direction === 'out'" [class.fk-in]="fk.direction === 'in'">{{fk.direction}}</span></td>
                     <td><span class="mono dim">{{fk.constraintName}}</span></td>
                     <td>
@@ -81,7 +112,8 @@
                     </td>
                     <td class="dim">→</td>
                     <td>
-                      <span class="mono tbl-name">{{fk.otherTable}}</span><span class="mono dim">.{{fk.columns[0].toColumn}}</span>
+                      <a class="mono tbl-name" [routerLink]="['/table', fk.otherSchema, fk.otherTable]"
+                         (click)="$event.stopPropagation()">{{fk.otherTable}}</a><span class="mono dim">.{{fk.columns[0].toColumn}}</span>
                     </td>
                     <td><span class="mono dim">{{fk.onUpdate || '—'}}</span></td>
                     <td><span class="mono dim">{{fk.onDelete || '—'}}</span></td>
@@ -96,10 +128,25 @@
       <!-- Co-queried -->
       <div class="lens-card">
         <div class="card-head">
-          <span class="card-head-title">Commonly queried together</span>
+          <button type="button" class="card-collapse" (click)="toggleCo()" [attr.aria-expanded]="coOpen">
+            <span class="merge-caret">{{coOpen ? '▾' : '▸'}}</span>
+            <span class="card-head-title">Commonly queried together</span>
+          </button>
+          <span class="card-head-note">{{coQueried.length}}</span>
         </div>
         @if (coQueried.length === 0) {
           <div class="card-empty">never queried with another table</div>
+        } @else if (!coOpen) {
+          <div class="rel-names">
+            @for (partner of coQueried; track partner.schema + '.' + partner.table) {
+              <button type="button" class="rel-name" [class.on]="joinWith === partner.schema + '.' + partner.table"
+                      (click)="drillIntoJoin(partner.schema, partner.table)"
+                      [title]="'queries touching both ' + table + ' and ' + partner.table">
+                <span class="mono">{{partner.table}}</span>
+                <span class="dim">{{partner.queries}}</span>
+              </button>
+            }
+          </div>
         } @else {
           <div class="table-scroll">
             <table class="data-table">
@@ -108,8 +155,10 @@
               </thead>
               <tbody>
                 @for (partner of coQueried; track partner.schema + '.' + partner.table) {
-                  <tr [routerLink]="['/table', partner.schema, partner.table]">
-                    <td><span class="mono tbl-name">{{partner.table}}</span></td>
+                  <tr class="rel-row" [class.on]="joinWith === partner.schema + '.' + partner.table"
+                      (click)="drillIntoJoin(partner.schema, partner.table)">
+                    <td><a class="mono tbl-name" [routerLink]="['/table', partner.schema, partner.table]"
+                           (click)="$event.stopPropagation()">{{partner.table}}</a></td>
                     <td class="num mono">{{partner.queries}}</td>
                     <td class="num mono">{{fmtExecutions(partner.executions)}}</td>
                     <td class="num mono hot">{{fmtMs(partner.avgTimeMs)}}</td>
@@ -151,7 +200,10 @@
             </thead>
             <tbody>
               @for (column of visibleColumns(); track column.name) {
-                <tr>
+                <tr [class.drillable]="isDrillable(column)"
+                    [class.on]="drillColumn === schema + '.' + table + '.' + column.name"
+                    (click)="drillIntoColumn(column)"
+                    [title]="isDrillable(column) ? 'queries joining on or filtering by this column' : ''">
                   <td><span class="mono">{{column.name}}</span></td>
                   @if (isView) {
                     <td class="lineage">
@@ -206,6 +258,59 @@
             </tbody>
           </table>
         </div>
+      </div>
+      <!-- Queries -->
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">Queries</span>
+          <span class="card-head-note">
+            {{queryTotal | number}} total
+            @if (queries.length < queryTotal) { <span class="dim">· showing {{queries.length}}</span> }
+          </span>
+          <a class="card-head-link" [routerLink]="['/queries']" [queryParams]="workbenchParams()"
+             title="the same search, with the full filter set">open in workbench ↗</a>
+        </div>
+
+        @if (drillColumn || joinWith) {
+          <div class="drill-strip">
+            <span class="drill-label">filtered to</span>
+            @if (drillColumn) {
+              <span class="drill-chip">
+                column <span class="mono">{{drillColumn}}</span>
+                <span class="dim" title="a column filters a query when it is joined on or used in the criteria">joins / criteria</span>
+              </span>
+            }
+            @if (joinWith) {
+              <span class="drill-chip">joined with <span class="mono">{{joinWith}}</span></span>
+            }
+            <button type="button" class="drill-clear" (click)="clearDrillDown()">clear</button>
+          </div>
+        }
+
+        @if (queriesLoading) {
+          <div class="card-empty">loading queries…</div>
+        } @else if (queries.length === 0) {
+          <div class="card-empty">no queries reference this table</div>
+        } @else {
+          <div class="query-list">
+            @for (hit of queries; track hit.profile.id) {
+              <div class="query-row" [class.has-warn]="hit.profile.mismatchedJoins.length > 0 || hit.profile.analysisFailed">
+                <div class="query-row-head">
+                  <a class="mono q-link" [routerLink]="['/analyzed-sql', hit.profile.digest]">{{hit.profile.type || 'SQL'}}</a>
+                  @if (hit.profile.runtimeMetrics; as m) {
+                    <span class="q-metric">{{m.executed | number}} execs</span>
+                    <span class="q-metric hot">{{fmtMs(queryTime(hit))}}</span>
+                    @if (m.fullTableScan) { <span class="badge b-warn">full scan</span> }
+                  }
+                  @if (hit.profile.mismatchedJoins.length > 0) { <span class="badge b-warn">analyzer!</span> }
+                  @if (hit.profile.analysisFailed) { <span class="badge b-err">analysis failed</span> }
+                  @for (tag of hit.tags; track tag.id) { <span class="q-tag">{{tag.name}}</span> }
+                </div>
+                <pre class="query-sql"><code highlight="{{hit.profile.query}}"></code></pre>
+              </div>
+            }
+          </div>
+        }
       </div>
     </div>
 

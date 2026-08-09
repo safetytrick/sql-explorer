@@ -251,3 +251,53 @@ describe('table-tag exclusion', () => {
     expect(request.excludeTables).toEqual(['sb.stat_one', 'sc.stat_two']);
   });
 });
+
+describe('column drill-down param', () => {
+
+  const params = (record: Record<string, string>) => ({
+    get: (name: string) => (name in record ? record[name] : null),
+    has: (name: string) => name in record
+  });
+
+  it('round-trips and reaches the request', () => {
+    const state = defaultSearchState();
+    state.columns = ['app_other.user_profile.user_id'];
+
+    const encoded = encodeSearchParams(state);
+    expect(encoded['columns']).toBe('app_other.user_profile.user_id');
+
+    const decoded = decodeSearchParams(params(encoded));
+    expect(decoded.columns).toEqual(['app_other.user_profile.user_id']);
+    expect(buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).columns)
+      .toEqual(['app_other.user_profile.user_id']);
+  });
+
+  it('is omitted when unset, so an untouched view keeps a clean URL', () => {
+    expect(encodeSearchParams(defaultSearchState())['columns']).toBeUndefined();
+    expect(buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).columns)
+      .toBeNull();
+  });
+
+  it('travels alongside the table scope, which is how the lens links to the workbench', () => {
+    const state = defaultSearchState();
+    state.columns = ['app_other.user_profile.user_id'];
+    state.scope = { schemas: [], tables: ['app_other.user_profile'], tableMode: 'ANY' };
+
+    const decoded = decodeSearchParams(params(encodeSearchParams(state)));
+    const request = buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 });
+
+    expect(request.tables).toEqual(['app_other.user_profile']);
+    expect(request.columns).toEqual(['app_other.user_profile.user_id']);
+  });
+
+  it('carries the join drill-down as tables + ALL, needing no filter of its own', () => {
+    const state = defaultSearchState();
+    state.scope = { schemas: [], tables: ['app_other.group_member', 'app_other.groups'], tableMode: 'ALL' };
+
+    const request = buildSearchRequest(decodeSearchParams(params(encodeSearchParams(state))),
+      UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 });
+
+    expect(request.tables).toEqual(['app_other.group_member', 'app_other.groups']);
+    expect(request.tableMode).toBe('ALL');
+  });
+});

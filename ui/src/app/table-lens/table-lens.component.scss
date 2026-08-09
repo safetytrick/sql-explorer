@@ -207,3 +207,144 @@ td.lineage {
 }
 
 .tags-body { padding: 8px 10px; }
+
+// ── collapsed relationship cards ──
+.card-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+
+  .merge-caret { color: var(--text3); }
+  &:hover .card-head-title { color: var(--text); }
+}
+
+.rel-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+
+  .rel-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    cursor: pointer;
+
+    &:hover { color: var(--text); border-color: var(--text3); }
+    // the active drill-down, so the queries list below is explained
+    &.on { border-color: var(--blue); color: var(--blue); }
+  }
+}
+
+.rel-row {
+  cursor: pointer;
+  &.on { background: var(--bg3); }
+}
+
+// ── column drill-down ──
+tr.drillable {
+  cursor: pointer;
+  &:hover { background: var(--bg3); }
+  &.on { background: var(--bg3); box-shadow: inset 2px 0 0 var(--blue); }
+}
+
+// ── queries card ──
+.card-head-link {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text3);
+  &:hover { color: var(--text); }
+}
+
+.drill-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+
+  .drill-label { font-size: 10px; color: var(--text3); }
+
+  .drill-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+
+  .drill-clear {
+    background: none;
+    border: none;
+    padding: 0 4px;
+    font-size: 10px;
+    color: var(--text3);
+    cursor: pointer;
+    &:hover { color: var(--text); }
+  }
+}
+
+.query-list { display: flex; flex-direction: column; }
+
+.query-row {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  &:last-child { border-bottom: none; }
+  &.has-warn { box-shadow: inset 2px 0 0 var(--amber); }
+
+  .query-row-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .q-link { font-size: 11px; color: var(--blue); }
+  .q-metric { font-size: 10px; color: var(--text3); }
+  .q-metric.hot { color: var(--amber); }
+
+  .q-tag {
+    font-size: 9px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+
+  .query-sql {
+    margin: 0;
+    max-height: 120px;
+    overflow: auto;
+    font-size: 11px;
+  }
+}
+
+.table-remarks {
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.ddl-panel {
+  padding: 8px 16px;
+  .sql-display { margin: 0; max-height: 320px; overflow: auto; font-size: 11px; }
+}

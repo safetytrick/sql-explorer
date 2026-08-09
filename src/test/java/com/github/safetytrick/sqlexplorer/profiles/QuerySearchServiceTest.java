@@ -14,6 +14,7 @@ import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
+import extensions.com.github.safetytrick.sqlexplorer.avro.ColumnReference.ColumnReferenceExtension;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Activity;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.DateRange;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Flag;
@@ -352,6 +353,79 @@ class QuerySearchServiceTest {
         return profile;
     }
 
+
+    /** A profile whose column usage is set explicitly: criteria, join, select-only. */
+    private static SqlProfile withColumns(String id, String table,
+                                          List<String> criteria, List<String> joins, List<String> selects) {
+        SqlProfile profile = withTables(id, table);
+        profile.setCriteriaColumns(criteria.stream()
+            .map(ColumnReferenceExtension::fromString).toList());
+        profile.setSelectColumns(selects.stream()
+            .map(ColumnReferenceExtension::fromString).toList());
+        profile.setJoinColumns(joins.stream().map(pair -> {
+            String[] sides = pair.split(" = ");
+            return JoinColumns.newBuilder()
+                .setLeft(ColumnReferenceExtension.fromString(sides[0]))
+                .setRight(ColumnReferenceExtension.fromString(sides[1]))
+                .build();
+        }).toList());
+        return profile;
+    }
+
+    @Test
+    void columnFilterKeepsQueriesTheColumnConstrains() {
+        repositoryReturns(
+            withColumns("criteria-hit", "app.orders", List.of("app.orders.status"), List.of(), List.of()),
+            withColumns("join-hit", "app.orders", List.of(), List.of("app.orders.id = app.lines.order_id"), List.of()),
+            withColumns("elsewhere", "app.orders", List.of("app.orders.created_at"), List.of(), List.of()));
+
+        assertThat(searchIds(request().columns(List.of("app.orders.status")).build()))
+            .containsExactly("criteria-hit");
+        assertThat(searchIds(request().columns(List.of("app.lines.order_id")).build()))
+            .containsExactly("join-hit");
+        // several columns are an ANY match — the drill-down widens, never narrows
+        assertThat(searchIds(request().columns(List.of("app.orders.status", "app.orders.created_at")).build()))
+            .containsExactlyInAnyOrder("criteria-hit", "elsewhere");
+    }
+
+    /**
+     * The case that separates "same behaviour as the table view" from a naive
+     * match against any column reference: {@code constrainedBy} counts joins and
+     * criteria, never the select list.
+     */
+    @Test
+    void aColumnThatIsOnlySelectedIsNotAUsage() {
+        repositoryReturns(
+            withColumns("selects-it", "app.orders", List.of(), List.of(), List.of("app.orders.note")),
+            withColumns("filters-it", "app.orders", List.of("app.orders.note"), List.of(), List.of()));
+
+        assertThat(searchIds(request().columns(List.of("app.orders.note")).build()))
+            .containsExactly("filters-it");
+    }
+
+    @Test
+    void columnFilterComposesWithTheTableScopeAndSurvivesBadInput() {
+        repositoryReturns(
+            withColumns("in-scope", "app.orders", List.of("app.orders.status"), List.of(), List.of()),
+            withColumns("other-table", "app.archive", List.of("app.orders.status"), List.of(), List.of()));
+
+        assertThat(searchIds(request()
+            .tables(List.of("app.orders")).columns(List.of("app.orders.status")).build()))
+            .containsExactly("in-scope");
+        // a malformed reference out of a URL matches nothing rather than throwing
+        assertThat(searchIds(request().columns(List.of("nonsense")).build())).isEmpty();
+    }
+
+    @Test
+    void noColumnFilterLeavesTheSearchUnconstrained() {
+        repositoryReturns(
+            withColumns("a", "app.orders", List.of("app.orders.status"), List.of(), List.of()),
+            withColumns("b", "app.orders", List.of(), List.of(), List.of("app.orders.note")));
+
+        assertThat(searchIds(request().build())).containsExactlyInAnyOrder("a", "b");
+        assertThat(searchIds(request().columns(List.of()).build())).containsExactlyInAnyOrder("a", "b");
+    }
+
     @Test
     void queryRegexMatchesSqlTextCaseInsensitivelyWithLiteralFallback() {
         repositoryReturns(
@@ -497,7 +571,7 @@ class QuerySearchServiceTest {
         private DateRange lastSeen;
         private List<String> tags;
         private TagMode tagMode;
-        private List<String> schemas, excludeSchemas, tables, excludeTables;
+        private List<String> schemas, excludeSchemas, tables, excludeTables, columns;
         private TableMode tableMode;
         private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
@@ -516,6 +590,7 @@ class QuerySearchServiceTest {
         RequestBuilder schemas(List<String> v) { this.schemas = v; return this; }
         RequestBuilder excludeSchemas(List<String> v) { this.excludeSchemas = v; return this; }
         RequestBuilder excludeTables(List<String> v) { this.excludeTables = v; return this; }
+        RequestBuilder columns(List<String> v) { this.columns = v; return this; }
         RequestBuilder tables(List<String> v) { this.tables = v; return this; }
         RequestBuilder tableMode(TableMode v) { this.tableMode = v; return this; }
         RequestBuilder untaggedOnly(Boolean v) { this.untaggedOnly = v; return this; }
@@ -534,7 +609,7 @@ class QuerySearchServiceTest {
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
-                schemas, excludeSchemas, tables, tableMode, excludeTables,
+                schemas, excludeSchemas, tables, tableMode, excludeTables, columns,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
                 analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);

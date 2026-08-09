@@ -17,6 +17,7 @@
  */
 import type {Activity, Flag, QuerySearchRequest, SortKey, TableMode, TagMode} from './query-search.service';
 import type {QueryScope, SchemaTagFilter, SchemaTagScope} from './query-scope.service';
+import type {ColumnRef} from './refs';
 import {resolveDateExpr} from './date-range-selector/date-math';
 
 export interface RangeState { min: number | null; max: number | null; }
@@ -54,6 +55,13 @@ export interface SearchUrlState {
   scope: QueryScope;
   /** Schema-tree tag filter — shared as intent, resolved at load. */
   schemaTagFilter: SchemaTagFilter;
+  /**
+   * `schema.table.column` references; a query kept if any of them *constrains*
+   * it (join or criteria — not a bare select). The table lens's column
+   * drill-down writes this, and because it is part of this vocabulary the same
+   * link opens in the workbench unchanged.
+   */
+  columns: ColumnRef[];
 }
 
 /** Minimal read surface of Angular's ParamMap, so specs need no router. */
@@ -77,7 +85,8 @@ export function defaultSearchState(): SearchUrlState {
     failureKind: null,
     sort: 'IMPACT',
     scope: { schemas: [], tables: [], tableMode: 'ANY' },
-    schemaTagFilter: { includeTags: [], excludeTags: [], tagMode: 'ANY' }
+    schemaTagFilter: { includeTags: [], excludeTags: [], tagMode: 'ANY' },
+    columns: []
   };
 }
 
@@ -120,6 +129,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   if (state.schemaTagFilter.includeTags.length) { params['schemaTags'] = state.schemaTagFilter.includeTags.join(','); }
   if (state.schemaTagFilter.excludeTags.length) { params['schemaTagsExclude'] = state.schemaTagFilter.excludeTags.join(','); }
   if (state.schemaTagFilter.tagMode !== 'ANY') { params['schemaTagMode'] = state.schemaTagFilter.tagMode; }
+  if (state.columns.length) { params['columns'] = state.columns.join(','); }
   return params;
 }
 
@@ -167,7 +177,8 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
       includeTags: csv('schemaTags'),
       excludeTags: csv('schemaTagsExclude'),
       tagMode: (params.get('schemaTagMode') as TagMode) || 'ANY'
-    }
+    },
+    columns: csv('columns')
   };
 }
 
@@ -242,6 +253,7 @@ export function buildSearchRequest(state: SearchUrlState,
     excludeTables: tagScope.excludedTables.length ? tagScope.excludedTables : null,
     tables: state.scope.tables.length ? state.scope.tables : null,
     tableMode: state.scope.tableMode,
+    columns: state.columns.length ? state.columns : null,
     fullScan: flag(state.fullScan),
     tmpTable: flag(state.tmpTable),
     tmpDisk: flag(state.tmpDisk),

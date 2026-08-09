@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
+import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -153,6 +154,8 @@ public class QuerySearchService {
 
         if (!matchesTags(r, hit.tags())) return false;
 
+        if (!matchesColumns(r, profile)) return false;
+
         if (!matchesFlag(r.fullScan(), m == null ? null : m.getFullTableScan())) return false;
         if (!matchesFlag(r.tmpTable(), m == null ? null : m.getTempTables() > 0)) return false;
         if (!matchesFlag(r.tmpDisk(), m == null ? null : m.getTempDiskTables() > 0)) return false;
@@ -200,6 +203,32 @@ public class QuerySearchService {
 
     private static boolean matchesScope(QuerySearchRequest r, ScopeKeys keys) {
         return matchesTables(r, keys.tables()) && matchesSchemas(r, keys.schemas());
+    }
+
+    /**
+     * The column drill-down: keep queries that a listed column *constrains* —
+     * it appears in a join or in the criteria. Delegates to
+     * {@code SqlProfile.constrainedBy} rather than comparing serialized
+     * references, so normalization (case, backticks, default schema) behaves
+     * exactly as it does everywhere else and a select-only reference does not
+     * count as usage.
+     *
+     * <p>Unparseable references match nothing rather than throwing: these
+     * arrive from a URL, and a malformed one is a bad link, not a server error.
+     */
+    private static boolean matchesColumns(QuerySearchRequest r, SqlProfile profile) {
+        if (r.columns() == null || r.columns().isEmpty()) {
+            return true;
+        }
+        return r.columns().stream().anyMatch(reference -> {
+            ColumnReference column;
+            try {
+                column = ColumnReference.fromString(reference);
+            } catch (IllegalArgumentException invalid) {
+                return false;
+            }
+            return profile.constrainedBy(column);
+        });
     }
 
     /** ANY = references any selected table; ALL = references all of them. Empty = unconstrained. */

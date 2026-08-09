@@ -1,5 +1,25 @@
 # Commands to run locally
 
+## Table lens absorbs the table view (2026-08-08)
+
+Verified here — backend 203 tests / 0 failures, UI 146/146, lint clean:
+
+```bash
+./gradlew cleanTest test && cd ui && npm run test:ci
+```
+
+Manual smoke, all of it shareable as a link:
+
+1. `/table/app_other/user_profile` — Queries card at the bottom; FK and
+   "commonly queried together" collapsed to name chips.
+2. Click a **join or criteria** column → `?columns=app_other.user_profile.user_id`
+   and the list narrows. Select-only columns (`twitter_link`) are not
+   clickable on purpose — they can never constrain a query.
+3. Click an FK or co-queried chip → `?tables=a,b&tableMode=ALL`, the join
+   view, now hosted in the lens instead of the legacy route.
+4. "open in workbench ↗" carries the same params through unchanged.
+5. Reload any of those URLs — the view comes back, drill-down included.
+
 ## Merge groups: persisted and shown (2026-08-07)
 
 Verified natively here — backend 192 tests / 0 failures, UI 103/103, lint

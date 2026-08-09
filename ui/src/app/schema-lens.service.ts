@@ -98,6 +98,8 @@ export interface ViewColumnMeta {
 export interface TableMeta {
   indices: TableIndex[];
   type: string | null;
+  /** Table comment, when the schema carries one. */
+  remarks: string | null;
   underlyingTables: TableRef[] | null;
   viewColumns: ViewColumnMeta[] | null;
 }
