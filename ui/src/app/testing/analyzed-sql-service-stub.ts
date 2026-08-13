@@ -20,7 +20,6 @@ export function analyzedSqlServiceStub(overrides: object = {}): AnalyzedSqlServi
     getTables: () => of([]),
     getSql: () => of(null),
     getTable: () => of(null),
-    getReportSql: () => of([]),
     getTableStructure: () => of(null),
     getTableCreateStatement: () => of(''),
     cleanQuery: () => of(null),

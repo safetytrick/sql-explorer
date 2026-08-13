@@ -34,14 +34,6 @@ export class AnalyzedSqlService {
     return this.http.get<Table>(endpoint + 'table/' + schema + '/' + name + columnPath);
   }
 
-  getReportSql(name: string, limit: number, offset: number = 0): Observable<SqlProfile[]> {
-    const params: HttpParams = new HttpParams()
-      .set('limit', String(limit))
-      .set('offset', String(offset));
-
-    return this.http.get<SqlProfile[]>(endpoint + 'analyzed-sql/reports/' + name, {params: params});
-  }
-
   /** Null when the loaded schema doesn't know the table (the endpoint returns an empty body). */
   getTableStructure(schema: string, name: string): Observable<TableStructure | null> {
     return this.http.get<TableStructure | null>(endpoint + 'metadata/table/' + schema + '/' + name);
