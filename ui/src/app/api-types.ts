@@ -77,6 +77,12 @@ export interface SqlProfile {
   isMultiSchema: boolean;
   repeatedBlocks: RepeatedBlock[] | null;
   mergedChildren: MergedChild[] | null;
+  /**
+   * The MySQL performance-schema digests behind this profile — one per merged
+   * member, deduped. Distinct from `digest`, which `complete()` overwrites with
+   * the app's normalized digest.
+   */
+  perfDigests: string[] | null;
 }
 
 /** A block the normalizer collapsed: [start, end) in query text, seen count times. */

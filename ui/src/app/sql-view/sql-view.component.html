@@ -1,201 +1,382 @@
+@if (loading) {
+  <div class="view-note">loading query…</div>
+} @else if (notFound) {
+  <div class="view-note">
+    <div class="note-title">query not found</div>
+    <div class="note-sub">no analyzed query matches this id or digest in the current environment</div>
+  </div>
+} @else if (query) {
 
-@if (query) {
-  <div id="runtime-metrics">
-    <div id="sql" class="clearfix">
-      <div class="row">
-        <div class="col">
-          <pre><code highlight="{{query.query}}"></code></pre>
-          @if (query.runtimeMetrics) {
-            <div id="query-stats" class="clearfix">
-              @if (query.analysisFailed && query.analysisFailureReason) {
-                <div class="bg-warning"><pre style="max-height: 40px">{{query.analysisFailureReason}}</pre></div>
-              }
-              @if (query.runtimeMetrics.fullTableScan) {
-                <div id="full-table-scan">
-                  FULL SCAN
-                </div>
-              }
-              <div>
-                <ul class="list-group">
-                  <li class="list-group-item">Status: {{query.queryActivityStatus}}</li>
-                  <li class="list-group-item">Last Seen: {{query.runtimeMetrics?.lastSeen}}</li>
-                  <li class="list-group-item">First Seen: {{query.runtimeMetrics?.firstSeen}}</li>
-                </ul>
-              </div>
-              <app-tag-view [path]="'/query/' + query.digest"></app-tag-view>
-              <table id="runtime-metrics-table" class="table">
-                <thead>
-                  <tr>
-                    <th>&nbsp;</th>
-                    <th>Metric</th>
-                    <th>Value</th>
-                  </tr>
-                </thead>
-                <tr>
-                  <td rowspan="3" class="stat-group">Query Counts</td>
-                  <td>Executed</td>
-                  <td>{{query.runtimeMetrics.executed}}</td>
-                </tr>
-                <tr>
-                  <td>Errors</td>
-                  <td>{{query.runtimeMetrics.errors}}</td>
-                </tr>
-                <tr>
-                  <td>Warnings</td>
-                  <td>{{query.runtimeMetrics.warnings}}</td>
-                </tr>
-                <tr>
-                  <td rowspan="3" class="stat-group">Time</td>
-                  <td>Total</td>
-                  <td>
-                    <app-pico-view [duration]="query.runtimeMetrics.totalTime"></app-pico-view>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Max</td>
-                  <td>
-                    <app-pico-view [duration]="query.runtimeMetrics.maxTime"></app-pico-view>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Average</td>
-                  <td>
-                    <app-pico-view [duration]="query.runtimeMetrics.averageTime"></app-pico-view>
-                  </td>
-                </tr>
-                <tr>
-                  <td rowspan="4" class="stat-group">Rows</td>
-                  <td>Total Sent</td>
-                  <td>{{query.runtimeMetrics.rowsSent}}</td>
-                </tr>
-                <tr>
-                  <td>Average Sent</td>
-                  <td>{{query.runtimeMetrics.averageRowsSent}}</td>
-                </tr>
-                <tr>
-                  <td>Total Scanned</td>
-                  <td>{{query.runtimeMetrics.rowsScanned}}</td>
-                </tr>
-                <tr>
-                  <td>Average Scanned</td>
-                  <td>{{query.runtimeMetrics.averageRowsScanned}}</td>
-                </tr>
-                <tr>
-                  <td rowspan="2" class="stat-group">Temp Tables</td>
-                  <td>Count</td>
-                  <td>{{query.runtimeMetrics.tempTables}}</td>
-                </tr>
-                <tr>
-                  <td>Disk</td>
-                  <td>{{query.runtimeMetrics.tempDiskTables}}</td>
-                </tr>
-                <tr>
-                  <td rowspan="2" class="stat-group">Sorting</td>
-                  <td>Rows Sorted</td>
-                  <td>{{query.runtimeMetrics.rowsSorted}}</td>
-                </tr>
-                <tr>
-                  <td>Sort Merge Passes</td>
-                  <td>{{query.runtimeMetrics.sortMergePasses}}</td>
-                </tr>
-                <tr>
-                  <td rowspan="2" class="stat-group">Digests</td>
-                  <td>Normalized</td>
-                  <td class="text-metric">{{query.digest}}</td>
-                </tr>
-                <tr>
-                  <td>Performance Schema</td>
-                  <td>
-                    <ul class="list-unstyled">
-                      @for (digest of query.perfDigests; track digest) {
-                        <li>{{digest}}</li>
-                      }
-                    </ul>
-                  </td>
-                </tr>
-                <!--<tr *ngIf="query.perfDigests">
-                <td class="stat-group">Other Metrics</td>
-                <td>Grafana</td>
-                &lt;!&ndash; todo refactor into a grafana integration plugin &ndash;&gt;
-                <td><a href="https://grafana.local/d/dvUfZxpZk/sql-analysis?orgId=1&var-digest={{query.perfDigests.join('|')}}&var-instance=All&var-interval=$__auto_interval_interval">SQL Analysis</a></td>
-              </tr>-->
-            </table>
+  <!-- Header: identity, status, tags. Deliberately outside the runtime-metrics
+       guard — a query with no metrics still has a schema, digests and tags. -->
+  <div class="view-header">
+    <span class="view-title mono">{{query.schemaName}}</span>
+    <span class="type-badge" [class.dormant]="query.queryActivityStatus === 'DORMANT'"
+          [title]="'last seen ' + (query.runtimeMetrics?.lastSeen || 'unknown')">
+      {{query.queryActivityStatus.toLowerCase()}}
+    </span>
+    @if (query.isDml) { <span class="badge b-idx" title="this statement writes">DML</span> }
+    @if (query.isMultiSchema) { <span class="badge b-idx" title="references more than one schema">multi-schema</span> }
+    @if (query.analysisSkipped) { <span class="badge" title="analysis was skipped for this statement">not analyzed</span> }
+    <div class="view-actions">
+      <app-tag-view [path]="'/query/' + query.digest"></app-tag-view>
+    </div>
+  </div>
+
+  <!-- Performance strip: the headline cost of this query, above the fold. -->
+  <div class="perf-strip">
+    @if (metrics) {
+      <div class="perf-stat">
+        <span class="perf-label">impact</span>
+        <span class="perf-value hot"><app-pico-view [duration]="metrics.totalTime"></app-pico-view></span>
+        <span class="perf-sub">total time</span>
+      </div>
+      <div class="perf-stat">
+        <span class="perf-label">executions</span>
+        <span class="perf-value">{{metrics.executed | number}}</span>
+        <span class="perf-sub">{{metrics.warnings | number}} warnings</span>
+      </div>
+      <div class="perf-stat">
+        <span class="perf-label">avg time</span>
+        <span class="perf-value"><app-pico-view [duration]="metrics.averageTime"></app-pico-view></span>
+        <span class="perf-sub">max <app-pico-view [duration]="metrics.maxTime"></app-pico-view></span>
+      </div>
+      <div class="perf-stat">
+        <span class="perf-label">rows</span>
+        <span class="perf-value">{{rows(metrics.averageRowsSent)}} <span class="dim">of</span> {{rows(metrics.averageRowsScanned)}}</span>
+        <span class="perf-sub">sent of scanned, per execution</span>
+      </div>
+      <div class="perf-stat">
+        <span class="perf-label">selectivity</span>
+        @if (selectivityPct !== null) {
+          <span class="perf-value" [class.hot]="selectivityPct < 10">{{selectivityPct | number: '1.0-1'}}%</span>
+          <span class="perf-sub">
+            @if (scanRatio !== null && scanRatio > 1.5) {
+              reads {{scanRatio | number: '1.0-0'}}× what it returns
+            } @else { rows returned ÷ rows read }
+          </span>
+        } @else {
+          <span class="perf-value dim">—</span>
+          <span class="perf-sub">nothing scanned</span>
+        }
+      </div>
+    } @else {
+      <div class="perf-stat">
+        <span class="perf-value dim">no runtime metrics</span>
+        <span class="perf-sub">this query was never observed executing</span>
+      </div>
+    }
+    <div class="perf-badges">
+      @for (badge of warningBadges; track badge.label) {
+        <span class="badge b-warn" [title]="badge.title">{{badge.label}}</span>
+      }
+      @if (analyzerWarning) {
+        <span class="badge b-warn" title="a join compares columns of different types">analyzer warning</span>
+      }
+    </div>
+  </div>
+
+  <!-- Analysis banners. Uncapped: a failure reason is the whole point of the banner. -->
+  @if (query.analysisFailed && query.analysisFailureReason) {
+    <div class="banner err">
+      <span class="banner-label">analysis failed</span>
+      <pre class="banner-body">{{query.analysisFailureReason}}</pre>
+    </div>
+  }
+  @if (query.truncated) {
+    <div class="banner warn">The captured statement was truncated, so tables and columns below may be incomplete.</div>
+  }
+
+  <div class="sql-body">
+    <!-- SQL at 3/4 … -->
+    <div class="sql-main">
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">SQL</span>
+          <button type="button" class="copy-btn" (click)="copy(query.query)" title="copy SQL">
+            {{copied === query.query ? '✓' : '⧉'}}
+          </button>
+        </div>
+        <pre class="sql-display"><code highlight="{{query.query}}"></code></pre>
+        @if (query.repeatedBlocks?.length) {
+          <div class="repeat-strip" title="blocks that repeated in the sampled SQL, collapsed to one occurrence">
+            <span class="repeat-label">collapsed repeats</span>
+            @for (repeat of query.repeatedBlocks; track repeat.start) {
+              <span class="repeat-chip">
+                <span class="mono">{{query.query | slice:repeat.start:repeat.end | slice:0:48}}</span>
+                <span class="repeat-count">×{{repeat.count}}</span>
+              </span>
+            }
           </div>
         }
       </div>
-      <div class="col query-breakdown">
-        <div class="tables">
-          <span class="title">Tables:</span>
-          <div class="query-reference">
-            <ul class="tables query-reference">
-              @for (table of query.tables; track table) {
-                <li>
-                  <app-table-link linkClass="btn btn-primary" [defaultSchema]="query.schemaName" [tableReference]="table"></app-table-link>
-                </li>
-              }
-            </ul>
-          </div>
+    </div>
+
+    <!-- … relevant indexes at 1/4, beside the SQL. Each table's name is its
+         section header and its link, which is where the old Tables list went. -->
+    <div class="sql-side">
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">Relevant indexes</span>
         </div>
-        <hr>
-          <div class="join-columns">
-            <span class="title">Join Columns:</span>
-            <div class="join-columns query-reference">
-              @for (join of query.joinColumns; track join) {
-                <div>
-                  <ul class="join-columns query-reference">
-                    @for (joinColumn of join; track joinColumn) {
-                      <li>
-                        <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schemaName" [columnReference]="joinColumn"></app-column-link>
-                      </li>
-                    }
-                  </ul>
-                </div>
-              }
-            </div>
+        @if (indexPanels.length === 0) {
+          <div class="card-empty">
+            @if (query.tables.length) { resolving table metadata… } @else { no tables resolved for this query }
           </div>
-          <hr>
-            <div class="criteria-columns">
-              <span class="title">Criteria Columns:</span>
-              <div class="criteria-columns query-reference">
-                <ul class="criteria-columns query-reference">
-                  @for (column of query.criteriaColumns; track column) {
-                    <li>
-                      <app-column-link [linkClass]="'btn btn-primary'" [schema]="query.schemaName" [columnReference]="column"></app-column-link>
-                    </li>
-                  }
-                </ul>
-              </div>
+        }
+        @for (panel of indexPanels; track panel.schema + '.' + panel.table) {
+          <div class="idx-panel">
+            <div class="idx-panel-head">
+              <a class="mono tbl-name" [routerLink]="['/table', panel.schema, panel.table]">{{panel.table}}</a>
+              <span class="dim mono idx-schema">{{panel.schema}}</span>
             </div>
-            <hr>
-              @if (tables) {
-                <div class="table-indices">
-                  @for (table of tables; track table) {
-                    <app-small-table-view [table]="table"></app-small-table-view>
-                  }
-                </div>
-              }
-              @if (query.mismatchedJoins.length > 0) {
-                <div>
-                  <hr>
-                    <div>Mismatched Joins:</div>
-                    <ul class="list-unstyled">
-                      @for (join of query.mismatchedJoins; track join) {
-                        <li>
-                          <div class="alert alert-danger">
-                            <div>
-                              <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
-                            </div>
-                            <div>
-                              <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
-                            </div>
-                          </div>
-                        </li>
-                      }
-                    </ul>
-                  </div>
+            @if (panel.queryColumns.length) {
+              <div class="idx-cols">
+                <span class="dim">constrains</span>
+                @for (column of panel.queryColumns; track column) {
+                  <span class="rp rp-criteria">{{column}}</span>
                 }
               </div>
+            }
+            @if (panel.indexes.length === 0) {
+              <div class="card-empty small">no indexes</div>
+            } @else {
+              @for (scored of panel.indexes; track scored.index.name) {
+                <div class="idx-row" [class.usable]="scored.leading" [class.partial]="!scored.leading && scored.matched.length > 0">
+                  <div class="idx-row-head">
+                    @if (scored.leading) {
+                      <span class="badge b-ok" title="the query constrains this index's first column, so MySQL can use it">usable</span>
+                    } @else if (scored.matched.length > 0) {
+                      <span class="badge b-warn" title="the query touches this index but not from its leading column">partial</span>
+                    }
+                    <span class="badge" [class.b-pk]="scored.index.name === 'PRIMARY'"
+                          [class.b-idx]="scored.index.name !== 'PRIMARY'">
+                      {{scored.index.name === 'PRIMARY' ? 'PK' : (scored.index.unique ? 'UNIQ' : 'IDX')}}
+                    </span>
+                    <span class="mono dim2 idx-name">{{scored.index.name}}</span>
+                  </div>
+                  <div class="idx-row-cols">
+                    @for (column of scored.index.columns; track column; let first = $first) {
+                      <span class="mono idx-col"
+                            [class.matched]="scored.matched.includes(column)"
+                            [class.lead]="first">{{column}}</span>
+                    }
+                  </div>
+                </div>
+              }
+            }
+            @if (panel.noLeadingMatch) {
+              <div class="idx-note" title="no index starts with a column this query constrains">
+                nothing indexed from a constrained column
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="lens-body">
+    <div class="lens-grid">
+      <div class="lens-main">
+
+        <!-- Merge group: folds the many-perf-digest case into one row per variant -->
+        @if (mergeVariants.length) {
+          <div class="lens-card">
+            <div class="card-head">
+              <span class="card-head-title">Merged {{mergeVariants.length}}
+                {{mergeVariants.length === 1 ? 'variant' : 'variants'}}</span>
+              <span class="card-head-note">queries that normalized to this same text</span>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                <tr><th>perf_schema digest</th><th class="num">executed</th><th class="num">avg</th><th>repeats</th></tr>
+                </thead>
+                <tbody>
+                  @for (variant of mergeVariants; track variant.digest) {
+                    <tr [class.differs]="variant.differs">
+                      <td>
+                        <span class="mono digest-cell">{{variant.digest}}</span>
+                        <button type="button" class="copy-btn" (click)="copy(variant.digest)"
+                                [title]="'copy ' + variant.digest">
+                          {{copied === variant.digest ? '✓' : '⧉'}}
+                        </button>
+                        @if (variant.members > 1) {
+                          <span class="merge-members" title="members sharing this digest">×{{variant.members}}</span>
+                        }
+                      </td>
+                      <td class="num">{{variant.executed | number}}</td>
+                      <td class="num">{{fmtMs(variant.averageTime)}}</td>
+                      <td>
+                        @for (count of variant.repeatCounts; track $index) {
+                          <span class="repeat-count">×{{count}}</span>
+                        }
+                        @if (variant.repeatCounts.length === 0) { <span class="dim">—</span> }
+                        @if (variant.differs) { <span class="merge-differs" title="collapsed a different number of repeats than the SQL above">differs</span> }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
           </div>
+        }
+
+        <!-- Full runtime metrics, grouped as before but with the costly values marked -->
+        @if (metrics) {
+          <div class="lens-card">
+            <div class="card-head"><span class="card-head-title">Runtime metrics</span></div>
+            <div class="metric-grid">
+              <div class="metric-group">
+                <div class="ds-label">Counts</div>
+                <div class="metric-row"><span class="metric-key">Executed</span><span class="metric-val blue">{{metrics.executed | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Errors</span><span class="metric-val" [class.hot]="metrics.errors > 0">{{metrics.errors | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Warnings</span><span class="metric-val" [class.hot]="metrics.warnings > 0">{{metrics.warnings | number}}</span></div>
+              </div>
+              <div class="metric-group">
+                <div class="ds-label">Time</div>
+                <div class="metric-row"><span class="metric-key">Total</span><span class="metric-val hot"><app-pico-view [duration]="metrics.totalTime"></app-pico-view></span></div>
+                <div class="metric-row"><span class="metric-key sub">Max</span><span class="metric-val"><app-pico-view [duration]="metrics.maxTime"></app-pico-view></span></div>
+                <div class="metric-row"><span class="metric-key sub">Average</span><span class="metric-val"><app-pico-view [duration]="metrics.averageTime"></app-pico-view></span></div>
+                <div class="metric-row"><span class="metric-key sub">Lock</span><span class="metric-val"><app-pico-view [duration]="metrics.lockTime"></app-pico-view></span></div>
+              </div>
+              <div class="metric-group">
+                <div class="ds-label">Rows</div>
+                <div class="metric-row"><span class="metric-key">Total sent</span><span class="metric-val">{{metrics.rowsSent | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Avg sent</span><span class="metric-val">{{metrics.averageRowsSent | number}}</span></div>
+                <div class="metric-row"><span class="metric-key">Total scanned</span><span class="metric-val hot">{{metrics.rowsScanned | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Avg scanned</span><span class="metric-val">{{metrics.averageRowsScanned | number}}</span></div>
+                @if (metrics.rowsAffected > 0) {
+                  <div class="metric-row"><span class="metric-key">Affected</span><span class="metric-val">{{metrics.rowsAffected | number}}</span></div>
+                  <div class="metric-row"><span class="metric-key sub">Avg affected</span><span class="metric-val">{{metrics.averageRowsAffected | number}}</span></div>
+                }
+              </div>
+              <div class="metric-group">
+                <div class="ds-label">Temp tables</div>
+                <div class="metric-row"><span class="metric-key">Count</span><span class="metric-val">{{metrics.tempTables | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Disk</span><span class="metric-val" [class.hot]="metrics.tempDiskTables > 0">{{metrics.tempDiskTables | number}}</span></div>
+              </div>
+              <div class="metric-group">
+                <div class="ds-label">Sorting</div>
+                <div class="metric-row"><span class="metric-key">Rows sorted</span><span class="metric-val">{{metrics.rowsSorted | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub">Merge passes</span><span class="metric-val" [class.hot]="metrics.sortMergePasses > 0">{{metrics.sortMergePasses | number}}</span></div>
+              </div>
+              <div class="metric-group">
+                <div class="ds-label">Activity</div>
+                <div class="metric-row"><span class="metric-key">First seen</span><span class="metric-val">{{metrics.firstSeen || '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key">Last seen</span><span class="metric-val">{{metrics.lastSeen || '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key">Status</span><span class="metric-val" [class.green]="query.queryActivityStatus === 'ACTIVE'">{{query.queryActivityStatus.toLowerCase()}}</span></div>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Mismatched joins -->
+        @if (query.mismatchedJoins.length > 0) {
+          <div class="lens-card">
+            <div class="card-head">
+              <span class="card-head-title">Mismatched joins</span>
+              <span class="card-head-note">joined columns whose types differ</span>
+            </div>
+            <div class="join-list">
+              @for (join of query.mismatchedJoins; track join) {
+                <div class="join-row warn">
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+                  <span class="dim">↔</span>
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Right rail: references and identity -->
+      <div class="lens-rail">
+        <div class="lens-card">
+          <div class="card-head"><span class="card-head-title">Join columns</span></div>
+          @if (query.joinColumns.length === 0) {
+            <div class="card-empty">no joins</div>
+          } @else {
+            <div class="join-list">
+              @for (join of query.joinColumns; track join) {
+                <div class="join-row">
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+                  <span class="dim">↔</span>
+                  <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
+                </div>
+              }
+            </div>
+          }
         </div>
-      }
+
+        <div class="lens-card">
+          <div class="card-head"><span class="card-head-title">Criteria columns</span></div>
+          @if (query.criteriaColumns.length === 0) {
+            <div class="card-empty">no criteria</div>
+          } @else {
+            <div class="ref-list">
+              @for (column of query.criteriaColumns; track column) {
+                <app-column-link [schema]="query.schemaName" [columnReference]="column"></app-column-link>
+              }
+            </div>
+          }
+        </div>
+
+        @if (query.groupByColumns.length > 0) {
+          <div class="lens-card">
+            <div class="card-head">
+              <span class="card-head-title">Group by columns</span>
+              <span class="card-head-note">grouping drives sorting and temp tables</span>
+            </div>
+            <div class="ref-list">
+              @for (column of query.groupByColumns; track column) {
+                <app-column-link [schema]="query.schemaName" [columnReference]="column"></app-column-link>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="lens-card">
+          <div class="card-head"><span class="card-head-title">Digests</span></div>
+          <div class="digest-body">
+            <div class="digest-tag dt-app">app normalized</div>
+            <div class="digest-box">
+              {{query.digest}}
+              <button type="button" class="copy-btn" (click)="copy(query.digest)" [title]="'copy ' + query.digest">
+                {{copied === query.digest ? '✓' : '⧉'}}
+              </button>
+            </div>
+            <div class="digest-tag dt-ps">perf_schema
+              @if (perfDigests.length > 1) {
+                <span class="dim">· {{perfDigests.length}}</span>
+              }
+            </div>
+            @if (perfDigests.length === 0) {
+              <div class="card-empty small">none recorded</div>
+            } @else if (perfDigests.length === 1) {
+              <div class="digest-box">
+                {{perfDigests[0]}}
+                <button type="button" class="copy-btn" (click)="copy(perfDigests[0])" title="copy digest">
+                  {{copied === perfDigests[0] ? '✓' : '⧉'}}
+                </button>
+              </div>
+            } @else {
+              <!-- many digests means this profile absorbed other queries; the
+                   merge table above lists them with their metrics -->
+              <div class="digest-note">
+                {{perfDigests.length}} statements merged into this profile — listed with their
+                metrics in <span class="mono">Merged {{mergeVariants.length}} variants</span> above.
+              </div>
+              <button type="button" class="copy-btn wide" (click)="copy(perfDigests.join('\n'))"
+                      title="copy all performance-schema digests">
+                {{copied === perfDigests.join('\n') ? '✓ copied' : '⧉ copy all'}}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

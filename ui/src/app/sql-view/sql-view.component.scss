@@ -1,0 +1,471 @@
+// Page vocabulary mirrors table-lens.component.scss: .lens-card / .card-head /
+// .data-table / .badge / .mono over the CSS design tokens. Component-scoped,
+// as every lens component defines its own copy.
+
+:host {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.mono { font-family: var(--mono); }
+.dim { color: var(--text3); }
+.dim2 { color: var(--text2); }
+.hot { color: var(--amber); }
+.blue { color: var(--blue); }
+.green { color: var(--green); }
+.num { text-align: right; }
+
+// ── states ──
+.view-note {
+  padding: 40px 16px;
+  color: var(--text3);
+  text-align: center;
+
+  .note-title { font-size: 14px; color: var(--text2); margin-bottom: 4px; }
+  .note-sub { font-size: 11px; }
+}
+
+// ── header ──
+.view-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+
+  .view-title { font-size: 14px; color: var(--text); }
+  .view-actions { margin-left: auto; }
+}
+
+.type-badge {
+  font-size: 9px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--green-dim);
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+
+  &.dormant { background: var(--bg3); color: var(--text3); }
+}
+
+.badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  white-space: nowrap;
+
+  &.b-warn { background: var(--amber-dim); border-color: transparent; color: var(--amber); }
+  &.b-ok { background: var(--green-dim); border-color: transparent; color: var(--green); }
+  &.b-pk { background: var(--purple-dim); border-color: transparent; color: var(--purple); }
+  &.b-idx { background: var(--blue-dim); border-color: transparent; color: var(--blue); }
+}
+
+// ── performance strip: the headline cost, above the fold ──
+.perf-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 26px;
+  padding: 12px 16px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+
+  .perf-stat { display: flex; flex-direction: column; gap: 2px; }
+
+  .perf-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text3);
+  }
+
+  .perf-value {
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--text);
+  }
+
+  .perf-sub { font-size: 10px; color: var(--text3); }
+
+  // only-when-true, so an empty row reads as "nothing alarming"
+  .perf-badges {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    max-width: 320px;
+  }
+}
+
+// ── banners ──
+.banner {
+  margin: 10px 16px 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: 11px;
+
+  &.err { background: var(--red-dim); color: var(--red); }
+  &.warn { background: var(--amber-dim); color: var(--amber); }
+
+  .banner-label {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+    margin-bottom: 3px;
+  }
+
+  // uncapped on purpose: the reason is the point of the banner
+  .banner-body {
+    margin: 0;
+    font-family: var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+// ── SQL (3/4) beside relevant indexes (1/4) ──
+.sql-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px 0;
+}
+
+.sql-main { flex: 3 1 0; min-width: 0; }
+.sql-side { flex: 1 1 0; min-width: 240px; }
+
+.lens-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+
+  .card-head-title { font-size: 11px; font-weight: 600; color: var(--text2); }
+  .card-head-note { font-size: 10px; color: var(--text3); }
+}
+
+.card-empty {
+  padding: 10px;
+  font-size: 11px;
+  color: var(--text3);
+
+  &.small { padding: 4px 10px; font-size: 10px; }
+}
+
+.copy-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0 4px;
+  cursor: pointer;
+  color: var(--text3);
+  font-size: 11px;
+  line-height: 1;
+
+  &:hover { color: var(--text); }
+
+  &.wide {
+    margin: 6px 0 0;
+    width: 100%;
+    text-align: left;
+    font-size: 10px;
+  }
+}
+
+// no height cap — the statement is the point of the page
+.sql-display {
+  margin: 0;
+  padding: 10px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.repeat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+
+  .repeat-label { font-size: 10px; color: var(--text3); }
+
+  .repeat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    max-width: 340px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+
+.repeat-count { color: var(--amber); font-weight: 600; margin-right: 4px; }
+
+// ── relevant indexes panel ──
+.idx-panel {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  &:last-child { border-bottom: none; }
+
+  .idx-panel-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+
+  .tbl-name { font-size: 12px; color: var(--blue); text-decoration: none; }
+  .tbl-name:hover { text-decoration: underline; }
+  .idx-schema { font-size: 9px; }
+
+  .idx-cols {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    margin-bottom: 6px;
+  }
+}
+
+.rp {
+  font-size: 9px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: var(--bg3);
+  color: var(--text2);
+
+  &.rp-criteria { background: var(--teal-dim); color: var(--teal); }
+}
+
+.idx-row {
+  padding: 4px 0 4px 6px;
+  border-left: 2px solid transparent;
+
+  // an index the query can actually use reads first and loudest
+  &.usable { border-left-color: var(--green); }
+  &.partial { border-left-color: var(--amber); }
+
+  .idx-row-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .idx-name { font-size: 10px; }
+
+  .idx-row-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 2px;
+    padding-left: 2px;
+  }
+
+  .idx-col {
+    font-size: 10px;
+    color: var(--text3);
+    padding: 0 3px;
+    border-radius: 4px;
+
+    // a column this query constrains
+    &.matched { background: var(--green-dim); color: var(--green); }
+    // the leading column decides whether the index is usable at all
+    &.lead { text-decoration: underline; text-underline-offset: 2px; }
+  }
+}
+
+.idx-note {
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--amber);
+}
+
+// ── body grid ──
+.lens-body { padding: 0 16px 16px; }
+
+.lens-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lens-main { flex: 3 1 0; min-width: 0; }
+.lens-rail { flex: 1 1 0; min-width: 240px; }
+
+.table-scroll { overflow-x: auto; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+
+  th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  .digest-cell {
+    display: inline-block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+}
+
+.merge-members { margin-left: 6px; color: var(--text3); }
+
+.merge-differs {
+  font-size: 9px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+}
+
+// ── metric groups ──
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0;
+}
+
+.metric-group {
+  padding: 8px 10px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ds-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  margin-bottom: 4px;
+}
+
+.metric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 1px 0;
+
+  .metric-key { font-size: 11px; color: var(--text2); }
+  .metric-key.sub { color: var(--text3); padding-left: 8px; }
+  .metric-val { font-family: var(--mono); font-size: 11px; }
+}
+
+// ── reference lists ──
+.ref-list,
+.join-list { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+
+.ref-list { flex-direction: row; flex-wrap: wrap; gap: 5px; }
+
+.ref-list a,
+.join-row a {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  text-decoration: none;
+
+  &:hover { color: var(--text); border-color: var(--text3); }
+}
+
+.join-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+
+  &.warn a { background: var(--red-dim); border-color: transparent; color: var(--red); }
+}
+
+// ── digests ──
+.digest-body { padding: 8px 10px; }
+
+.digest-tag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  margin: 6px 0 3px;
+
+  &:first-child { margin-top: 0; }
+  &.dt-app { color: var(--blue); }
+  &.dt-ps { color: var(--teal); }
+}
+
+.digest-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+  word-break: break-all;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+}
+
+.digest-note {
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.5;
+}
+
+@media (max-width: 1100px) {
+  .sql-body, .lens-grid { flex-direction: column; }
+  .sql-side, .lens-rail { width: 100%; min-width: 0; }
+}
