@@ -14,7 +14,6 @@ import {TaggedTableViewComponent} from './app/tagged-table-view/tagged-table-vie
 import {TaggedSchemaViewComponent} from './app/tagged-schema-view/tagged-schema-view.component';
 import {TableViewComponent} from './app/table-view/table-view.component';
 import {SqlViewComponent} from './app/sql-view/sql-view.component';
-import {SqlListComponent} from './app/sql-list/sql-list.component';
 import {TaggedSqlViewComponent} from './app/tagged-sql-view/tagged-sql-view.component';
 import {ExplainViewComponent} from './app/explain-view/explain-view.component';
 import {QueryUtilitiesComponent} from './app/query-utilities/query-utilities.component';
@@ -111,16 +110,6 @@ const appRoutes: Routes = [
     path: 'analyzed-sql/:id',
     component: SqlViewComponent,
     data: { title: 'Query View' }
-  },
-  {
-    path: 'analyzed-sql/reports/:name/:limit',
-    component: SqlListComponent,
-    data: { title: 'Reports' }
-  },
-  {
-    path: 'analyzed-sql/reports/:name',
-    component: SqlListComponent,
-    data: { title: 'Reports' }
   },
   {
     path: 'analyzed-sql/by-tag/:tag',
