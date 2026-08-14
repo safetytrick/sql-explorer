@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import {ExplainService} from '../explain.service';
 import { Router, RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
@@ -12,6 +12,9 @@ import { ThemeService, THEMES, ThemeOption } from '../theme.service';
 })
 export class NavBarComponent implements OnInit {
 
+  /** Admin menu open state — replaces Bootstrap's dropdown JS. */
+  adminOpen = false;
+
   environments: EnvironmentSummary[] = [];
   current: string | null = null;
   themes: ThemeOption[] = THEMES;
@@ -21,6 +24,27 @@ export class NavBarComponent implements OnInit {
               private environmentService: EnvironmentService,
               private themeService: ThemeService,
               private router: Router) { }
+
+  toggleAdmin(event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.adminOpen = !this.adminOpen;
+  }
+
+  closeAdmin() {
+    this.adminOpen = false;
+  }
+
+  /** Any click outside the menu dismisses it, as the Bootstrap version did. */
+  @HostListener('document:click')
+  onDocumentClick() {
+    this.adminOpen = false;
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    this.adminOpen = false;
+  }
 
   ngOnInit() {
     this.currentTheme = this.themeService.getCurrent();

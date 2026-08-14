@@ -5,13 +5,13 @@
       @if (column) {
         <a routerLink="/table/{{schema}}/{{name}}/{{column}}">.{{column}}</a>
         } &nbsp;
-        <button class="btn btn-outline-dark" routerLink="/table-graph/schema/{{schema}}/{{name}}" title="Graph">
+        <button class="btn" routerLink="/table-graph/schema/{{schema}}/{{name}}" title="Graph">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-diagram-3-fill" viewBox="0 0 16 16">
             <path fill-rule="evenodd" d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5zm-6 8A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5zm6 0A1.5 1.5 0 0 1 7.5 10h1a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5zm6 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5z"/>
           </svg>
         </button>
         @if (column) {
-          <button style="margin-left:5px" class="btn btn-outline-dark" routerLink="/tables/with-column/{{column}}" title="Tables with {{column}}">
+          <button style="margin-left:5px" class="btn" routerLink="/tables/with-column/{{column}}" title="Tables with {{column}}">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-asterisk" viewBox="0 0 16 16">
               <path d="M8 0a1 1 0 0 1 1 1v5.268l4.562-2.634a1 1 0 1 1 1 1.732L10 8l4.562 2.634a1 1 0 1 1-1 1.732L9 9.732V15a1 1 0 1 1-2 0V9.732l-4.562 2.634a1 1 0 1 1-1-1.732L6 8 1.438 5.366a1 1 0 0 1 1-1.732L7 6.268V1a1 1 0 0 1 1-1"/>
             </svg>
@@ -21,13 +21,13 @@
       @if (table.remarks) {
         <pre>{{table.remarks}}</pre>
       }
-      <div class="row">
-        <div class="col">
+      <div class="tv-row">
+        <div class="tv-col">
           <div>
             <app-tag-view [path]="'/schema/' + schema + '/table/' + name"></app-tag-view>
           </div>
-          <table class="table table-sm">
-            <thead class="thead-dark">
+          <table class="data-table">
+            <thead>
               <tr>
                 <th>Number Of Queries</th>
                 <th>Total Query Time</th>
@@ -48,15 +48,15 @@
           </ul>
         </div>-->
       </div>
-      <div class="col">
+      <div class="tv-col">
         @if (table.foreignKeyTables && table.foreignKeyTables.length) {
           <div class="query-breakdown">
             <span class="title">FK Tables </span>
             <div class="query-reference">
-              <ul class="tables query-reference">
+              <ul class="plain-list query-reference">
                 @for (tableRef of table.foreignKeyTables; track tableRef) {
                   <li>
-                    <app-table-link linkClass="btn btn-primary" [defaultSchema]="schema" [tableReference]="tableRef" [join]="name"></app-table-link>
+                    <app-table-link linkClass="ref-pill" [defaultSchema]="schema" [tableReference]="tableRef" [join]="name"></app-table-link>
                   </li>
                 }
               </ul>
@@ -67,10 +67,10 @@
           <div class="query-breakdown">
             <span class="title">Joined Tables </span>
             <div class="query-reference">
-              <ul class="tables query-reference">
+              <ul class="plain-list query-reference">
                 @for (tableRef of table.joinTables; track tableRef) {
                   <li>
-                    <app-table-link linkClass="btn btn-primary" [defaultSchema]="schema" [tableReference]="tableRef" [join]="name"></app-table-link>
+                    <app-table-link linkClass="ref-pill" [defaultSchema]="schema" [tableReference]="tableRef" [join]="name"></app-table-link>
                   </li>
                 }
               </ul>
@@ -81,10 +81,10 @@
           <div class="query-breakdown">
             <span class="title">Tables in Queries </span>
             <div class="query-reference">
-              <ul class="tables query-reference">
+              <ul class="plain-list query-reference">
                 @for (tableRef of table.relatedTables; track tableRef) {
                   <li>
-                    <app-table-link linkClass="btn btn-primary" [defaultSchema]="schema" [tableReference]="tableRef" [join]="name"></app-table-link>
+                    <app-table-link linkClass="ref-pill" [defaultSchema]="schema" [tableReference]="tableRef" [join]="name"></app-table-link>
                   </li>
                 }
               </ul>
@@ -94,14 +94,14 @@
       </div>
     </div>
     @if (table.structure) {
-      <div class="clearfix">
+      <div class="tv-block">
         @if (showCreate && createLoading) {
           <div style="margin-top: 20px; margin-bottom: 20px">Loading create statement...</div>
         } @else if (showCreate && createStatement) {
           <pre><code style="margin-top: 20px; margin-bottom: 20px" highlight="{{createStatement}}"></code></pre>
         } @else {
-          <table id="table-structure" class="table table-sm table-hover">
-            <thead class="thead-dark">
+          <table id="table-structure" class="data-table">
+            <thead>
               <tr>
                 <th class="tab-col-wide-right">Name</th>
                 <th class="tab-col-md">Type</th>
@@ -140,8 +140,8 @@
             </tbody>
           </table>
           @if (table.structure.indices.length > 1) {
-            <table id="table-indices" class="table table-sm table-hover">
-              <thead class="thead-dark">
+            <table id="table-indices" class="data-table">
+              <thead>
                 <tr>
                   <th class="tab-col-wide-right">Index</th>
                   <th class="tab-col-md">Columns</th>
@@ -158,26 +158,26 @@
             </table>
           }
         }
-        <button class="btn btn-secondary btn-sm float-right" (click)="toggleCreate()">{{ showCreate ? 'Table View' : 'Create View' }}</button>
+        <button class="btn create-toggle" (click)="toggleCreate()">{{ showCreate ? 'Table View' : 'Create View' }}</button>
       </div>
     }
     <hr>
-      <div class="container">
+      <div class="tv-block">
         @for (query of table.queries; track query) {
-          <div class="row query-details">
-            <div class="col-8">
+          <div class="tv-row query-details">
+            <div class="tv-col tv-col-wide">
               <a routerLink="/analyzed-sql/{{query.digest}}">{{query.id}} ({{query.type}})</a>
               <pre><code highlight="{{query.query}}"></code></pre>
             </div>
-            <div class="col-4" style="margin-bottom:10px">
+            <div class="tv-col tv-col-narrow">
               <div>Summary:</div>
               <app-sql-summary [query]="query"></app-sql-summary>
               @if (query.tables.length > 1) {
                 <div><br>Joins To:</div>
               }
-              <ul class="list-group">
+              <ul class="meta-list">
                 @for (otherTable of query.tables | callback: otherTables(table); track otherTable) {
-                  <li class="list-group-item">
+                  <li>
                     <app-table-link [defaultSchema]="query.schemaName" [tableReference]="otherTable"></app-table-link>
                   </li>
                 }
@@ -185,10 +185,10 @@
               @if (query.mismatchedJoins.length > 0) {
                 <div>
                   <div><br>Mismatched Joins:</div>
-                  <ul class="list-unstyled">
+                  <ul class="plain-list">
                     @for (join of query.mismatchedJoins; track join) {
                       <li>
-                        <div class="alert alert-danger">
+                        <div class="mismatch-box">
                           <div>
                             <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
                           </div>

@@ -338,3 +338,20 @@ ul.criteria-columns > li {
   padding-bottom: 1em;
   margin-bottom: 1em;
 }
+
+/* Reference pill used by app-table-link / app-column-link via linkClass.
+ * Global because the class lands inside those child components, out of reach
+ * of the consuming page's scoped styles. Replaces Bootstrap's .btn-primary. */
+.ref-pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  text-decoration: none;
+}
+
+.ref-pill:hover { color: var(--blue); border-color: var(--blue); }

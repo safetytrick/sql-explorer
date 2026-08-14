@@ -1,8 +1,40 @@
+// Layout Bootstrap used to supply (nav flex, navbar-nav list reset, dropdown
+// positioning). Same arrangement as before — this replaces the mechanism, not
+// the design.
 nav.navbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   background-color: var(--bg2);
   border-bottom: 1px solid var(--border);
   padding: 0 1rem;
   min-height: 44px;
+
+  .navbar-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .nav-item { position: relative; }
+
+  a.navbar-brand { text-decoration: none; }
+
+  .dropdown { position: relative; }
+
+  // Bootstrap drew this with a ::after caret; keep the affordance
+  .dropdown-toggle::after {
+    content: '';
+    display: inline-block;
+    margin-left: 0.35em;
+    vertical-align: 0.15em;
+    border-top: 0.3em solid;
+    border-right: 0.3em solid transparent;
+    border-left: 0.3em solid transparent;
+  }
 
   a.navbar-brand,
   .nav-link {
@@ -41,6 +73,12 @@ nav.navbar {
   }
 
   .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    min-width: 10rem;
+    padding: 0.25rem 0;
     background-color: var(--bg3);
     border: 1px solid var(--border2);
     border-radius: var(--radius);
@@ -48,6 +86,11 @@ nav.navbar {
     margin-top: 2px;
 
     a.dropdown-item {
+      display: block;
+      width: 100%;
+      padding: 0.35rem 1rem;
+      white-space: nowrap;
+      text-decoration: none;
       color: var(--text2);
       font-size: 0.85rem;
 

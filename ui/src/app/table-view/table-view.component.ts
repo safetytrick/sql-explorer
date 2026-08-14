@@ -14,7 +14,7 @@ import {Table} from '../api-types';
 @Component({
     selector: 'app-table-view',
     templateUrl: './table-view.component.html',
-    styleUrls: ['./table-view.component.css'],
+    styleUrls: ['./table-view.component.scss'],
     imports: [RouterLink, TagViewComponent, PicoViewComponent, TableLinkComponent, Highlight, SqlSummaryComponent, ColumnLinkComponent, CallbackPipePipe]
 })
 export class TableViewComponent implements OnInit {
