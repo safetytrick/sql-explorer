@@ -1,5 +1,38 @@
 @import "bootstrap/dist/css/bootstrap.css";
 
+
+/* ── Baseline button ──
+ * Replaces Bootstrap's .btn. Component stylesheets that define their own .btn
+ * still win (component scoping), so this only fills in for pages that relied
+ * on Bootstrap for it.
+ */
+.btn {
+  display: inline-block;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text2);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:hover { border-color: var(--blue); color: var(--blue); }
+
+.btn.primary {
+  background: var(--blue-dim2);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.btn:disabled,
+.btn[disabled] { opacity: 0.5; cursor: default; }
+
+.btn:disabled:hover,
+.btn[disabled]:hover { border-color: var(--border2); color: var(--text3); }
+
 /* ── Schema Lens design tokens (docs/schema-lens.html) ──
  * Themes are swappable via data-theme on <html> (see ThemeService).
  * Default (no attribute / "midnight") is the original dark palette.

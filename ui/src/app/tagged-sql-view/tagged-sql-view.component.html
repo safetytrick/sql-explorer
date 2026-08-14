@@ -1,8 +1,8 @@
-<h3>Tag: <span class="badge badge-pill badge-primary">{{tag}}</span></h3>
+<h3>Tag: <span class="tag-chip">{{tag}}</span></h3>
 <ol>
   @for (query of taggedQueries; track query) {
     <li>
-      <app-small-sql-view class="row" [query]="query"></app-small-sql-view>
+      <app-small-sql-view [query]="query"></app-small-sql-view>
     </li>
   }
 </ol>

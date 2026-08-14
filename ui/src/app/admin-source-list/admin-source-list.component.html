@@ -19,7 +19,7 @@
     } @else {
       <p class="state-unloaded">No sources loaded</p>
     }
-    <button class="btn btn-secondary" (click)="refreshSchema()"
+    <button class="btn" (click)="refreshSchema()"
       title="Drops the cached schema so it reloads from the servers on next use. Re-apply sources afterwards to re-analyze queries against the refreshed schema."> Refresh Schema </button>
     <p class="refresh-hint">Picks up DDL changes from the servers. Already-loaded sources keep their old analysis until re-applied.</p>
   </div>
@@ -38,5 +38,5 @@
     </li>
   }
 </ul>
-<button class="btn btn-primary" [disabled]="loading" (click)="applyChange()"> {{loading ? 'Loading…' : 'Apply'}} </button>
-<button class="btn btn-secondary" [disabled]="loading" (click)="cancelChange()"> Cancel </button>
+<button class="btn primary" [disabled]="loading" (click)="applyChange()"> {{loading ? 'Loading…' : 'Apply'}} </button>
+<button class="btn" [disabled]="loading" (click)="cancelChange()"> Cancel </button>
