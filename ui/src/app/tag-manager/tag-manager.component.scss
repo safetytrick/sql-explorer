@@ -157,3 +157,15 @@
 }
 
 .preview { margin-bottom: 10px; }
+
+// Counts navigate to the by-tag views — the links the standalone tag index
+// used to hold. Underlined on hover so they read as links inside a numeric
+// column without shouting.
+.count-link {
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
+}
+
+.dim { color: var(--text3); }
