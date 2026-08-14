@@ -1,53 +1,19 @@
+<div class="small-sql">
+  <div class="sql-col">
+    <a class="mono q-link" routerLink="/analyzed-sql/{{query.digest || query.id}}">{{query.id}}</a>
 
-<div class="col-sm-8">
-  @if (query.digest) {
-    <a routerLink="/analyzed-sql/{{query.digest}}">{{query.id}}</a>
-  }
-  @if (!query.digest) {
-    <a routerLink="/analyzed-sql/{{query.id}}">{{query.id}}</a>
-  }
-
-  @if (query.analysisFailed && query.analysisFailureReason) {
-    <div class="bg-warning"><pre style="max-height: 40px">{{query.analysisFailureReason}}</pre></div>
-  }
-
-  <pre><code highlight="{{query.query}}"></code></pre>
-</div>
-<div class="col-sm-4">
-  <ul class="list-group">
-    <li class="list-group-item">Status: {{query.queryActivityStatus}}</li>
-    <li class="list-group-item">Last Seen: {{query.runtimeMetrics?.lastSeen}}</li>
-    <li class="list-group-item">First Seen: {{query.runtimeMetrics?.firstSeen}}</li>
-    @if (query.runtimeMetrics; as m) {
-      <li class="list-group-item">
-        Executed: {{m.executed}}
-      </li>
-      <li class="list-group-item">
-        Pain: <app-pico-view [duration]="m.totalTime"></app-pico-view>
-      </li>
-      <li class="list-group-item">
-        Average Scanned: {{m.averageRowsScanned}}
-      </li>
+    @if (query.analysisFailed && query.analysisFailureReason) {
+      <div class="banner warn">
+        <span class="banner-label">analysis failed</span>
+        <pre class="banner-body">{{query.analysisFailureReason}}</pre>
+      </div>
     }
-  </ul>
-  @if (query.mismatchedJoins.length > 0) {
-    <div>
-      <div>Mismatched Joins:</div>
-      <ul class="list-unstyled">
-        @for (join of query.mismatchedJoins; track join) {
-          <li>
-            <div class="alert alert-danger">
-              <div>
-                <app-column-link [schema]="query.schemaName" [columnReference]="join.left.table.normalizedTableName + '.' + join.left.normalizedColumn"></app-column-link>
-              </div>
-              <div>
-                <app-column-link [schema]="query.schemaName" [columnReference]="join.right.table.normalizedTableName + '.' + join.right.normalizedColumn"></app-column-link>
-              </div>
-            </div>
-          </li>
-        }
-      </ul>
-    </div>
-  }
-</div>
 
+    <pre class="sql-display"><code highlight="{{query.query}}"></code></pre>
+  </div>
+  <div class="meta-col">
+    <!-- the metric list used to be duplicated here verbatim; it is one
+         component now, so the two cannot drift apart again -->
+    <app-sql-summary [query]="query"></app-sql-summary>
+  </div>
+</div>

@@ -1,0 +1,78 @@
+// Lens vocabulary, component-scoped as every lens component defines its own.
+// This panel is embedded in query lists, so it stays compact.
+
+:host {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+
+  &:last-child { border-bottom: none; }
+
+  .metric-key {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+  }
+
+  .metric-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+  }
+}
+
+.blue { color: var(--blue); }
+.green { color: var(--green); }
+.hot { color: var(--amber); }
+.dim { color: var(--text3); }
+
+.mismatch {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  background: var(--red-dim);
+
+  .mismatch-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--red);
+    margin-bottom: 4px;
+  }
+}
+
+.join-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 0;
+
+  a {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 9px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--red);
+    text-decoration: none;
+
+    &:hover { color: var(--text); border-color: var(--text3); }
+  }
+}

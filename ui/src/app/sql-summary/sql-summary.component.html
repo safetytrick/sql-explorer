@@ -1,35 +1,42 @@
-<ul class="list-group">
-  <li class="list-group-item">Status: {{query.queryActivityStatus}}</li>
-  <li class="list-group-item">Last Seen: {{query.runtimeMetrics?.lastSeen}}</li>
-  <li class="list-group-item">First Seen: {{query.runtimeMetrics?.firstSeen}}</li>
+<div class="summary">
+  <div class="metric-row">
+    <span class="metric-key">status</span>
+    <span class="metric-val" [class.green]="query.queryActivityStatus === 'ACTIVE'"
+          [class.dim]="query.queryActivityStatus !== 'ACTIVE'">{{query.queryActivityStatus.toLowerCase()}}</span>
+  </div>
+  <div class="metric-row">
+    <span class="metric-key">first seen</span>
+    <span class="metric-val">{{query.runtimeMetrics?.firstSeen || '—'}}</span>
+  </div>
+  <div class="metric-row">
+    <span class="metric-key">last seen</span>
+    <span class="metric-val">{{query.runtimeMetrics?.lastSeen || '—'}}</span>
+  </div>
   @if (query.runtimeMetrics; as m) {
-    <li class="list-group-item">
-      Executed: {{m.executed}}
-    </li>
-    <li class="list-group-item">
-      Pain: <app-pico-view [duration]="m.totalTime"></app-pico-view>
-    </li>
-    <li class="list-group-item">
-      Average Scanned: {{m.averageRowsScanned}}
-    </li>
+    <div class="metric-row">
+      <span class="metric-key">executed</span>
+      <span class="metric-val blue">{{m.executed | number}}</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-key">impact</span>
+      <span class="metric-val hot"><app-pico-view [duration]="m.totalTime"></app-pico-view></span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-key">avg scanned</span>
+      <span class="metric-val">{{m.averageRowsScanned | number}}</span>
+    </div>
   }
-</ul>
+</div>
+
 @if (query.mismatchedJoins.length > 0) {
-  <div>
-    <div>Mismatched Joins:</div>
-    <ul class="list-unstyled">
-      @for (join of query.mismatchedJoins; track join) {
-        <li>
-          <div class="alert alert-danger">
-            <div>
-              <app-column-link [schema]="query.schemaName" [columnReference]="join.left.table.normalizedTableName + '.' + join.left.normalizedColumn"></app-column-link>
-            </div>
-            <div>
-              <app-column-link [schema]="query.schemaName" [columnReference]="join.right.table.normalizedTableName + '.' + join.right.normalizedColumn"></app-column-link>
-            </div>
-          </div>
-        </li>
-      }
-    </ul>
+  <div class="mismatch">
+    <div class="mismatch-label">mismatched joins</div>
+    @for (join of query.mismatchedJoins; track join) {
+      <div class="join-row">
+        <app-column-link [schema]="query.schemaName" [columnReference]="join[0]"></app-column-link>
+        <span class="dim">↔</span>
+        <app-column-link [schema]="query.schemaName" [columnReference]="join[1]"></app-column-link>
+      </div>
+    }
   </div>
 }

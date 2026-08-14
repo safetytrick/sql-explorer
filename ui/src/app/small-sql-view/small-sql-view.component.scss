@@ -1,0 +1,73 @@
+// Lens vocabulary. Was a Bootstrap col-sm-8 / col-sm-4 split; now flex, so it
+// carries no grid dependency and collapses on its own at narrow widths.
+
+:host {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.small-sql {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sql-col { flex: 3 1 0; min-width: 0; }
+.meta-col { flex: 1 1 0; min-width: 200px; }
+
+.mono { font-family: var(--mono); }
+
+.q-link {
+  font-size: 11px;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
+}
+
+// no height cap: the statement is what the row is for
+.sql-display {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.banner {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  font-size: 11px;
+
+  &.warn { background: var(--amber-dim); color: var(--amber); }
+
+  .banner-label {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+    margin-bottom: 3px;
+  }
+
+  // uncapped: the old 40px clamp made the reason unreadable
+  .banner-body {
+    margin: 0;
+    font-family: var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 900px) {
+  .small-sql { flex-direction: column; }
+  .meta-col { width: 100%; min-width: 0; }
+}
