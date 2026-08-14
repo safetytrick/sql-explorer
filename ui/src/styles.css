@@ -1,4 +1,3 @@
-@import "bootstrap/dist/css/bootstrap.css";
 
 
 /* ── Baseline button ──
@@ -66,8 +65,6 @@
   --radius-lg: 10px;
   /* link hover + legacy card surfaces (follow the theme's own surfaces) */
   --link-hover:       #77b8ff;
-  --legacy-card-bg:   var(--bg2);
-  --legacy-card-text: var(--text);
   /* syntax highlighting (highlight.js) */
   --hl-keyword: var(--blue);
   --hl-string:  var(--green);
@@ -245,27 +242,6 @@ app-root {
   padding: 16px 24px;
 }
 
-/* legacy views were designed on white; retheme their tables/cards to the active theme's surfaces */
-.main-content .card,
-.main-content table.table {
-  background-color: var(--legacy-card-bg);
-  color: var(--legacy-card-text);
-}
-
-.main-content table.table th,
-.main-content table.table td {
-  border-color: var(--border2);
-}
-
-.main-content table.table thead th {
-  border-bottom-color: var(--border2);
-}
-
-.main-content .list-group-item {
-  background-color: var(--legacy-card-bg);
-  color: var(--legacy-card-text);
-  border-color: var(--border);
-}
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
@@ -279,20 +255,6 @@ app-root {
 }
 .tab-col-sm {
   min-width: 80px;
-}
-
-.table {
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.table-sm {
-  font-size: smaller;
-  margin-bottom: .05rem;
-}
-
-#table-structure.table-sm td,
-#table-structure.table-sm th {
-  padding: .1rem .3rem;
 }
 
 ul.query-reference {
