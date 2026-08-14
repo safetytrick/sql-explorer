@@ -8,7 +8,6 @@ import {environmentInterceptor} from './app/environment.interceptor';
 import {provideRouter, Routes, withInMemoryScrolling} from '@angular/router';
 import {SchemaListComponent} from './app/schema-list/schema-list.component';
 import {TableNamesComponent} from './app/table-names/table-names.component';
-import {TagIndexComponent} from './app/tag-index/tag-index.component';
 import {TablesWithColumnComponent} from './app/tables-with-column/tables-with-column.component';
 import {TaggedTableViewComponent} from './app/tagged-table-view/tagged-table-view.component';
 import {TaggedSchemaViewComponent} from './app/tagged-schema-view/tagged-schema-view.component';
@@ -70,11 +69,6 @@ const appRoutes: Routes = [
     path: 'tags',
     component: TagManagerComponent,
     data: { title: 'Tags' }
-  },
-  {
-    path: 'tags/index',
-    component: TagIndexComponent,
-    data: { title: 'Tag Index' }
   },
   {
     path: 'tables/with-column/:column',
