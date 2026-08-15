@@ -19,7 +19,7 @@
 > transport against a stubbed backend (routing, headers, environment
 > overrides, text endpoints, error mapping, crash resilience). Setup docs
 > in `mcp/README.md`. The `getAllAnalyzedSql()` per-call rebuild
-> (TECH_DEBT #2) still amplifies under tool loops — unchanged, flagged.
+> (TECH_DEBT, backend perf) still amplifies under tool loops — unchanged, flagged.
 >
 > **Update 2026-08-07 — tag writes are in v1 (18 tools).** `add_tag` and
 > `remove_tag` shipped; Michael confirmed this as intended v1 scope. This
@@ -79,7 +79,7 @@ Expose a curated tool set, not a blanket REST mirror:
 
 Each tool takes an optional `environment` argument defaulting to the registry
 default. Add per-tool result truncation (profiles carry full SQL text) and note
-that `getAllAnalyzedSql()` re-merges per call (TECH_DEBT #2) — MCP loops will
+that `getAllAnalyzedSql()` re-merges per call (TECH_DEBT, backend perf) — MCP loops will
 amplify that; consider fixing that first.
 
 ## Open questions
