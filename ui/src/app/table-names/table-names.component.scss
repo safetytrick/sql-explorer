@@ -1,16 +1,3 @@
-
-.rank-col {
-  max-width: 20px;
-}
-.schema-col {
-  max-width: 160px;
-  text-align: right;
-}
-
-.query-count {
-  text-align: center;
-}
-
-.total-time {
-  text-align: center;
-}
+// Layout and framing live in the template via the global lens vocabulary.
+// The column rules that used to live here were dead: they targeted cells
+// inside app-table-list-component, which scoped styles cannot reach.

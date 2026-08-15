@@ -1,35 +1,43 @@
 @if (hasViews()) {
   <div class="type-filter">
-    <button type="button" [class.on]="typeFilter === 'all'" (click)="setTypeFilter('all')">all</button>
-    <button type="button" [class.on]="typeFilter === 'tables'" (click)="setTypeFilter('tables')">tables</button>
-    <button type="button" [class.on]="typeFilter === 'views'" (click)="setTypeFilter('views')">views</button>
+    <button type="button" class="tri-btn" [class.on]="typeFilter === 'all'" (click)="setTypeFilter('all')">all</button>
+    <button type="button" class="tri-btn" [class.on]="typeFilter === 'tables'" (click)="setTypeFilter('tables')">tables</button>
+    <button type="button" class="tri-btn" [class.on]="typeFilter === 'views'" (click)="setTypeFilter('views')">views</button>
   </div>
 }
-<table class="table">
-  <tr>
-    <th class="rank-col">#</th>
-    <th class="schema-col">Schema</th>
-    <th class="table-col">Name</th>
-    <th class="table-tags">Tags</th>
-    <th class="query-count"># of Queries</th>
-    <th class="total-time">Total Query Time</th>
-  </tr>
-  @for (table of visibleTables(); track table; let i = $index) {
+<table class="data-table">
+  <thead>
     <tr>
-      <td class="rank-col">{{i + 1}}</td>
-      <td class="schema-col"><a routerLink="/tables/{{table.schema}}">{{table.schema}}</a></td>
-      <td class="table-col"><a routerLink="/table/{{table.schema}}/{{table.name}}">{{table.name}}</a>@if (table.view) {
-        <span class="type-badge" title="this is a view, not a base table">view</span>
+      <th class="rank-col">#</th>
+      <th class="schema-col">Schema</th>
+      <th class="table-col">Name</th>
+      <th class="table-tags">Tags</th>
+      <th class="query-count num"># of Queries</th>
+      <th class="total-time num">Total Query Time</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (table of visibleTables(); track table; let i = $index) {
+      <tr>
+        <td class="rank-col">{{i + 1}}</td>
+        <td class="schema-col"><a class="schema-name" routerLink="/tables/{{table.schema}}">{{table.schema}}</a></td>
+        <td class="table-col"><a class="tbl-name" routerLink="/table/{{table.schema}}/{{table.name}}">{{table.name}}</a>@if (table.view) {
+          <span class="type-badge" title="this is a view, not a base table">view</span>
+        }</td>
+        <td class="table-tags">@for (tag of table.tags; track tag; let last = $last) {
+          <a class="tag-link" routerLink="/tables/by-tag/{{tag.name}}">{{tag.name}}</a>@if (!last) {
+          ,
+        }
       }</td>
-      <td class="table-tags">@for (tag of table.tags; track tag; let last = $last) {
-        <a routerLink="/tables/by-tag/{{tag.name}}">{{tag.name}}</a>@if (!last) {
-        ,
-      }
-    }</td>
-    <td class="query-count">{{table.numberOfQueries}}</td>
-    <td class="total-time">
-      <app-pico-view [duration]="table.totalQueryTime"></app-pico-view>
-    </td>
-  </tr>
-}
+      <td class="query-count num">{{table.numberOfQueries}}</td>
+      <td class="total-time num">
+        <app-pico-view [duration]="table.totalQueryTime"></app-pico-view>
+      </td>
+    </tr>
+  }
+  </tbody>
 </table>
+
+@if (visibleTables().length === 0) {
+  <div class="card-empty">No tables match this filter.</div>
+}

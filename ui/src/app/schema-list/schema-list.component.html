@@ -1,1 +1,10 @@
-<app-schema-list-table [schemas]="schemas"></app-schema-list-table>
+<div class="view-header">
+  <span class="view-title">Schemas</span>
+  <span class="view-sub">{{schemas.length}} analyzed</span>
+</div>
+
+<div class="lens-card">
+  <div class="table-scroll">
+    <app-schema-list-table [schemas]="schemas"></app-schema-list-table>
+  </div>
+</div>

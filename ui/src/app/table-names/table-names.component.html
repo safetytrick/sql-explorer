@@ -1,1 +1,13 @@
-<app-table-list-component [tables]="tables"></app-table-list-component>
+<div class="view-header">
+  <span class="view-title">Tables</span>
+  @if (schema) {
+    <span class="view-sub">in {{schema}}</span>
+  }
+  <span class="view-sub">{{tables.length}} analyzed</span>
+</div>
+
+<div class="lens-card">
+  <div class="table-scroll">
+    <app-table-list-component [tables]="tables"></app-table-list-component>
+  </div>
+</div>

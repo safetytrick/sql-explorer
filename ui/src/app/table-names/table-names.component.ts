@@ -8,7 +8,7 @@ import { TableRollup } from '../api-types';
 @Component({
     selector: 'app-table-names',
     templateUrl: './table-names.component.html',
-    styleUrls: ['./table-names.component.css'],
+    styleUrls: ['./table-names.component.scss'],
     imports: [TableListComponent]
 })
 export class TableNamesComponent implements OnInit {
