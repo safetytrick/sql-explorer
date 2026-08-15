@@ -35,8 +35,23 @@ export class TableListComponent {
     this.tagsChanged.emit();
   }
 
-  /** Show all objects, only base tables, or only views. */
-  typeFilter: TypeFilter = 'all';
+  /**
+   * Show all objects, only base tables, or only views.
+   *
+   * Bound as an input only when a page hoists the control into its own header
+   * (see `showTypeFilter`); the other consumers leave it unbound and this
+   * component owns the value outright.
+   */
+  @Input() typeFilter: TypeFilter = 'all';
+
+  /**
+   * Whether to draw the inline all/tables/views control above the table.
+   *
+   * `/tables` folds it into the page header so there is one control strip
+   * rather than two, and sets this false. `tables-with-column` and
+   * `tagged-table-view` have no such header and keep the inline control.
+   */
+  @Input() showTypeFilter = true;
 
   visibleTables(): TableRollup[] {
     return this.rows.filter(table => matchesTypeFilter(this.typeFilter, table.view));

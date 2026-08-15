@@ -6,6 +6,7 @@ import { TableListComponent } from '../table-list-component/table-list.component
 import { TagFilterStripComponent } from '../tag-filter/tag-filter-strip.component';
 import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
 import { TableRollup } from '../api-types';
+import { TypeFilter } from '../schema-tree/tree-filter';
 
 @Component({
     selector: 'app-table-names',
@@ -19,7 +20,15 @@ export class TableNamesComponent implements OnInit {
   schema!: string;
 
   tables: TableRollup[] = [];
-  /** `tables` narrowed by the rail; the type filter still applies inside. */
+
+  /**
+   * Owned here because the all/tables/views control lives in this page's
+   * header; it is handed down to the list component, which still does the
+   * filtering. Deliberately not in the URL — it never was, and making it
+   * shareable is a change of behaviour rather than of layout.
+   */
+  typeFilter: TypeFilter = 'all';
+  /** `tables` narrowed by the tag strip; the type filter still applies inside. */
   visible: TableRollup[] = [];
 
   private filter: TagFilterState = emptyTagFilter();
@@ -51,6 +60,11 @@ export class TableNamesComponent implements OnInit {
   }
 
   /** See the note in SchemaListComponent. */
+  /** Whether any loaded row is a view, which is what the control is for. */
+  hasViews(): boolean {
+    return this.tables.some(table => table.view);
+  }
+
   onRowTagsChanged() {
     this.tables = [...this.tables];
     this.applyFilter();

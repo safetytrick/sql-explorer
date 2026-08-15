@@ -1,4 +1,4 @@
-@if (hasViews()) {
+@if (showTypeFilter && hasViews()) {
   <div class="type-filter">
     <button type="button" class="tri-btn" [class.on]="typeFilter === 'all'" (click)="setTypeFilter('all')">all</button>
     <button type="button" class="tri-btn" [class.on]="typeFilter === 'tables'" (click)="setTypeFilter('tables')">tables</button>

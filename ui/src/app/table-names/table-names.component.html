@@ -8,11 +8,30 @@
   } @else {
     <span class="view-sub">{{visible.length}} of {{tables.length}}</span>
   }
+
+  <!-- Hoisted out of app-table-list-component so the header is the page's one
+       control strip. The component still owns the filtering; it is only the
+       control that moved, and only for this page. -->
+  @if (hasViews()) {
+    <span class="type-scope">
+      <span class="scope-label">show</span>
+      <button type="button" class="tri-btn" [class.on]="typeFilter === 'all'"
+              (click)="typeFilter = 'all'">all</button>
+      <button type="button" class="tri-btn" [class.on]="typeFilter === 'tables'"
+              (click)="typeFilter = 'tables'">tables</button>
+      <button type="button" class="tri-btn" [class.on]="typeFilter === 'views'"
+              (click)="typeFilter = 'views'">views</button>
+    </span>
+  }
+
   <app-tag-filter-strip [rows]="tables" (filterChange)="onFilter($event)"></app-tag-filter-strip>
 </div>
 
 <div class="lens-card">
   <div class="table-scroll ledger-scroll">
-    <app-table-list-component [tables]="visible" (tagsChanged)="onRowTagsChanged()"></app-table-list-component>
+    <app-table-list-component [tables]="visible"
+                              [typeFilter]="typeFilter"
+                              [showTypeFilter]="false"
+                              (tagsChanged)="onRowTagsChanged()"></app-table-list-component>
   </div>
 </div>

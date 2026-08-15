@@ -1,3 +1,18 @@
 // Layout and framing live in the template via the global lens vocabulary.
 // The column rules that used to live here were dead: they targeted cells
 // inside app-table-list-component, which scoped styles cannot reach.
+
+// The hoisted all/tables/views control, divided from the counts the same way
+// the tag strip divides its mode toggle.
+.type-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.scope-label {
+  font-size: 10px;
+  color: var(--text3);
+}
