@@ -4,63 +4,26 @@
 </div>
 
 <div class="manager-grid">
-  <div class="lens-card">
-    <div class="card-head"><span class="card-head-title">All tags</span></div>
-    @if (tags.length === 0) {
-      <div class="card-empty">no tags yet — create one on the right</div>
-    } @else {
-      <table class="data-table ledger">
-        <thead>
-        <tr><th>tag</th><th class="num">queries</th><th class="num">tables</th><th class="num">schemas</th><th>last used</th><th></th></tr>
-        </thead>
-        <tbody>
-          @for (tag of tags; track tag.name) {
-            <tr (click)="edit(tag)">
-              <td><span class="tag-chip" [style.background]="chip(tag.name, tag.color).background" [style.color]="chip(tag.name, tag.color).color">{{tag.name}}</span>
-                @if (!tag.color) { <span class="no-def">no color</span> }
-              </td>
-              <!-- Counts double as the per-type navigation the standalone tag
-                   index used to provide. Linked only when there is something to
-                   open; a zero would lead to an empty list. -->
-              <td class="num mono">
-                @if (tag.queries > 0) {
-                  <a class="count-link" [routerLink]="['/analyzed-sql/by-tag', tag.name]"
-                     (click)="$event.stopPropagation()"
-                     [title]="'queries tagged ' + tag.name">{{tag.queries}}</a>
-                } @else { <span class="dim">0</span> }
-              </td>
-              <td class="num mono">
-                @if (tag.tables > 0) {
-                  <a class="count-link" [routerLink]="['/tables/by-tag', tag.name]"
-                     (click)="$event.stopPropagation()"
-                     [title]="'tables tagged ' + tag.name">{{tag.tables}}</a>
-                } @else { <span class="dim">0</span> }
-              </td>
-              <td class="num mono">
-                @if (tag.schemas > 0) {
-                  <a class="count-link" [routerLink]="['/schemas/by-tag', tag.name]"
-                     (click)="$event.stopPropagation()"
-                     [title]="'schemas tagged ' + tag.name">{{tag.schemas}}</a>
-                } @else { <span class="dim">0</span> }
-              </td>
-              <td class="dim">{{tag.lastUsed ? (tag.lastUsed | date:'MMM d, yy') : '—'}}</td>
-              <td class="num">
-                @if (tag.queries > 0) {
-                  <a class="row-link" [routerLink]="['/graph']" [queryParams]="{tag: tag.name}"
-                     (click)="$event.stopPropagation()" title="graph the tables these queries touch">graph ↗</a>
-                }
-                <span class="delete" (click)="deleteTag(tag.name); $event.stopPropagation()">
-                  {{confirmingDelete === tag.name ? 'really delete?' : 'delete'}}
-                </span>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    }
-  </div>
+  <div class="master">
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">All tags</span></div>
+      @if (tags.length === 0) {
+        <div class="card-empty">no tags yet — create one below</div>
+      } @else {
+        @for (tag of tags; track tag.name) {
+          <div class="tag-row" [class.on]="tag.name === selected" (click)="select(tag.name)">
+            <span class="tag-chip" [style.background]="chip(tag.name, tag.color).background"
+                  [style.color]="chip(tag.name, tag.color).color">{{tag.name}}</span>
+            @if (!tag.color) { <span class="no-def">no color</span> }
+            <span class="tag-count">{{total(tag)}}</span>
+            <span class="delete" (click)="deleteTag(tag.name); $event.stopPropagation()">
+              {{confirmingDelete === tag.name ? 'really?' : 'delete'}}
+            </span>
+          </div>
+        }
+      }
+    </div>
 
-  <div class="rail">
     <div class="lens-card create-card">
       <div class="create-title">Create or recolor tag</div>
       <input class="name-input" placeholder="tag name…" [(ngModel)]="newTagName">
@@ -80,5 +43,107 @@
       </div>
       <button class="btn primary" (click)="createTag()">Save tag</button>
     </div>
+  </div>
+
+  <div class="detail">
+    @if (!selected) {
+      <div class="lens-card"><div class="card-empty">select a tag to see what carries it</div></div>
+    } @else if (summary(selected); as tag) {
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="tag-chip" [style.background]="chip(tag.name, tag.color).background"
+                [style.color]="chip(tag.name, tag.color).color">{{tag.name}}</span>
+          <span class="card-head-title">carried by {{members.length}}</span>
+
+          <!-- The per-type counts still navigate to the by-tag views, as they
+               did from the flat list; they read as a breakdown here. -->
+          <span class="counts">
+            @if (tag.schemas > 0) {
+              <a class="count-link" [routerLink]="['/schemas/by-tag', tag.name]"
+                 [title]="'schemas tagged ' + tag.name">{{tag.schemas}} {{tag.schemas === 1 ? 'schema' : 'schemas'}}</a>
+            } @else { <span class="dim">0 schemas</span> }
+            @if (tag.tables > 0) {
+              <a class="count-link" [routerLink]="['/tables/by-tag', tag.name]"
+                 [title]="'tables tagged ' + tag.name">{{tag.tables}} {{tag.tables === 1 ? 'table' : 'tables'}}</a>
+            } @else { <span class="dim">0 tables</span> }
+            @if (tag.queries > 0) {
+              <a class="count-link" [routerLink]="['/analyzed-sql/by-tag', tag.name]"
+                 [title]="'queries tagged ' + tag.name">{{tag.queries}} {{tag.queries === 1 ? 'query' : 'queries'}}</a>
+            } @else { <span class="dim">0 queries</span> }
+            @if (tag.other > 0) { <span class="dim">{{tag.other}} other</span> }
+          </span>
+
+          <span class="head-actions">
+            @if (tag.queries > 0) {
+              <a class="row-link" [routerLink]="['/graph']" [queryParams]="{tag: tag.name}"
+                 title="graph the tables these queries touch">graph ↗</a>
+            }
+            <span class="dim last-used">{{tag.lastUsed ? (tag.lastUsed | date:'MMM d, yy') : '—'}}</span>
+            <button type="button" class="btn add-btn" (click)="openAdd(); $event.stopPropagation()">+ add</button>
+          </span>
+        </div>
+
+        @if (addOpen) {
+          <div class="add-bar">
+            <input class="add-input" placeholder="attach a schema or table…" autocomplete="off"
+                   [(ngModel)]="addFilter" (click)="$event.stopPropagation()">
+            <span class="add-note">queries are tagged from the query view</span>
+            <div class="add-list">
+              @for (target of addOptions; track target.path) {
+                <div class="add-opt" (click)="attach(target)">
+                  <span class="mono">{{target.label}}</span>
+                  <span class="dim add-path">{{target.path}}</span>
+                </div>
+              }
+              @if (addOptions.length === 0) {
+                <div class="card-empty">{{addFilter ? 'nothing matches' : 'loading…'}}</div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (loadingMembers) {
+          <div class="card-empty">loading members…</div>
+        } @else if (members.length === 0) {
+          <div class="card-empty">nothing carries this tag yet — use <b>+ add</b></div>
+        } @else {
+          <div class="table-scroll ledger-scroll">
+            <table class="data-table ledger">
+              <thead>
+                <tr>
+                  <th class="kind-col">kind</th>
+                  <th>member</th>
+                  <th class="num">queries</th>
+                  <th class="num">total time</th>
+                  <th class="act-col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (member of members; track member.kind + member.label) {
+                  <tr>
+                    <td class="kind-col"><span class="kind-badge k-{{member.kind}}">{{member.kind}}</span></td>
+                    <td><a class="mono member-link" [routerLink]="member.link">{{member.label}}</a></td>
+                    <td class="num">{{member.numberOfQueries === null ? '—' : member.numberOfQueries}}</td>
+                    <td class="num">
+                      @if (member.totalQueryTime === null) { — } @else {
+                        <app-pico-view [duration]="member.totalQueryTime"></app-pico-view>
+                      }
+                    </td>
+                    <td class="act-col">
+                      @if (member.assocId !== null) {
+                        <button type="button" class="detach" title="remove this tag from {{member.label}}"
+                                (click)="detach(member)">×</button>
+                      } @else {
+                        <span class="dim" title="no tag association was found for this member">—</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
   </div>
 </div>

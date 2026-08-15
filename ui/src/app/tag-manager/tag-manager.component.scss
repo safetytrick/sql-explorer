@@ -1,3 +1,7 @@
+// Framing, card heads, empty states and the data table all come from the
+// global lens vocabulary now; what stays here is the master/detail layout and
+// the controls unique to this page.
+
 :host {
   display: block;
 }
@@ -5,103 +9,163 @@
 .mono { font-family: var(--mono); font-size: 11px; }
 .dim { color: var(--text3); font-size: 11px; }
 
-.view-header {
-  padding: 12px 16px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--bg2);
-
-  .view-title { font-size: 14px; font-weight: 500; }
-  .view-sub { font-size: 11px; color: var(--text3); }
-  .view-actions { margin-left: auto; }
-}
-
-.btn {
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border2);
-  background: var(--bg3);
-  color: var(--text2);
-  cursor: pointer;
-  text-decoration: none;
-
-  &:hover { border-color: var(--blue); color: var(--blue); }
-  &.primary { background: var(--blue-dim2); border-color: var(--blue); color: var(--blue); width: 100%; }
-}
-
+// Master on the left with the editor beneath it, detail taking the rest.
+// The detail table carries a kind column, a member path and a detach control,
+// so it is the pane that needs the width.
 .manager-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: 270px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
 
-.lens-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+.master .lens-card { margin-bottom: 12px; }
+
+// ── master list ──
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: var(--bg3); }
+  &.on { background: var(--blue-dim); }
 }
 
-.card-head {
-  padding: 8px 14px;
-  background: var(--bg3);
-  border-bottom: 1px solid var(--border);
-
-  .card-head-title { font-size: 11px; font-weight: 500; color: var(--text2); }
+.tag-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
 }
 
-.card-empty { padding: 14px; font-size: 11px; color: var(--text3); }
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-
-  th {
-    padding: 6px 12px;
-    text-align: left;
-    font-size: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text3);
-    background: var(--bg3);
-    border-bottom: 1px solid var(--border);
-  }
-
-  td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
-  tr:last-child td { border-bottom: none; }
-  tbody tr:hover td { background: var(--bg3); cursor: pointer; }
-  .num { text-align: right; }
-}
-
-.no-def { font-size: 9px; color: var(--text3); margin-left: 6px; }
+.no-def { font-size: 9px; color: var(--text3); }
 
 .delete {
   font-size: 10px;
   color: var(--text3);
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 2px 4px;
 
   &:hover { color: var(--red); }
 }
 
+// ── detail head ──
+.counts {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  margin-left: 12px;
+}
+
+.head-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.last-used { font-size: 10px; }
+
+.add-btn { font-size: 10px; padding: 2px 8px; }
+
 .row-link {
   font-size: 10px;
   color: var(--text3);
-  padding: 2px 6px;
   text-decoration: none;
   white-space: nowrap;
 
   &:hover { color: var(--blue); }
 }
 
+.count-link {
+  color: var(--blue);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover { text-decoration: underline; }
+}
+
+// ── add member ──
+.add-bar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.add-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  outline: none;
+
+  &::placeholder { color: var(--text3); }
+  &:focus { border-color: var(--blue); }
+}
+
+.add-note { font-size: 9px; color: var(--text3); display: block; margin-top: 4px; }
+
+.add-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+
+.add-opt {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover { background: var(--bg4); }
+}
+
+.add-path { font-size: 9px; margin-left: auto; }
+
+// ── member table ──
+.kind-col { width: 1%; }
+
+.kind-badge {
+  font-size: 9px;
+  font-family: var(--mono);
+  padding: 1px 5px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &.k-schema { background: var(--teal-dim); color: var(--teal); }
+  &.k-table { background: var(--blue-dim); color: var(--blue); }
+  &.k-query { background: var(--purple-dim); color: var(--purple); }
+}
+
+.member-link { text-decoration: none; }
+.member-link:hover { text-decoration: underline; }
+
+.act-col { width: 1%; text-align: right; }
+
+.detach {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+
+  &:hover { color: var(--red); }
+}
+
+// ── create / recolor editor ──
 .create-card { padding: 12px; }
 
 .create-title {
@@ -148,14 +212,5 @@
 
 .preview { margin-bottom: 10px; }
 
-// Counts navigate to the by-tag views — the links the standalone tag index
-// used to hold. Underlined on hover so they read as links inside a numeric
-// column without shouting.
-.count-link {
-  color: var(--blue);
-  text-decoration: none;
-
-  &:hover { text-decoration: underline; }
-}
-
-.dim { color: var(--text3); }
+// The shared .btn does not stretch; the save button here should.
+.btn.primary { width: 100%; }
