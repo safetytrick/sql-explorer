@@ -5,7 +5,7 @@
     <button type="button" class="tri-btn" [class.on]="typeFilter === 'views'" (click)="setTypeFilter('views')">views</button>
   </div>
 }
-<table class="data-table">
+<table class="data-table ledger">
   <thead>
     <tr>
       <th class="rank-col">#</th>
@@ -24,17 +24,19 @@
         <td class="table-col"><a class="tbl-name" routerLink="/table/{{table.schema}}/{{table.name}}">{{table.name}}</a>@if (table.view) {
           <span class="type-badge" title="this is a view, not a base table">view</span>
         }</td>
-        <td class="table-tags">@for (tag of table.tags; track tag; let last = $last) {
-          <a class="tag-link" routerLink="/tables/by-tag/{{tag.name}}">{{tag.name}}</a>@if (!last) {
-          ,
-        }
-      }</td>
-      <td class="query-count num">{{table.numberOfQueries}}</td>
-      <td class="total-time num">
-        <app-pico-view [duration]="table.totalQueryTime"></app-pico-view>
-      </td>
-    </tr>
-  }
+        <td class="table-tags">
+          <app-tag-field [path]="'/schema/' + table.schema + '/table/' + table.name"
+                         [tags]="table.tags"
+                         [dense]="true"
+                         linkPrefix="/tables/by-tag/"></app-tag-field>
+        </td>
+        <td class="query-count num">{{table.numberOfQueries}}</td>
+        <td class="total-time num">
+          <app-pico-view [duration]="table.totalQueryTime"></app-pico-view>
+          <div class="dur-bar" [style.width.%]="weight(table.totalQueryTime)"></div>
+        </td>
+      </tr>
+    }
   </tbody>
 </table>
 

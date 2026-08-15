@@ -1,4 +1,4 @@
-<table class="data-table">
+<table class="data-table ledger">
   <thead>
     <tr>
       <th class="rank-col">#</th>
@@ -14,11 +14,12 @@
         <td class="rank-col">{{i + 1}}</td>
         <td class="schema-col"><a class="tbl-name" routerLink="/tables/{{schema.name}}">{{schema.name}}</a></td>
         <td class="table-tags">
-          <app-tag-view [path]="'/schema/' + schema.name" [tags]="schema.tags"></app-tag-view>
+          <app-tag-field [path]="'/schema/' + schema.name" [tags]="schema.tags" [dense]="true"></app-tag-field>
         </td>
         <td class="query-count num">{{schema.numberOfQueries}}</td>
         <td class="total-time num">
           <app-pico-view [duration]="schema.totalQueryTime"></app-pico-view>
+          <div class="dur-bar" [style.width.%]="weight(schema.totalQueryTime)"></div>
         </td>
       </tr>
     }

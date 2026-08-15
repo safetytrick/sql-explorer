@@ -399,6 +399,28 @@ ul.criteria-columns > li {
 .data-table .num { text-align: right; }
 .data-table .ctr { text-align: center; font-size: 11px; }
 
+/* ── Ledger ──
+ * A density modifier on .data-table, for the list pages whose job is to put
+ * as many rows on screen as will fit — /schemas and /tables. Everything the
+ * base table gives stays; this only tightens the rows, pins the header, and
+ * lights up in-row affordances (the TagField `+`) on hover. */
+/* The header can only pin against a scroll container, and the nearest one is
+ * whatever wraps the table — `.table-scroll` (overflow-x) and `.lens-card`
+ * (overflow: hidden) both qualify, and neither scrolls vertically, so a bare
+ * `position: sticky` silently scrolls away with the rows. Giving the ledger a
+ * bounded region of its own is what makes the header actually stick; the
+ * tradeoff is that a long list scrolls inside the card rather than the page. */
+.ledger-scroll { overflow: auto; max-height: calc(100vh - 180px); }
+
+.data-table.ledger td { padding: 3px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+.data-table.ledger th { padding: 5px 10px; font-size: 9px; letter-spacing: 0.09em; position: sticky; top: 0; z-index: 2; }
+.data-table.ledger .rank-col { width: 1%; text-align: right; font-family: var(--mono); font-size: 10px; color: var(--text3); }
+.data-table.ledger tbody tr:hover .tag-add { opacity: 0.8; }
+
+/* Relative weight of a row's duration, drawn under the number it belongs to.
+ * Deliberately not `.q-bar` — the table lens already owns that name. */
+.dur-bar { height: 3px; border-radius: 2px; background: var(--blue); opacity: 0.55; margin-top: 3px; margin-left: auto; }
+
 /* Segmented filter button, previously copied into the workbench and the
  * table lens. The tables list is the third consumer, so it lives here. */
 .tri-btn {
