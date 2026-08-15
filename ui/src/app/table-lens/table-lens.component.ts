@@ -12,7 +12,7 @@ import {
   ViewColumnMeta
 } from '../schema-lens.service';
 import {DurationPipe} from '../duration.pipe';
-import {TagViewComponent} from '../tag-view/tag-view.component';
+import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {parseColumnRef, parseTableRef} from '../refs';
 import {QueryHit, QuerySearchService} from '../query-search.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
@@ -26,7 +26,7 @@ const QUERY_PAGE_SIZE = 25;
   selector: 'app-table-lens',
   templateUrl: './table-lens.component.html',
   styleUrls: ['./table-lens.component.scss'],
-  imports: [RouterLink, DurationPipe, TagViewComponent, DecimalPipe, Highlight]
+  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight]
 })
 export class TableLensComponent implements OnInit {
 

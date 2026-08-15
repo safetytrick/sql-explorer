@@ -2,7 +2,7 @@ import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Params, Router, RouterLink} from '@angular/router';
 import {Title} from '@angular/platform-browser';
-import {TagViewComponent} from '../tag-view/tag-view.component';
+import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {TableLinkComponent} from '../table-link/table-link.component';
 import {Highlight} from 'ngx-highlightjs';
@@ -15,7 +15,7 @@ import {Table} from '../api-types';
     selector: 'app-table-view',
     templateUrl: './table-view.component.html',
     styleUrls: ['./table-view.component.scss'],
-    imports: [RouterLink, TagViewComponent, PicoViewComponent, TableLinkComponent, Highlight, SqlSummaryComponent, ColumnLinkComponent, CallbackPipePipe]
+    imports: [RouterLink, TagFieldComponent, PicoViewComponent, TableLinkComponent, Highlight, SqlSummaryComponent, ColumnLinkComponent, CallbackPipePipe]
 })
 export class TableViewComponent implements OnInit {
 

@@ -5,7 +5,7 @@ import {Title} from '@angular/platform-browser';
 import {DecimalPipe, SlicePipe} from '@angular/common';
 import {RouterLink} from '@angular/router';
 import {Highlight} from 'ngx-highlightjs';
-import {TagViewComponent} from '../tag-view/tag-view.component';
+import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
 import {SqlProfile, TableStructure} from '../api-types';
@@ -18,7 +18,7 @@ import {buildIndexPanels, TableIndexPanel} from './index-relevance';
   templateUrl: './sql-view.component.html',
   styleUrls: ['./sql-view.component.scss'],
   providers: [AnalyzedSqlService],
-  imports: [RouterLink, DecimalPipe, SlicePipe, Highlight, TagViewComponent, PicoViewComponent, ColumnLinkComponent]
+  imports: [RouterLink, DecimalPipe, SlicePipe, Highlight, TagFieldComponent, PicoViewComponent, ColumnLinkComponent]
 })
 export class SqlViewComponent implements OnInit {
 
