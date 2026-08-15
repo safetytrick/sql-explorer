@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 SQL Explorer is a full-stack tool for analyzing MySQL performance. It reads queries from MySQL's Performance Schema (or CSV/Parquet files), parses and normalizes them, and surfaces insights about schema usage, query patterns, and performance impact ("Pain" metrics).
 
 - **Backend**: Java 21 + Spring Boot 4.0.6 (Gradle)
-- **Frontend**: Angular 21 (standalone components) + Material Design (`ui/`)
+- **Frontend**: Angular 21 (standalone components), no UI framework (`ui/`) — Material, Bootstrap, jQuery and Popper have all been removed; styling is component-scoped SCSS over the design tokens in `ui/src/styles.css`
 - **Data models**: Apache Avro (`models/` subproject)
 - **Database**: MySQL 8.4.4, Liquibase migrations
 
@@ -28,9 +28,30 @@ npm install                 # Install dependencies
 npm start                   # Dev server at http://localhost:4200
 npm run build               # Production build
 npm run lint                # Run eslint (eslint src --ext .ts)
-ng test                     # Run Karma/Jasmine unit tests
+npm run test:ci             # Karma/Jasmine unit tests, headless, single run
+ng test                     # Same, in watch mode
 npm run e2e                 # Run Playwright e2e tests
 ```
+
+### The gate before pushing
+
+There is no pre-push hook. The only hook is `pre-commit`, and it guards
+`master`/`dev` — this repo's branch is `main`, so it never fires. The real
+gate is `.github/workflows/ci.yml`, which will run these on the push whether
+or not you did. Run them first:
+
+```bash
+./gradlew build
+```
+
+```bash
+cd ui && npm run lint && npx tsc --noEmit -p src/tsconfig.app.json && npm run test:ci && npm run build
+```
+
+Note `./gradlew build`, not `./gradlew test` — CI runs the former, and it
+covers checks the latter does not. The standalone `tsc --noEmit` also catches
+things `ng build` does not, and must be run from `ui/` (the project path is
+relative).
 
 ### Docker (local dev)
 
@@ -44,6 +65,26 @@ docker compose up explorer-shared-tags   # Optional: load table/SQL tags
 ```
 
 UI is accessible at `http://localhost:4200`. Backend runs on port 8080.
+
+### Git remotes are cross-wired — push explicitly
+
+`origin` is GitHub (`git@github.com-mine:safetytrick/sql-explorer.git`) and
+`work` is GitLab, but the fetch refspecs are crossed: `origin` fetches into
+`refs/remotes/github/*` and `work` fetches into `refs/remotes/origin/*`. On
+top of that `branch.main.remote` is `github`, which is not a configured
+remote at all.
+
+Two consequences:
+
+- **Always `git push origin main`.** A bare `git push` resolves the phantom
+  `github` remote and fails.
+- **`origin/main` is not GitHub's main** — it tracks GitLab. So the local
+  ahead/behind counts, and anything derived from `origin/main`, are
+  misleading. Verify what actually landed with
+  `git ls-remote origin refs/heads/main` and compare to `git rev-parse HEAD`.
+
+Worth untangling (fix the refspecs and `branch.main.remote`); until then,
+treat every "N commits ahead" reading as unverified.
 
 ## Architecture
 
@@ -80,9 +121,12 @@ Components map directly to the URL hierarchy:
 | `/table/:schema/:name`               | TableLensComponent                              |
 | `/table/:schema/:name/queries` (+ `/join/**`, `/:column`) | TableViewComponent         |
 | `/analyzed-sql/:id`                  | SqlViewComponent                                |
+| `/tags`                              | TagManagerComponent (master/detail)             |
 | `/table-graph/schema/:schema` (+ variants) | TableGraphLoaderComponent → TableGraphComponent |
 
-Note: the `*-lens` components (`TableLensComponent`, `GraphLensComponent`, `SchemaTreeComponent`) are the current UI; the older `TableViewComponent` / `TableGraph*` / `SchemaListComponent` are legacy and still routed (see `docs/TECH_DEBT.md`).
+Note: the `*-lens` components (`TableLensComponent`, `GraphLensComponent`, `SchemaTreeComponent`) are the current UI. `TableViewComponent` and `TableGraph*` are the last legacy components still routed — both have lens replacements, so what remains is a deletion decision, not a restyle (see `docs/plans/legacy-ui.md`). `SchemaListComponent` / `TableNamesComponent` are no longer legacy: they were rebuilt on the Ledger.
+
+There is no `**` catch-all route. `/` redirects to `/tables`, but an unknown URL matches nothing, renders an empty outlet and silently resets the address bar to `/` — it looks like a broken page rather than a 404.
 
 Key services: `AnalyzedSqlService` / `SchemaLensService` (query profiles & schema data), `QuerySearchService` (the queries workbench), `SourceService` (data sources), `EnvironmentService` (active environment). Shared response types live in `ui/src/app/api-types.ts`.
 
@@ -109,6 +153,73 @@ In practice:
   at share time would go stale.
 - Reflect *derived* view state too — an open drill-down, a selected row, an
   expanded panel — not just the text in filter boxes.
+
+Known gap: the `/tables` all/tables/views type filter is *not* URL-backed. It
+predates the rule and now sits in the same control strip as `?tags=`, which
+makes the asymmetry conspicuous — you can share "tagged clickhouse" but not
+"views only". Worth closing.
+
+#### The lens vocabulary is global — use it, don't re-transcribe it
+
+`ui/src/styles.css` owns the shared classes. Every lens page used to carry its
+own copy — five stylesheets each defined `.tag-chip`, four defined
+`.data-table` — which is how they drifted apart. The vocabulary now lives once:
+
+`.view-header` (+ `.view-title`, `.view-sub`, `.view-actions`), `.lens-card`,
+`.card-head` (+ `.card-head-title`, `.card-head-note`), `.card-empty`,
+`.table-scroll`, `.data-table` (+ `.num`, `.ctr`), `.tag-chip`, `.tri-btn`,
+`.btn`, `.ref-pill`, and the density modifier `.data-table.ledger` with
+`.ledger-scroll` and `.dur-bar`.
+
+A new page should reach for these first. Component SCSS is for what is
+genuinely local — column widths, page-specific controls.
+
+Two things to know before touching them:
+
+- **Component-scoped copies still win** on specificity (an attribute selector
+  outranks a bare class), so a global is a baseline, not an override. But any
+  property the global sets that a local copy does *not* set will newly apply
+  there. Changing a global rule reaches every page; screenshot-diff the pages
+  that keep their own copy before assuming it doesn't.
+- **`position: sticky` needs a scrolling ancestor.** `.lens-card`
+  (`overflow: hidden`) and `.table-scroll` (`overflow-x`) both create scroll
+  containers that never scroll vertically, so a sticky header inside them
+  silently scrolls away with the rows. `.ledger-scroll` gives the table a
+  bounded region to pin against; that is why it exists.
+
+#### Tagging: one component, `TagField`
+
+`app-tag-field` (`ui/src/app/tag-field/`) is the only editable tag control —
+chips with a hover `×`, and a `+` that summons a typeahead popover for
+attaching an existing tag or creating a new one. `dense` mode is for table
+rows, where the `+` stays a faint ghost until the row is hovered. Its
+predecessor `app-tag-view` rendered a persistent text input in every instance
+and is deleted; don't reintroduce that shape — an untagged row should cost one
+dim glyph, not a full-width underline.
+
+Two correctness details that are easy to undo by accident:
+
+- Candidate names come from `TagColorsService.getSummaries()`, which is
+  `shareReplay(1)`. A 300-row table therefore issues **one** request and
+  filters client-side. Per-keystroke server autocomplete from every mounted
+  row is what this replaced.
+- **Subscribing to that observable is also what populates the chip colour
+  map.** The service fills a `Map` inside a `tap`; with no subscriber every
+  chip renders in the fallback grey and never updates, because mutating a Map
+  triggers no change detection.
+
+Tag paths are `/schema/{s}`, `/schema/{s}/table/{t}`, `/query/{digest}`.
+`DELETE /tag/:id` detaches by *association* id, not tag id — and a row
+carrying two tags returns both, so match by name rather than taking the first.
+`SqlProfile` carries no `tags` field at all; a query's association has to be
+resolved via `POST /tags/path`, which batches and returns a map keyed by
+exactly the paths sent.
+
+The list pages carry a tag filter strip in the header (`tag-filter/`), sharing
+the workbench's URL vocabulary: `?tags=a,b` plus `tagMode=ALL|ANY`. It
+defaults to ALL and writes `tagMode` whenever tags are selected, deliberately
+against the omit-defaults rule — the workbench defaults to ANY, so a bare
+`?tags=a,b` would otherwise mean AND in one place and OR in the other.
 
 ### Data Flow
 

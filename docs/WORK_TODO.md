@@ -1,6 +1,30 @@
 
 ### Update the legacy UI pages to match new formatting
 
+Nearly done — see `docs/plans/legacy-ui.md`. The SQL view, the shared
+query-summary pair, `/schemas`, `/tables` and `/tags` are all on the lens
+vocabulary; the reports and tag-index pages were removed rather than
+restyled; Bootstrap 4 is gone.
+
+What remains is a deletion decision on the last two legacy components,
+`TableViewComponent` and `TableGraph*` (ngx-graph), both of which already
+have lens replacements.
+
+### Add a `**` catch-all route
+
+An unknown URL matches nothing, renders an empty outlet, and silently resets
+the address bar to `/` — indistinguishable from a broken page. `/` itself
+redirects to `/tables` correctly; it is only unmatched paths that fall
+through. Wants a not-found view, or a redirect.
+
+### Put the tables type filter in the URL
+
+The all/tables/views filter on `/tables` is component state, so "views only"
+cannot be shared as a link. It predates the URL rule in CLAUDE.md and now
+sits in the same header strip as the URL-backed `?tags=` chips, which makes
+the gap obvious. Small: it needs a param name and the same
+decode-on-init / `replaceUrl` write-back the tag strip already does.
+
 ### Add an MCP server
 
 ### Improve the explain plan parser

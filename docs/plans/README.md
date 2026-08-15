@@ -6,7 +6,7 @@ M = 1–3 days, L = a week+.
 
 | Plan                                     | Item                                                                                                    | Effort            |
 |------------------------------------------|---------------------------------------------------------------------------------------------------------|-------------------|
-| [legacy-ui.md](legacy-ui.md)             | Update legacy UI pages to new formatting / finish the lens migration                                    | M–L               |
+| [legacy-ui.md](legacy-ui.md)             | Lens migration — **nearly done**; one deletion decision left (`TableViewComponent`, `TableGraph*`)      | S remaining       |
 | [history-rewrite.md](history-rewrite.md) | Scrub older git history (working-tree scrub already done)                                               | S + coordination  |
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
 | [explain-parser.md](explain-parser.md)   | Explain parser — paste formats shipped; **awaiting Michael's testing** (live EXPLAIN option documented) | —                 |
@@ -31,8 +31,17 @@ its own and is unscheduled.
 
 ## Suggested order
 
-**legacy-ui** (rolling background work) → **history-rewrite** (one
-coordinated cutover, any time).
+**legacy-ui** is down to a single deletion pass — decide whether
+`TableViewComponent` and `TableGraph*` go, then execute. → **history-rewrite**
+(one coordinated cutover, any time).
+
+Since the 2026-08-04 revision the UI work has largely landed: the SQL view
+restyle, the removal of the reports and tag-index pages, Bootstrap 4 dropped,
+`/schemas` and `/tables` rebuilt on the Ledger, `TagField` replacing
+`app-tag-view`, the header tag filter strip, and `/tags` as master/detail.
+Two small items came out of it and are logged in `WORK_TODO.md` rather than
+given plans: the missing `**` catch-all route, and the `/tables` type filter
+not being URL-backed.
 
 **mcp-server** and **explain-parser** sit at the bottom deliberately:
 both are shipped and awaiting Michael's hands-on testing before the items

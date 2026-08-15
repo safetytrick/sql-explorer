@@ -1,5 +1,31 @@
 # Update the legacy UI pages to match new formatting
 
+> **Mostly done (2026-08-15).** What is left is one deletion decision, not
+> styling work. Shipped since the 2026-08-08 block below:
+>
+> - **`SqlViewComponent` restyled** to the lens vocabulary — cost and index
+>   fit above the fold, SQL at 3/4 width beside a relevant-indexes panel
+>   scored on whether the query constrains each index's *leading* column.
+> - **Reports pages removed.** `SqlListComponent` and its
+>   `/analyzed-sql/reports/*` routes are gone rather than restyled; menu
+>   access had already been dropped.
+> - **Tag index resolved by folding, not restyling.** Its per-type links
+>   became the counts in the tag manager, and the standalone page retired.
+> - **Bootstrap 4 dropped entirely** — see the answered question below.
+> - **`sql-summary` / `small-sql-view` restyled**, and a latent crash fixed
+>   in both: they read `join.left.table…` off what is really a `[string,
+>   string]` pair.
+> - **`/schemas` and `/tables` rebuilt on the Ledger** — dense rows, pinned
+>   header, duration bars. These two are no longer legacy pages. (Their brief
+>   unstyled spell was self-inflicted: they were the last templates riding
+>   Bootstrap's `.table`, and dropping Bootstrap took it out from under them.)
+> - **`TagField`** replaced `app-tag-view` everywhere, and the tag filter
+>   strip and **`/tags` master/detail** landed on top of it.
+>
+> **Still open:** `TableViewComponent` and `TableGraph*` (ngx-graph). Both
+> have lens replacements; both are still routed. See "What is left" at the
+> bottom.
+
 > **Table view: answered and in progress (2026-08-08).** The open question
 > below — "are the `TableViewComponent` drill-downs still used, or can
 > `TableLensComponent` absorb them?" — is answered: **absorb**. Michael also
@@ -73,11 +99,39 @@ sequencing instead of restyling them. Start with one page
 
 ## Open questions
 
-- Is deleting legacy pages on the table now, or is restyling wanted first?
+- ~~Is deleting legacy pages on the table now, or is restyling wanted first?~~
+  **Answered in practice: both, page by page.** Pages with a lens replacement
+  were deleted (reports, tag index); pages without one were restyled
+  (`sql-view`, `sql-summary`) or rebuilt (`/schemas`, `/tables`).
 - ~~Are the `TableViewComponent` drill-downs (per-column, per-join query lists)
   still used, or can `TableLensComponent` absorb them?~~ **Answered: absorbed
   into the lens — see the status block above.**
-- Can Bootstrap 4 be dropped once legacy templates stop using it (nav bar still
-  uses `navbar` markup)?
+- ~~Can Bootstrap 4 be dropped once legacy templates stop using it (nav bar
+  still uses `navbar` markup)?~~ **Answered: yes, and it is done** (`53d358f`).
+  `bootstrap`, `bootstrap-icons`, `jquery` and `popper.js` are out of
+  `package.json`, the `scripts` array in `angular.json` is empty, and the
+  `@import` plus the legacy `.card`/`.table`/`.list-group-item` shims are gone
+  from `styles.css`. The scope was smaller than it looked — cross-referencing
+  Bootstrap-shaped class names against classes our own SCSS defines put the
+  real count at six templates, not fourteen. The nav bar needed actual work:
+  its Admin dropdown ran on `data-toggle="dropdown"`, so it was rewritten as
+  component state with outside-click and Escape handling.
 
-## Effort: S per page restyled; M–L for the full migration path.
+## What is left
+
+Two components, one decision: **retire `TableViewComponent` and
+`TableGraph*`, or keep them?** Both are still routed
+(`/table/:s/:n/queries` + 2 variants, `/table-graph/**`) and both have lens
+replacements. This is a deletion, not a restyle — the remaining questions are
+whether anything still links to them and whether the ngx-graph dependency
+(`@swimlane/ngx-graph`, plus its non-ESM `dagre`/`webcola` build warnings)
+goes with `TableGraph*`.
+
+`SmallTableViewComponent` has had no consumers since the SQL view restyle and
+is a free deletion whenever the others are decided.
+
+Unrelated to the migration but surfaced by it: there is no `**` catch-all
+route, so an unknown URL renders an empty outlet and resets the address bar
+to `/`.
+
+## Effort: remaining work is S — one deletion pass, once the call is made.
