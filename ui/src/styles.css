@@ -421,6 +421,23 @@ ul.criteria-columns > li {
  * Deliberately not `.q-bar` — the table lens already owns that name. */
 .dur-bar { height: 3px; border-radius: 2px; background: var(--blue); opacity: 0.55; margin-top: 3px; margin-left: auto; }
 
+/* ── Tag chip ──
+ * The tag vocabulary, previously transcribed into five component stylesheets.
+ * TagField's treatment is the canonical one; colours stay inline because they
+ * come from the tag definition at runtime, not from a token. Components that
+ * still carry their own copy keep it — a scoped selector outranks this. */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
 /* Segmented filter button, previously copied into the workbench and the
  * table lens. The tables list is the third consumer, so it lives here. */
 .tri-btn {
