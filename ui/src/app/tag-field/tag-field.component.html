@@ -1,0 +1,52 @@
+<div class="tag-field" [class.dense]="dense">
+  @for (tag of tags; track tag.id) {
+    <span class="tag-chip"
+          [style.background]="chipStyle(tag.name).background"
+          [style.color]="chipStyle(tag.name).color">
+      @if (linkPrefix) {
+        <a [routerLink]="linkPrefix + tag.name" [style.color]="chipStyle(tag.name).color">{{tag.name}}</a>
+      } @else {
+        {{tag.name}}
+      }
+      <button type="button" class="chip-x" title="remove {{tag.name}}"
+              (click)="detach(tag, $event)">×</button>
+    </span>
+  }
+
+  <button type="button" class="tag-add" title="add a tag" (click)="toggle($event)">+</button>
+
+  @if (open) {
+    <div class="tag-pop" [style.top.px]="popTop" [style.left.px]="popLeft" (click)="$event.stopPropagation()">
+      <input #popInput
+             class="pop-input"
+             placeholder="filter or create…"
+             autocomplete="off"
+             spellcheck="false"
+             [value]="filter"
+             (input)="onFilter($any($event.target).value)"
+             (keydown.arrowdown)="move(1); $event.preventDefault()"
+             (keydown.arrowup)="move(-1); $event.preventDefault()"
+             (keydown.enter)="commit(); $event.preventDefault()">
+      <div class="pop-list">
+        @for (name of options; track name; let i = $index) {
+          <div class="pop-opt" [class.on]="i === cursor" (click)="attach(name)">
+            <span class="tag-chip"
+                  [style.background]="chipStyle(name).background"
+                  [style.color]="chipStyle(name).color">{{name}}</span>
+          </div>
+        }
+        @if (creatable; as fresh) {
+          <div class="pop-opt" [class.on]="cursor === options.length" (click)="attach(fresh)">
+            <span class="pop-new">create</span>
+            <span class="tag-chip"
+                  [style.background]="chipStyle(fresh).background"
+                  [style.color]="chipStyle(fresh).color">{{fresh}}</span>
+          </div>
+        }
+        @if (!options.length && !creatable) {
+          <div class="pop-none">every tag is already applied</div>
+        }
+      </div>
+    </div>
+  }
+</div>
