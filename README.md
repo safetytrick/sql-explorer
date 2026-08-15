@@ -36,12 +36,15 @@ configurable behavior.
 
 ### Tagging
 
-Queries and Tables can be tagged within SQL Explorer. 
+Schemas, tables and queries can be tagged. Tags are ad-hoc labels — a way to mark a slice of the schema ("owned by
+this service", "touched by the migration") and then filter, report and graph on it.
 
-Table tags can be used to render customized graphs (from the Tags menu item). These show query relationships between 
-tables in the same tag and tables outside of that tag.
+Tags are edited in place wherever the thing itself appears: the list pages carry an inline tag control on every row,
+and the same control sits on the table and query views. The **Tags** page is the other direction — pick a tag and see
+everything carrying it, across schemas, tables and queries, with membership editable from there.
 
-Query tags allow you to organize and report on query patterns (to prioritize indexing changes or rewrites).
+The list pages also filter by tag, from a strip in the page header. Selections travel in the URL
+(`?tags=a,b&tagMode=ALL|ANY`), so a filtered view is a link you can send.
 
 ### Joins and Foreign Keys
 
@@ -50,41 +53,23 @@ within the analyzed SQL. SQL Explorer aims to surface actual relationships inclu
 even if these tables are not joined directly to each other. This relationship is described as "queried with" in the 
 table Graph UI.
 
-## Reports
+## The UI
 
-SQL Explorer contains a handful of built-in reports.
+- **Schemas** / **Tables** — dense ranked lists of what the analyzed queries touch, ordered by impact.
+- **Queries** — the workbench: full-text, tag, activity, timing and behaviour filters (full scan, temp-to-disk,
+  truncated, multi-schema, analysis failures …) over every analyzed query. The whole search lives in the URL.
+- **Graph** — table relationships, from real joins and queried-with co-occurrence, scoped to a schema, a search or a tag.
+- **Tags** — the tag manager and what carries each tag.
+- **Explain** — paste an EXPLAIN plan and have it parsed.
+- **Query Utilities** — normalize / clean a statement by hand.
 
-### Analysis Related Reports
+Drilling into a table gives its columns, indexes, DDL, foreign keys and the queries that touch it — with per-column
+and per-join query lists. Drilling into a query gives its cost, the indexes relevant to what it constrains, and the
+patterns merged into it.
 
-Analysis Failures
-: Queries that failed one or more analysis stage (typically due to unimplemented visitors)
-
-Parse Failures
-: Queries that could not be parsed for an unknown reason (potentially truncated but may be caused by ambiguous syntax)
-
-Truncated
-: Queries that failed parsing because the query was truncated
-
-
-### Query Behavior Reports
-
-All
-: All queries, sorted entirely by dormancy and pain
-
-Mismatched Joins
-: Identifies queries across columns that use incompatible charsets
-
-Slow
-: Queries with a high average latency
-
-Chatty
-: Queries that are fast, but executed often
-
-Full Scan
-: Queries that have ever caused a Full Scan
-
-Multi Schema
-: Queries that join tables across separate schemas  
+Ten canned reports (`slow`, `chatty`, `full-scan`, `truncated`, `multi-schema`, the analysis-failure sets, …) remain
+available over the API at `/api/sql-explorer/analyzed-sql/reports/{name}` and through the MCP server. They have no
+page of their own: the Queries workbench covers the same ground interactively, and composably.
 
 Local Setup
 -----------
@@ -115,53 +100,85 @@ Load table and sql tags (optional):
 
 `docker compose up explorer-shared-tags`
 
+Working on the code
+-------------------
 
-Database Configuration
-----------------------
+Backend (Java 21, Gradle) and frontend (Angular 21, in `ui/`) build independently:
 
-Environment configuration:
+```bash
+./gradlew build
+```
+
+```bash
+cd ui && npm install && npm start
+```
+
+`npm start` serves the UI on port 4200 against a backend on 8080. Production output goes to
+`ui/build/sql-explorer-ui`.
+
+Before pushing, run what CI runs (`.github/workflows/ci.yml`) — there is no pre-push hook:
+
+```bash
+./gradlew build
+```
+
+```bash
+cd ui && npm run lint && npx tsc --noEmit -p src/tsconfig.app.json && npm run test:ci && npm run build
+```
+
+Configuration
+-------------
+
+Config lives in `src/main/docker-local/config/` for the local Docker stack. An environment is a named set of
+servers, each with the sources to pull statement analysis from:
 
 `application.yml`
 
 ```yaml
-performance-schema-file-loader:
-  enabled: true
-  directory: /etc/sql-explorer/config/statement-analysis
-  pattern: "(?<id>dc-mysql-\\d+)-(?<date>\\d{8})\\.tsv"
-  date-format: "yyyyMMdd"
+environments:
+  regression:
+    default: true
+    servers:
+      primary:
+        jdbcUrl: "jdbc:mysql://${DB_HOST}:3306"
+        sources:
+          - type: x-statement-analysis
 
 datasources:
-  metadata:
-    jdbcUrl: "jdbc:mysql://schema-mysql:3306"
-    
   explorer:
     jdbcUrl: "jdbc:mysql://explorer-mysql:3306/explorer"
 
-x-statement-analysis:
-  enabled: true
-  hosts:
-    staging-db-master:
-      jdbcUrl: ${datasources.metadata.jdbcUrl}
+parquet-sink:
+  filename: /parquet/sql-repository.parquet
 ```
 
-Secrets:
+Define more than one environment to switch between them in the UI; the frontend selects one with the
+`X-Sql-Explorer-Environment` header.
 
-`application-secrets.yml`:
+Credentials go in a separate file, mirroring the same structure:
+
+`application-secrets.yml`
+
 ```yaml
 datasources:
-  metadata:
-    username: root
-    password: password
-
   explorer:
     username: root
     password: password
 
-x-statement-analysis:
-  enabled: true
-  hosts:
-    staging-db-master:
-      jdbcUrl: ${datasources.metadata.jdbcUrl}
-      username: ${datasources.metadata.username}
-      password: ${datasources.metadata.password}
+environments:
+  local:
+    servers:
+      explorer:
+        username: root
+        password: password
 ```
+
+Further reading
+---------------
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — the domain concepts: relevancy sorting, hierarchical URLs, and what each
+  module is responsible for.
+- [CLAUDE.md](CLAUDE.md) — working conventions: repo layout, the frontend styling and URL-state rules, the gate,
+  and the repo's sharper edges.
+- [docs/](docs/) — `WORK_TODO.md` for open work, `plans/` for the plans behind it, `TECH_DEBT.md` for the standing
+  inventory, `local-dev-mysql.md` for running MySQL locally.
