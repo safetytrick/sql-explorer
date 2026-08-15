@@ -28,7 +28,8 @@
           <app-tag-field [path]="'/schema/' + table.schema + '/table/' + table.name"
                          [tags]="table.tags"
                          [dense]="true"
-                         linkPrefix="/tables/by-tag/"></app-tag-field>
+                         linkPrefix="/tables/by-tag/"
+                         (changed)="onRowTags(table, $event)"></app-tag-field>
         </td>
         <td class="query-count num">{{table.numberOfQueries}}</td>
         <td class="total-time num">

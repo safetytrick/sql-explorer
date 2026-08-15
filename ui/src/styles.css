@@ -421,6 +421,10 @@ ul.criteria-columns > li {
  * Deliberately not `.q-bar` — the table lens already owns that name. */
 .dur-bar { height: 3px; border-radius: 2px; background: var(--blue); opacity: 0.55; margin-top: 3px; margin-left: auto; }
 
+/* The view header carries the tag filter strip on the list pages, so it has
+ * to be allowed a second line when there are more chips than fit. */
+.view-header.wrap { flex-wrap: wrap; row-gap: 8px; }
+
 /* ── Tag chip ──
  * The tag vocabulary, previously transcribed into five component stylesheets.
  * TagField's treatment is the canonical one; colours stay inline because they

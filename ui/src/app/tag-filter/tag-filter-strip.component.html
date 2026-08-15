@@ -1,0 +1,36 @@
+@if (stripTags.length) {
+  <div class="tag-strip">
+    <span class="strip-label">tags</span>
+
+    @for (tag of stripTags; track tag.name) {
+      <button type="button"
+              class="strip-chip"
+              [class.on]="isOn(tag.name)"
+              [style.background]="isOn(tag.name) ? chipStyle(tag.name).background : null"
+              [style.color]="isOn(tag.name) ? chipStyle(tag.name).color : null"
+              [style.border-color]="isOn(tag.name) ? chipStyle(tag.name).color : null"
+              [title]="tag.count + ' of the rows on this page carry ' + tag.name"
+              (click)="toggle(tag.name)">
+        <span class="strip-dot" [style.background]="chipStyle(tag.name).color"></span>
+        {{tag.name}}
+        <span class="strip-count" [class.zero]="tag.count === 0">{{tag.count}}</span>
+      </button>
+    }
+
+    <!-- Only meaningful once more than one tag is picked, so it appears then
+         rather than sitting inert next to a single selection. -->
+    @if (state.tags.length > 1) {
+      <span class="strip-mode">
+        <span class="mode-label">match</span>
+        <button type="button" class="tri-btn" [class.on]="state.mode === 'ALL'"
+                title="a row must carry every selected tag" (click)="setMode('ALL')">all</button>
+        <button type="button" class="tri-btn" [class.on]="state.mode === 'ANY'"
+                title="a row must carry at least one selected tag" (click)="setMode('ANY')">any</button>
+      </span>
+    }
+
+    @if (active) {
+      <button type="button" class="strip-clear" (click)="clear()">clear</button>
+    }
+  </div>
+}

@@ -1,8 +1,8 @@
-import {Component, Input} from '@angular/core';
+import {Component, EventEmitter, Input, Output} from '@angular/core';
 import {RouterLink} from '@angular/router';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {TagFieldComponent} from '../tag-field/tag-field.component';
-import {TableRollup} from '../api-types';
+import {Tag, TableRollup} from '../api-types';
 import {matchesTypeFilter, TypeFilter} from '../schema-tree/tree-filter';
 
 @Component({
@@ -25,6 +25,14 @@ export class TableListComponent {
 
   get tables(): TableRollup[] {
     return this.rows;
+  }
+
+  /** Raised when a row's tags are edited in place; see SchemaListTableComponent. */
+  @Output() tagsChanged = new EventEmitter<void>();
+
+  onRowTags(table: TableRollup, tags: Tag[]) {
+    table.tags = tags;
+    this.tagsChanged.emit();
   }
 
   /** Show all objects, only base tables, or only views. */

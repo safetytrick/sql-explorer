@@ -1,13 +1,18 @@
-<div class="view-header">
+<div class="view-header wrap">
   <span class="view-title">Tables</span>
   @if (schema) {
     <span class="view-sub">in {{schema}}</span>
   }
-  <span class="view-sub">{{tables.length}} analyzed</span>
+  @if (visible.length === tables.length) {
+    <span class="view-sub">{{tables.length}} analyzed</span>
+  } @else {
+    <span class="view-sub">{{visible.length}} of {{tables.length}}</span>
+  }
+  <app-tag-filter-strip [rows]="tables" (filterChange)="onFilter($event)"></app-tag-filter-strip>
 </div>
 
 <div class="lens-card">
   <div class="table-scroll ledger-scroll">
-    <app-table-list-component [tables]="tables"></app-table-list-component>
+    <app-table-list-component [tables]="visible" (tagsChanged)="onRowTagsChanged()"></app-table-list-component>
   </div>
 </div>

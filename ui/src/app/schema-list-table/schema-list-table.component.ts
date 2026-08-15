@@ -1,8 +1,8 @@
-import { Component, Input } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
 import { TagFieldComponent } from '../tag-field/tag-field.component';
-import { SchemaRollup } from '../api-types';
+import { SchemaRollup, Tag } from '../api-types';
 
 @Component({
     selector: 'app-schema-list-table',
@@ -11,6 +11,18 @@ import { SchemaRollup } from '../api-types';
     imports: [RouterLink, PicoViewComponent, TagFieldComponent]
 })
 export class SchemaListTableComponent {
+
+  /**
+   * Raised when a row's tags are edited in place. TagField reassigns its own
+   * field rather than the rollup it was handed, so without this the page — and
+   * the tag rail counting off these rows — would keep the stale set.
+   */
+  @Output() tagsChanged = new EventEmitter<void>();
+
+  onRowTags(schema: SchemaRollup, tags: Tag[]) {
+    schema.tags = tags;
+    this.tagsChanged.emit();
+  }
 
   private rows: SchemaRollup[] = [];
   private heaviest = 1;
