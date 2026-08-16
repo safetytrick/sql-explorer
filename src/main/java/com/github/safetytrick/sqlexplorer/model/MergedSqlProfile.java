@@ -141,12 +141,27 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getNormalizedDigest();
     }
 
+    /**
+     * The group's metrics, summed over the members that have any.
+     *
+     * <p>{@code runtimeMetrics} is nullable and the rest of the code says so —
+     * the profile comparator orders a metric-less profile last, and
+     * {@code recordMergedChild} guards on null. This did not: it handed the raw
+     * list to {@code merged}, which dereferences every element, so one member
+     * without metrics made the whole group throw. Filtering matches the
+     * single-profile answer: no metrics anywhere means null, not zero.
+     */
     @Override
     public RuntimeMetrics getRuntimeMetrics() {
         if (merged == null) {
-            merged = RuntimeMetrics.merged(sourceList.stream()
-                                              .map(SqlProfile::getRuntimeMetrics)
-                                              .collect(Collectors.toList()));
+            List<RuntimeMetrics> metrics = sourceList.stream()
+                .map(SqlProfile::getRuntimeMetrics)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+            if (metrics.isEmpty()) {
+                return null;
+            }
+            merged = RuntimeMetrics.merged(metrics);
         }
         return merged;
     }
@@ -161,9 +176,21 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getSchemaName();
     }
 
+    /**
+     * The earliest line any member came from.
+     *
+     * <p>{@code lineNumber} is declared {@code int?}, so a profile built by
+     * anything other than the performance-schema ingest — which always sets it
+     * from the row's rank — carries null. Unboxing that inside
+     * {@code mapToInt} threw NPE on group construction rather than returning a
+     * wrong value, so it is filtered rather than defaulted: a group with no
+     * line numbers keeps the existing empty-group fallback.
+     */
     @Override
     public Integer getLineNumber() {
-        return sourceList.stream().mapToInt(SqlProfile::getLineNumber).min()
+        return sourceList.stream().map(SqlProfile::getLineNumber)
+            .filter(java.util.Objects::nonNull)
+            .mapToInt(Integer::intValue).min()
             .orElse(Integer.MAX_VALUE);
     }
 

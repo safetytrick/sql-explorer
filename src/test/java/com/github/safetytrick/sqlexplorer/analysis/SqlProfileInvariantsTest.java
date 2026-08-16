@@ -16,6 +16,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * Cross-field invariants on a built {@link SqlProfile}.
@@ -105,6 +106,15 @@ public class SqlProfileInvariantsTest {
         SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
         SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
         shapes.put("merged", new MergedSqlProfile(List.of(a, b)));
+
+        // A merge group that never passed through `attemptMerge`: the skip
+        // path sets no normalized digest, so `complete()` digests the query
+        // text and two identical skipped statements group in `mergeByDigest`
+        // all the same. Distinct from the shape above — its members were built
+        // without an analyzer ever running.
+        shapes.put("merged, skipped", new MergedSqlProfile(List.of(
+            skipped(List.of(TableReference.fromString("mysql.triggers"))),
+            skipped(List.of(TableReference.fromString("mysql.triggers"))))));
 
         SqlProfile x = FIXTURE.analyze(
             "SELECT `f`.`name` FROM `folders` `f` "
@@ -227,6 +237,33 @@ public class SqlProfileInvariantsTest {
         assertThat(profile.getDigest()).as("digest").isNotNull();
         assertThat(profile.getNormalizedDigest()).as("normalizedDigest").isNotNull();
         assertThat(profile.getSchemaName()).as("schemaName").isNotNull();
+    }
+
+    /**
+     * Every getter answers without throwing.
+     *
+     * <p>Weaker than the invariants above and deliberately so: it is the net
+     * under them. The interesting profile shapes are the ones nothing reads in
+     * a test, and {@link MergedSqlProfile} computes rather than delegates for
+     * several fields, so a getter can fail on its own. {@code getLineNumber}
+     * did: {@code lineNumber} is {@code int?}, the merge unboxed it inside
+     * {@code mapToInt}, and any member without one — everything not built by
+     * the performance-schema ingest — made constructing the group throw NPE
+     * instead of returning a wrong value.
+     */
+    @ParameterizedTest(name = "every getter answers [{0}]")
+    @MethodSource("everyProfileShape")
+    public void everyGetterIsCallable(SqlProfile profile) {
+        for (java.lang.reflect.Method getter : SqlProfile.class.getDeclaredMethods()) {
+            if (!getter.getName().startsWith("get")
+                || getter.getParameterCount() != 0
+                || java.lang.reflect.Modifier.isStatic(getter.getModifiers())) {
+                continue;
+            }
+            assertThatCode(() -> getter.invoke(profile))
+                .as("%s", getter.getName())
+                .doesNotThrowAnyException();
+        }
     }
 
     /**
