@@ -1,4 +1,51 @@
 
+### Do another tech-debt pass, front end and back end, and work the findings into the plan
+
+A fresh audit of both sides — and the output is not another list. The point is
+to get the debt worth doing *scheduled*: promoted into WORK_TODO items or plan
+docs, so it competes for time with everything else here instead of sitting in
+an inventory nobody is committed to.
+
+- **Start from `docs/TECH_DEBT.md`, and re-verify it.** It was pruned
+  2026-08-15 to only what was true at that moment, so it is a good baseline
+  rather than a wish list — but it is still a snapshot. Confirm each entry
+  still holds, then add what has appeared since. What survived the prune, as
+  the shape of what to check:
+  - **Backend:** the unguarded nullable `RuntimeMetrics` dereferences in
+    `SqlRepositoryService` (four sites, NPE on the rollup endpoints); the
+    uncached `getAllAnalyzedSql()` re-merge on every request; the analyzer
+    loop swallowing exceptions to a `debug` log; no `@ControllerAdvice`;
+    triplicated group-by-digest merge logic; two graph stacks.
+  - **Config:** `include-stacktrace: always` in the base profile;
+    `open-in-view: true`; internal hostnames still in git history.
+  - **Frontend:** 19 of 37 specs still Angular CLI stubs; no error UX on
+    ~54 of ~60 subscribes; unmanaged subscriptions; the two god components;
+    pinned-and-stale `core-js ^2`, `@types/node ^12`, `eslint ^7`,
+    `@typescript-eslint ^4`, unbounded `highlight.js ">=9"`; committed
+    legacy scaffolding — `.angular-cli.json`, `ngcc.config.js`,
+    `protractor.conf.js`, `e2e/`; `legacy-peer-deps=true` masking conflicts.
+- **Audit against current conventions, not the ones being migrated away
+  from.** The front end now has a settled baseline worth measuring
+  component-by-component: the global lens vocabulary in `styles.css`, the
+  URL-state rule, `TagField` as the single tag control, the Ledger density
+  modifier. A component still carrying its own copy of a global class, or
+  filter state that never reaches the URL, is now a finding — before the
+  migration it was just the house style. Same on the backend: measure against
+  how the domain packages are actually organised today.
+- **This is partly a meta-task.** `TECH_DEBT.md` stays the raw ledger — a
+  point-in-time inventory that gets entries deleted as they are fixed. The
+  work is deciding which entries are worth doing and writing *those* up here,
+  where they can be sequenced. Obvious early candidates from the current
+  ledger: the legacy-component retirement (already an item), caching
+  `getAllAnalyzedSql()`, and the nullable-metrics null-guard — the last two
+  share a root cause and a file, and the caching one is a prerequisite for
+  honestly judging whether the query-engine refactor at the bottom of this
+  list is needed at all.
+- **Front end and back end can be separate passes.** They have different
+  reviewers, different conventions and largely disjoint findings; splitting
+  them into two items is fine and probably cleaner than one audit that has to
+  hold both in its head.
+
 ### Show status, first/last seen, executed, impact and rows scanned in the table's query list
 
 The queries list under the table view should carry these per query: **status,
