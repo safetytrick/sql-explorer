@@ -159,3 +159,65 @@ Scrub older git history
 
 Brainstorm on this, do we attach them to a user session? Does that require that we add user auth first? Do we add a 
 higher level concept to link environments in a dev-test-prod way?
+
+### Plan a Grafana + Prometheus metrics integration built on links and link templates
+
+Plan it, don't build it. The shape: links and link templates that take you
+from a thing in sql-explorer to the metrics for that thing in Grafana.
+
+- **Link targets:** tables, schemas, and performance_schema digests.
+- **Multiple digests via regex.** One link or template should be able to
+  target a *set* of digests by pattern, not just one — a normalized pattern
+  usually covers several perf_schema digests, and the useful dashboard is the
+  one showing all of them together.
+- **Bundle Grafana dashboard JSON** for the SQL dashboards worth having, so
+  the integration ships something usable rather than only the plumbing.
+
+Grounding, so "links to" means something concrete here:
+
+- **There is prior art, and it is the thing to replace.**
+  `graph/SqlGraphService.java:34` already builds a Grafana deep link —
+  `https://grafana.local/d/dvUfZxpZk/sql-analysis?…&var-digest=%s&var-instance=All&from=now-30d&to=now`
+  — hardcoded, single-digest, and carrying its own
+  `// todo refactor into a grafana integration plugin`. Note it lives on the
+  **v1** graph service, which TECH_DEBT lists as candidate dead API surface,
+  so this work may inherit the idea rather than the code.
+- **Which digest matters.** That link uses `perfDigests.getFirst()` — the
+  *performance_schema* digest, not the normalized one. sql-explorer's own
+  `normalizedDigest` is a sha256 hex of the normalized SQL
+  (`analysis/parser/NormalizedQueryDigest`) and is an internal identity; the
+  digests Grafana/Prometheus would be labelled by are MySQL's. A profile
+  carries several of the latter, which is exactly why the regex case exists.
+- **How tables and schemas are identified.** By name, and in the path shapes
+  the tagging system already uses — `/schema/{s}`, `/schema/{s}/table/{t}`,
+  `/query/{digest}` (`commentary/PathService`). Those paths are the natural
+  key for attaching a link template to a kind of thing.
+- **What a "link template" is:** a Grafana deep link with the variables left
+  open — datasource, the `var-*` dashboard variables (digest / table /
+  schema), and the time range — filled in from whatever the user is looking
+  at. The regex case maps onto a Prometheus label matcher rather than a
+  value: `digest=~"a|b|c"` (or a prefix/pattern), which is also how one
+  Grafana variable can carry a set.
+
+Open questions:
+
+- **Do the metrics being linked to exist?** This integration assumes
+  something exports SQL metrics labelled by digest / table / schema.
+  sql-explorer does not. It has micrometer and a working scrape endpoint —
+  `micrometer-registry-prometheus` + actuator, exposure `health,prometheus`,
+  live at `/api/sql-explorer/actuator/prometheus` (note the
+  `/api/sql-explorer` context path) — but the only custom meters are
+  import-pipeline instrumentation (`performance_schema_process_row`,
+  `@Timed("performance_schema_import")`). Nothing is labelled by digest,
+  table or schema. So either an external exporter supplies them (a
+  mysqld/perf-schema exporter is the obvious candidate) and this integration
+  just links to it, or producing those series is the real first task. Settle
+  this before anything else — it decides whether the item is a linking
+  feature or an exporter.
+- **Where does the bundled dashboard JSON live?** Nothing in the repo ships
+  Grafana assets today. Needs a home and a story for how it gets into a
+  Grafana (provisioning directory, import instructions, or the compose stack).
+- **Are link templates stored or generated?** Configured per environment and
+  persisted like a setting, or derived on the fly from the thing being
+  viewed? The hardcoded constant is neither, which is why it only ever worked
+  for one deployment.
