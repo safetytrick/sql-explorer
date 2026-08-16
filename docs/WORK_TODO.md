@@ -35,37 +35,10 @@ rather than waiting for each to surface as a bug.
 - `complete()` is the right home for anything derivable from another field.
   Deriving there is what makes it hold for skipped, failed and merged profiles
   as well as analysed ones.
-- Two invariants are already known-failing and are `@Disabled` in the suite
-  with the finding recorded — see the item below on `schemas` coverage.
-  Enabling them is part of this work.
-
-### Fix `schemas` so it covers the schemas of the profile's tables
-
-Found by the invariant suite, not yet fixed. `complete()` builds the `schemas`
-list by calling `addSchema(table.getNormalizedSchemaName())` over the table
-references — but `addSchema` returns early on a null schema, and the pass that
-applies `withDefaultSchema(defaultSchema)` to those same tables runs **later in
-the same method**. A statement whose tables were unqualified in the SQL, which
-is the common case, therefore contributes nothing to `schemas` and then has its
-tables filled in afterwards.
-
-**Live impact: 1,816 of 3,608 profiles — 50% — list a table in a schema their
-`schemas` list omits; most have an empty list entirely.** For example a profile
-with `tables = ['search.users']` and `schemas = []`.
-
-- The fix is probably to derive `schemas` *after* the default-schema pass, or
-  to pass the default into `addSchema`. Check `SchemaAnalyzer`, which does its
-  own `addSchema` loop earlier and has the same null-schema blind spot.
-- Watch the ordering: `complete()` currently uses `schemas` to set
-  `isMultiSchema` and to collapse `schemaName` to the single schema, so moving
-  the derivation moves those too.
-- A related invariant is disabled for the same root cause: a cross-schema
-  statement with one qualified and one unqualified table reports
-  `isMultiSchema = true` while listing a single schema. Not violated in the
-  live corpus (0 of 3,608), because its cross-schema statements qualify both
-  sides — but the fixture reproduces it.
-- Both invariants are `@Disabled` in `SqlProfileInvariantsTest`; enabling them
-  is the definition of done.
+- The suite's first run found one such split immediately — `schemas` was
+  derived from the tables before those tables had their default schema
+  applied, leaving it empty for half the corpus. That one is fixed; treat it
+  as the worked example of what to look for.
 
 ### Do another tech-debt pass, front end and back end, and work the findings into the plan
 
