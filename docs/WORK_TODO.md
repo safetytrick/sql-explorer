@@ -1,4 +1,65 @@
 
+### Include CTEs (`WITH`) in the SELECT filter
+
+A `WITH` query does not show up when you filter for SELECT, so CTEs are
+invisible to the most-used filter in the workbench. Fix it as a **UI hack**:
+have the SELECT filter also match `WITH`. Not by classifying properly —
+see below for why that is the wrong trade here.
+
+- **Query "type" is the first token, literally.**
+  `SqlEvidenceInputService` sets `.setType(firstToken)` at import, where
+  `firstToken(sql)` is `new StringTokenizer(sql).nextToken().toUpperCase()`.
+  No parsing is involved. A statement beginning `WITH` is therefore typed
+  `WITH`, and nothing downstream ever revisits that.
+- **Confirmed in the corpus.** The local set has 3 queries typed `WITH`,
+  alongside `SELECT` (532), `SHOW`, `INSERT`, `GRANT`, `UPDATE` and the rest.
+  They are excluded from a SELECT filter today.
+- **Where the filter is applied.** `QuerySearchRequest.types` →
+  `QuerySearchService.matchesTypes(wanted, profileType)`, an uppercase
+  equality check against the profile's type (with `OTHER` meaning "not one of
+  the explicit types"). The UI side is `QUERY_TYPES` in
+  `queries-workbench.component.ts` — `['SELECT', 'INSERT', 'UPDATE',
+  'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'WITH', 'OTHER']` — rendered
+  as `.tri-btn` toggles and carried in the URL as `queryTypes` by
+  `search-url.ts`. Note `WITH` is already its own button; the ask is that
+  choosing **SELECT** also brings CTEs in, not that `WITH` becomes reachable.
+- **Why a hack and not a classifier fix.** A CTE can wrap either — `WITH x AS
+  (…) SELECT …` or `WITH x AS (…) INSERT/UPDATE/DELETE …`. Deciding which
+  requires reading past the CTE body to the leading keyword of the statement
+  it feeds, and the corpus is normalized and frequently truncated
+  performance_schema text, so that keyword may simply not be present. The
+  first token cannot disambiguate and neither can a partial parse. Widening
+  the SELECT filter accepts an occasional CTE-wrapped-DML false positive in
+  exchange for not losing every CTE from the SELECT view — the right trade
+  when the alternative is a classifier that is wrong in a harder-to-see way.
+  - Worth knowing: `isDml` is *not* purely token-based — it is
+    `rowsAffected > 1 || dmlTokens.contains(firstToken)` with
+    `dmlTokens = {INSERT, UPDATE, DELETE}`. So a CTE-wrapped DML that
+    actually modified rows is already flagged `isDml` even though its type
+    says `WITH`. That is a cheap secondary signal if the false positives turn
+    out to matter.
+
+Open questions:
+
+- **Widen the filter, or reclassify at ingest?** Widening is the specified
+  approach and touches one predicate. Reclassifying (type a `WITH` that
+  reaches a `SELECT` as `SELECT`) is more correct when it works and silently
+  wrong when the text is truncated — and it would need a re-import to take
+  effect on existing data.
+- **Where does the widening live — frontend or backend?** Sending
+  `types: ['SELECT', 'WITH']` when SELECT is toggled is a one-line frontend
+  change but makes the URL say something the user did not pick. Doing it in
+  `matchesTypes` keeps the URL honest but means the API's `types` filter no
+  longer means plain equality. Pick deliberately; they are not equivalent for
+  shareable links.
+- **Does the false-positive rate matter?** Three CTEs locally, unknown
+  elsewhere. Worth a look at how many CTEs in a real corpus are DML-wrapping
+  before deciding this is harmless.
+- **What should the type badge say?** The query row and SQL view show the raw
+  type. Leaving it `WITH` is honest; showing `SELECT` would contradict the
+  data; showing `WITH` with a hint that it matched the SELECT filter is more
+  code than the hack deserves.
+
 ### Do another tech-debt pass, front end and back end, and work the findings into the plan
 
 A fresh audit of both sides — and the output is not another list. The point is
