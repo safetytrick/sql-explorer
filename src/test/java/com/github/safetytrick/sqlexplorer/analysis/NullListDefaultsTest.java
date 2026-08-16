@@ -1,6 +1,9 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
+import java.util.List;
+
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.Test;
 
@@ -18,12 +21,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>~5% of the corpus was in that state, and the SQL view read `.length` off
  * those fields, throwing during change detection and blanking most of the page.
  *
- * <p><b>These tests pin the invariant, they do not reproduce the bug.</b> This
- * fixture path already produced empty lists before the fix — Avro's declared
- * default does materialise here. The production nulls come from something the
- * fixture does not exercise, so the normalisation in {@code complete()} is a
- * guarantee rather than a demonstrated repair, and was verified against the
- * live corpus after deploying rather than here.
+ * <p>The builder path was never the culprit — it produces empty lists already.
+ * {@link MergedSqlProfile} was: it overrides a getter at a time and silently
+ * inherits whatever it forgets, and it is constructed with {@code new} rather
+ * than through the Avro builder, so the three getters it did not override
+ * returned the uninitialised superclass field.
  */
 public class NullListDefaultsTest {
 
@@ -86,5 +88,25 @@ public class NullListDefaultsTest {
         SqlProfile profile = FIXTURE.analyze("SELECT 1");
 
         assertNoNullLists(profile);
+    }
+
+    /**
+     * The actual bug. A merge group of two profiles must report the
+     * representative's columns, not the superclass's uninitialised nulls.
+     */
+    @Test
+    public void aMergedProfileReportsItsRepresentativesColumnsNotNulls() throws JSQLParserException {
+        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+
+        SqlProfile mergedProfile = new MergedSqlProfile(List.of(a, b));
+
+        assertThat(mergedProfile.getSelectColumns()).as("selectColumns").isNotNull();
+        assertThat(mergedProfile.getGroupByColumns()).as("groupByColumns").isNotNull();
+        assertThat(mergedProfile.getSchemas()).as("schemas").isNotNull();
+
+        assertThat(mergedProfile.getSelectColumns()).isEqualTo(a.getSelectColumns());
+        assertThat(mergedProfile.getGroupByColumns()).isEqualTo(a.getGroupByColumns());
+        assertThat(mergedProfile.getSchemas()).isEqualTo(a.getSchemas());
     }
 }

@@ -57,6 +57,30 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getCriteriaColumns();
     }
 
+    /*
+     * These three were missing, and their absence was the bug: an override-per-
+     * getter class silently inherits whatever it forgets. `MergedSqlProfile` is
+     * constructed with `new`, never through the Avro builder, so an un-overridden
+     * list field is the uninitialised superclass field — null, not the schema's
+     * declared empty list. That is why exactly `selectColumns`, `groupByColumns`
+     * and `schemas` came back null on merged profiles and nothing else did.
+     */
+
+    @Override
+    public List<ColumnReference> getSelectColumns() {
+        return first().getSelectColumns();
+    }
+
+    @Override
+    public List<ColumnReference> getGroupByColumns() {
+        return first().getGroupByColumns();
+    }
+
+    @Override
+    public List<String> getSchemas() {
+        return first().getSchemas();
+    }
+
     @Override
     public String getGeneratedSource() {
         return first().getGeneratedSource();
