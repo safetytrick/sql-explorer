@@ -86,10 +86,12 @@ export class SqlViewComponent implements OnInit {
    */
   private constrainingColumns(): string[] {
     if (!this.query) { return []; }
+    // groupByColumns is null — not empty — when SelectColumnAnalyzer never ran
+    // or threw, which is the case for ~5% of profiles.
     return [
-      ...this.query.criteriaColumns,
-      ...this.query.groupByColumns,
-      ...this.query.joinColumns.flat()
+      ...(this.query.criteriaColumns ?? []),
+      ...(this.query.groupByColumns ?? []),
+      ...(this.query.joinColumns ?? []).flat()
     ];
   }
 

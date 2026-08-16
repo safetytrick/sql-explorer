@@ -55,8 +55,14 @@ export interface SqlProfile {
   type: string;
   joinColumns: JoinPair[];
   criteriaColumns: ColumnRef[];
-  selectColumns: ColumnRef[];
-  groupByColumns: ColumnRef[];
+  /**
+   * Null, not empty, when the analyzer that fills these never ran or threw —
+   * a skipped analysis, a parse failure, or an analyzer exception. The wire
+   * really does send `null` here despite the Avro schema declaring `= []`,
+   * and ~5% of profiles are in that state, so every read has to guard.
+   */
+  selectColumns: ColumnRef[] | null;
+  groupByColumns: ColumnRef[] | null;
   generatedSource: string | null;
   truncated: boolean;
   analysisFailed: boolean;
@@ -66,7 +72,7 @@ export interface SqlProfile {
   digest: string;
   normalizedDigest: string;
   schemaName: string;
-  schemas: string[];
+  schemas: string[] | null;
   mismatchedJoins: JoinPair[];
   lineNumber: number | null;
   analysisFailureReason: string | null;

@@ -273,7 +273,7 @@
         }
 
         <!-- Mismatched joins -->
-        @if (query.mismatchedJoins.length > 0) {
+        @if (query.mismatchedJoins?.length) {
           <div class="lens-card">
             <div class="card-head">
               <span class="card-head-title">Mismatched joins</span>
@@ -296,7 +296,7 @@
       <div class="lens-rail">
         <div class="lens-card">
           <div class="card-head"><span class="card-head-title">Join columns</span></div>
-          @if (query.joinColumns.length === 0) {
+          @if (!query.joinColumns?.length) {
             <div class="card-empty">no joins</div>
           } @else {
             <div class="join-list">
@@ -313,7 +313,7 @@
 
         <div class="lens-card">
           <div class="card-head"><span class="card-head-title">Criteria columns</span></div>
-          @if (query.criteriaColumns.length === 0) {
+          @if (!query.criteriaColumns?.length) {
             <div class="card-empty">no criteria</div>
           } @else {
             <div class="ref-list">
@@ -324,7 +324,7 @@
           }
         </div>
 
-        @if (query.groupByColumns.length > 0) {
+        @if (query.groupByColumns?.length) {
           <div class="lens-card">
             <div class="card-head">
               <span class="card-head-title">Group by columns</span>
