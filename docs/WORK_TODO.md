@@ -487,6 +487,29 @@ Open questions:
   much larger corpora, not present-day latency; if it is being scheduled for
   speed today, measure first.
 
+### Don't fail analysis on a column with no candidate tables
+
+`SELECT NOW` — the parentheses lost somewhere upstream, so jsqlparser reads
+`NOW` as a bare column with no `FROM`. `SelectColumnAnalyzer` asks the
+resolver which table it belongs to, there are no candidate tables, and
+`ColumnTableResolver.selectTableNameFromCandidates` throws
+`UnsupportedSqlException("missing schema")` — the only analyzer-thrown failure
+in the whole corpus.
+
+There is nothing to resolve. A column with no candidate tables cannot be
+attributed to one, and asking is wasted work that turns into a spurious
+`analysisFailed`. Returning "unresolved" and moving on is both cheaper and
+more accurate than throwing.
+
+- Start at `ColumnTableResolver.selectTableNameFromCandidates`, which throws
+  when `findSchemaForTablesAndColumns` yields no schema.
+- Check what the callers expect an unresolved column to look like — the
+  analyzers already emit references whose table cannot be pinned down, so
+  there may be an existing shape to reuse rather than a new one to invent.
+- Worth confirming whether the lost `()` is a normalizer artifact or is
+  already absent in the performance_schema text; if the former, the statement
+  should arguably never have reached the analyzer looking like a bare column.
+
 ### Capture enough on an analysis failure to write a failing test from it
 
 When an analyzer throws, capture the problematic SQL together with the
