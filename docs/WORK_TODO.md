@@ -486,3 +486,58 @@ Open questions:
   fixed on its own without an engine. The case for this item is headroom for
   much larger corpora, not present-day latency; if it is being scheduled for
   speed today, measure first.
+
+### Capture enough on an analysis failure to write a failing test from it
+
+When an analyzer throws, capture the problematic SQL together with the
+environment it was analyzed against — the tables, columns and whatever else
+the analyzer reached for — so a failing test can be reconstructed directly
+from a production failure instead of by hand.
+
+- **Where failures are handled today.** `SqlAnalysisService.analyzeSql(String,
+  SqlProfile.Builder, SqlSchemaRepository)` runs each analyzer in a
+  `try { … } catch (Exception e)` and records only two things: a short string
+  on the profile —
+
+      builder.setAnalysisFailureReason("Failure on: " + analyzer.getClass().getSimpleName()
+                                       + " message: " + getRootCauseMessage(e));
+
+  — and `log.debug("Failure on: {}", …, e)`, which is off in normal operation.
+  So a failure says *what* broke ("Failure on: SelectColumnAnalyzer message:
+  with items list") and nothing about how to reproduce it. This is the
+  TECH_DEBT "analyzer loop swallows all exceptions" item, approached from the
+  reproducibility side rather than the observability one.
+- **Everything needed is already in scope at the catch.** The method holds the
+  original `sql` string and the `SqlSchemaRepository` the analyzers resolve
+  against. Nothing new has to be plumbed through to capture it — it is
+  discarded, not unavailable.
+- **Target the harness that already exists.** `SchemaFixture.fromSql(ddl)` plus
+  `.analyze(sql)` is how the analyzer tests are written. A captured failure
+  should carry exactly what that pair needs — the SQL, and DDL for the tables
+  and columns it referenced — so writing the regression test is a paste rather
+  than an investigation.
+- **The CTE work is the motivating example.** Three `WITH` queries failed with
+  `Failure on: SelectColumnAnalyzer message: with items list`. Turning that
+  into tests meant querying the API for the statements, reading them to work
+  out which tables and columns they touched, and hand-writing a fixture to
+  match. That reconstruction is the step this item removes; it is the same
+  every time, and it is the reason failures sit unfixed.
+
+Open questions:
+
+- **Where does a captured failure go?** Structured log fields, a column on the
+  profile, a table, or an admin view that renders a ready-to-paste fixture.
+  The last is the most useful and the most work.
+- **How much schema?** The full repository is large and may carry column names
+  worth not copying around; the referenced tables and their columns are enough
+  to reproduce and much smaller. Deriving "referenced" is itself analysis,
+  which may have partly failed — falling back to the statement's table list is
+  probably good enough.
+- **Exception and stacktrace, or just the reconstruction inputs?** The
+  stacktrace is what makes the *cause* obvious; the SQL and schema are what
+  make the *test*. They have different audiences and possibly different
+  retention.
+- **Keep the existing string stable.** `"Failure on: "` is load-bearing —
+  `QuerySearchService.ANALYZER_FAILURE_PREFIX` and two `SqlProfileReportService`
+  reports classify analyzer failures by that prefix. Anything richer has to be
+  additive rather than a reformat.
