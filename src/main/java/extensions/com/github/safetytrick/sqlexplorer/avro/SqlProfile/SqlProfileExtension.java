@@ -152,6 +152,17 @@ public class SqlProfileExtension {
                 }
             }
 
+            // The schemas list is derived from the tables for every profile,
+            // analysed or not; the flag was only ever set by SchemaAnalyzer,
+            // which does not run when analysis is skipped. That left a skipped
+            // cross-schema statement listing two schemas while claiming one.
+            // Deriving it from the same data keeps the pair honest. This only
+            // ever promotes false to true, so it cannot contradict the analyzer,
+            // which sets true in exactly the cases where the list has >1 entry.
+            if (thiz.getSchemas() != null && thiz.getSchemas().size() > 1) {
+                thiz.setIsMultiSchema(true);
+            }
+
             if (thiz.getAnalysisFailureReason() != null) {
                 thiz.setAnalysisFailed(true);
             }
