@@ -328,3 +328,78 @@ Open questions:
   persisted like a setting, or derived on the fly from the thing being
   viewed? The hardcoded constant is neither, which is why it only ever worked
   for one deployment.
+
+### Filter queries in SQL or Parquet (DuckDB?) instead of in memory
+
+Move query filtering out of in-memory processing and into a query engine —
+predicates pushed into SQL, or evaluated over Parquet by something like
+DuckDB.
+
+- **Where the filtering happens today.** `QuerySearchService.search()` does
+  one pass of `sqlRepositoryService.getAllAnalyzedSql().forEach(...)`,
+  applying `matchesQuery` / `matchesNonScope` / `matchesScope` as Java
+  predicates per profile, accumulating the table and schema facet counts as
+  it goes, then `matches.sort(comparator(...))` over the whole match list and
+  slicing offset/limit at the end. Filtering, faceting, sorting and pagination
+  are all in heap, after materializing every profile.
+- **And the scan is preceded by a rebuild.** `getAllAnalyzedSql()` is not
+  cached — `CompositeSqlRepository` re-streams every source, regroups by
+  digest, re-merges duplicates and re-sorts on *every call* (the standing
+  TECH_DEBT backend-perf item). So each search pays a full merge before it
+  filters anything. That item and this one share a root cause; whichever is
+  done first should be done with the other in mind.
+- **What the data actually is.** Profiles are Avro `SqlProfile` records held
+  in heap per environment by `SqlRepositoryManager` — there is no relational
+  store to push predicates into, so "filter in SQL" is not a matter of
+  writing a WHERE clause against MySQL. The Explorer database holds tags,
+  notes, users and sources; it does not hold profiles.
+- **Parquet already exists, which makes the DuckDB route concrete.**
+  `ParquetSink` writes the corpus with `AvroParquetWriter` to
+  `parquet-sink.filename` (`/parquet/sql-repository.parquet` in the local
+  stack) and `ParquetSqlRepository implements SqlRepository` reads it back —
+  today as an unindexed full scan. A columnar engine pointed at that file is
+  the least-new-machinery version of this.
+- **The predicate surface that has to survive.** All of `QuerySearchRequest`:
+  `queryRegex`; the ranges `avgTimeMs`, `maxTimeMs`, `avgRowsScanned`,
+  `selectivity`, `rowsSorted`; `activity`; `types`; the `firstSeen` /
+  `lastSeen` date ranges; `tags` + `tagMode` + `untaggedOnly`; `schemas` /
+  `excludeSchemas` / `tables` + `tableMode` / `excludeTables`; `columns`
+  (which delegates to `SqlProfile.constrainedBy` — join-or-criteria, not a
+  bare select); the flags `fullScan`, `tmpTable`, `tmpDisk`, `errors`,
+  `warnings`, `truncated`, `multiSchema`; `analyzerWarnings`,
+  `analysisFailed`, `cleanAnalysis`, `analysisSkipped`, `failureKind`; and
+  `sort` / `limit` / `offset`. Plus the facet counts, which are computed in
+  the same pass and are not a filter.
+  - The awkward ones are the analysis predicates and `columns`: they read
+    nested/derived structure (`constrainedBy`, analyzer failure strings)
+    rather than flat columns, so they need either a flattened projection in
+    the Parquet schema or to stay in a post-filter step.
+- **Tags live in a different store.** Tag filtering joins against the
+  Explorer MySQL tags table (`queryTagsById()`), not the profile data — so
+  any engine-side filter either federates the two or resolves tags to a
+  digest set first and pushes that in.
+
+Open questions:
+
+- **Which of the two?** SQL against an existing store is not available
+  (profiles are not in MySQL), so realistically this is "stand up a columnar
+  layer over the Parquet we already write" — DuckDB, or Parquet predicate
+  pushdown without a full engine. Worth naming that explicitly before anyone
+  scopes it as the smaller-sounding option.
+- **Where do the Parquet files come from and live?** Today one file per
+  environment written at the end of a load. Per-environment, per-load and
+  retention all need deciding if it becomes the query substrate rather than a
+  sink.
+- **Consistency with the in-memory results.** The current path merges by
+  normalized digest before filtering; any engine-side implementation has to
+  reproduce that merge, or read a projection that is already merged, or it
+  will return different rows. Same for the sort comparator, which is
+  `SqlProfileExtension.comparator` (activity, then metrics presence, then
+  total time) rather than a plain ORDER BY.
+- **Is it a problem worth solving yet?** State the scale honestly: the local
+  corpus is ~3,500 analyzed queries across 294 tables and 25 schemas. A Java
+  pass over 3,500 objects is not the bottleneck — the uncached per-request
+  merge in front of it is the thing that actually costs, and that can be
+  fixed on its own without an engine. The case for this item is headroom for
+  much larger corpora, not present-day latency; if it is being scheduled for
+  speed today, measure first.
