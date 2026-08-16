@@ -1,4 +1,58 @@
 
+### Make the column drill-down reuse the table lens with the column selected
+
+`/table/{schema}/{table}/{column}` should render the same table component as
+`/table/{schema}/{table}`, with that column selected so the queries list is
+filtered by it — not a separate standalone view.
+
+The mechanism already exists; it is the *route* that has not caught up.
+
+- **What renders what today** (`ui/src/main.ts`):
+  - `table/:schema/:name` → **`TableLensComponent`**
+  - `table/:schema/:name/:column` → **`TableViewComponent`** (legacy)
+  - `table/:schema/:name/queries` and
+    `table/:schema/:name/join/:joinSchema/:joinTable` → also `TableViewComponent`
+- **The lens already does column drill-down.** `TableLensComponent` has
+  `drillColumn`, `isDrillable()` (join/criteria roles only — a select-only
+  column cannot constrain a query, so it does not drill) and
+  `drillIntoColumn()`, which writes `?columns=<schema>.<table>.<column>` via
+  `patchUrl` and re-runs `runQuerySearch()`. It seeds from
+  `state.columns[0]` on load. So the lens is already a column-filtered table
+  view — reachable only by clicking a column *inside* the lens, never by URL
+  path.
+- **The queries card filters through the shared search vocabulary.** The
+  `columns` param is `search-url.ts`'s csv, which becomes
+  `QuerySearchRequest.columns` and delegates to `SqlProfile.constrainedBy` —
+  "appears in a join or the criteria", the same meaning the legacy column
+  view always had.
+- **This is also the main way users still reach the legacy component.**
+  `app-column-link` links to `/table/{schema}/{table}/{column}` verbatim
+  (`column-link.component.html`), and it is rendered by the SQL view,
+  `sql-summary`, and the legacy table view. Every column link in the app
+  currently lands on `TableViewComponent`. Fixing this route is most of what
+  makes "retire the last two legacy UI components" possible.
+
+Open questions:
+
+- **Route param vs query param.** The lens reads the selection from
+  `?columns=`; the route offers it as a path segment. Simplest is probably to
+  point the route at `TableLensComponent` and have it seed `drillColumn` from
+  the `:column` param when present — but then two URLs express the same state.
+  Decide whether the path form redirects to the `?columns=` form (one
+  canonical shareable URL, consistent with the URL rule in CLAUDE.md), or is
+  supported as a first-class alias.
+- **The `:column` route is a catch-all shape.** `table/:schema/:name/:column`
+  will match `table/x/y/queries` too — today that is avoided only because the
+  more specific `queries` route is declared first. Any reshuffle has to keep
+  that ordering, or the segment collision bites.
+- **Does the lens need a new input?** It currently derives everything from
+  query params and its own route params; a `:column` path segment is a new
+  source for the same field.
+- **Dead code this unlocks.** If the column route moves to the lens, and the
+  `queries` and `join/**` routes are decided alongside it, `TableViewComponent`
+  loses its last entry points — see the retirement item. `app-column-link`'s
+  target needs updating either way.
+
 ### Evaluate the UI against the optimization workflows it supports
 
 A two-part exercise. The point of the first part is to produce the yardstick
