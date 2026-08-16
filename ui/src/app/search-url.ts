@@ -226,6 +226,29 @@ export function resolveSchemaTagScope(schemaNames: string[],
 }
 
 /**
+ * SELECT also covers CTEs.
+ *
+ * A query's type is its first token, assigned at import without parsing
+ * (`SqlEvidenceInputService`), so `WITH … SELECT …` is typed `WITH` and falls
+ * out of a SELECT filter. Classifying it properly would mean reading past the
+ * CTE body to the statement it feeds, which normalized and frequently
+ * truncated performance_schema text often does not contain — so the filter is
+ * widened instead, accepting the occasional CTE-wrapped-DML false positive.
+ *
+ * This happens at request-build time, deliberately, *not* in the URL codec:
+ * the URL keeps the type the user actually picked, so a shared link still
+ * reads `SELECT` and decodes back to `SELECT`. Picking `WITH` on its own is
+ * unaffected and still returns only CTEs.
+ */
+export function expandSelectTypes(types: string[]): string[] {
+  const upper = types.map(type => type.toUpperCase());
+  if (!upper.includes('SELECT') || upper.includes('WITH')) {
+    return types;
+  }
+  return [...types, 'WITH'];
+}
+
+/**
  * Assemble the backend request from decoded state + the resolved tag
  * scope (the workbench's buildRequest, shared with the graph). Date
  * expressions resolve here so relative ranges stay live.
@@ -242,7 +265,7 @@ export function buildSearchRequest(state: SearchUrlState,
       : { min: pctToFraction(state.selectivityPct.min), max: pctToFraction(state.selectivityPct.max) },
     rowsSorted: range(state.rowsSorted),
     activity: state.activity === 'ANY' ? null : state.activity,
-    types: state.types.length ? state.types : null,
+    types: state.types.length ? expandSelectTypes(state.types) : null,
     firstSeen: dates(resolveDateExpr(state.firstAfter), resolveDateExpr(state.firstBefore, true)),
     lastSeen: dates(resolveDateExpr(state.lastAfter), resolveDateExpr(state.lastBefore, true)),
     tags: state.tags.length ? state.tags : null,

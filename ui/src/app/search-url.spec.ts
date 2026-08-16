@@ -122,6 +122,56 @@ describe('buildSearchRequest', () => {
     expect(request.limit).toBeNull();
   });
 
+  it('widens SELECT to also match CTEs, which are typed WITH by first token', () => {
+    const state = defaultSearchState();
+    state.types = ['SELECT'];
+    const request = buildSearchRequest(state, UNCONSTRAINED_TAG_SCOPE, { limit: 50, offset: 0 });
+    expect(request.types).toEqual(['SELECT', 'WITH']);
+  });
+
+  it('leaves a WITH-only selection alone, so picking WITH still means only CTEs', () => {
+    const state = defaultSearchState();
+    state.types = ['WITH'];
+    const request = buildSearchRequest(state, UNCONSTRAINED_TAG_SCOPE, { limit: 50, offset: 0 });
+    expect(request.types).toEqual(['WITH']);
+  });
+
+  it('does not widen a selection that excludes SELECT', () => {
+    const state = defaultSearchState();
+    state.types = ['INSERT', 'UPDATE'];
+    const request = buildSearchRequest(state, UNCONSTRAINED_TAG_SCOPE, { limit: 50, offset: 0 });
+    expect(request.types).toEqual(['INSERT', 'UPDATE']);
+  });
+
+  it('keeps the other picked types when widening, and does not duplicate WITH', () => {
+    const both = defaultSearchState();
+    both.types = ['SELECT', 'INSERT'];
+    expect(buildSearchRequest(both, UNCONSTRAINED_TAG_SCOPE, { limit: 50, offset: 0 }).types)
+      .toEqual(['SELECT', 'INSERT', 'WITH']);
+
+    const already = defaultSearchState();
+    already.types = ['SELECT', 'WITH'];
+    expect(buildSearchRequest(already, UNCONSTRAINED_TAG_SCOPE, { limit: 50, offset: 0 }).types)
+      .toEqual(['SELECT', 'WITH']);
+  });
+
+  it('widening never reaches the URL — a shared link says what the user picked', () => {
+    const state = defaultSearchState();
+    state.types = ['SELECT'];
+
+    // what travels in the link
+    const params = encodeSearchParams(state);
+    expect(params['queryTypes']).toBe('SELECT');
+
+    // and what comes back out of it
+    const decoded = decodeSearchParams(reader(params as Record<string, string>));
+    expect(decoded.types).toEqual(['SELECT']);
+
+    // while the request built from that same state still covers CTEs
+    expect(buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 50, offset: 0 }).types)
+      .toEqual(['SELECT', 'WITH']);
+  });
+
   it('resolves date expressions at build time so shared links stay live', () => {
     const state = defaultSearchState();
     state.firstAfter = 'now-7d';
