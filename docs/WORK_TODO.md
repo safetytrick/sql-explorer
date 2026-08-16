@@ -1,4 +1,72 @@
 
+### Audit SqlProfile field derivations for path-split
+
+Three bugs in one session shared a shape: a field set on a **conditional**
+path — an analyzer that can be skipped, throw, or be bypassed — sitting beside
+a consistency-linked partner derived in the **always-run**
+`SqlProfileExtension.complete()`. Nothing made the pair agree, so they drifted
+and the disagreement shipped.
+
+The instances, as the pattern to look for:
+
+- **Null column arrays.** `selectColumns` / `groupByColumns` / `schemas` are
+  filled by lazy add-extensions that create the list on first insert, while
+  `joinColumns` / `mismatchedJoins` get unconditional setters. An analyzer that
+  found nothing, threw, or never ran left null — and `MergedSqlProfile`, which
+  is built with `new` rather than the Avro builder, inherited those
+  uninitialised fields for the getters it had not overridden. ~5% of profiles;
+  crashed the SQL view.
+- **`isMultiSchema` and `sourceFileName` on `MergedSqlProfile`.** Same class,
+  hidden better: primitives and strings return `false`/`null` rather than
+  throwing, so a merged profile silently claimed one schema.
+- **Skip-path multi-schema.** `schemas` derived from the tables in
+  `complete()` for every profile; `isMultiSchema` set only by `SchemaAnalyzer`,
+  which does not run when analysis is skipped. A skipped cross-schema statement
+  listed two schemas and claimed one.
+
+`SqlProfileInvariantsTest` now asserts the cross-field invariants against every
+construction path, so a **regression** fails a test. This item is the other
+half: the deliberate read-through to find derivations that are still split, and
+move them into `complete()` — the one place every profile passes through —
+rather than waiting for each to surface as a bug.
+
+- Walk each `SqlProfile` field and ask: what sets it, can that code not run,
+  and is anything else derived from the same source?
+- `complete()` is the right home for anything derivable from another field.
+  Deriving there is what makes it hold for skipped, failed and merged profiles
+  as well as analysed ones.
+- Two invariants are already known-failing and are `@Disabled` in the suite
+  with the finding recorded — see the item below on `schemas` coverage.
+  Enabling them is part of this work.
+
+### Fix `schemas` so it covers the schemas of the profile's tables
+
+Found by the invariant suite, not yet fixed. `complete()` builds the `schemas`
+list by calling `addSchema(table.getNormalizedSchemaName())` over the table
+references — but `addSchema` returns early on a null schema, and the pass that
+applies `withDefaultSchema(defaultSchema)` to those same tables runs **later in
+the same method**. A statement whose tables were unqualified in the SQL, which
+is the common case, therefore contributes nothing to `schemas` and then has its
+tables filled in afterwards.
+
+**Live impact: 1,816 of 3,608 profiles — 50% — list a table in a schema their
+`schemas` list omits; most have an empty list entirely.** For example a profile
+with `tables = ['search.users']` and `schemas = []`.
+
+- The fix is probably to derive `schemas` *after* the default-schema pass, or
+  to pass the default into `addSchema`. Check `SchemaAnalyzer`, which does its
+  own `addSchema` loop earlier and has the same null-schema blind spot.
+- Watch the ordering: `complete()` currently uses `schemas` to set
+  `isMultiSchema` and to collapse `schemaName` to the single schema, so moving
+  the derivation moves those too.
+- A related invariant is disabled for the same root cause: a cross-schema
+  statement with one qualified and one unqualified table reports
+  `isMultiSchema = true` while listing a single schema. Not violated in the
+  live corpus (0 of 3,608), because its cross-schema statements qualify both
+  sides — but the fixture reproduces it.
+- Both invariants are `@Disabled` in `SqlProfileInvariantsTest`; enabling them
+  is the definition of done.
+
 ### Do another tech-debt pass, front end and back end, and work the findings into the plan
 
 A fresh audit of both sides — and the output is not another list. The point is
