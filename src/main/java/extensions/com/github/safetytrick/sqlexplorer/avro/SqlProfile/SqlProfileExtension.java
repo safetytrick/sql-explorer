@@ -142,6 +142,7 @@ public class SqlProfileExtension {
         }
 
         public static SqlProfile.Builder complete(@This SqlProfile.Builder thiz, String defaultSchema) {
+            emptyUnsetLists(thiz);
             if (thiz.getSchemaName() == null) {
                 thiz.setSchemaName(defaultSchema);
             }
@@ -222,6 +223,39 @@ public class SqlProfileExtension {
             }
 
             return thiz;
+        }
+
+
+        /**
+         * Give every list field an empty list rather than leaving it null.
+         *
+         * The schema declares these {@code = []}, but the default only applies
+         * to a field the builder never touched *and* only if Avro materialises
+         * it — in practice a field that no analyzer populated arrives null on
+         * the wire. Which fields those are depends on how the analyzer fills
+         * them: `setJoinColumns` / `setMismatchedJoins` are called
+         * unconditionally so those are always present, while `selectColumn`,
+         * `groupByColumn` and `addSchema` create their list on first insert, so
+         * a statement with none of them — or an analyzer that threw or never
+         * ran — left null behind.
+         *
+         * That was a real bug rather than a cosmetic one: ~5% of profiles came
+         * back with null `selectColumns` / `groupByColumns` / `schemas`, and
+         * the SQL view read `.length` off them, throwing during change
+         * detection and blanking most of the page.
+         *
+         * Normalising here covers every profile, because both build paths go
+         * through {@code completeBuild}.
+         */
+        private static void emptyUnsetLists(SqlProfile.Builder thiz) {
+            if (thiz.getTables() == null) { thiz.setTables(new ArrayList<>()); }
+            if (thiz.getJoinColumns() == null) { thiz.setJoinColumns(new ArrayList<>()); }
+            if (thiz.getCriteriaColumns() == null) { thiz.setCriteriaColumns(new ArrayList<>()); }
+            if (thiz.getSelectColumns() == null) { thiz.setSelectColumns(new ArrayList<>()); }
+            if (thiz.getGroupByColumns() == null) { thiz.setGroupByColumns(new ArrayList<>()); }
+            if (thiz.getMismatchedJoins() == null) { thiz.setMismatchedJoins(new ArrayList<>()); }
+            if (thiz.getSchemas() == null) { thiz.setSchemas(new ArrayList<>()); }
+            if (thiz.getSourcedFiles() == null) { thiz.setSourcedFiles(new ArrayList<>()); }
         }
 
         public static SqlProfile completeBuild(@This SqlProfile.Builder thiz, String defaultSchema) {
