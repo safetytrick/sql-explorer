@@ -1,4 +1,57 @@
 
+### Show status, first/last seen, executed, impact and rows scanned in the table's query list
+
+The queries list under the table view should carry these per query: **status,
+first seen, last seen, executed, impact, rows scanned**.
+
+- **What renders it today.** The **Queries card on `TableLensComponent`**, not
+  a shared row component — `table-lens.component.html` has its own
+  `.query-row` / `.query-row-head`, iterating `queries` (`QueryHit`, from
+  `POST /queries/search`). Per row it currently shows: the query type as a
+  link to `/analyzed-sql/{digest}`, `executed` ("N execs"), one time value, a
+  full-scan badge, analyzer/analysis-failed badges, tags, and the SQL text.
+  So of the six asked for, only **executed** is there today.
+- **Every field is already on the payload** — the card loads full
+  `SqlProfile`s, so this is presentation only, no backend or DTO change:
+  - status → `profile.queryActivityStatus` (`ACTIVE` / `DORMANT` / `UNKNOWN`)
+  - first seen → `profile.runtimeMetrics.firstSeen`
+  - last seen → `profile.runtimeMetrics.lastSeen`
+  - executed → `profile.runtimeMetrics.executed` *(already shown)*
+  - impact → `profile.runtimeMetrics.totalTime` (picoseconds)
+  - rows scanned → `profile.runtimeMetrics.rowsScanned`
+    (`averageRowsScanned` also exists — decide which, per-execution average
+    is usually the more comparable number)
+  - `runtimeMetrics` is a nullable union; the card already guards it with
+    `@if (hit.profile.runtimeMetrics; as m)` and must keep doing so.
+- **The time it shows now is not impact.** `queryTime()` returns
+  `averageTime / 1e9` rendered by the lens's own `fmtMs()`. "Impact" as the
+  SQL view and the Ledger lists use it is **total** time. Decide whether
+  impact replaces the average or sits beside it — showing both is defensible,
+  showing one labelled ambiguously is not.
+- **Reuse the existing formatting.** The lens does not use `app-pico-view` at
+  all (it hand-rolls `fmtMs`); the Ledger pages, `app-sql-summary` and the SQL
+  view all do. Durations should go through `app-pico-view`, counts through the
+  `number` pipe for thousands separators, and status through the same
+  active/dormant treatment `sql-summary` uses, rather than a third rendering
+  of the same values.
+
+Open questions:
+
+- **`app-sql-summary` already renders exactly this set** — status, first seen,
+  last seen, executed, impact, avg scanned — as a `.metric-row` list. The
+  obvious move is for the lens to use it instead of growing its own row. But
+  it is shared: `small-sql-view` renders it, and `tagged-sql-view`
+  (`/analyzed-sql/by-tag/:tag`) renders that, plus the legacy `table-view`.
+  Adopting it in the lens is free; *changing* it is not, so if the lens needs
+  a different shape the component needs an input rather than an edit.
+- **Row versus column layout.** The lens query list is a stacked card per
+  query, not a table, so six more values need a place to sit — a metric strip
+  in `.query-row-head`, or the `.metric-row` column `sql-summary` already
+  uses. This is the actual design decision in the item.
+- **Density.** The card lists many queries for a busy table; adding six values
+  per row is a real cost to scanning. Worth checking against a table with
+  hundreds of queries before committing to always-on.
+
 ### Make the column drill-down reuse the table lens with the column selected
 
 `/table/{schema}/{table}/{column}` should render the same table component as
