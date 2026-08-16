@@ -418,14 +418,31 @@ public class SqlEvidenceInputService {
             statsBuilder.merged();
 
             SqlProfile existingEntry = digestAnalyzedSqlRepository.get(normalizedDigest).getFirst();
+            // Everything the analyzers derived, copied wholesale. The child is
+            // never parsed — that is the point of merging — so any field an
+            // analyzer would have filled is not "false"/"empty" on it, it is
+            // unknown, and the representative's value is the group's answer.
+            // Listing the fields one at a time is the same shape that bit
+            // MergedSqlProfile: what the list omits silently keeps the builder
+            // default. selectColumns, groupByColumns, generatedSource and
+            // modifiedForAnalysis were the four omissions — analyzer-derived
+            // like the rest, and not re-derivable in complete(), so a child
+            // that won the race to be the group's first() reported none of
+            // them. Fields derived in complete() (schemas, isMultiSchema,
+            // digests) are deliberately absent: they follow from tables, which
+            // is copied.
             builder.setJoinColumns(existingEntry.getJoinColumns())
                 .setAnalysisFailed(existingEntry.getAnalysisFailed())
                 .setSchemaName(existingEntry.getSchemaName())
                 .setCriteriaColumns(existingEntry.getCriteriaColumns())
+                .setSelectColumns(existingEntry.getSelectColumns())
+                .setGroupByColumns(existingEntry.getGroupByColumns())
                 .setAnalysisFailureReason(existingEntry.getAnalysisFailureReason())
                 .setIsDml(existingEntry.getIsDml())
                 .setMismatchedJoins(existingEntry.getMismatchedJoins())
                 .setTruncated(existingEntry.getTruncated())
+                .setModifiedForAnalysis(existingEntry.getModifiedForAnalysis())
+                .setGeneratedSource(existingEntry.getGeneratedSource())
                 .setTables(existingEntry.getTables())
                 .setType(existingEntry.getType());
 
