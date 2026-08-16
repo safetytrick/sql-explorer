@@ -22,8 +22,11 @@ one — `tables = [performance_schema.events_statements_summary_by_digest]`,
 Blast radius is small today and that is worth confirming before changing
 anything: schema filters, the schema tree and the rollup all key off
 `getTables()`, not this field. Its live readers are
-`AnalyzedSqlRepository` line 60 (qualifying an unqualified table, a no-op since
-`complete()` already qualified them) and the FE's `[defaultSchema]` /
+`AnalyzedSqlRepository` line 60 (qualifying an unqualified table — a no-op
+against this corpus, which has zero unqualified tables, though not one by
+construction: `complete()` is handed the row's nullable schema at ingest and
+the representative's resolved one on the merge path) and the FE's
+`[defaultSchema]` /
 `[schema]` link inputs in `table-view` and `sql-summary`, which render join and
 criteria columns — and a skipped profile has none. So this is close to
 cosmetic, and the reason to do it is that the field disagreeing with the list
@@ -636,6 +639,15 @@ from a production failure instead of by hand.
   with items list") and nothing about how to reproduce it. This is the
   TECH_DEBT "analyzer loop swallows all exceptions" item, approached from the
   reproducibility side rather than the observability one.
+- **Only the last failure survives.** The catch *assigns* the reason rather
+  than accumulating it, so with two analyzers throwing, the first one's
+  failure is silently overwritten and the profile reports one cause where
+  there were two. That is the same one-field-N-conditional-writers shape as
+  the rest of the path-split audit (`docs/sqlprofile-field-audit.md`), and it
+  bounds what capture can be worth: a reproduction harness built on a field
+  that keeps one of N failures reproduces one of N bugs. Whatever this item
+  captures should accumulate per analyzer; the existing single-reason string
+  can stay as-is for the `"Failure on: "` consumers.
 - **Everything needed is already in scope at the catch.** The method holds the
   original `sql` string and the `SqlSchemaRepository` the analyzers resolve
   against. Nothing new has to be plumbed through to capture it — it is
