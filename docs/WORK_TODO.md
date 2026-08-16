@@ -1,4 +1,47 @@
 
+### Evaluate the UI against the optimization workflows it supports
+
+A two-part exercise. The point of the first part is to produce the yardstick
+for the second — evaluating the UI against a list written after the fact is
+how you end up grading it on what it already does well.
+
+**1. Enumerate the SQL-optimization workflows sql-explorer actually supports
+today.** Derive the list from the app, not from what a query tool is
+generally expected to do. Some starting shapes — find the expensive queries,
+spot full scans, judge whether a query has a usable index, compare normalized
+patterns, trace a query to its tables and columns, curate with tags — but the
+real list, and the ones missing from it, come out of walking the app.
+
+**2. Use that list as the yardstick to evaluate the UI end to end.** Per
+workflow, record the weaknesses, the pain-points, and the strengths. Strengths
+matter as much as the gaps: they are what the rest should be measured against,
+and what a redesign must not break.
+
+- Ground it in the pages that exist now, and walk each one:
+  - **`/queries`** — the workbench, and the filters that carry most of the
+    diagnostic weight (activity, timing and selectivity ranges, full scan,
+    temp-to-disk, rows sorted, errors, truncated, multi-schema, the
+    analysis-failure sets, tags, date-math ranges).
+  - **`/analyzed-sql/:id`** — cost above the fold, the relevant-indexes panel
+    and its leading-column scoring, the merged-variants group.
+  - **`/table/:schema/:name`** — the table lens: columns, indexes, DDL,
+    foreign keys, the queries card and the per-column and per-join
+    drill-downs.
+  - **`/schemas`, `/tables`** — the Ledger lists and the header tag filter
+    strip.
+  - **`/tags`** — the manager and its what-carries-this-tag detail.
+  - **`/graph`**, **`/explain`**, **`/query-utilities`** — the supporting
+    surfaces, which may turn out to serve workflows the main pages do not.
+- Evaluate the **current** UI. The lens migration, the Ledger list pages, and
+  `TagField` all landed recently; anything written against the older
+  Bootstrap pages, the removed reports pages, or the standalone tag index is
+  describing an app that no longer exists.
+- Worth noting per workflow whether it is *reachable* — several capabilities
+  exist but are only obvious if you already know they are there (the
+  drill-downs, the by-tag views, the canned report endpoints with no page).
+- The output is a document, not a patch. Fixes it turns up become their own
+  items here.
+
 ### Capture example queries with their complete parameters
 
 Analyzed profiles carry normalized SQL with the literals stripped — which is
