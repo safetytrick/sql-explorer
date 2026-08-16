@@ -305,6 +305,42 @@ index, which is the obvious suspect for a missing grouping step.
 
 Backend investigation; start at `schema/IndexLoadingService.java`.
 
+### Resolve CTE columns through to their source columns
+
+CTE queries are analyzed now — the bodies are walked, real tables and their
+criteria and join columns are extracted, and the CTE name is kept out of both
+the table list and the column references. What is still lost is the other
+half: a reference *through* a CTE.
+
+In the corpus's recursive example, `tree` is built from `node_link` and
+then self-joined —
+
+    JOIN `tree` `parent` ON `child`.`parent_object` = `parent`.`object_id`
+
+— which is really `node_link.parent_object` joined to
+`node_link.object_id`. Today that pair is dropped, because one side
+resolves to the CTE rather than to a table. Mapping it through would recover
+a genuine self-join relationship, and would make the graph and the table
+lens's join panels reflect what the query actually does.
+
+- The mapping is positional: a CTE may declare an explicit column list
+  (`WITH tree(entity_id, parent_id, …) AS …`), in which case position *i* of
+  the projection is that name, or it may inherit names from the body's select
+  list.
+- Recursion and `UNION` are what make it more than a lookup — the arms have
+  to agree, and the recursive arm references the CTE being defined.
+- A CTE selecting an expression rather than a column has no source column to
+  map to, so the result is partial by nature; dropping those is fine, but the
+  code has to expect them.
+- Start at `analysis/WithItems.java`, which already collects the CTE names and
+  bodies the mapping would need.
+
+Related, from the same feature: the SELECT filter now also matches `WITH`
+(a deliberate hack, since first-token typing cannot tell a CTE-wrapped SELECT
+from a CTE-wrapped DML). All three CTEs in the local corpus wrap SELECTs, so
+the false-positive rate here is zero — worth re-checking against a larger
+corpus before assuming that holds.
+
 ### Clean all history so queries look anonymous
 
 Scrub older git history
