@@ -31,12 +31,17 @@ public class CteAnalysisTest {
                     object_type varchar(64),
                     parent_object bigint,
                     parent_type varchar(64),
+                    owner_group bigint,
                     primary key (entity_id)
                 );
                 create table folders (
+                    id bigint,
                     uuid varchar(36) not null,
                     parent_uuid varchar(36),
+                    parent_id bigint,
                     name varchar(255),
+                    level int,
+                    status varchar(32),
                     primary key (uuid)
                 );
                 create table users (
@@ -151,5 +156,114 @@ public class CteAnalysisTest {
         assertThat(profile.getAnalysisFailed()).isFalse();
         assertThat(tableNames(profile)).containsExactly("folders");
         assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("folders.uuid");
+    }
+
+    /** No emitted column may name a table that is not in the statement's table list. */
+    private static boolean everyColumnBelongsToARealTable(SqlProfile profile) {
+        java.util.Set<String> real = profile.getTables().stream()
+            .map(t -> t.getNormalizedTableName()).collect(java.util.stream.Collectors.toSet());
+        java.util.List<com.github.safetytrick.sqlexplorer.avro.ColumnReference> all =
+            new java.util.ArrayList<>();
+        all.addAll(profile.getCriteriaColumns());
+        all.addAll(profile.getSelectColumns());
+        profile.getJoinColumns().forEach(j -> { all.add(j.getLeft()); all.add(j.getRight()); });
+        return all.stream()
+            .filter(c -> c != null && c.getTable() != null)
+            .allMatch(c -> real.contains(c.getTable().getNormalizedTableName()));
+    }
+
+    /** Corpus query 1 (search, digest c88d3dfb65d8…), verbatim. */
+    @Test
+    public void corpusCte1AnalyzesWithoutFailing() throws JSQLParserException {
+        SqlProfile profile = FIXTURE.analyze("""
+            WITH RECURSIVE `tree`(
+                    `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+                ) AS (SELECT
+                    `entity_id`, `entity_id` AS `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type` FROM `node_link` 
+                WHERE
+                    `entity_id` = ? 
+                UNION
+                ALL SELECT
+                    `child`.`entity_id`, `parent`.`entity_id`, `child`.`propagate`, `child`.`object_id`, `child`.`object_type`, `child`.`parent_object`, `child`.`parent_type` FROM `node_link` `child` 
+                JOIN
+                    `tree` `parent` 
+                        ON `child`.`parent_object` = `parent`.`object_id` 
+                        AND `child`.`parent_type` = `parent`.`object_type` 
+                WHERE
+                    `child`.`object_type` IN (?)) SELECT
+                    `entity_id`,
+                    `parent_id`,
+                    `propagate` 
+                FROM
+                    `tree`
+            """);
+
+        assertThat(profile.getAnalysisFailureReason()).isNull();
+        assertThat(profile.getAnalysisFailed()).isFalse();
+        assertThat(profile.getTables()).isNotEmpty();
+        assertThat(everyColumnBelongsToARealTable(profile)).isTrue();
+    }
+
+    /** Corpus query 2 (app_main, digest 2371f5e48965…), verbatim. */
+    @Test
+    public void corpusCte2AnalyzesWithoutFailing() throws JSQLParserException {
+        SqlProfile profile = FIXTURE.analyze("""
+            WITH RECURSIVE `parent_categories` AS (SELECT
+                    `uuid`, `parent_id`, NAME, LEVEL FROM `folders` 
+                WHERE
+                    `uuid` = ? 
+                UNION
+                ALL SELECT
+                    `f`.`uuid`, `f`.`parent_id`, `f`.`name`, `f`.`level` FROM `folders` `f` 
+                INNER JOIN
+                    `parent_categories` `pf` 
+                        ON `f`.`id` = `pf`.`parent_id` 
+                WHERE
+                    STATUS = ?) SELECT
+                    * 
+                FROM
+                    `parent_categories` 
+                ORDER BY
+                    `level`
+            """);
+
+        assertThat(profile.getAnalysisFailureReason()).isNull();
+        assertThat(profile.getAnalysisFailed()).isFalse();
+        assertThat(profile.getTables()).isNotEmpty();
+        assertThat(everyColumnBelongsToARealTable(profile)).isTrue();
+    }
+
+    /** Corpus query 3 (search, digest 78b10cb86ca0…), verbatim. */
+    @Test
+    public void corpusCte3AnalyzesWithoutFailing() throws JSQLParserException {
+        SqlProfile profile = FIXTURE.analyze("""
+            WITH RECURSIVE `tree`(
+                    `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`, `owner_group`
+                ) AS (SELECT
+                    `entity_id`, `entity_id` AS `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`, `owner_group` FROM `node_link` 
+                WHERE
+                    `entity_id` IN (?) 
+                UNION
+                ALL SELECT
+                    `child`.`entity_id`, `parent`.`entity_id`, `child`.`propagate`, `child`.`object_id`, `child`.`object_type`, `child`.`parent_object`, `child`.`parent_type`, `child`.`owner_group` FROM `node_link` `child` 
+                JOIN
+                    `tree` `parent` 
+                        ON `child`.`parent_object` = `parent`.`object_id` 
+                        AND `child`.`parent_type` = `parent`.`object_type`) SELECT
+                        `entity_id`,
+                        `object_id`,
+                        `owner_group`,
+                        `parent_id`,
+                        `parent_object`,
+                        `parent_type`,
+                        `propagate` 
+                FROM
+                    `tree`
+            """);
+
+        assertThat(profile.getAnalysisFailureReason()).isNull();
+        assertThat(profile.getAnalysisFailed()).isFalse();
+        assertThat(profile.getTables()).isNotEmpty();
+        assertThat(everyColumnBelongsToARealTable(profile)).isTrue();
     }
 }
