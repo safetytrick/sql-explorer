@@ -146,22 +146,6 @@ public class SqlProfileExtension {
             if (thiz.getSchemaName() == null) {
                 thiz.setSchemaName(defaultSchema);
             }
-            if (thiz.getTables() != null) {
-                for (TableReference table : thiz.getTables()) {
-                    addSchema(thiz, table.getNormalizedSchemaName());
-                }
-            }
-
-            // The schemas list is derived from the tables for every profile,
-            // analysed or not; the flag was only ever set by SchemaAnalyzer,
-            // which does not run when analysis is skipped. That left a skipped
-            // cross-schema statement listing two schemas while claiming one.
-            // Deriving it from the same data keeps the pair honest. This only
-            // ever promotes false to true, so it cannot contradict the analyzer,
-            // which sets true in exactly the cases where the list has >1 entry.
-            if (thiz.getSchemas() != null && thiz.getSchemas().size() > 1) {
-                thiz.setIsMultiSchema(true);
-            }
 
             if (thiz.getAnalysisFailureReason() != null) {
                 thiz.setAnalysisFailed(true);
@@ -231,6 +215,22 @@ public class SqlProfileExtension {
                     tables.add(table.withDefaultSchema(defaultSchema));
                 }
                 thiz.setTables(tables);
+            }
+
+            // Derived from the tables, and deliberately *after* the pass above.
+            // `addSchema` skips a null schema, and a table named unqualified in
+            // the SQL only gets one from `withDefaultSchema` — so deriving
+            // earlier left `schemas` empty for the common case: half the corpus
+            // listed `search.heartbeat` in `tables` and nothing in `schemas`.
+            for (TableReference table : thiz.getTables()) {
+                addSchema(thiz, table.getNormalizedSchemaName());
+            }
+
+            // And the flag from the finished list. SchemaAnalyzer sets this too,
+            // but does not run for a skipped statement; deriving here covers
+            // every profile. Promotion to true only, so the two cannot disagree.
+            if (thiz.getSchemas().size() > 1) {
+                thiz.setIsMultiSchema(true);
             }
 
             return thiz;

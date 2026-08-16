@@ -174,15 +174,12 @@ public class SqlProfileInvariantsTest {
     /**
      * The converse: the flag must not claim more than the list shows.
      *
-     * <p><b>Currently failing on the cross-schema shapes</b>, for the same
-     * root cause as the coverage invariant below: the unqualified side of the
-     * join never reaches `schemas`, so the list has one entry while
-     * {@link SchemaAnalyzer} — which resolves unqualified tables against the
-     * profile's schema — correctly sets the flag. Not violated anywhere in the
-     * live corpus (0 of 3,608), because its cross-schema statements qualify
-     * both sides.
+     * <p>Used to fail on the cross-schema shapes, same root cause as the
+     * coverage invariant: the unqualified side of the join never reached
+     * `schemas`, so the list had one entry while {@link SchemaAnalyzer} —
+     * which resolves unqualified tables against the profile's schema —
+     * correctly set the flag.
      */
-    @org.junit.jupiter.api.Disabled("real bug, pending decision — see WORK_TODO; same root cause as schemasCoversEveryTablesSchema")
     @ParameterizedTest(name = "isMultiSchema implies schemas>1 [{0}]")
     @MethodSource("everyProfileShape")
     public void multiSchemaMeansMoreThanOneSchema(SqlProfile profile) {
@@ -194,22 +191,17 @@ public class SqlProfileInvariantsTest {
     }
 
     /**
-     * <b>Currently failing — a real bug, reported not fixed.</b>
+     * `schemas` covers every schema named in `tables`.
      *
-     * <p>`complete()` calls {@code addSchema(table.getNormalizedSchemaName())}
-     * on the *original* table references, and {@code addSchema} returns early
-     * on null. The pass that applies {@code withDefaultSchema(defaultSchema)}
-     * to those tables runs later in the same method. So a statement whose
-     * tables were unqualified in the SQL — the common case — contributes
-     * nothing to `schemas`, then has its tables filled in afterwards.
-     *
-     * <p>Live impact: 1,816 of 3,608 profiles (50%) list a table in a schema
-     * their `schemas` list omits; most have an empty list entirely. The
-     * likely fix is to derive `schemas` after the default-schema pass, or to
-     * pass the default into {@code addSchema} — but that is a product change
-     * and is pending a decision.
+     * <p>`complete()` derives the list from the table references, so the two
+     * cannot legitimately disagree. It used to: the derivation ran on the
+     * original refs, where an unqualified table has a null schema that
+     * {@code addSchema} skips, and the {@code withDefaultSchema} pass that
+     * fills those in ran later in the same method. 1,816 of 3,608 live
+     * profiles (50%) listed a table in a schema their `schemas` omitted —
+     * `tables = [search.heartbeat]` with `schemas = []`. Deriving after that
+     * pass fixed it.
      */
-    @org.junit.jupiter.api.Disabled("real bug, pending decision — see WORK_TODO; 50% of the live corpus violates this")
     @ParameterizedTest(name = "schemas covers tables [{0}]")
     @MethodSource("everyProfileShape")
     public void schemasCoversEveryTablesSchema(SqlProfile profile) {
