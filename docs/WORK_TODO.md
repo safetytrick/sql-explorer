@@ -1,44 +1,109 @@
 
-### Audit SqlProfile field derivations for path-split
+### Decide what `schemaName` means on a profile
 
-Three bugs in one session shared a shape: a field set on a **conditional**
-path — an analyzer that can be skipped, throw, or be bypassed — sitting beside
-a consistency-linked partner derived in the **always-run**
-`SqlProfileExtension.complete()`. Nothing made the pair agree, so they drifted
-and the disagreement shipped.
+The field is set twice with two different meanings and nothing reconciles
+them. Ingest sets it to the performance-schema row's session schema, or
+`"dual"` when the row has none. `SchemaAnalyzer` then *overwrites* it with the
+tables' schema whenever the statement touches exactly one — so for an analysed
+profile it means "the schema of this query's tables", and for a skipped or
+failed one it still means "the session it ran in".
 
-The instances, as the pattern to look for:
+That is the same split the `isMultiSchema` fix closed, and the same one-line
+promotion is available: derive it in `complete()` from a single-entry `schemas`
+list, which can never contradict the analyzer because the analyzer computes the
+identical value. What stops it being mechanical is that it changes a field's
+meaning for real profiles rather than filling in a missing one.
 
-- **Null column arrays.** `selectColumns` / `groupByColumns` / `schemas` are
-  filled by lazy add-extensions that create the list on first insert, while
-  `joinColumns` / `mismatchedJoins` get unconditional setters. An analyzer that
-  found nothing, threw, or never ran left null — and `MergedSqlProfile`, which
-  is built with `new` rather than the Avro builder, inherited those
-  uninitialised fields for the getters it had not overridden. ~5% of profiles;
-  crashed the SQL view.
-- **`isMultiSchema` and `sourceFileName` on `MergedSqlProfile`.** Same class,
-  hidden better: primitives and strings return `false`/`null` rather than
-  throwing, so a merged profile silently claimed one schema.
-- **Skip-path multi-schema.** `schemas` derived from the tables in
-  `complete()` for every profile; `isMultiSchema` set only by `SchemaAnalyzer`,
-  which does not run when analysis is skipped. A skipped cross-schema statement
-  listed two schemas and claimed one.
+Live: **127 of 3,608 profiles** list exactly one schema and name a different
+one — `tables = [performance_schema.events_statements_summary_by_digest]`,
+`schemas = [performance_schema]`, `schemaName = "dual"`. 133 have a
+`schemaName` absent from `schemas` entirely. Every one is `analysisSkipped`.
 
-`SqlProfileInvariantsTest` now asserts the cross-field invariants against every
-construction path, so a **regression** fails a test. This item is the other
-half: the deliberate read-through to find derivations that are still split, and
-move them into `complete()` — the one place every profile passes through —
-rather than waiting for each to surface as a bug.
+Blast radius is small today and that is worth confirming before changing
+anything: schema filters, the schema tree and the rollup all key off
+`getTables()`, not this field. Its live readers are
+`AnalyzedSqlRepository` line 60 (qualifying an unqualified table, a no-op since
+`complete()` already qualified them) and the FE's `[defaultSchema]` /
+`[schema]` link inputs in `table-view` and `sql-summary`, which render join and
+criteria columns — and a skipped profile has none. So this is close to
+cosmetic, and the reason to do it is that the field disagreeing with the list
+beside it is what the last four bugs were made of.
 
-- Walk each `SqlProfile` field and ask: what sets it, can that code not run,
-  and is anything else derived from the same source?
-- `complete()` is the right home for anything derivable from another field.
-  Deriving there is what makes it hold for skipped, failed and merged profiles
-  as well as analysed ones.
-- The suite's first run found one such split immediately — `schemas` was
-  derived from the tables before those tables had their default schema
-  applied, leaving it empty for half the corpus. That one is fixed; treat it
-  as the worked example of what to look for.
+Ships with an invariant: `schemas.size() == 1` implies
+`schemaName == schemas[0]`.
+
+### Make the merge-group representative deterministic
+
+`SqlRepositoryBuilder.index()` publishes a profile to the digest map *before*
+adding it to the profile list, and only the second is inside the lock. A child
+can therefore be added ahead of its own representative, and `mergeByDigest`
+groups in list order — so `MergedSqlProfile.first()`, which the group delegates
+almost everything to, is decided by a race.
+
+Not currently harmful: merged children now carry the representative's full
+analysis, so the two agree on everything that describes the statement. What
+still differs is the group-only state — `mergedChildren` lives on the
+representative alone, so a child winning `first()` reports an empty merge
+group and the "×N variants" expander vanishes. The live import shows this has
+not happened: `mergedChildren` totals 206 across the corpus, exactly the
+import's `merged=206`.
+
+Two candidate fixes, and picking one is the work: move the list `add` ahead of
+the digest-map `put` inside `index()`, or stop relying on order and have
+`mergedSql` choose the member that owns the merge group. The second is honest
+about the invariant; the first is smaller.
+
+### Reconcile MergedSqlProfile's aggregation policy
+
+The class mixes two rules with no stated reason. `modifiedForAnalysis` unions
+across the group (`anyMatch`), `lineNumber` takes the minimum, `sourcedFiles`
+concatenates, `queryActivityStatus` takes the most active — while `truncated`,
+`analysisFailed`, `analysisSkipped` and `isDml` all delegate to `first()`.
+Every member of a group is the same statement shape, which argues for
+delegation; but if that is true, `modifiedForAnalysis` should not need a union.
+Whichever way it resolves, the rule should be written down once and the
+getters should follow it, because "which of these did someone think about" is
+currently unanswerable from the code.
+
+`lineNumber` also changes type-meaning across the split: null on a single
+profile, `Integer.MAX_VALUE` on a merged one. Nothing renders it (the FE
+declares it in `api-types.ts` and never reads it), so this is free to fix
+properly.
+
+### Give a profile an id that survives a re-import
+
+`id` is path-split, and the shareable-link rule makes it matter. Ingest sets
+`source + "-" + rank` — which embeds the import timestamp
+(`primary@2026-08-16T22:34:05.890467503Z-1`) — while `complete()` falls back to
+the digest and `MergedSqlProfile` overrides with it. Live: **3,418 of 3,608**
+profiles carry the timestamped form, 190 the digest.
+
+Masked today, in two layers. The FE links by `digest`, not `id`, and
+`AnalyzedSqlRepository` indexes profiles under every digest they carry, so
+`/analyzed-sql/{digest}` resolves. `ParquetSqlRepository.getById` does not —
+it pushes an equality filter down onto the parquet `id` column, so the same
+link returns nothing there. That repository is a `@Service` nothing currently
+injects, so this is latent rather than broken, but it is the shape of bug that
+appears the day the parquet path is wired up.
+
+### Populate or delete `sourcedFiles`
+
+Nothing in `src/main` writes it. `emptyUnsetLists` gives it an empty list,
+`MergedSqlProfile` flat-maps the members' empty lists into another empty list,
+and the FE declares it in `api-types.ts` without rendering it. All 3,608 live
+profiles have it empty. Either it wants filling from the sources a merge group
+spans — which is real information once more than one file loads into an
+environment — or it should go, along with `sourceFileName`, which is likewise
+never non-null in this corpus because the active source is not a TSV.
+
+### Refresh the stale nullability comments in api-types.ts
+
+`selectColumns`, `groupByColumns` and `schemas` are documented there as "the
+wire really does send `null` here … ~5% of profiles", which was true and is not
+any more: `complete()` normalises them and `MergedSqlProfile` overrides them,
+and the live corpus has zero nulls. The `| null` types are harmless defence,
+but the comment now teaches the wrong thing about the backend. Trivial, and it
+belongs with whichever change next touches those reads.
 
 ### Do another tech-debt pass, front end and back end, and work the findings into the plan
 
