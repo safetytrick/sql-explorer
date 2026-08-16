@@ -81,6 +81,31 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getSchemas();
     }
 
+    /**
+     * Whether the statement's tables span more than one schema.
+     *
+     * <p>Delegated to the representative rather than derived across the group,
+     * because that is what the flag means: {@code SchemaAnalyzer} sets it from
+     * the *statement's* table references, and every member of a merge group is
+     * the same statement shape under one normalized digest. It also has to
+     * agree with {@link #getSchemas()} and {@link #getSchemaName()}, which
+     * already come from the representative — a union here would let a profile
+     * claim multi-schema while listing a single schema.
+     *
+     * <p>Un-overridden it returned the uninitialised primitive, so every merged
+     * profile reported false and was invisible to the multiSchema filter.
+     */
+    @Override
+    public boolean getIsMultiSchema() {
+        return first().getIsMultiSchema();
+    }
+
+    /** Same class of miss as the above; inherited it is always null. */
+    @Override
+    public String getSourceFileName() {
+        return first().getSourceFileName();
+    }
+
     @Override
     public String getGeneratedSource() {
         return first().getGeneratedSource();

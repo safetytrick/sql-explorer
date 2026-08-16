@@ -39,6 +39,11 @@ public class NullListDefaultsTest {
                     name varchar(255),
                     primary key (uuid)
                 );
+                create table other_db.audit_log (
+                    id bigint not null,
+                    category_uuid varchar(36),
+                    primary key (id)
+                );
                 """);
         } catch (JSQLParserException e) {
             throw new IllegalStateException(e);
@@ -108,5 +113,62 @@ public class NullListDefaultsTest {
         assertThat(mergedProfile.getSelectColumns()).isEqualTo(a.getSelectColumns());
         assertThat(mergedProfile.getGroupByColumns()).isEqualTo(a.getGroupByColumns());
         assertThat(mergedProfile.getSchemas()).isEqualTo(a.getSchemas());
+    }
+
+    /**
+     * `isMultiSchema` was the same miss as the three list getters: not
+     * overridden, so a merged profile returned the uninitialised primitive
+     * `false` and never matched the multiSchema filter. Delegated to the
+     * representative, because the flag describes the statement's table
+     * references and every member of a group is the same statement shape.
+     */
+    @Test
+    public void aMergedProfileSpanningSchemasReportsMultiSchema() throws JSQLParserException {
+        SqlProfile a = FIXTURE.analyze(
+            "SELECT `f`.`name` FROM `folders` `f` JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`");
+        SqlProfile b = FIXTURE.analyze(
+            "SELECT `f`.`name` FROM `folders` `f` JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`");
+
+        assertThat(a.getIsMultiSchema()).as("the representative itself").isTrue();
+        assertThat(new MergedSqlProfile(List.of(a, b)).getIsMultiSchema()).isTrue();
+    }
+
+    @Test
+    public void aMergedProfileWithinOneSchemaDoesNotReportMultiSchema() throws JSQLParserException {
+        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+
+        assertThat(new MergedSqlProfile(List.of(a, b)).getIsMultiSchema()).isFalse();
+    }
+
+    /**
+     * The class delegates getter by getter, so anything it forgets silently
+     * returns the uninitialised superclass field. This walks the reflection
+     * surface so the next omission fails here rather than in production.
+     */
+    @Test
+    public void mergedSqlProfileOverridesEveryInstanceGetter() {
+        List<String> missing = java.util.Arrays.stream(SqlProfile.class.getDeclaredMethods())
+            .filter(m -> m.getName().startsWith("get"))
+            .filter(m -> m.getParameterCount() == 0)
+            .filter(m -> !java.lang.reflect.Modifier.isStatic(m.getModifiers()))
+            .map(java.lang.reflect.Method::getName)
+            .filter(name -> !name.equals("getSchema") && !name.equals("getSpecificData")
+                         && !name.equals("getConversion"))
+            .distinct()
+            .filter(name -> {
+                try {
+                    return MergedSqlProfile.class.getDeclaredMethod(name) == null;
+                } catch (NoSuchMethodException e) {
+                    return true;
+                }
+            })
+            .sorted()
+            .toList();
+
+        assertThat(missing)
+            .as("MergedSqlProfile must override every SqlProfile getter; these fall through "
+                + "to the uninitialised superclass field")
+            .isEmpty();
     }
 }
