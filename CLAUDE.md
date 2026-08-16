@@ -66,25 +66,19 @@ docker compose up explorer-shared-tags   # Optional: load table/SQL tags
 
 UI is accessible at `http://localhost:4200`. Backend runs on port 8080.
 
-### Git remotes are cross-wired — push explicitly
+### Git remotes
 
-`origin` is GitHub (`git@github.com-mine:safetytrick/sql-explorer.git`) and
-`work` is GitLab, but the fetch refspecs are crossed: `origin` fetches into
-`refs/remotes/github/*` and `work` fetches into `refs/remotes/origin/*`. On
-top of that `branch.main.remote` is `github`, which is not a configured
-remote at all.
+`origin` is GitHub (`git@github.com-mine:safetytrick/sql-explorer.git`) and is
+what `main` tracks, so a bare `git push` goes to GitHub and `git status`
+ahead/behind is accurate. There is also a `work` remote pointing at GitLab
+(`git@gitlab.com:michael.nielson.go/sql-explorer.git`); it fetches into
+`refs/remotes/work/*` and is not involved unless you name it.
 
-Two consequences:
-
-- **Always `git push origin main`.** A bare `git push` resolves the phantom
-  `github` remote and fails.
-- **`origin/main` is not GitHub's main** — it tracks GitLab. So the local
-  ahead/behind counts, and anything derived from `origin/main`, are
-  misleading. Verify what actually landed with
-  `git ls-remote origin refs/heads/main` and compare to `git rev-parse HEAD`.
-
-Worth untangling (fix the refspecs and `branch.main.remote`); until then,
-treat every "N commits ahead" reading as unverified.
+These were cross-wired until 2026-08-16 — `origin` fetched into
+`refs/remotes/github/*`, `work` fetched into `refs/remotes/origin/*`, and
+`branch.main.remote` named a `github` remote that did not exist — which meant
+a bare push failed and `origin/main` tracked GitLab, so every ahead/behind
+reading was wrong. The refspecs and the branch config are normalized now.
 
 ## Architecture
 
