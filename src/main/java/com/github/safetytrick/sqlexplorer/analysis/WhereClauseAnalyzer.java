@@ -63,6 +63,7 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
         private final ColumnTableResolver columnTableResolver;
         private TableAliasResolver aliasResolver;
         private final WhereSelectVisitor selectVisitor = new WhereSelectVisitor();
+        private final java.util.Set<String> cteNames = new java.util.HashSet<>();
 
         private WhereClauseVisitor(SqlProfile.Builder builder, ColumnTableResolver columnTableResolver) {
             super();
@@ -77,8 +78,9 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
 
         @Override
         public <S> Void visit(Select select, S context) {
-            if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
-                throw new UnsupportedSqlException("item list parsing not supported");
+            cteNames.addAll(WithItems.namesOf(select));
+            for (Select cte : WithItems.bodiesOf(select)) {
+                visit(cte, context);
             }
             TableAliasResolver previousAliasResolver = aliasResolver;
             aliasResolver = new SchemaAwareTableAliasResolver(select, columnTableResolver);
@@ -194,6 +196,9 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                         return null;
                     }
                     String tableName = aliasResolver.resolveTableName(column);
+                    if (WithItems.isCte(cteNames, tableName)) {
+                        return null;
+                    }
 
                     builder.criteriaColumn(ColumnReference.fromComponents(null, tableName, column.getColumnName()));
                     return null;

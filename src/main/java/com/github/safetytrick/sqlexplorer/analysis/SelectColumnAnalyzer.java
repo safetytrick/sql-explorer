@@ -58,6 +58,7 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
 
     private static class SelectColumnVisitor extends StatementVisitorAdapter<Void> {
         private final SqlProfile.Builder builder;
+        private final java.util.Set<String> cteNames = new java.util.HashSet<>();
         private final ColumnTableResolver columnTableResolver;
         private TableAliasResolver aliasResolver;
         private final ProjectionSelectVisitor selectVisitor = new ProjectionSelectVisitor();
@@ -74,8 +75,9 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
 
         @Override
         public <S> Void visit(Select select, S context) {
-            if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
-                throw new UnsupportedSqlException("with items list");
+            cteNames.addAll(WithItems.namesOf(select));
+            for (Select cte : WithItems.bodiesOf(select)) {
+                visit(cte, context);
             }
             TableAliasResolver previous = aliasResolver;
             aliasResolver = new SchemaAwareTableAliasResolver(select, columnTableResolver);
@@ -151,6 +153,9 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
             @Override
             public <S> Void visit(Column column, S context) {
                 String tableName = aliasResolver.resolveTableName(column);
+                if (WithItems.isCte(cteNames, tableName)) {
+                    return null;
+                }
                 sink.accept(ColumnReference.fromComponents(null, tableName, column.getColumnName()));
                 return null;
             }

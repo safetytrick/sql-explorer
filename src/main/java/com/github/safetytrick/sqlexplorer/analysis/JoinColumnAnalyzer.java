@@ -85,6 +85,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         private final ColumnTableResolver columnTableResolver;
         private List<JoinColumns> joinColumns;
         private TableAliasResolver tableAliasResolver;
+        private final java.util.Set<String> cteNames = new java.util.HashSet<>();
 
         public JoinColumnVisitor(String schema, ColumnTableResolver columnTableResolver) {
             super();
@@ -93,7 +94,18 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         }
 
         private void addJoin(JoinColumns join) {
+            // A join against a CTE is a reference to a result set, not a
+            // relationship between two tables; emitting it would invent a
+            // table the schema does not have.
+            if (referencesCte(join.getLeft()) || referencesCte(join.getRight())) {
+                return;
+            }
             joinColumns.add(join);
+        }
+
+        private boolean referencesCte(ColumnReference reference) {
+            return reference != null && reference.getTable() != null
+                && WithItems.isCte(cteNames, reference.getTable().getTableName());
         }
 
 
@@ -106,8 +118,9 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
         @Override
         public <S> Void visit(Select select, S context) {
-            if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
-                throw new UnsupportedSqlException("with items list");
+            cteNames.addAll(WithItems.namesOf(select));
+            for (Select cte : WithItems.bodiesOf(select)) {
+                visit(cte, context);
             }
 
             select.accept(new JoinColumnSelectVisitor(), context);
