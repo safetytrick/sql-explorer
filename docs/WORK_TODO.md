@@ -134,110 +134,41 @@ an inventory nobody is committed to.
 
 ### Show status, first/last seen, executed, impact and rows scanned in the table's query list
 
-The queries list under the table view should carry these per query: **status,
-first seen, last seen, executed, impact, rows scanned**.
+Shipped — awaiting Michael's hands-on testing before this closes.
 
-- **What renders it today.** The **Queries card on `TableLensComponent`**, not
-  a shared row component — `table-lens.component.html` has its own
-  `.query-row` / `.query-row-head`, iterating `queries` (`QueryHit`, from
-  `POST /queries/search`). Per row it currently shows: the query type as a
-  link to `/analyzed-sql/{digest}`, `executed` ("N execs"), one time value, a
-  full-scan badge, analyzer/analysis-failed badges, tags, and the SQL text.
-  So of the six asked for, only **executed** is there today.
-- **Every field is already on the payload** — the card loads full
-  `SqlProfile`s, so this is presentation only, no backend or DTO change:
-  - status → `profile.queryActivityStatus` (`ACTIVE` / `DORMANT` / `UNKNOWN`)
-  - first seen → `profile.runtimeMetrics.firstSeen`
-  - last seen → `profile.runtimeMetrics.lastSeen`
-  - executed → `profile.runtimeMetrics.executed` *(already shown)*
-  - impact → `profile.runtimeMetrics.totalTime` (picoseconds)
-  - rows scanned → `profile.runtimeMetrics.rowsScanned`
-    (`averageRowsScanned` also exists — decide which, per-execution average
-    is usually the more comparable number)
-  - `runtimeMetrics` is a nullable union; the card already guards it with
-    `@if (hit.profile.runtimeMetrics; as m)` and must keep doing so.
-- **The time it shows now is not impact.** `queryTime()` returns
-  `averageTime / 1e9` rendered by the lens's own `fmtMs()`. "Impact" as the
-  SQL view and the Ledger lists use it is **total** time. Decide whether
-  impact replaces the average or sits beside it — showing both is defensible,
-  showing one labelled ambiguously is not.
-- **Reuse the existing formatting.** The lens does not use `app-pico-view` at
-  all (it hand-rolls `fmtMs`); the Ledger pages, `app-sql-summary` and the SQL
-  view all do. Durations should go through `app-pico-view`, counts through the
-  `number` pipe for thousands separators, and status through the same
-  active/dormant treatment `sql-summary` uses, rather than a third rendering
-  of the same values.
+The lens query row now delegates its metrics to the shared `app-sql-summary`
+rather than growing a third copy of them, so it carries exactly the set the SQL
+view does: status, first seen, last seen, executed, impact, avg scanned. What
+the open questions resolved to:
 
-Open questions:
-
-- **`app-sql-summary` already renders exactly this set** — status, first seen,
-  last seen, executed, impact, avg scanned — as a `.metric-row` list. The
-  obvious move is for the lens to use it instead of growing its own row. But
-  it is shared: `small-sql-view` renders it, and `tagged-sql-view`
-  (`/analyzed-sql/by-tag/:tag`) renders that, plus the legacy `table-view`.
-  Adopting it in the lens is free; *changing* it is not, so if the lens needs
-  a different shape the component needs an input rather than an edit.
-- **Row versus column layout.** The lens query list is a stacked card per
-  query, not a table, so six more values need a place to sit — a metric strip
-  in `.query-row-head`, or the `.metric-row` column `sql-summary` already
-  uses. This is the actual design decision in the item.
-- **Density.** The card lists many queries for a busy table; adding six values
-  per row is a real cost to scanning. Worth checking against a table with
-  hundreds of queries before committing to always-on.
+- **Impact replaces the average.** Two unlabelled durations in a row was the
+  thing to avoid; the average is a click away in the workbench and the SQL view.
+- **Rail, not strip.** The metrics sit in a 190px column beside the SQL, which
+  is where the legacy table view always put them. A row whose SQL is longer than
+  the rail — most of them, on a busy table — costs no extra height at all.
+- **`sql-summary` was adopted, not edited.** It brought its mismatched-joins
+  panel with it, which is strictly more informative than the `analyzer!` badge
+  it replaced; the full-scan badge it does *not* carry stayed in the row head.
+- **`QueryHit.profile` is now typed `SqlProfile`.** The backend record is
+  `QueryHit(SqlProfile, List<Tag>)`; the FE had hand-narrowed it, so every
+  consumer wanting one more field had to widen the type before it could read
+  what the wire was already sending.
 
 ### Make the column drill-down reuse the table lens with the column selected
 
-`/table/{schema}/{table}/{column}` should render the same table component as
-`/table/{schema}/{table}`, with that column selected so the queries list is
-filtered by it — not a separate standalone view.
+Shipped — awaiting Michael's hands-on testing before this closes.
 
-The mechanism already exists; it is the *route* that has not caught up.
+`/table/{schema}/{table}/{column}` now **redirects** to
+`/table/{schema}/{table}?columns={schema}.{table}.{column}` — the canonical
+form the lens already reads, so one piece of state has one shareable URL per the
+rule in CLAUDE.md. The path form survives as the inbound alias for links already
+shared, and existing query params ride across the redirect rather than being
+dropped. `app-column-link` targets the canonical URL directly, so the href a
+user copies out of the page is the one they can send.
 
-- **What renders what today** (`ui/src/main.ts`):
-  - `table/:schema/:name` → **`TableLensComponent`**
-  - `table/:schema/:name/:column` → **`TableViewComponent`** (legacy)
-  - `table/:schema/:name/queries` and
-    `table/:schema/:name/join/:joinSchema/:joinTable` → also `TableViewComponent`
-- **The lens already does column drill-down.** `TableLensComponent` has
-  `drillColumn`, `isDrillable()` (join/criteria roles only — a select-only
-  column cannot constrain a query, so it does not drill) and
-  `drillIntoColumn()`, which writes `?columns=<schema>.<table>.<column>` via
-  `patchUrl` and re-runs `runQuerySearch()`. It seeds from
-  `state.columns[0]` on load. So the lens is already a column-filtered table
-  view — reachable only by clicking a column *inside* the lens, never by URL
-  path.
-- **The queries card filters through the shared search vocabulary.** The
-  `columns` param is `search-url.ts`'s csv, which becomes
-  `QuerySearchRequest.columns` and delegates to `SqlProfile.constrainedBy` —
-  "appears in a join or the criteria", the same meaning the legacy column
-  view always had.
-- **This is also the main way users still reach the legacy component.**
-  `app-column-link` links to `/table/{schema}/{table}/{column}` verbatim
-  (`column-link.component.html`), and it is rendered by the SQL view,
-  `sql-summary`, and the legacy table view. Every column link in the app
-  currently lands on `TableViewComponent`. Fixing this route is most of what
-  makes "retire the last two legacy UI components" possible.
-
-Open questions:
-
-- **Route param vs query param.** The lens reads the selection from
-  `?columns=`; the route offers it as a path segment. Simplest is probably to
-  point the route at `TableLensComponent` and have it seed `drillColumn` from
-  the `:column` param when present — but then two URLs express the same state.
-  Decide whether the path form redirects to the `?columns=` form (one
-  canonical shareable URL, consistent with the URL rule in CLAUDE.md), or is
-  supported as a first-class alias.
-- **The `:column` route is a catch-all shape.** `table/:schema/:name/:column`
-  will match `table/x/y/queries` too — today that is avoided only because the
-  more specific `queries` route is declared first. Any reshuffle has to keep
-  that ordering, or the segment collision bites.
-- **Does the lens need a new input?** It currently derives everything from
-  query params and its own route params; a `:column` path segment is a new
-  source for the same field.
-- **Dead code this unlocks.** If the column route moves to the lens, and the
-  `queries` and `join/**` routes are decided alongside it, `TableViewComponent`
-  loses its last entry points — see the retirement item. `app-column-link`'s
-  target needs updating either way.
+The routes moved to `ui/src/app/app.routes.ts` to make the ordering testable:
+`table/:schema/:name/:column` still matches `.../queries` and `.../join/**`, and
+`app.routes.spec.ts` now pins that those two resolve ahead of it.
 
 ### Evaluate the UI against the optimization workflows it supports
 
@@ -341,7 +272,11 @@ Open questions, all of which want deciding before the first line of code:
 ### Retire the last two legacy UI components
 
 `TableViewComponent` and `TableGraph*` (ngx-graph) are the only legacy
-components still routed, and both already have lens replacements. This is a
+components still routed, and both already have lens replacements. The column
+drill-down — the main way users still *reached* `TableViewComponent`, via every
+`app-column-link` in the app — now goes to the lens, so what is left feeding it
+is the `queries` and `join/**` routes and the two links in the table lens header
+that point at them. This is a
 deletion decision, not styling work — see `docs/plans/legacy-ui.md`.
 `SmallTableViewComponent` has no consumers and goes with them.
 
@@ -359,10 +294,6 @@ cannot be shared as a link. It predates the URL rule in CLAUDE.md and now
 sits in the same header strip as the URL-backed `?tags=` chips, which makes
 the gap obvious. Small: it needs a param name and the same
 decode-on-init / `replaceUrl` write-back the tag strip already does.
-
-### Add an MCP server
-
-Shipped — awaiting Michael's hands-on testing before this closes.
 
 ### Improve the explain plan parser
 
