@@ -7,26 +7,34 @@ can therefore be added ahead of its own representative, and `mergeByDigest`
 groups in list order — so `MergedSqlProfile.first()`, which the group delegates
 almost everything to, is decided by a race.
 
-**It happens, and two imports of the same source prove it.** Re-importing
-unchanged data moved `schemaName` on 42 profiles that the schema promotion
-cannot touch (their `schemas` list is empty, and the promotion only fires at
-exactly one entry). For 14 of them the `tables` and `schemas` lists moved too:
-same statement text, issued from two different sessions, so the unqualified
-tables qualify against different default schemas — and which member's version
-the group reports is whichever landed in the list first. 17 of the 42 also
-report different summed `executed`. Nothing about the data changed between the
-two runs.
+**Correction: the evidence previously cited here does not hold.** Commit
+`4f549be` claimed two imports of the same source proved this on unchanged
+input — 42 profiles moving `schemaName`, 14 moving `tables` and `schemas`, 17
+moving summed `executed`. The source is not static. The `regression`
+environment reads `type: x-statement-analysis`, a live
+`SELECT … FROM sys.x$statement_analysis` (`XStatementAnalysisDao:14-40`) with
+rank assigned by result position, and the two imports were 2h42m apart against
+advancing counters. The corpus-wide execution total rose 140,635,022 →
+140,750,481 across them, which is the giveaway. A changed row set selects a
+different representative without any race being involved, so that diff cannot
+separate the two. **The race is real by inspection of the code above; it has
+not been demonstrated by observation, and the doc and commit that said
+otherwise were wrong.**
 
-The narrower `mergedChildren` case has *not* been observed:
-`attemptMerge` groups still total 206 children across the corpus, exactly the
-import's `merged=206`, so no ingest child has yet won `first()` from its own
-representative. But the second-order grouping — profiles the repository merges
-by digest without going through `attemptMerge` — is visibly non-deterministic
-already, which is the same ordering assumption failing one layer up.
+Most of what it could damage is now gone anyway. Since the normalized digest
+is scoped by session schema, a group's members are the same statement text in
+the same schema, so they agree on `tables`, `schemas` and `schemaName` — the
+fields that were visibly flipping. What a flipped representative can still
+change is group-only state: `mergedChildren` lives on the representative
+alone, so a child winning `first()` reports an empty merge group and the "×N
+variants" expander disappears. That leaves this worth fixing for correctness
+rather than for observed damage, and lowers its priority accordingly.
 
-That also raises the stakes slightly: now that `schemaName` follows `schemas`,
-a flipped representative moves both together instead of moving `schemaName` on
-its own. More correct, and more visible.
+Demonstrating it needs a test, not a diff: a fixed in-memory source run K
+times through the real work-stealing executor, asserting an identical
+fingerprint each time, plus a hand-interleaved variant driving
+`SqlRepositoryBuilder` directly (the seam `MergeGroupPersistenceTest` uses) in
+the hostile order — publish, child merges fully, representative adds last.
 
 Two candidate fixes, and picking one is the work: move the list `add` ahead of
 the digest-map `put` inside `index()`, or stop relying on order and have

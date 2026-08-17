@@ -107,3 +107,39 @@ sole entry of `schemas`, guarded to the single-schema case so it computes the
 identical value `SchemaAnalyzer` does and cannot contradict it. The six
 analysed multi-schema profiles keep the session value — a statement spanning
 schemas has no single answer, which is what `isMultiSchema` is for.
+
+## Update, 2026-08-17: the digest is scoped by session schema
+
+The audit's `schemaName` finding had a second half it could not see. Making
+`schemaName` mean *the* schema fixed what each profile reported; it did not
+fix which rows became one profile. `performance_schema` keys its digest table
+by (SCHEMA_NAME, DIGEST), so framework SQL written unqualified —
+`SELECT COUNT(*) FROM migrations WHERE created_at IS NULL` — arrives as one
+row per schema, and the normalized digest hashed statement text alone. Ten
+rows collapsed into one profile that named one schema and discarded nine.
+
+`normalizedDigest` now folds in the session schema, and the skip path's
+digest with it (skipped statements never reach the normalizer, so
+`complete()` was seeding from MySQL's text-only digest — the same collision by
+another route). One profile per schema; nothing left to pick a representative
+for.
+
+Corpus after re-import: **3,608 → 4,065 profiles**, 82 statement texts that
+had been collapsing across schemas now standing as 399 per-schema profiles,
+and merge groups down from 190 to 28 — the survivors being the intended kind,
+repeat-count variants within one schema. Execution totals are conserved
+exactly per statement; what changed is attribution. The worst case in the
+corpus attributed nearly all of one schema's executions of a statement
+to another schema.
+
+### A correction to this document's own evidence
+
+An earlier revision, and commit `4f549be`, claimed the merge-representative
+race was proven by two imports of the same source producing different
+`tables`/`schemas`/`executed`. That inference was wrong: this environment's
+source is live (`x-statement-analysis` reads `sys.x$statement_analysis` on
+each import), the two runs were hours apart, and the corpus-wide execution
+total moved between them. A changed row set re-selects a representative with
+no race involved. The race remains real by inspection of `index()` — publish
+to the digest map outside the lock, list insert inside it — and unproven by
+observation. `WORK_TODO.md` carries the same correction on the item itself.
