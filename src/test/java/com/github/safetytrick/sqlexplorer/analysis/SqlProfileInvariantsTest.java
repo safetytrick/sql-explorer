@@ -11,6 +11,7 @@ import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
 import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -211,6 +212,50 @@ public class SqlProfileInvariantsTest {
                 .as("reports multi-schema but lists %s", profile.getSchemas())
                 .hasSizeGreaterThan(1);
         }
+    }
+
+    /**
+     * A skipped statement is scoped to its schema too.
+     *
+     * <p>The skip path never reaches {@code NormalizedQueryDigest}: it has no
+     * normalized form, so {@code complete()} derives `normalizedDigest` from
+     * the MySQL digest instead — which performance_schema computes from
+     * statement text alone and is therefore identical in every schema. Left
+     * unscoped, `SHOW INDEXES FROM tokens` run in `msg` and in `app_other` was one
+     * profile that reported one of the two, by race. Live digest 057140cc….
+     */
+    @Test
+    public void aSkippedStatementDigestsPerSchema() {
+        SqlProfile inMsg = skippedWithMysqlDigest("msg");
+        SqlProfile inUgg = skippedWithMysqlDigest("app_other");
+
+        assertThat(inMsg.getNormalizedDigest())
+            .as("same text, different schema, must not be one profile")
+            .isNotEqualTo(inUgg.getNormalizedDigest());
+        assertThat(inMsg.getDigest()).isEqualTo(inMsg.getNormalizedDigest());
+
+        assertThat(skippedWithMysqlDigest("msg").getNormalizedDigest())
+            .as("same text, same schema, still one profile")
+            .isEqualTo(inMsg.getNormalizedDigest());
+    }
+
+    /**
+     * The skip path as ingest builds it: MySQL's digest present,
+     * {@code normalizedDigest} absent because no normalized form was ever
+     * computed. Both statements share the MySQL digest — that is the point,
+     * performance_schema derives it from text alone.
+     */
+    private static SqlProfile skippedWithMysqlDigest(String sessionSchema) {
+        return SqlProfile.newBuilder()
+            .setQuery("SHOW INDEXES FROM `tokens`")
+            .setType("SHOW")
+            .setDigest("a-mysql-digest-shared-across-schemas")
+            .setSchemaName(sessionSchema)
+            .setQueryActivityStatus(QueryActivityStatus.ACTIVE)
+            .setRuntimeMetrics(null)
+            .setTables(List.of(TableReference.fromString(sessionSchema + ".tokens")))
+            .setAnalysisSkipped(true)
+            .completeBuild(sessionSchema);
     }
 
     /**

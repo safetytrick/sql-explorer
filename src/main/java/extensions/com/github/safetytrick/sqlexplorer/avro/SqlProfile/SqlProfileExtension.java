@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -156,11 +157,24 @@ public class SqlProfileExtension {
             }
 
             if (thiz.getNormalizedDigest() != null) {
+                // Already scoped by the session schema at ingest.
                 thiz.setDigest(thiz.getNormalizedDigest());
             } else if (thiz.getDigest() != null) {
-                thiz.setNormalizedDigest(thiz.getDigest());
+                // The skip and parse-failure paths, which never reach
+                // NormalizedQueryDigest. `digest` here is MySQL's, computed
+                // from statement text alone — so it is identical for the same
+                // text in every schema, and using it unchanged merged
+                // `SHOW INDEXES FROM tokens` in `msg` with the same statement
+                // in `app_other`. Scoping it the same way the analysed path scopes
+                // its own normalized form keeps one profile per schema. The
+                // performance-schema digest stays reachable: it lives on
+                // runtimeMetrics, and the repository indexes profiles by it.
+                String scoped = NormalizedQueryDigest.scopedDigest(thiz.getSchemaName(), thiz.getDigest());
+                thiz.setNormalizedDigest(scoped);
+                thiz.setDigest(scoped);
             } else {
-                String queryDigest = calculateQueryDigest(thiz.getQuery());
+                String queryDigest = NormalizedQueryDigest.scopedDigest(
+                    thiz.getSchemaName(), calculateQueryDigest(thiz.getQuery()));
                 thiz.setNormalizedDigest(queryDigest);
                 thiz.setDigest(queryDigest);
             }
