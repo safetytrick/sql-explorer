@@ -1,40 +1,4 @@
 
-### Decide what `schemaName` means on a profile
-
-The field is set twice with two different meanings and nothing reconciles
-them. Ingest sets it to the performance-schema row's session schema, or
-`"dual"` when the row has none. `SchemaAnalyzer` then *overwrites* it with the
-tables' schema whenever the statement touches exactly one — so for an analysed
-profile it means "the schema of this query's tables", and for a skipped or
-failed one it still means "the session it ran in".
-
-That is the same split the `isMultiSchema` fix closed, and the same one-line
-promotion is available: derive it in `complete()` from a single-entry `schemas`
-list, which can never contradict the analyzer because the analyzer computes the
-identical value. What stops it being mechanical is that it changes a field's
-meaning for real profiles rather than filling in a missing one.
-
-Live: **127 of 3,608 profiles** list exactly one schema and name a different
-one — `tables = [performance_schema.events_statements_summary_by_digest]`,
-`schemas = [performance_schema]`, `schemaName = "dual"`. 133 have a
-`schemaName` absent from `schemas` entirely. Every one is `analysisSkipped`.
-
-Blast radius is small today and that is worth confirming before changing
-anything: schema filters, the schema tree and the rollup all key off
-`getTables()`, not this field. Its live readers are
-`AnalyzedSqlRepository` line 60 (qualifying an unqualified table — a no-op
-against this corpus, which has zero unqualified tables, though not one by
-construction: `complete()` is handed the row's nullable schema at ingest and
-the representative's resolved one on the merge path) and the FE's
-`[defaultSchema]` /
-`[schema]` link inputs in `table-view` and `sql-summary`, which render join and
-criteria columns — and a skipped profile has none. So this is close to
-cosmetic, and the reason to do it is that the field disagreeing with the list
-beside it is what the last four bugs were made of.
-
-Ships with an invariant: `schemas.size() == 1` implies
-`schemaName == schemas[0]`.
-
 ### Make the merge-group representative deterministic
 
 `SqlRepositoryBuilder.index()` publishes a profile to the digest map *before*

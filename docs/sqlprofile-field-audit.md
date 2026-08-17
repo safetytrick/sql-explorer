@@ -46,7 +46,7 @@ corpus; **(c)** fine as built.
 | `runtimeMetrics` | pre-scan; `MergedSqlProfile` sums the group | every metric, sort, and Pain number | **(a) fixed** — the sum dereferenced every element of a nullable-by-schema field. Zero-`executed` division: **(b)**, 0 profiles in corpus |
 | `digest` | `complete()` (overwritten with the normalized digest) | merging, tagging, every FE link | **(c)** |
 | `normalizedDigest` | `complete()` | grouping key | **(c)** all 3,608 equal `digest` |
-| `schemaName` | pre-scan (session schema, or `"dual"`); **overwritten** by `SchemaAnalyzer` with the tables' schema when there is exactly one | `AnalyzedSqlRepository:60`, FE link inputs | **(a)** 127/3,608 name a schema their single-entry `schemas` contradicts; 133 name one absent from `schemas`. All skipped. Meaning-change → **item, not fixed** |
+| `schemaName` | pre-scan (session schema, or `"dual"`); **overwritten** by `SchemaAnalyzer`, and now by `complete()`, with the sole schema | `AnalyzedSqlRepository:60`, FE link inputs | **(a) fixed** — 133/3,608 named a schema absent from their own `schemas`: 127 skipped single-schema profiles (now 0) and 6 analysed multi-schema ones (left as-is by design) |
 | `schemas` | `complete()`, from `tables`, after the default-schema pass | `isMultiSchema` derivation; FE declares it | **(c)** fixed earlier today (was 1,816/3,608 incomplete) |
 | `mismatchedJoins` | analyzer (unconditional setter); copied; emptied in `complete()` | reports, FE badge | **(c)** |
 | `lineNumber` | pre-scan; `MergedSqlProfile` takes the group minimum | FE type only, never rendered | **(a) fixed** (NPE) / **(b)** for the value: null on a single profile, `Integer.MAX_VALUE` on a merged one → item |
@@ -73,8 +73,9 @@ schemas empty while tables non-empty ........  0     (was 1,816 this morning)
 schemas missing a table's schema ............  0
 isMultiSchema disagreeing with schemas ......  0     both directions
 null list fields ............................  0
-schemaName not in schemas ................... 133
-single-schema profiles naming another schema  127    all analysisSkipped
+schemaName not in schemas ................... 133    127 skipped + 6 analysed
+  ├ single schema, named another ............ 127    all analysisSkipped
+  └ multi-schema, named none of them ........   6    all analysed, isMultiSchema
 mergedChildren total ........................ 206    == the import's merged=206
 profiles owning a merge group ...............  71
 unqualified tables ..........................  0
@@ -95,6 +96,14 @@ so none of the `attemptMerge` omissions were being read.
 Everything above marked "→ item" is in `WORK_TODO.md` with these numbers
 attached. The line between fixed and flagged: a fix went in when it filled a
 value that was missing or made a getter answer instead of throw, and stopped
-when it would have changed what a field *means* (`schemaName`), changed the
-concurrency (`index()` ordering), or picked between two defensible aggregation
-rules (`MergedSqlProfile`'s union-vs-delegate mix).
+when it would have changed the concurrency (`index()` ordering) or picked
+between two defensible aggregation rules (`MergedSqlProfile`'s
+union-vs-delegate mix).
+
+`schemaName` was the one case flagged for meaning rather than mechanism, and
+it came back approved: the field now means *the* schema on every path, not
+"the session it ran in" on some of them. `complete()` collapses it onto the
+sole entry of `schemas`, guarded to the single-schema case so it computes the
+identical value `SchemaAnalyzer` does and cannot contradict it. The six
+analysed multi-schema profiles keep the session value — a statement spanning
+schemas has no single answer, which is what `isMultiSchema` is for.
