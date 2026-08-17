@@ -1,1 +1,2 @@
-<a class="{{linkClass}}" routerLink="/table/{{schema}}/{{table}}/{{column}}">{{table}}.{{column}}</a>
+<a class="{{linkClass}}" [routerLink]="['/table', schema, table]"
+   [queryParams]="drillParams">{{table}}.{{column}}</a>

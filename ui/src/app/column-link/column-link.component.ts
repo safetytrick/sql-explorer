@@ -51,6 +51,19 @@ export class ColumnLinkComponent implements OnInit {
     this._column = parsed.column;
   }
 
+  /**
+   * The drill-down the link opens: the table lens, filtered to this column.
+   * `/table/{s}/{t}/{c}` still redirects here, but linking straight to the
+   * canonical form means the href a user copies is the one they can share.
+   *
+   * An unqualified reference with no `schema` input has nothing to build a
+   * `schema.table.column` filter out of, so it links to the table alone rather
+   * than to a filter that silently matches nothing.
+   */
+  get drillParams(): Record<string, string> {
+    return this.schema ? { columns: `${this.schema}.${this.table}.${this.column}` } : {};
+  }
+
   constructor() { }
 
   ngOnInit() {
