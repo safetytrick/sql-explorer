@@ -295,18 +295,22 @@
           <div class="query-list">
             @for (hit of queries; track hit.profile.id) {
               <div class="query-row" [class.has-warn]="hit.profile.mismatchedJoins.length > 0 || hit.profile.analysisFailed">
-                <div class="query-row-head">
-                  <a class="mono q-link" [routerLink]="['/analyzed-sql', hit.profile.digest]">{{hit.profile.type || 'SQL'}}</a>
-                  @if (hit.profile.runtimeMetrics; as m) {
-                    <span class="q-metric">{{m.executed | number}} execs</span>
-                    <span class="q-metric hot">{{fmtMs(queryTime(hit))}}</span>
-                    @if (m.fullTableScan) { <span class="badge b-warn">full scan</span> }
-                  }
-                  @if (hit.profile.mismatchedJoins.length > 0) { <span class="badge b-warn">analyzer!</span> }
-                  @if (hit.profile.analysisFailed) { <span class="badge b-err">analysis failed</span> }
-                  @for (tag of hit.tags; track tag.id) { <span class="q-tag">{{tag.name}}</span> }
+                <div class="query-main">
+                  <div class="query-row-head">
+                    <a class="mono q-link" [routerLink]="['/analyzed-sql', hit.profile.digest]">{{hit.profile.type || 'SQL'}}</a>
+                    @if (hit.profile.runtimeMetrics?.fullTableScan) { <span class="badge b-warn">full scan</span> }
+                    @if (hit.profile.analysisFailed) { <span class="badge b-err">analysis failed</span> }
+                    @for (tag of hit.tags; track tag.id) { <span class="q-tag">{{tag.name}}</span> }
+                  </div>
+                  <pre class="query-sql"><code highlight="{{hit.profile.query}}"></code></pre>
                 </div>
-                <pre class="query-sql"><code highlight="{{hit.profile.query}}"></code></pre>
+                <!--
+                  status / first seen / last seen / executed / impact / avg scanned,
+                  rendered by the shared summary rather than a third hand-rolled copy.
+                  It also carries the mismatched-joins panel, which is why the head no
+                  longer needs its own "analyzer!" badge.
+                -->
+                <div class="query-metrics"><app-sql-summary [query]="hit.profile"></app-sql-summary></div>
               </div>
             }
           </div>

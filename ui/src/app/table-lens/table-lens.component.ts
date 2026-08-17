@@ -18,6 +18,7 @@ import {QueryHit, QuerySearchService} from '../query-search.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
+import {SqlSummaryComponent} from '../sql-summary/sql-summary.component';
 
 /** Queries fetched per page for the table's query list. */
 const QUERY_PAGE_SIZE = 25;
@@ -26,7 +27,7 @@ const QUERY_PAGE_SIZE = 25;
   selector: 'app-table-lens',
   templateUrl: './table-lens.component.html',
   styleUrls: ['./table-lens.component.scss'],
-  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight]
+  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight, SqlSummaryComponent]
 })
 export class TableLensComponent implements OnInit {
 
@@ -185,10 +186,6 @@ export class TableLensComponent implements OnInit {
         error: () => { this.createLoading = false; }
       });
     }
-  }
-
-  queryTime(hit: QueryHit): number | null {
-    return hit.profile.runtimeMetrics ? hit.profile.runtimeMetrics.averageTime / 1_000_000_000 : null;
   }
 
   private load() {

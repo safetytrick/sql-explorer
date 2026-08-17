@@ -303,11 +303,26 @@ tr.drillable {
 
 .query-list { display: flex; flex-direction: column; }
 
+// The per-query metrics sit in a rail beside the SQL rather than above it, so
+// six values cost a row no extra height until the SQL is shorter than the rail.
+// `minmax(0, 1fr)` is what keeps a wide query scrolling inside its own <pre>
+// instead of stretching the grid and pushing the rail off the card.
 .query-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 12px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
   &:last-child { border-bottom: none; }
   &.has-warn { box-shadow: inset 2px 0 0 var(--amber); }
+
+  .query-main { min-width: 0; }
+
+  .query-metrics {
+    min-width: 0;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+  }
 
   .query-row-head {
     display: flex;
@@ -318,8 +333,6 @@ tr.drillable {
   }
 
   .q-link { font-size: 11px; color: var(--blue); }
-  .q-metric { font-size: 10px; color: var(--text3); }
-  .q-metric.hot { color: var(--amber); }
 
   .q-tag {
     font-size: 9px;
@@ -337,6 +350,12 @@ tr.drillable {
     margin: 0;
     overflow-x: auto;
     font-size: 11px;
+  }
+
+  // Narrow viewports have no room for a rail; the metrics stack under the SQL.
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+    .query-metrics { padding-left: 0; border-left: none; border-top: 1px solid var(--border); padding-top: 6px; }
   }
 }
 

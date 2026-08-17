@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
+import type {SqlProfile} from './api-types';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -96,22 +97,13 @@ export interface MergedChild {
   averageTime: number;
 }
 
-export interface QueryProfile {
-  id: string;
-  query: string;
-  type: string;
-  digest: string;
-  normalizedDigest: string;
-  queryActivityStatus: 'ACTIVE' | 'DORMANT' | 'UNKNOWN';
-  analysisFailed: boolean;
-  analysisFailureReason: string | null;
-  mismatchedJoins: unknown[];
-  runtimeMetrics: RuntimeMetrics | null;
-  /** Null (not absent) when the query had no collapsed repeats. */
-  repeatedBlocks: RepeatedBlock[] | null;
-  /** Queries merged into this one; empty when nothing merged. */
-  mergedChildren: MergedChild[] | null;
-}
+/**
+ * What a hit carries. `QuerySearchResult.QueryHit` is `record QueryHit(SqlProfile
+ * profile, List<Tag> tags)`, so the wire really does send the whole profile —
+ * this used to be a hand-narrowed subset, which meant a consumer wanting one
+ * more field had to widen the type before it could read what was already there.
+ */
+export type QueryProfile = SqlProfile;
 
 export interface QueryTag {
   id: number;
