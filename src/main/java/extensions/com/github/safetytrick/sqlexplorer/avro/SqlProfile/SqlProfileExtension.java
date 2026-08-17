@@ -233,6 +233,29 @@ public class SqlProfileExtension {
                 thiz.setIsMultiSchema(true);
             }
 
+            // `schemaName` means *the* schema: when the statement touches
+            // exactly one, that is the answer, whoever built the profile.
+            //
+            // Ingest stamps the session's default database here (or "dual"
+            // when the row has none), and SchemaAnalyzer then overwrites it
+            // with the sole schema — so the field already meant this for an
+            // analysed statement and meant "the session it ran in" for
+            // everything else. 127 of 3,608 live profiles named a schema their
+            // own single-entry `schemas` contradicted: `information_schema`
+            // queries stamped "mysql", `performance_schema` queries stamped
+            // "dual". The skip is decided *from the tables*, so the statements
+            // that read another schema are exactly the ones the analyzer never
+            // saw.
+            //
+            // Guarded to the single-schema case for the same reason the flag
+            // above is promotion-only: it computes the identical value
+            // SchemaAnalyzer does, so it cannot contradict a correct analyzer
+            // result. A multi-schema statement has no single answer — that is
+            // what `isMultiSchema` is for — and keeps the session value.
+            if (thiz.getSchemas().size() == 1) {
+                thiz.setSchemaName(thiz.getSchemas().getFirst());
+            }
+
             return thiz;
         }
 

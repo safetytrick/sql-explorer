@@ -103,6 +103,14 @@ public class SqlProfileInvariantsTest {
 
         shapes.put("analysis skipped, no tables", skipped(List.of()));
 
+        // The live shape, and the reason the skip path mis-stamps at all: the
+        // skip is decided *from the tables* (every one in an ignored schema),
+        // so a statement reading another schema from this session is exactly
+        // the statement no analyzer sees. Session `mysql`, reads
+        // `information_schema` — digest 973d4bfe….
+        shapes.put("analysis skipped, another schema", skipped("mysql", List.of(
+            TableReference.fromString("information_schema.tables"))));
+
         SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
         SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
         shapes.put("merged", new MergedSqlProfile(List.of(a, b)));
@@ -126,18 +134,23 @@ public class SqlProfileInvariantsTest {
     }
 
     private static SqlProfile skipped(List<TableReference> tables) {
+        return skipped("mysql", tables);
+    }
+
+    /** {@code sessionSchema} is what ingest stamps: the row's default database. */
+    private static SqlProfile skipped(String sessionSchema, List<TableReference> tables) {
         return SqlProfile.newBuilder()
             .setId("skipped")
             .setDigest("skipped")
             .setNormalizedDigest("skipped")
             .setQuery("SELECT 1 FROM somewhere")
             .setType("SELECT")
-            .setSchemaName("mysql")
+            .setSchemaName(sessionSchema)
             .setQueryActivityStatus(QueryActivityStatus.ACTIVE)
             .setRuntimeMetrics(null)
             .setTables(tables)
             .setAnalysisSkipped(true)
-            .completeBuild("mysql");
+            .completeBuild(sessionSchema);
     }
 
     /**
@@ -197,6 +210,31 @@ public class SqlProfileInvariantsTest {
             assertThat(profile.getSchemas())
                 .as("reports multi-schema but lists %s", profile.getSchemas())
                 .hasSizeGreaterThan(1);
+        }
+    }
+
+    /**
+     * One schema means `schemaName` names it.
+     *
+     * <p>The field means *the* schema, and when the list has exactly one entry
+     * there is no room for it to mean anything else. It used to: ingest stamps
+     * the performance-schema row's session database (or `"dual"`), and only
+     * {@link SchemaAnalyzer} collapsed it onto the sole schema — and the skip
+     * decision is made from the tables, so a query reading
+     * `information_schema` from a `mysql` session was both skipped and
+     * mis-stamped. 127 of 3,608 live profiles, every one of them skipped.
+     *
+     * <p>No assertion for the multi-schema case on purpose: a statement
+     * spanning schemas has no single answer, keeps the session value, and says
+     * so through {@code isMultiSchema}.
+     */
+    @ParameterizedTest(name = "one schema names itself [{0}]")
+    @MethodSource("everyProfileShape")
+    public void oneSchemaMeansSchemaNameIsThatSchema(SqlProfile profile) {
+        if (profile.getSchemas().size() == 1) {
+            assertThat(profile.getSchemaName())
+                .as("lists only %s but calls itself %s", profile.getSchemas(), profile.getSchemaName())
+                .isEqualTo(profile.getSchemas().getFirst());
         }
     }
 
