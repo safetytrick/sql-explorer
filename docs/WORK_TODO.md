@@ -7,13 +7,26 @@ can therefore be added ahead of its own representative, and `mergeByDigest`
 groups in list order — so `MergedSqlProfile.first()`, which the group delegates
 almost everything to, is decided by a race.
 
-Not currently harmful: merged children now carry the representative's full
-analysis, so the two agree on everything that describes the statement. What
-still differs is the group-only state — `mergedChildren` lives on the
-representative alone, so a child winning `first()` reports an empty merge
-group and the "×N variants" expander vanishes. The live import shows this has
-not happened: `mergedChildren` totals 206 across the corpus, exactly the
-import's `merged=206`.
+**It happens, and two imports of the same source prove it.** Re-importing
+unchanged data moved `schemaName` on 42 profiles that the schema promotion
+cannot touch (their `schemas` list is empty, and the promotion only fires at
+exactly one entry). For 14 of them the `tables` and `schemas` lists moved too:
+same statement text, issued from two different sessions, so the unqualified
+tables qualify against different default schemas — and which member's version
+the group reports is whichever landed in the list first. 17 of the 42 also
+report different summed `executed`. Nothing about the data changed between the
+two runs.
+
+The narrower `mergedChildren` case has *not* been observed:
+`attemptMerge` groups still total 206 children across the corpus, exactly the
+import's `merged=206`, so no ingest child has yet won `first()` from its own
+representative. But the second-order grouping — profiles the repository merges
+by digest without going through `attemptMerge` — is visibly non-deterministic
+already, which is the same ordering assumption failing one layer up.
+
+That also raises the stakes slightly: now that `schemaName` follows `schemas`,
+a flipped representative moves both together instead of moving `schemaName` on
+its own. More correct, and more visible.
 
 Two candidate fixes, and picking one is the work: move the list `add` ahead of
 the digest-map `put` inside `index()`, or stop relying on order and have
