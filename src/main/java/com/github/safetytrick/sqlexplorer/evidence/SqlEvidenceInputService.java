@@ -263,7 +263,11 @@ public class SqlEvidenceInputService {
                 // optimistic merging decreases the amount of analysis we do but doesn't help
                 // much with anything else, most of the file processing time is spent in the sql parser.
                 long startNormalization = System.nanoTime();
-                NormalizedQueryDigest.DigestedQuery digested = normalizedQueryDigest.digestedQuery(query);
+                // Scoped by the session schema: the digest is what decides
+                // which rows merge into one profile, and the same unqualified
+                // text run against two schemas is two statements.
+                NormalizedQueryDigest.DigestedQuery digested =
+                    normalizedQueryDigest.digestedQuery(query, row.getSchemaName());
                 builder.setNormalizedDigest(digested.digest());
 
                 // display the normalized form (raw formatted text set above
