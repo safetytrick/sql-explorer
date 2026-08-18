@@ -1,4 +1,37 @@
 
+### Give the regex extractor a DDL branch
+
+`RegexTableExtractor` only knows four table positions — `INSERT INTO`,
+`UPDATE`, `FROM`, `JOIN` — so a DDL statement contributes nothing.
+**322 of the 1,753 skipped profiles carry zero tables**, and the ones that do
+carry some got them from a `FROM`/`JOIN` inside a view body or trigger, not
+from the statement's own target. `CREATE TABLE \`link_cta\` …` yields
+nothing; `GRANT … ON \`search\`.\`entity_favorite\`` yields nothing.
+
+This is the mirror of the bug fixed in `f1f53d2`. That one had DDL
+contributing a *fake* table (`ON UPDATE NOW` → `app_del.now`); this is the same
+statements contributing *no real* table. Both come from the pre-scan being the
+only reader of anything in `ignoredFirstTokens` — CREATE, ALTER, DROP, GRANT,
+RENAME are all on that list.
+
+What it costs: a table that is only ever created, altered or granted on —
+never selected from in the sample window — is invisible to the schema tree,
+the table pages and the graph, even though the corpus contains a statement
+naming it. The schema-metadata overlay in `SchemaTreeService` hides this for
+tables that exist in an introspected schema; it does not hide it for anything
+outside one.
+
+- The positions to add: `CREATE TABLE [IF NOT EXISTS]`, `ALTER TABLE`,
+  `DROP TABLE [IF EXISTS]`, `RENAME TABLE … TO …` (both sides), `TRUNCATE
+  TABLE`, `REFERENCES` in a foreign key, and the object after `ON` in a
+  `GRANT`/`REVOKE` — that last one is where `mysql.on` came from, so it wants
+  the real table rather than the keyword.
+- `CREATE TABLE … LIKE other` and `CREATE TABLE … AS SELECT` name two tables.
+- Worth deciding whether a `DROP` should register a table at all: it is
+  evidence the table existed, which may be more confusing than useful on a
+  schema tree that otherwise describes what is there now.
+- Needs a re-import to take effect, like the fix it follows.
+
 ### Make the merge-group representative deterministic
 
 `SqlRepositoryBuilder.index()` publishes a profile to the digest map *before*
