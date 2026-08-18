@@ -95,6 +95,82 @@ class RegexTableExtractorTest {
     }
 
     /**
+     * `ON UPDATE <action>` is a DDL clause, not an UPDATE statement, and its
+     * action word was being reported as a table. These are the exact
+     * statements from the regression corpus, which is where `app_del.now`,
+     * `app_del.no`, `app_del.restrict`, `app_del.cascade`, `app_main.cascade`,
+     * `app_admin.cascade` and `app_signals.now` came from — schema-tree nodes for
+     * tables that do not exist. CREATE is in `ignoredFirstTokens`, so these
+     * never reach jsqlparser and the regex is the only thing that reads them.
+     */
+    @Test
+    void onUpdateReferentialActionsAreNotTableReferences() {
+        assertThat(extract(" CREATE TABLE `link_cta` ( `id` INT8 (?) NOT NULL AUTO_INCREMENT ,"
+                               + " `time_created` DATETIME NOT NULL DEFAULT NOW ,"
+                               + " `time_updated` DATETIME NOT NULL DEFAULT NOW ON UPDATE NOW ) "))
+            .extracting(TableReference::getNormalizedTableName)
+            .isEmpty();
+
+        assertThat(extract(" CREATE TABLE `t` ( `id` INT8 (?) , FOREIGN KEY ( `id` )"
+                               + " REFERENCES `other` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT ) "))
+            .extracting(TableReference::getNormalizedTableName)
+            .doesNotContain("restrict");
+
+        assertThat(extract(" CREATE TABLE `t` ( `id` INT8 (?) , FOREIGN KEY ( `id` )"
+                               + " REFERENCES `other` ( `id` ) ON UPDATE NO ACTION ) "))
+            .extracting(TableReference::getNormalizedTableName)
+            .doesNotContain("no");
+
+        assertThat(extract(" CREATE TABLE `t` ( `id` INT8 (?) , FOREIGN KEY ( `id` )"
+                               + " REFERENCES `other` ( `id` ) ON UPDATE CASCADE ) "))
+            .extracting(TableReference::getNormalizedTableName)
+            .doesNotContain("cascade");
+
+        // the whole family, including actions this corpus has not produced yet
+        assertThat(extract(" CREATE TABLE `t` ( `a` INT , `b` DATETIME ON UPDATE CURRENT_TIMESTAMP ,"
+                               + " FOREIGN KEY ( `a` ) REFERENCES `o` ( `a` ) ON UPDATE SET NULL ) "))
+            .extracting(TableReference::getNormalizedTableName)
+            .isEmpty();
+    }
+
+    /**
+     * The mirror case: in a privilege list and a trigger event, UPDATE is
+     * followed by ON, and the optional schema group cannot absorb it because
+     * no dot follows — so the keyword itself was captured. Live: `mysql.on`.
+     */
+    @Test
+    void updateAsAPrivilegeOrTriggerEventDoesNotCaptureOn() {
+        assertThat(extract(" GRANT CREATE , SELECT , INSERT, UPDATE ON `search` . `entity_favorite` TO ? @? "))
+            .extracting(TableReference::getNormalizedTableName)
+            .doesNotContain("on");
+
+        assertThat(extract(" CREATE DEFINER = `rdsadmin` @`localhost` TRIGGER `block_user_u`"
+                               + " BEFORE UPDATE ON `user` FOR EACH ROW BEGIN IF ? THEN END IF ; END "))
+            .extracting(TableReference::getNormalizedTableName)
+            .doesNotContain("on");
+    }
+
+    /** A table genuinely named `on` has to be quoted, and still counts. */
+    @Test
+    void aQuotedOnIsStillATable() {
+        assertThat(extract(" SELECT * FROM `on` "))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactly("on");
+    }
+
+    /**
+     * The new lookbehind is word-boundary anchored, so a real UPDATE statement
+     * on a table whose name merely ends in "on" is unaffected. Without the
+     * `\\b` the preceding "…on " would suppress it.
+     */
+    @Test
+    void aTableNameEndingInOnDoesNotSuppressARealUpdate() {
+        assertThat(extract(" SELECT * FROM `session` ; UPDATE `branch` SET `a` = ? "))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactly("session", "branch");
+    }
+
+    /**
      * Without an alias between them, the whitespace consumed after one table
      * was the same whitespace the next keyword needed to match on — so only
      * the first table was ever reported. The existing multi-table case passes
