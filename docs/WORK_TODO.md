@@ -564,9 +564,18 @@ more accurate than throwing.
 - Check what the callers expect an unresolved column to look like — the
   analyzers already emit references whose table cannot be pinned down, so
   there may be an existing shape to reuse rather than a new one to invent.
-- Worth confirming whether the lost `()` is a normalizer artifact or is
-  already absent in the performance_schema text; if the former, the statement
-  should arguably never have reached the analyzer looking like a bare column.
+- **Answered: the `()` was never there, and nothing lost it.** The statement
+  was written `SELECT CURRENT_TIMESTAMP` — the keyword form, not a function
+  call — and MySQL's own digest canonicalises that keyword to its synonym
+  `NOW`, with no parens, because there were none to keep. Verified against
+  performance_schema directly: `SELECT NOW()` digests to `SELECT NOW ( )`
+  while `SELECT CURRENT_TIMESTAMP` digests to `SELECT NOW`. Our normalizer
+  preserves `NOW()` intact (checked through `/util/normalize`), and so does
+  the Hibernate formatter. So there is no upstream artifact to fix: the
+  analyzer really is being handed a bare keyword, and handling it gracefully
+  is the whole of this item. The same canonicalisation is why DDL arrives as
+  `DEFAULT NOW` / `ON UPDATE NOW`, which is what fed the extractor bug fixed
+  in `f1f53d2`.
 
 ### Capture enough on an analysis failure to write a failing test from it
 
