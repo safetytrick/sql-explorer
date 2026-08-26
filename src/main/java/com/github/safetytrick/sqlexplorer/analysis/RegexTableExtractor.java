@@ -1,11 +1,14 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 
 /**
  * used to extract tables when parsing the whole query fails
@@ -65,4 +68,44 @@ public class RegexTableExtractor {
         return references;
     }
 
+    /**
+     * The reason recorded when an extracted name is not a table in the
+     * environment. Prefix is stable so tests and reports can find these.
+     *
+     * <p>Not the {@code "Failure on:"} prefix that marks an analyzer
+     * exception, so these classify as parse-kind failures in
+     * {@code QuerySearchService.matchesFailureKind} and land in the
+     * parse-failure report. That is the closest existing bucket and matches
+     * what the finding is — the pre-scan read the statement wrongly — but it
+     * is a bucket, not a category: a third {@code FailureKind} would name it
+     * properly if these ever become common enough to want separating.
+     */
+    public static final String UNKNOWN_TABLE_REASON = "Extracted table not in schema:";
+
+    /**
+     * The extracted names this schema does not know, in encounter order.
+     *
+     * <p>The regex is a guess — it reads statements the parser never sees, so
+     * nothing else corroborates its output. When the environment's schema is
+     * loaded it can: a name that is not a table there means the pattern
+     * matched something that is not a table reference. That is how
+     * {@code ON UPDATE NOW} became a table called {@code now}, and it went
+     * unnoticed until the names showed up in the schema tree.
+     *
+     * <p>Returns empty when there is no schema to check against, which is the
+     * honest answer rather than "everything is unknown" — analysis runs
+     * without a schema in tests and on the no-schema convenience path.
+     */
+    public List<TableReference> unknownTables(List<TableReference> extracted, SqlSchemaRepository schema) {
+        if (schema == null || extracted == null) {
+            return List.of();
+        }
+        Set<TableReference> unknown = new LinkedHashSet<>();
+        for (TableReference table : extracted) {
+            if (schema.getTable(table) == null) {
+                unknown.add(table);
+            }
+        }
+        return List.copyOf(unknown);
+    }
 }

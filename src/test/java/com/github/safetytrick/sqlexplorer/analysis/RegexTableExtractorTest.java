@@ -3,6 +3,8 @@ package com.github.safetytrick.sqlexplorer.analysis;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.schema.LoadedSchema;
+import net.sf.jsqlparser.JSQLParserException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -185,5 +187,62 @@ class RegexTableExtractorTest {
         assertThat(extract(" SELECT * FROM a JOIN b JOIN c ON x "))
             .extracting(TableReference::getNormalizedTableName)
             .containsExactly("a", "b", "c");
+    }
+
+    private static LoadedSchema schema() throws JSQLParserException {
+        return SchemaFixture.fromSql("""
+            create table tdb.folders (id bigint not null, name varchar(255), primary key (id));
+            """).schema();
+    }
+
+    /**
+     * The regex reads statements the parser never sees, so nothing else
+     * corroborates its output — which is how `ON UPDATE NOW` became a table
+     * called `now` and sat in the schema tree unnoticed. Where the environment
+     * schema is loaded it can corroborate: a name that is not a table there
+     * means the pattern matched something that is not a table reference.
+     */
+    @Test
+    void reportsExtractedNamesTheSchemaDoesNotKnow() throws JSQLParserException {
+        List<TableReference> extracted = extract(" SELECT * FROM `folders` JOIN `not_a_table` ON ? ");
+
+        assertThat(extractor.unknownTables(extracted, schema()))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactly("not_a_table");
+    }
+
+    @Test
+    void aFullyKnownStatementReportsNothing() throws JSQLParserException {
+        assertThat(extractor.unknownTables(extract(" SELECT * FROM `folders` "), schema()))
+            .isEmpty();
+    }
+
+    /** Backticks and casing are not a difference; the lookup normalizes both sides. */
+    @Test
+    void caseAndBackticksDoNotMakeATableUnknown() throws JSQLParserException {
+        assertThat(extractor.unknownTables(extract(" SELECT * FROM FOLDERS "), schema())).isEmpty();
+        assertThat(extractor.unknownTables(extract(" SELECT * FROM `TDB` . `Folders` "), schema())).isEmpty();
+    }
+
+    /**
+     * With no schema there is nothing to check against, and "no schema" must
+     * not read as "nothing exists" — analysis runs without one in tests and on
+     * the no-schema convenience path, and flagging every table there would
+     * bury the signal this exists to raise.
+     */
+    @Test
+    void withoutASchemaNothingIsUnknown() {
+        assertThat(extractor.unknownTables(extract(" SELECT * FROM `not_a_table` "), null)).isEmpty();
+    }
+
+    /** One entry per name, in encounter order, however often it is referenced. */
+    @Test
+    void repeatedUnknownNamesAreReportedOnce() throws JSQLParserException {
+        List<TableReference> extracted =
+            extract(" SELECT * FROM `ghost` JOIN `ghost` ON ? JOIN `folders` ON ? JOIN `spectre` ON ? ");
+
+        assertThat(extractor.unknownTables(extracted, schema()))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactly("ghost", "spectre");
     }
 }

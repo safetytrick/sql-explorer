@@ -242,12 +242,17 @@ public class SqlEvidenceInputService {
         }
 
         List<TableReference> tables = tableExtractor.extractTables(row.getSchemaName(), query);
+        // The regex is the only reader of anything in `ignoredFirstTokens`, so
+        // nothing else corroborates it. The schema can: a name it does not know
+        // means the pattern matched something that is not a table reference.
+        List<TableReference> unknownTables = tableExtractor.unknownTables(tables, schema);
 
         int nestingLevel = getOpenParens(query);
 
         if (ignoredFirstTokens.contains(firstToken) || ignoredSchemas.ignoreAll(tables)) {
             builder.setTables(tables);
             builder.setAnalysisSkipped(true);
+            flagUnknownTables(builder, unknownTables);
         } else {
             try {
                 if (nestingLevel > MAX_OPEN_PARENS) {
@@ -302,6 +307,7 @@ public class SqlEvidenceInputService {
                 }
 
                 builder.setTables(tables);
+                flagUnknownTables(builder, unknownTables);
 
                 if (traceErrors) {
                     log.info("Parse failed {}", row.getDigest(), e);
@@ -314,6 +320,30 @@ public class SqlEvidenceInputService {
         SqlProfile sqlProfile = builder.completeBuild(row.getSchemaName());
 
         repository.addToIndex(sqlProfile);
+    }
+
+    /**
+     * Record extracted names the schema does not know, so a pre-scan that
+     * misreads a statement fails loudly instead of quietly seeding the schema
+     * tree with tables that do not exist.
+     *
+     * <p>Only when no reason is set yet. On the parse-failure path the parser's
+     * own message is the better explanation and it is written first; overwriting
+     * it would trade a cause for a symptom. That ordering matters because
+     * `analysisFailureReason` is a single field with several writers and the
+     * last one wins — see the failure-capture item in WORK_TODO.
+     *
+     * <p>`complete()` derives `analysisFailed` from the reason, so setting this
+     * marks the profile failed without a second flag to keep in step.
+     */
+    // package-private and static: no instance state, and the only-if-absent
+    // rule below is worth driving directly from a test.
+    static void flagUnknownTables(SqlProfile.Builder builder, List<TableReference> unknownTables) {
+        if (unknownTables.isEmpty() || builder.getAnalysisFailureReason() != null) {
+            return;
+        }
+        builder.setAnalysisFailureReason(RegexTableExtractor.UNKNOWN_TABLE_REASON + " "
+            + unknownTables.stream().map(TableReference::getFullName).collect(Collectors.joining(", ")));
     }
 
     private String getRootCauseMessage(Throwable e) {
