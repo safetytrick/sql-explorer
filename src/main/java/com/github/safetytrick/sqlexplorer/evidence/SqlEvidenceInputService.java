@@ -243,9 +243,12 @@ public class SqlEvidenceInputService {
 
         List<TableReference> tables = tableExtractor.extractTables(row.getSchemaName(), query);
         // The regex is the only reader of anything in `ignoredFirstTokens`, so
-        // nothing else corroborates it. The schema can: a name it does not know
-        // means the pattern matched something that is not a table reference.
-        List<TableReference> unknownTables = tableExtractor.unknownTables(tables, schema);
+        // nothing else corroborates its guessed positions. The schema can: a
+        // name it does not know means the pattern matched something that is not
+        // a table reference. DDL positions are excluded — they carry their own
+        // object-type keyword, so there is nothing left to corroborate.
+        List<TableReference> unknownTables =
+            tableExtractor.unknownTables(row.getSchemaName(), query, schema);
 
         int nestingLevel = getOpenParens(query);
 

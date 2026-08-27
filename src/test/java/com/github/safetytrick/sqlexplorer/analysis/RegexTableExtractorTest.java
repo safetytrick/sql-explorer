@@ -107,11 +107,13 @@ class RegexTableExtractorTest {
      */
     @Test
     void onUpdateReferentialActionsAreNotTableReferences() {
+        // the table being created is now extracted (the DDL positions); what
+        // must never come back is the referential action beside it
         assertThat(extract(" CREATE TABLE `link_cta` ( `id` INT8 (?) NOT NULL AUTO_INCREMENT ,"
                                + " `time_created` DATETIME NOT NULL DEFAULT NOW ,"
                                + " `time_updated` DATETIME NOT NULL DEFAULT NOW ON UPDATE NOW ) "))
             .extracting(TableReference::getNormalizedTableName)
-            .isEmpty();
+            .containsExactly("link_cta");
 
         assertThat(extract(" CREATE TABLE `t` ( `id` INT8 (?) , FOREIGN KEY ( `id` )"
                                + " REFERENCES `other` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT ) "))
@@ -132,7 +134,8 @@ class RegexTableExtractorTest {
         assertThat(extract(" CREATE TABLE `t` ( `a` INT , `b` DATETIME ON UPDATE CURRENT_TIMESTAMP ,"
                                + " FOREIGN KEY ( `a` ) REFERENCES `o` ( `a` ) ON UPDATE SET NULL ) "))
             .extracting(TableReference::getNormalizedTableName)
-            .isEmpty();
+            .containsExactlyInAnyOrder("t", "o")
+            .doesNotContain("current_timestamp", "set", "null");
     }
 
     /**
@@ -189,6 +192,96 @@ class RegexTableExtractorTest {
             .containsExactly("a", "b", "c");
     }
 
+    /**
+     * DDL names its table in a position the DML pattern cannot see, and
+     * everything in `ignoredFirstTokens` reaches only this extractor — so
+     * before these positions existed, 1,059 skipped profiles carried no table
+     * at all and a table that is only ever created, altered or granted on was
+     * invisible to the schema tree. Statements are the shapes the regression
+     * corpus actually contains.
+     */
+    @Test
+    void extractsTheTableFromDdlPositions() {
+        // 301 profiles — much the most common shape, and an ORM/migration probe
+        assertThat(extract(" SHOW CREATE TABLE `app_main` . `demos` "))
+            .extracting(TableReference::getNormalizedSchemaName, TableReference::getNormalizedTableName)
+            .containsExactly(tuple("app_main", "demos"));
+
+        assertThat(extract(" ALTER TABLE `accounts` ADD COLUMN `owner_email` VARCHARACTER (?) NULL "))
+            .extracting(TableReference::getNormalizedTableName).containsExactly("accounts");
+
+        assertThat(extract(" CREATE TABLE IF NOT EXISTS `signal_metadata` ( `id` BINARY (?) PRIMARY KEY ) "))
+            .extracting(TableReference::getNormalizedTableName).containsExactly("signal_metadata");
+
+        assertThat(extract(" CREATE INDEX `admin_favorite_accounts_admin_id_idx`"
+                               + " ON `admin_favorite_accounts` ( `admin_id` ) "))
+            .extracting(TableReference::getNormalizedTableName).containsExactly("admin_favorite_accounts");
+
+        assertThat(extract(" CREATE DEFINER = `rdsadmin` @`localhost` TRIGGER `block_user_u`"
+                               + " BEFORE UPDATE ON `user` FOR EACH ROW BEGIN END "))
+            .extracting(TableReference::getNormalizedTableName).containsExactly("user");
+
+        assertThat(extract(" TRUNCATE TABLE `sessions` "))
+            .extracting(TableReference::getNormalizedTableName).containsExactly("sessions");
+
+        // the foreign key's parent, named inside a CREATE body with no space
+        assertThat(extract(" CREATE TABLE `child` ( `p` INT , FOREIGN KEY ( `p` ) REFERENCES `parent`(`id`) ) "))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactlyInAnyOrder("child", "parent");
+    }
+
+    /**
+     * A privilege object is `ON s.t TO|FROM`, and the trailing TO/FROM is what
+     * separates it from a JOIN condition — the only thing in these statements
+     * that is reliably a table.
+     */
+    @Test
+    void extractsTheGrantedTableButNotTheSchemaWildcard() {
+        assertThat(extract(" GRANT ALL PRIVILEGES ON `cl` . `stat_get_doc_names` TO ? @? WITH GRANT OPTION "))
+            .extracting(TableReference::getNormalizedSchemaName, TableReference::getNormalizedTableName)
+            .containsExactly(tuple("cl", "stat_get_doc_names"));
+
+        // `s`.* is a whole schema, not a table, and cannot match: * is not an identifier
+        assertThat(extract(" GRANT ALL PRIVILEGES ON `app_admin` . * TO ? @? "))
+            .extracting(TableReference::getNormalizedTableName).isEmpty();
+
+        assertThat(extract(" REVOKE SELECT ON `app_main` . `demos` FROM ? @? "))
+            .extracting(TableReference::getNormalizedTableName).containsExactly("demos");
+    }
+
+    /**
+     * These sit in the same statements and name things that are not tables.
+     * Matching an identifier after a bare verb is exactly how `ON UPDATE NOW`
+     * became a table called `now`, so every DDL position requires its
+     * object-type keyword.
+     */
+    @Test
+    void doesNotTreatNonTableDdlObjectsAsTables() {
+        assertThat(extract(" DROP FUNCTION IF EXISTS `rds_version` ")).isEmpty();
+        assertThat(extract(" DROP PROCEDURE IF EXISTS `mysql` . `rds_start_upgrade_prechecks` ")).isEmpty();
+        assertThat(extract(" CREATE SCHEMA `ab_testing` ")).isEmpty();
+        assertThat(extract(" ALTER SYSTEM_USER ? @? IDENTIFIED BY ? ")).isEmpty();
+        assertThat(extract(" SHOW CREATE FUNCTION `mysql` . `rds_is_semi_sync` ")).isEmpty();
+        assertThat(extract(" SHOW BINARY LOGS ")).isEmpty();
+        assertThat(extract(" CREATE DEFINER = ? @? FUNCTION `rds_version` ( ) RETURNS VARCHARACTER (?) ")).isEmpty();
+    }
+
+    /**
+     * Two positions left out deliberately, both because the name they yield is
+     * absent from the schema by construction — which the ingest-time check
+     * would report as a failure on every such profile.
+     */
+    @Test
+    void doesNotExtractNamesThatAreGoneOrTransient() {
+        // a dropped table is not in the schema any more; 1 profile in the corpus
+        assertThat(extract(" DROP TABLE IF EXISTS `mysql` . `rds_upgrade_prechecks` ")).isEmpty();
+
+        // Hibernate's bulk-operation temp table: never in the schema, transient
+        // by design. Excluded for free — TEMPORARY sits between CREATE and TABLE.
+        assertThat(extract(" CREATE TEMPORARY TABLE IF NOT EXISTS `HT_file_processing` ( `id` BINARY (?) ) "))
+            .isEmpty();
+    }
+
     private static LoadedSchema schema() throws JSQLParserException {
         return SchemaFixture.fromSql("""
             create table tdb.folders (id bigint not null, name varchar(255), primary key (id));
@@ -204,24 +297,21 @@ class RegexTableExtractorTest {
      */
     @Test
     void reportsExtractedNamesTheSchemaDoesNotKnow() throws JSQLParserException {
-        List<TableReference> extracted = extract(" SELECT * FROM `folders` JOIN `not_a_table` ON ? ");
-
-        assertThat(extractor.unknownTables(extracted, schema()))
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `folders` JOIN `not_a_table` ON ? ", schema()))
             .extracting(TableReference::getNormalizedTableName)
             .containsExactly("not_a_table");
     }
 
     @Test
     void aFullyKnownStatementReportsNothing() throws JSQLParserException {
-        assertThat(extractor.unknownTables(extract(" SELECT * FROM `folders` "), schema()))
-            .isEmpty();
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `folders` ", schema())).isEmpty();
     }
 
     /** Backticks and casing are not a difference; the lookup normalizes both sides. */
     @Test
     void caseAndBackticksDoNotMakeATableUnknown() throws JSQLParserException {
-        assertThat(extractor.unknownTables(extract(" SELECT * FROM FOLDERS "), schema())).isEmpty();
-        assertThat(extractor.unknownTables(extract(" SELECT * FROM `TDB` . `Folders` "), schema())).isEmpty();
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM FOLDERS ", schema())).isEmpty();
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `TDB` . `Folders` ", schema())).isEmpty();
     }
 
     /**
@@ -232,16 +322,14 @@ class RegexTableExtractorTest {
      */
     @Test
     void withoutASchemaNothingIsUnknown() {
-        assertThat(extractor.unknownTables(extract(" SELECT * FROM `not_a_table` "), null)).isEmpty();
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `not_a_table` ", null)).isEmpty();
     }
 
     /** One entry per name, in encounter order, however often it is referenced. */
     @Test
     void repeatedUnknownNamesAreReportedOnce() throws JSQLParserException {
-        List<TableReference> extracted =
-            extract(" SELECT * FROM `ghost` JOIN `ghost` ON ? JOIN `folders` ON ? JOIN `spectre` ON ? ");
-
-        assertThat(extractor.unknownTables(extracted, schema()))
+        assertThat(extractor.unknownTables("tdb",
+            " SELECT * FROM `ghost` JOIN `ghost` ON ? JOIN `folders` ON ? JOIN `spectre` ON ? ", schema()))
             .extracting(TableReference::getNormalizedTableName)
             .containsExactly("ghost", "spectre");
     }
