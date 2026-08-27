@@ -180,5 +180,7 @@ Further reading
   module is responsible for.
 - [CLAUDE.md](CLAUDE.md) — working conventions: repo layout, the frontend styling and URL-state rules, the gate,
   and the repo's sharper edges.
-- [docs/](docs/) — `WORK_TODO.md` for open work, `plans/` for the plans behind it, `TECH_DEBT.md` for the standing
-  inventory, `local-dev-mysql.md` for running MySQL locally.
+- Open work lives in **beads** (`.beads/`, the `bd` CLI) — `bd ready` for unblocked work. `docs/WORK_TODO.md` is
+  now just a signpost to it.
+- [docs/](docs/) — `plans/` for the longer design write-ups, `TECH_DEBT.md` for the standing inventory,
+  `local-dev-mysql.md` for running MySQL locally.

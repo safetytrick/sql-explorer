@@ -1,6 +1,6 @@
 # Implementation Plans
 
-One plan per open WORK_TODO item, grounded in code inspection. Effort:
+One plan per open beads item (`bd ready`), grounded in code inspection. Effort:
 S = hours, M = 1–3 days, L = a week+.
 
 A plan lives here only while its work is unfinished. Completed plans are
@@ -14,7 +14,7 @@ reasoning is in the commit that closed it.
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
 | [explain-parser.md](explain-parser.md)   | Explain parser — paste formats shipped; **awaiting Michael's testing** (live EXPLAIN option documented) | —                 |
 
-Supporting plan (not a WORK_TODO item, unscheduled, stands on its own):
+Supporting plan (not tracked as a bead, unscheduled, stands on its own):
 [normalization-versioning.md](normalization-versioning.md). It is less often
 a prerequisite than it looks — normalizer `VERSION` governs digest identity,
 so surfacing already-computed data behind a defaulted Avro field re-keys
