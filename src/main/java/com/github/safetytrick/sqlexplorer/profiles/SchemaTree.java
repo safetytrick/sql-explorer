@@ -13,5 +13,15 @@ public record SchemaTree(List<SchemaNode> schemas) {
 
     public record SchemaNode(String name, List<TableNode> tables) { }
 
-    public record TableNode(String name, Integer columnCount, int queryCount, boolean warn, boolean view) { }
+    /**
+     * @param inSchema whether the environment's schema metadata actually
+     *                 describes this table. False means the node exists only
+     *                 because a query named it — a view-swap artifact that has
+     *                 since been dropped, a temp table, or a data-dictionary
+     *                 table introspection cannot see. Distinct from a null
+     *                 {@code columnCount}, which a real table also gets when
+     *                 its column list did not load.
+     */
+    public record TableNode(String name, Integer columnCount, int queryCount, boolean warn, boolean view,
+                            boolean inSchema) { }
 }

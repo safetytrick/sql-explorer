@@ -122,6 +122,10 @@
           @if (table.columnCount !== null) {
             <span class="t-cols">{{table.columnCount}}c</span>
           }
+          @if (!table.inSchema) {
+            <span class="t-absent"
+                  title="named by a query but not in the schema — dropped, temporary, or not introspectable">?</span>
+          }
           @if (table.warn) {
             <span class="t-warn" title="has analyzer findings"></span>
           }

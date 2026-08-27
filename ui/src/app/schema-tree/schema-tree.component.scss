@@ -315,4 +315,23 @@
     color: var(--purple);
     flex-shrink: 0;
   }
+
+  // Named by a query but absent from the schema. Marked rather than hidden:
+  // some of these are real (data-dictionary tables, Hibernate temp tables)
+  // and dropping them would trade one kind of wrong tree for another. The
+  // row is dimmed so it reads as "not part of the schema" at a glance.
+  .t-absent {
+    font-size: 9px;
+    line-height: 1;
+    padding: 1px 4px;
+    border-radius: 8px;
+    background: var(--surface3);
+    color: var(--text3);
+    flex-shrink: 0;
+  }
+
+  &:has(.t-absent) .t-name {
+    color: var(--text3);
+    font-style: italic;
+  }
 }

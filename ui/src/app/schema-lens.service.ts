@@ -12,6 +12,15 @@ export interface TableNode {
   queryCount: number;
   warn: boolean;
   view: boolean;
+  /**
+   * False when the schema metadata does not describe this table — the node
+   * exists only because a query named it. View-swap artifacts
+   * (`stat_get_user_list_<hex>`) that have since been dropped, Hibernate's
+   * `ht_*` temp tables, and MySQL data-dictionary tables all land here. Not
+   * the same as a null `columnCount`, which a real table also gets when its
+   * column list did not load.
+   */
+  inSchema: boolean;
 }
 
 export interface SchemaNode {

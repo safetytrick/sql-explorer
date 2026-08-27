@@ -69,6 +69,10 @@ public class SchemaTreeService {
                 .computeIfAbsent(structure.name(), t -> new TableStats());
             tableStats.columnCount = structure.columns() == null ? null : structure.columns().size();
             tableStats.view = "VIEW".equalsIgnoreCase(structure.type());
+            // reaching here at all is what makes it a schema table; the column
+            // count cannot stand in for that, since a real table whose columns
+            // did not load also has none
+            tableStats.inSchema = true;
         }
 
         List<SchemaNode> schemas = stats.entrySet().stream()
@@ -77,7 +81,8 @@ public class SchemaTreeService {
                     table.getValue().columnCount,
                     table.getValue().queryCount,
                     table.getValue().warn,
-                    table.getValue().view))
+                    table.getValue().view,
+                    table.getValue().inSchema))
                 .toList()))
             .sorted(Comparator
                         .comparing((SchemaNode node) -> ignoredSchemas.contains(node.name()))
@@ -100,6 +105,7 @@ public class SchemaTreeService {
         private int queryCount;
         private boolean warn;
         private boolean view;
+        private boolean inSchema;
 
         void addQuery(boolean warned) {
             queryCount++;

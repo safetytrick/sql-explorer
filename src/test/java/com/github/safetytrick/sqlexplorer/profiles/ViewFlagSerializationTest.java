@@ -21,12 +21,13 @@ class ViewFlagSerializationTest {
     @Test
     void schemaTreeTableNodeSerializesTheViewFlag() {
         String json = mapper.writeValueAsString(
-            new SchemaTree.TableNode("active_users", 3, 1, false, true));
+            new SchemaTree.TableNode("active_users", 3, 1, false, true, true));
 
         assertThat(json)
             .contains("\"view\":true")
             .contains("\"columnCount\":3")
-            .contains("\"warn\":false");
+            .contains("\"warn\":false")
+            .contains("\"inSchema\":true");
     }
 
     @Test
