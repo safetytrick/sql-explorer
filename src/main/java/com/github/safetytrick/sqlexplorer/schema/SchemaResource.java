@@ -29,6 +29,13 @@ class SchemaResource {
         this.foreignKeyDetailService = foreignKeyDetailService;
     }
 
+    /**
+     * A table the active schema has never heard of answers <em>null</em> — an
+     * empty 200 body, deliberately not a 404. The table lens reads that null as
+     * "no such table" and renders a not-found page; a 404 would reach the client
+     * as a transport error and would be indistinguishable from the backend being
+     * down, which is the one distinction the lens has to keep.
+     */
     @GetMapping("/metadata/table/{schema}/{name}")
     public TableStructure getTableStructure(@PathVariable String schema, @PathVariable("name") String tableName) {
         return sqlSchemaService.getTable(TableReference.newTableReference(schema, tableName));

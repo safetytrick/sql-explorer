@@ -1,21 +1,35 @@
 <div class="view-header">
-  <span class="view-title mono tbl-name">{{table}}</span>
-  @if (isView) {
-    <span class="type-badge" title="this is a view, not a base table">view</span>
-  }
-  <span class="view-sub">{{schema}} · {{columns.length}} columns</span>
-  @if (isView && underlyingTables.length) {
-    <span class="view-sub">over
-      @for (ref of underlyingTables; track ref.schema + '.' + ref.table; let last = $last) {
-        <a class="mono underlying-link" [routerLink]="['/table', ref.schema, ref.table]">{{ref.schema}}.{{ref.table}}</a>@if (!last) {,
+  <span class="view-title mono tbl-name" [class.missing]="notFound()">{{table}}</span>
+  @if (notFound()) {
+    <span class="type-badge b-missing"
+          title="the connected schema has no such table, and no query mentions one">not found</span>
+    <span class="view-sub">{{schema}}</span>
+  } @else {
+    @if (isView) {
+      <span class="type-badge" title="this is a view, not a base table">view</span>
+    }
+    @if (unintrospected()) {
+      <span class="type-badge b-unknown"
+            title="queries reference this table, but the connected schema does not have it — structure is unavailable">not in schema</span>
+    }
+    <span class="view-sub">{{schema}} · {{columns.length}} columns</span>
+    @if (isView && underlyingTables.length) {
+      <span class="view-sub">over
+        @for (ref of underlyingTables; track ref.schema + '.' + ref.table; let last = $last) {
+          <a class="mono underlying-link" [routerLink]="['/table', ref.schema, ref.table]">{{ref.schema}}.{{ref.table}}</a>@if (!last) {,
+          }
         }
-      }
-    </span>
+      </span>
+    }
   }
   <div class="view-actions">
-    <button type="button" class="btn" (click)="toggleCreate()">{{showCreate ? 'hide DDL' : 'show DDL'}}</button>
-    <a class="btn" [routerLink]="['/table', schema, table, 'queries']">Queries ↗</a>
-    <a class="btn" [routerLink]="['/graph', schema]" [queryParams]="{'var-table': table}">Graph ↗</a>
+    @if (notFound()) {
+      <a class="btn" [routerLink]="['/tables', schema]">Tables in {{schema}} ↗</a>
+    } @else {
+      <button type="button" class="btn" (click)="toggleCreate()">{{showCreate ? 'hide DDL' : 'show DDL'}}</button>
+      <a class="btn" [routerLink]="['/table', schema, table, 'queries']">Queries ↗</a>
+      <a class="btn" [routerLink]="['/graph', schema]" [queryParams]="{'var-table': table}">Graph ↗</a>
+    }
   </div>
 </div>
 
@@ -34,6 +48,22 @@
   </div>
 }
 
+<!--
+  A table nothing has heard of gets one card, not the grid. The cards below are
+  affirmative statements — "no foreign keys", "never queried with another
+  table", "no queries reference this table" — and every one of them is a lie
+  about a table that does not exist. Rendering them is the bug; a banner above
+  them would leave it in place.
+-->
+@if (notFound()) {
+  <div class="lens-card not-found">
+    <div class="card-head"><span class="card-head-title">No such table</span></div>
+    <div class="card-empty">
+      <span class="mono">{{schema}}.{{table}}</span> is not in the connected schema, and no query
+      references it. The link that brought you here likely carries a mis-parsed table reference.
+    </div>
+  </div>
+} @else {
 <div class="lens-body">
   <div class="lens-grid">
     <div class="lens-main">
@@ -275,9 +305,13 @@
           <div class="drill-strip">
             <span class="drill-label">filtered to</span>
             @if (drillColumn) {
-              <span class="drill-chip">
+              <span class="drill-chip" [class.warn]="drillColumnUnknown()">
                 column <span class="mono">{{drillColumn}}</span>
-                <span class="dim" title="a column filters a query when it is joined on or used in the criteria">joins / criteria</span>
+                @if (drillColumnUnknown()) {
+                  <span class="warn-note" title="this table has no such column — the reference is probably mis-parsed">not a column of this table</span>
+                } @else {
+                  <span class="dim" title="a column filters a query when it is joined on or used in the criteria">joins / criteria</span>
+                }
               </span>
             }
             @if (joinWith) {
@@ -290,7 +324,12 @@
         @if (queriesLoading) {
           <div class="card-empty">loading queries…</div>
         } @else if (queries.length === 0) {
-          <div class="card-empty">no queries reference this table</div>
+          <!-- with a drill-down active, "reference this table" is the wrong claim -->
+          @if (drillColumn || joinWith) {
+            <div class="card-empty">no queries match this filter</div>
+          } @else {
+            <div class="card-empty">no queries reference this table</div>
+          }
         } @else {
           <div class="query-list">
             @for (hit of queries; track hit.profile.id) {
@@ -348,3 +387,4 @@
     </div>
   </div>
 </div>
+}

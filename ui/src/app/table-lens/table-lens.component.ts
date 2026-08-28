@@ -40,6 +40,21 @@ export class TableLensComponent implements OnInit {
   foreignKeys: ForeignKeyDetail[] = [];
   indexes: TableIndex[] = [];
   isView = false;
+
+  // ── does this table exist? ──
+  /**
+   * `/metadata/table/{s}/{t}` answers a table the connected schema has never
+   * heard of with a **null body**, not a 404 — so `structure === null` is the
+   * source of truth for "no such table", and an HTTP failure stays a separate
+   * thing (`metadataFailed`). Absence must never be inferred from an outage.
+   */
+  private structureResolved = false;
+  private statsResolved = false;
+  /** The metadata call failed outright; nothing can be concluded from it. */
+  metadataFailed = false;
+  /** The connected schema has this table. */
+  private knownToSchema = false;
+
   /** Base tables this view selects from (views only). */
   underlyingTables: { schema: string; table: string }[] = [];
   /** Per-column lineage (views only), keyed by normalized column name. */
@@ -197,23 +212,85 @@ export class TableLensComponent implements OnInit {
     this.isView = false;
     this.underlyingTables = [];
     this.viewLineage = new Map();
-    this.schemaLensService.getTableStats(this.schema, this.table).subscribe(stats => this.stats = stats);
+    // reset the existence verdict too, or navigating table → table renders the
+    // previous table's answer over the new table's pending requests
+    this.structureResolved = false;
+    this.statsResolved = false;
+    this.metadataFailed = false;
+    this.knownToSchema = false;
+    this.schemaLensService.getTableStats(this.schema, this.table).subscribe({
+      next: stats => { this.stats = stats; this.statsResolved = true; },
+      error: () => { this.stats = null; }
+    });
     this.schemaLensService.getTableColumns(this.schema, this.table).subscribe(columns => this.columns = columns);
     this.schemaLensService.getCoQueried(this.schema, this.table).subscribe(coQueried => this.coQueried = coQueried);
     this.schemaLensService.getForeignKeys(this.schema, this.table).subscribe(fks => this.foreignKeys = fks);
     this.schemaLensService.getTableStructure(this.schema, this.table)
-      .subscribe(structure => {
-        this.indexes = structure?.indices || [];
-        this.isView = structure?.type?.toUpperCase() === 'VIEW';
-        // refs arrive as "schema.table" strings; the old object-shaped filter
-        // read undefined on both fields and dropped every one of them
-        this.underlyingTables = (structure?.underlyingTables || [])
-          .map(ref => parseTableRef(ref))
-          .filter((ref): ref is { schema: string; table: string } => !!ref.schema && !!ref.table);
-        this.remarks = structure?.remarks?.trim() || null;
-        this.viewLineage = new Map((structure?.viewColumns || [])
-          .map(column => [column.name.toLowerCase(), column]));
+      .subscribe({
+        next: structure => {
+          this.structureResolved = true;
+          this.knownToSchema = !!structure;
+          this.indexes = structure?.indices || [];
+          this.isView = structure?.type?.toUpperCase() === 'VIEW';
+          // refs arrive as "schema.table" strings; the old object-shaped filter
+          // read undefined on both fields and dropped every one of them
+          this.underlyingTables = (structure?.underlyingTables || [])
+            .map(ref => parseTableRef(ref))
+            .filter((ref): ref is { schema: string; table: string } => !!ref.schema && !!ref.table);
+          this.remarks = structure?.remarks?.trim() || null;
+          this.viewLineage = new Map((structure?.viewColumns || [])
+            .map(column => [column.name.toLowerCase(), column]));
+        },
+        error: () => { this.metadataFailed = true; }
       });
+  }
+
+  /**
+   * Nothing knows this table: the connected schema has no such table *and* no
+   * query has ever referenced it. Both halves are load-bearing — against a
+   * CSV/Parquet source there is no schema to introspect, so a bare
+   * `structure === null` would declare every table in the app missing.
+   *
+   * This rests on `/table/{s}/{t}/stats` answering *zeros* rather than an
+   * error for a table nothing knows: `AnalyzedSqlRepository.getTableQueries`
+   * reads an `ImmutableListMultimap`, whose `get()` on an absent key is an
+   * empty list. If that endpoint ever starts erroring, `statsResolved` stays
+   * false forever and this whole state becomes silently unreachable — the
+   * unit tests flush a synthetic `TableStats` and cannot see it.
+   *
+   * One residual false positive, accepted: a real table in a schema that was
+   * never introspected *and* that no query touches reports not-found. The
+   * conjunction cannot separate it from a table that does not exist, and such
+   * a table is only reachable by a hand-typed or broken URL — the same
+   * population this state exists to serve.
+   */
+  notFound(): boolean {
+    return this.structureResolved && this.statsResolved
+      && !this.knownToSchema && this.stats?.distinctQueries === 0;
+  }
+
+  /**
+   * Referenced by queries but absent from the schema. The structure cards are
+   * empty for a reason here, and saying so beats an unexplained blank.
+   */
+  unintrospected(): boolean {
+    return this.structureResolved && this.statsResolved && !this.knownToSchema && !this.notFound();
+  }
+
+  /**
+   * The `?columns=` drill-down names something this table does not have —
+   * typically a mis-parsed column reference followed in from another page.
+   * Only answerable once the column list is loaded; with no metadata at all
+   * there is nothing to check against, so stay quiet rather than guess.
+   */
+  drillColumnUnknown(): boolean {
+    if (!this.drillColumn || this.columns.length === 0) { return false; }
+    const ref = parseColumnRef(this.drillColumn);
+    const sameTable = ref.table === null || (ref.schema === null
+      ? ref.table.toLowerCase() === this.table.toLowerCase()
+      : tableKey(ref.schema, ref.table) === this.selfKey());
+    if (!sameTable) { return true; }
+    return !this.columns.some(column => column.name.toLowerCase() === ref.column.toLowerCase());
   }
 
   /** Split a lineage source string for display and linking. */

@@ -4,7 +4,7 @@ import {RouterTestingHarness} from '@angular/router/testing';
 import {HttpTestingController} from '@angular/common/http/testing';
 import {TableLensComponent} from './table-lens.component';
 import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
-import {ColumnUsage} from '../schema-lens.service';
+import {ColumnUsage, TableMeta, TableStats} from '../schema-lens.service';
 import {QueryHit} from '../query-search.service';
 
 /**
@@ -159,5 +159,170 @@ describe('TableLensComponent query metrics', () => {
     const element = await openWithHits('/table/app_other/user_profile', [HIT]);
 
     expect(element.querySelector('.query-row-head .badge')!.textContent).toContain('full scan');
+  });
+});
+
+/**
+ * A table that does not exist used to render a complete, normal-looking lens:
+ * empty Columns/Indexes cards and "no queries reference this table", which is
+ * exactly what a real but unused table looks like. `/table/{s}/{t}/{c}` now
+ * redirects here, so a mis-parsed column reference (`app_del.links` arriving as
+ * `/table/app_del/id?columns=app_del.id.id`) lands on that page routinely.
+ *
+ * The signal is `/metadata/table/{s}/{t}` answering with a **null body** — not
+ * a 404 — which is the one thing worth pinning: a 404 would be an HttpClient
+ * error and would collapse "unknown table" into "backend down".
+ */
+describe('TableLensComponent unknown table', () => {
+
+  const STATS: TableStats = {
+    distinctQueries: 0, totalExecutions: 0, totalTimeMs: 0, readExecutions: 0, writeExecutions: 0
+  };
+
+  const STRUCTURE: TableMeta = {
+    indices: [], type: 'TABLE', remarks: null, underlyingTables: null, viewColumns: null
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        ...COMMON_TEST_PROVIDERS,
+        provideRouter([{ path: 'table/:schema/:name', component: TableLensComponent }])
+      ]
+    });
+  });
+
+  /** Answer the two requests the verdict depends on; the rest are left pending. */
+  async function open(url: string, answers: {
+    structure?: TableMeta | null,
+    structureFails?: boolean,
+    stats?: TableStats,
+    columns?: ColumnUsage[]
+  }) {
+    const harness = await RouterTestingHarness.create(url);
+    const http = TestBed.inject(HttpTestingController);
+    if (answers.structureFails) {
+      http.expectOne(request => /metadata\/table\/[^/]+\/[^/]+$/.test(request.url))
+        .flush('boom', { status: 500, statusText: 'Server Error' });
+    } else if (answers.structure !== undefined) {
+      http.expectOne(request => /metadata\/table\/[^/]+\/[^/]+$/.test(request.url))
+        .flush(answers.structure);
+    }
+    if (answers.stats) {
+      http.expectOne(request => request.url.endsWith('/stats')).flush(answers.stats);
+    }
+    if (answers.columns) {
+      http.expectOne(request => request.url.endsWith('/columns')).flush(answers.columns);
+    }
+    harness.detectChanges();
+    return {
+      harness,
+      component: harness.routeDebugElement!.componentInstance as TableLensComponent,
+      element: harness.routeNativeElement!
+    };
+  }
+
+  function column(name: string): ColumnUsage {
+    return {
+      name, roles: ['join'], type: 'int', size: 11, nullable: false, autoIncrement: false,
+      primaryKey: false, foreignKey: false, characterSet: null, collation: null, queries: 3
+    };
+  }
+
+  it('reports not found when the metadata answers null and no query touches the table', async () => {
+    const {component, element} = await open('/table/app_del/id', { structure: null, stats: STATS });
+
+    expect(component.notFound()).toBe(true);
+    expect(element.querySelector('.lens-card.not-found')).toBeTruthy();
+    // the cards that would otherwise make false statements are simply absent
+    expect(element.querySelector('.lens-grid')).toBeNull();
+    expect(element.textContent).not.toContain('no queries reference this table');
+    expect(element.textContent).not.toContain('no foreign keys');
+  });
+
+  /**
+   * Against a CSV/Parquet source there is no schema to introspect, so *every*
+   * table answers null. The query count is the second half of the conjunction
+   * that keeps this from turning the whole app into a not-found page.
+   */
+  it('keeps the page for a table the schema lacks but queries reference', async () => {
+    const {component, element} = await open('/table/app_other/user_profile', {
+      structure: null,
+      stats: { ...STATS, distinctQueries: 7 }
+    });
+
+    expect(component.notFound()).toBe(false);
+    expect(component.unintrospected()).toBe(true);
+    expect(element.querySelector('.lens-grid')).toBeTruthy();
+    expect(element.querySelector('.type-badge.b-unknown')!.textContent).toContain('not in schema');
+  });
+
+  it('does not claim absence while the metadata is still in flight', async () => {
+    const {component, element} = await open('/table/app_other/user_profile', { stats: STATS });
+
+    expect(component.notFound()).toBe(false);
+    expect(element.querySelector('.lens-card.not-found')).toBeNull();
+  });
+
+  /** An outage is not an absence — the metadata failing tells us nothing. */
+  it('does not claim absence when the metadata request fails', async () => {
+    const {component} = await open('/table/app_other/user_profile', { structureFails: true, stats: STATS });
+
+    expect(component.metadataFailed).toBe(true);
+    expect(component.notFound()).toBe(false);
+  });
+
+  it('leaves a real table alone', async () => {
+    const {component} = await open('/table/app_other/user_profile', { structure: STRUCTURE, stats: STATS });
+
+    expect(component.notFound()).toBe(false);
+    expect(component.unintrospected()).toBe(false);
+  });
+
+  it('flags a drill-down naming a column the table does not have', async () => {
+    const {component, element} = await open('/table/app_other/user_profile?columns=app_other.user_profile.nope', {
+      structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
+    });
+
+    expect(component.drillColumnUnknown()).toBe(true);
+    expect(element.querySelector('.drill-chip.warn')!.textContent).toContain('not a column of this table');
+  });
+
+  it('flags a drill-down whose reference belongs to another table', async () => {
+    const {component} = await open('/table/app_other/user_profile?columns=app_other.groups.user_id', {
+      structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
+    });
+
+    expect(component.drillColumnUnknown()).toBe(true);
+  });
+
+  it('accepts a real column whatever its case', async () => {
+    const {component} = await open('/table/app_other/user_profile?columns=app_other.user_profile.USER_ID', {
+      structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
+    });
+
+    expect(component.drillColumnUnknown()).toBe(false);
+  });
+
+  /** With no column list there is nothing to check against, so make no claim. */
+  it('stays quiet about the drill column when no metadata is available', async () => {
+    const {component} = await open('/table/app_other/user_profile?columns=app_other.user_profile.anything', {
+      structure: null, stats: { ...STATS, distinctQueries: 4 }, columns: []
+    });
+
+    expect(component.drillColumnUnknown()).toBe(false);
+  });
+
+  it('says the filter matched nothing rather than blaming the table', async () => {
+    const {harness, element} = await open('/table/app_other/user_profile?columns=app_other.user_profile.user_id', {
+      structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(request => request.url.endsWith('queries/search'))
+      .flush({ total: 0, results: [], facets: { tables: {}, schemas: {} } });
+    harness.detectChanges();
+
+    expect(element.textContent).toContain('no queries match this filter');
+    expect(element.textContent).not.toContain('no queries reference this table');
   });
 });

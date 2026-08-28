@@ -27,7 +27,15 @@
     font-weight: 500;
     background: var(--purple-dim);
     color: var(--purple);
+
+    // the table does not exist at all
+    &.b-missing { background: var(--amber-dim); color: var(--amber); }
+    // queries know it, the schema does not
+    &.b-unknown { background: var(--bg3); color: var(--text3); border: 1px solid var(--border2); }
   }
+
+  // a name that resolves to nothing should not read as a live table link
+  .view-title.missing { color: var(--text3); text-decoration: line-through; }
 
   .underlying-link {
     font-size: 11px;
@@ -103,6 +111,13 @@ td.lineage {
 }
 
 .card-empty { padding: 12px 14px; font-size: 11px; color: var(--text3); }
+
+// this card *is* the page in the not-found state, so it gets a readable
+// measure rather than stretching across a wide monitor
+.lens-card.not-found {
+  max-width: 640px;
+  .card-empty { line-height: 1.7; }
+}
 
 .stat-strip {
   display: grid;
@@ -288,6 +303,11 @@ tr.drillable {
     background: var(--bg3);
     border: 1px solid var(--border);
     color: var(--text2);
+
+    // the filter names a column this table does not have, so the empty list
+    // below is the filter's fault, not the table's
+    &.warn { border-color: var(--amber); }
+    .warn-note { color: var(--amber); }
   }
 
   .drill-clear {
