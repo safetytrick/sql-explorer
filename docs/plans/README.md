@@ -12,7 +12,6 @@ reasoning is in the commit that closed it.
 | [legacy-ui.md](legacy-ui.md)             | Lens migration — one deletion decision left (`TableViewComponent`, `TableGraph*`)                       | S remaining       |
 | [history-rewrite.md](history-rewrite.md) | Scrub older git history (working-tree scrub already done)                                               | S + coordination  |
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
-| [explain-parser.md](explain-parser.md)   | Explain parser — paste formats shipped; **awaiting Michael's testing** (live EXPLAIN option documented) | —                 |
 
 Supporting plan (not tracked as a bead, unscheduled, stands on its own):
 [normalization-versioning.md](normalization-versioning.md). It is less often
@@ -26,6 +25,11 @@ nothing. The repeat-merge work shipped without touching it.
 `TableViewComponent` and `TableGraph*` go, then execute. → **history-rewrite**
 (one coordinated cutover, any time).
 
-**mcp-server** and **explain-parser** sit at the bottom deliberately: both are
-shipped and awaiting Michael's hands-on testing before the items are closed
-(or follow-ups get scheduled).
+**mcp-server** sits at the bottom deliberately: it is shipped and awaiting
+Michael's hands-on testing before the item is closed (or follow-ups get
+scheduled).
+
+The explain-parser plan is gone — `sqlx-mr0` was validated on 2026-08-27 and
+closed, so the plan was deleted per the rule above. Its one unfinished piece,
+running `EXPLAIN` against live servers, is `sqlx-cgh`: a decision rather than
+a task, so it carries no plan doc.
