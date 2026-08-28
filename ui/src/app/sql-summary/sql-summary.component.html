@@ -6,11 +6,11 @@
   </div>
   <div class="metric-row">
     <span class="metric-key">first seen</span>
-    <span class="metric-val">{{query.runtimeMetrics?.firstSeen || '—'}}</span>
+    <span class="metric-val">{{query.runtimeMetrics?.firstSeen ? (query.runtimeMetrics?.firstSeen | date:SEEN_FORMAT) : '—'}}</span>
   </div>
   <div class="metric-row">
     <span class="metric-key">last seen</span>
-    <span class="metric-val">{{query.runtimeMetrics?.lastSeen || '—'}}</span>
+    <span class="metric-val">{{query.runtimeMetrics?.lastSeen ? (query.runtimeMetrics?.lastSeen | date:SEEN_FORMAT) : '—'}}</span>
   </div>
   @if (query.runtimeMetrics; as m) {
     <div class="metric-row">

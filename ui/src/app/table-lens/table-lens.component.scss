@@ -329,7 +329,12 @@ tr.drillable {
 // instead of stretching the grid and pushing the rail off the card.
 .query-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
+  // 210px, not 190: the rail's widest row is "FIRST SEEN" against a timestamp,
+  // which needs 175px of the 177px that 190 left after the 12px padding and
+  // 1px border. That fit was 2px, and `IBM Plex Mono` is not among the fonts
+  // index.html actually loads, so the real advance width varies by machine.
+  // 210 leaves 22px. Measured, not guessed.
+  grid-template-columns: minmax(0, 1fr) 210px;
   gap: 12px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);

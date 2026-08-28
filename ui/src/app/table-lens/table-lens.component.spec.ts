@@ -147,8 +147,10 @@ describe('TableLensComponent query metrics', () => {
 
     expect(metrics.querySelector('app-sql-summary')).toBeTruthy();
     expect(rendered.get('status')).toBe('active');
-    expect(rendered.get('first seen')).toBe('2026-01-02T03:04:05');
-    expect(rendered.get('last seen')).toBe('2026-08-01T00:00:00');
+    // minute precision — the raw LocalDateTime this used to assert was 26
+    // characters and overflowed the 190px rail these metrics sit in
+    expect(rendered.get('first seen')).toBe('2026-01-02 03:04');
+    expect(rendered.get('last seen')).toBe('2026-08-01 00:00');
     expect(rendered.get('executed')).toBe('12,345');
     expect(rendered.get('avg scanned')).toBe('4,321');
     // impact is totalTime — 4e12 ps is 4 seconds, not the 2ms average
