@@ -91,9 +91,20 @@ rule exists to prevent, arriving by the back door.
 `schema_inferred boolean` rides along so a later "why is this attached to that
 group" investigation can tell an asserted schema from a guessed one.
 
-## The parameterization gap — found while implementing, not yet closed
+## The parameterization gap — CLOSED 2026-08-28 (`sqlx-65t`)
 
-> Tracked as **`sqlx-65t`**, which blocks `sqlx-hlu`.
+> **Closed.** Two problems, not one: literals *and* identifier rendering.
+> `QueryParameterizer` reduces literals the way MySQL does (rules measured
+> against a real 8.4.4 via `events_statements_history`), and
+> `IdentifierCanonicalizer` canonicalizes identifier rendering on the way into
+> the hash — because MySQL backticks everything and a human backticks nothing,
+> and jsqlparser preserved both. Verified end to end: a hand-written statement
+> with real values derived the exact digest of the corpus profile it belongs
+> to. Re-keying the corpus merged 3 additional profiles that had differed only
+> in how their identifiers were written.
+>
+> The IN-list divergence recorded below as a possible hard limit is **not** a
+> limit — `IN (...)`, `IN (?, ?, ?)` and `IN (?)` all converge on `IN (?)`.
 
 **`QueryNormalizer` does not strip literals.** Its javadoc is explicit:
 "distinct literals stay distinct". That is correct behaviour, not a bug — the
