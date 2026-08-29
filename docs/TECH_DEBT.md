@@ -15,10 +15,10 @@ will drift._
 >
 > | Promoted | Bead |
 > |---|---|
-> | Cache `getAllAnalyzedSql()` + guard the nullable metrics | `sqlx-2oq` |
-> | Version the normalization scheme | `sqlx-czd` |
-> | Component stylesheets override the global vocabulary | `sqlx-ila` |
-> | Retire the abandoned frontend toolchain corners | `sqlx-n77` |
+> | Cache `getAllAnalyzedSql()` + guard the nullable metrics | `sqlx-czd` |
+> | Version the normalization scheme | `sqlx-2oq` |
+> | Component stylesheets override the global vocabulary | `sqlx-n77` |
+> | Retire the abandoned frontend toolchain corners | `sqlx-ila` |
 >
 > Left unscheduled on purpose: no integration tests, no `@ControllerAdvice`,
 > the two graph stacks, triplicated merge logic, large analyzer classes, the
@@ -128,7 +128,7 @@ has what was here. If something below turns out to be already done, delete it.
   guarded and shows the shape). But measured across 1,000 live profiles, **zero** have a null
   `runtimeMetrics` — `complete()` and `MergedSqlProfile` both populate it. So this is a guard against
   a state the pipeline does not currently produce, not a live crash. Worth fixing because nothing
-  *enforces* that; not worth treating as an emergency. Scheduled as `sqlx-2oq`.
+  *enforces* that; not worth treating as an emergency. Scheduled as `sqlx-czd`.
   Original entry: `runtimeMetrics` is a nullable Avro union
   (`models/src/main/avro/SqlExplorer.avdl:19`). `SqlRepositoryService` guards it in some places (`:143`)
   but dereferences it unguarded at `:98`, `:188`, `:207`, `:238` — the `/table/*`, `/tables`, `/schemas`
@@ -200,7 +200,7 @@ has what was here. If something below turns out to be already done, delete it.
   sql-view), `.lens-card` (table-lens, sql-view), `.view-header` (table-lens, sql-view), `.tri-btn`
   (queries-workbench, table-lens), `.table-scroll` (explain-view, table-lens, sql-view).
   `not-found.component.scss` is the counter-example — it extends `.lens-card` without redeclaring
-  anything. Scheduled as `sqlx-ila`.
+  anything. Scheduled as `sqlx-n77`.
 
 - **MED — Three component stylesheets exceed the 6kB `anyComponentStyle` budget**:
   `queries-workbench` (12.58kB), `sql-view` (7.76kB), `table-lens` (7.62kB). Warning-only — the
@@ -209,7 +209,7 @@ has what was here. If something below turns out to be already done, delete it.
 
 - **NOTE — Normalizer versioning is now due rather than optional.** `docs/plans/normalization-versioning.md`
   was safe to leave unscheduled while no digest was stored durably. `query_example` rows now store
-  one. Scheduled as `sqlx-czd`.
+  one. Scheduled as `sqlx-2oq`.
 
 ## 3. Build, CI, Infra, Config
 
@@ -221,7 +221,7 @@ has what was here. If something below turns out to be already done, delete it.
   `docs/plans/history-rewrite.md` runs. (Working-tree `.env` holds live-looking creds but was never
   committed and is correctly gitignored — rotate if the machine is shared.)
 - **MED — Frontend toolchain has abandoned corners.** Re-verified 2026-08-28, every pin below still
-  present; scheduled as `sqlx-n77`. Note `protractor.conf.js` survives although protractor itself is
+  present; scheduled as `sqlx-ila`. Note `protractor.conf.js` survives although protractor itself is
   no longer a dependency at all. `ui/package.json` still carries `core-js ^2` (EOL),
   `@types/node ^12` (Docker builds on node:22), `@typescript-eslint ^4` + `eslint ^7` (several majors
   behind), and an unbounded `highlight.js ">=9"`. Dead config still committed: `ui/.angular-cli.json`,
