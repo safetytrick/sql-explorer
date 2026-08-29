@@ -59,9 +59,28 @@ public class NormalizedQueryDigest {
      */
     public static String scopedDigest(String sessionSchema, String normalizedForm) {
         String scope = schemaScope(sessionSchema);
-        return Hashing.sha256()
+        String hash = Hashing.sha256()
             .hashString(scope.length() + ":" + scope + "\n" + normalizedForm, StandardCharsets.UTF_8)
             .toString();
+        // Version-prefixed so a digest says which scheme produced it. Two
+        // schemes can then never be compared by accident — the strings differ —
+        // and anything holding a stored digest can tell whether it is stale.
+        return versionPrefix() + hash;
+    }
+
+    /** The prefix every digest this build produces carries. */
+    public static String versionPrefix() {
+        return "v" + QueryNormalizer.VERSION + ":";
+    }
+
+    /**
+     * Whether a stored digest was produced by the scheme this build implements.
+     *
+     * <p>An unprefixed digest is pre-versioning and therefore stale by
+     * definition: it was written before digests said which scheme made them.
+     */
+    public static boolean isCurrentVersion(String digest) {
+        return digest != null && digest.startsWith(versionPrefix());
     }
 
     /**

@@ -56,6 +56,30 @@ import org.springframework.stereotype.Component;
 @Component
 public class QueryNormalizer {
 
+    /**
+     * The normalization scheme's version. <b>Bump this on any change that
+     * alters the serialized output</b>, because the serialized output is what
+     * {@link NormalizedQueryDigest} hashes — so any such change re-keys part of
+     * the corpus, and a digest produced before it is not comparable with one
+     * produced after.
+     *
+     * <table>
+     *   <caption>What each version does</caption>
+     *   <tr><th>v1</th><td>select-item alias stripping</td></tr>
+     *   <tr><th>v2</th><td>+ repeat collapsing (duplicate predicates, CASE arms,
+     *       IN-list elements, batched VALUES rows) and repeat metadata</td></tr>
+     *   <tr><th>v3</th><td>+ identifier rendering canonicalized into the hash —
+     *       backticks dropped and case folded, so MySQL's {@code `id`} and a
+     *       hand-written {@code id} are one query rather than two
+     *       ({@code sqlx-65t})</td></tr>
+     * </table>
+     *
+     * <p>Digests carry this as a {@code v<N>:} prefix, which makes them
+     * self-describing and makes an accidental cross-scheme comparison
+     * impossible — the strings simply differ.
+     */
+    public static final int VERSION = 3;
+
     /** A collapsed block: the kept snippet's serialized form and how often it occurred. */
     public record Repeat(String snippet, int count) { }
 

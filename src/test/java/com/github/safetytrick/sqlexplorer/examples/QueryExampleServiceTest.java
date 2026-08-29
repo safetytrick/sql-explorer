@@ -238,14 +238,27 @@ class QueryExampleServiceTest {
 
     /**
      * Hibernate decides insert-versus-update from a null id, and this id is
-     * never null. Without {@code Persistable.isNew()} the first save would
-     * attempt an update against a row that does not exist.
+     * never null, so a freshly built example must report itself new or the
+     * first save is an UPDATE against a row that does not exist.
      */
     @Test
-    void isAlwaysNewSoAPrePopulatedIdStillInserts() {
+    void aFreshlyBuiltExampleIsNewSoAPrePopulatedIdStillInserts() {
         QueryExample example = service.create("select id from members", "app", null).stored();
 
         assertThat(example.isNew()).isTrue();
+    }
+
+    /**
+     * ...and one that came from the database is NOT new, or saving it back
+     * inserts a duplicate primary key. This is what the digest replay does, and
+     * an unconditional `isNew() == true` made it fail on every row.
+     */
+    @Test
+    void anExampleLoadedFromTheDatabaseIsNotNew() {
+        QueryExample loaded = new QueryExample();
+        loaded.markPersisted();
+
+        assertThat(loaded.isNew()).isFalse();
     }
 
     private static String uuidBytes(java.util.UUID uuid) {

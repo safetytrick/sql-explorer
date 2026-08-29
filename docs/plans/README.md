@@ -14,11 +14,15 @@ reasoning is in the commit that closed it.
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
 | [query-examples.md](query-examples.md)   | Capture example queries with their parameters (`sqlx-hlu`) — design done, scope question open           | S–M / M–L         |
 
-Supporting plan (not tracked as a bead, unscheduled, stands on its own):
-[normalization-versioning.md](normalization-versioning.md). It is less often
-a prerequisite than it looks — normalizer `VERSION` governs digest identity,
-so surfacing already-computed data behind a defaulted Avro field re-keys
-nothing. The repeat-merge work shipped without touching it.
+[normalization-versioning.md](normalization-versioning.md) is **partly done**
+(`sqlx-2oq`, 2026-08-28): `QueryNormalizer.VERSION` exists, digests are
+`v<N>:<sha256>`, and stored query examples replay their digests on startup when
+the scheme moves. It stopped being optional the moment `query_example` began
+storing digests durably — until then the corpus recomputed on every load and
+was single-version by construction, which is how the scheme changed twice
+without anyone needing this. Still outstanding from that plan: the
+`SqlProfile.normalizerVersion` Avro field, and the tag-path migration (moot
+today — there are no digest-keyed tags).
 
 ## Suggested order
 

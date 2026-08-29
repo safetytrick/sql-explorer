@@ -95,14 +95,30 @@ class QueryExample implements Persistable<UUID> {
 
     /**
      * Hibernate decides insert-versus-update by whether the id is null, and this
-     * id never is — it is generated before the entity is saved. Without this the
-     * first {@code save()} issues a SELECT and then an UPDATE that matches no
-     * row. Every instance this application constructs is new; nothing here loads
-     * an example and saves it back.
+     * id never is — it is generated before the entity is saved — so without
+     * {@link Persistable} the first {@code save()} would issue an UPDATE that
+     * matches no row.
+     *
+     * <p>This returned an unconditional {@code true} at first, with a note that
+     * nothing loads an example and saves it back. That was true when written and
+     * stopped being true the moment {@code QueryExampleDigestReplay} needed to
+     * re-key stored rows: an always-new entity issues an INSERT for a row that
+     * already exists, which fails on the primary key. {@code @PostLoad} is what
+     * makes the answer honest — an instance Hibernate handed us came from the
+     * database and is not new.
      */
+    @Transient
+    private boolean persisted;
+
+    @jakarta.persistence.PostLoad
+    @jakarta.persistence.PostPersist
+    void markPersisted() {
+        this.persisted = true;
+    }
+
     @Transient
     @Override
     public boolean isNew() {
-        return true;
+        return !persisted;
     }
 }
