@@ -23,6 +23,7 @@ import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.c
 import {GraphLensComponent} from './graph-lens/graph-lens.component';
 import {TagManagerComponent} from './tag-manager/tag-manager.component';
 import {NotFoundComponent} from './not-found/not-found.component';
+import {carryScope} from './scope-url';
 
 /**
  * `/table/{schema}/{table}/{column}` → the table lens with that column drilled
@@ -85,7 +86,7 @@ export const tableJoinRedirect: RedirectFunction = route => {
   });
 };
 
-export const appRoutes: Routes = [
+const routes: Routes = [
   {
     path: 'queries',
     component: QueriesWorkbenchComponent,
@@ -251,3 +252,22 @@ export const appRoutes: Routes = [
   }
 
 ];
+
+/**
+ * Every route carries {@link carryScope}, applied here rather than written on
+ * each of the 28 entries.
+ *
+ * <p>That is a deliberate choice against explicitness: a route added later
+ * without the guard would silently drop the working scope, which is the exact
+ * failure the guard exists to prevent and the kind nothing would catch. There
+ * is no route for which carrying the scope is wrong.
+ *
+ * <p>Redirect routes are skipped because Angular refuses the pairing outright
+ * — NG04014, "redirectTo and canActivate cannot be used together. Redirects
+ * happen before guards are executed." Nothing is lost: a redirect resolves to
+ * another route in this same list, which carries the guard, so the scope is
+ * restored at the destination. The two redirects that build their own target
+ * URL already forward the query string explicitly.
+ */
+export const appRoutes: Routes = routes.map(route =>
+  route.redirectTo === undefined ? {...route, canActivate: [carryScope]} : route);

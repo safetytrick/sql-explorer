@@ -7,8 +7,9 @@ import {EnvironmentService} from '../environment.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
 import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, graphOwnedParamPatch, GraphSource} from './graph-url';
-import {tableKey} from '../query-scope.service';
+import {SchemaTagScope, tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
+import {scopeOf} from '../scope-url';
 
 const NW = 130;
 const NH = 44;
@@ -133,6 +134,16 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     // schema mode without a schema: loadSchemas() picks a default and loads
   }
 
+  /** Drawn node count — the observable result of scoping, for tests. */
+  get nodeCount(): number {
+    return this.nodes.length;
+  }
+
+  /** @see scopeKey — exposed so a spec can assert a scope change is detected. */
+  get scopeKeyForTest(): string {
+    return this.scopeKey();
+  }
+
   private scopeKey(): string {
     if (this.mode === 'search') {
       // the search params are the scope — normalize through the codec so
@@ -140,7 +151,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       const search = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
       return 'search|' + JSON.stringify(search);
     }
-    return `${this.mode}|${this.tag ?? ''}|${this.mode === 'schema' ? this.schema : ''}`;
+    // the travelling scope narrows what is drawn in every mode, so a change to
+    // it is a scope change — leave it out and arriving at the same schema with
+    // `system` newly excluded would redraw the old, unfiltered graph
+    const scope = JSON.stringify(scopeOf(this.route.snapshot.queryParams));
+    return `${this.mode}|${this.tag ?? ''}|${this.mode === 'schema' ? this.schema : ''}|${scope}`;
   }
 
   /**
@@ -241,9 +256,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       : this.schema ? this.schemaLensService.getSchemaGraph(this.schema) : null;
     if (!source) { return; }
     this.loading = true;
-    source.subscribe({
-      next: graph => {
-        this.buildLayout(graph);
+    // the search path filters server-side; these two do not, so the scope is
+    // applied to what comes back. Without this, excluding `system` on /tables
+    // and clicking through to a graph would bring the system tables straight
+    // back — one parameter, two answers.
+    forkJoin({ graph: source, scope: this.tagScope$() }).subscribe({
+      next: ({ graph, scope }) => {
+        this.buildLayout(this.scoped(graph, scope));
         this.loading = false;
         this.resetView();
       },
@@ -257,33 +276,70 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * intent, so resolve it against the live tag map exactly like the tree
    * does, then post the assembled request.
    */
-  private loadSearchGraph() {
-    const state = decodeSearchParams(this.route.snapshot.queryParamMap);
-    const filter = state.schemaTagFilter;
-    // exclusion reaches tagged tables as well as tagged schemas, so a shared
-    // link has to resolve both halves — otherwise the same params mean one
-    // thing on /queries and another here
+  /**
+   * The schema-tag filter resolved against live tag data.
+   *
+   * <p>Shared by both load paths deliberately. `?schemaTagsExclude=` travels
+   * across navigations (see `scope-url.ts`), so it can arrive on any graph —
+   * and it has to mean here exactly what it means on `/queries`, or the same
+   * link describes two different working sets. Resolving it in one place is
+   * what keeps that true.
+   *
+   * <p>Exclusion reaches tagged tables as well as tagged schemas, which is why
+   * the table half is resolved too.
+   */
+  private tagScope$() {
+    const filter = decodeSearchParams(this.route.snapshot.queryParamMap).schemaTagFilter;
+    if (!filter.includeTags.length && !filter.excludeTags.length) {
+      return of(UNCONSTRAINED_TAG_SCOPE);
+    }
     const tablesByTag$ = filter.excludeTags.length
       ? forkJoin(filter.excludeTags.map(tag => this.analyzedSqlService.getTablesByTag(tag))).pipe(
           map(perTag => new Map<string, string[]>(filter.excludeTags.map((tag, index) =>
             [tag, perTag[index].map(table => tableKey(table.schema, table.name))]))))
       : of(new Map<string, string[]>());
-    const tagScope$ = filter.includeTags.length || filter.excludeTags.length
-      ? this.schemaLensService.getSchemaTree().pipe(switchMap(tree => {
-          const names = tree.schemas.map(schema => schema.name.toLowerCase());
-          const paths = tree.schemas.map(schema => '/schema/' + schema.name);
-          return forkJoin({
-            byPath: this.analyzedSqlService.getTagsForPaths(paths),
-            tablesByTag: tablesByTag$
-          }).pipe(map(({ byPath, tablesByTag }) => {
-            const tagsBySchema = new Map<string, string[]>(tree.schemas.map(schema =>
-              [schema.name.toLowerCase(), (byPath['/schema/' + schema.name] ?? []).map(tag => tag.name)]));
-            return resolveSchemaTagScope(names, tagsBySchema, filter, tablesByTag);
-          }));
-        }))
-      : of(UNCONSTRAINED_TAG_SCOPE);
+    return this.schemaLensService.getSchemaTree().pipe(switchMap(tree => {
+      const names = tree.schemas.map(schema => schema.name.toLowerCase());
+      const paths = tree.schemas.map(schema => '/schema/' + schema.name);
+      return forkJoin({
+        byPath: this.analyzedSqlService.getTagsForPaths(paths),
+        tablesByTag: tablesByTag$
+      }).pipe(map(({ byPath, tablesByTag }) => {
+        const tagsBySchema = new Map<string, string[]>(tree.schemas.map(schema =>
+          [schema.name.toLowerCase(), (byPath['/schema/' + schema.name] ?? []).map(tag => tag.name)]));
+        return resolveSchemaTagScope(names, tagsBySchema, filter, tablesByTag);
+      }));
+    }));
+  }
+
+  /**
+   * Drop the nodes the scope puts outside the working set.
+   *
+   * <p>Applied to the drawn graph rather than the request because the schema
+   * and tag endpoints take no filter — and it needs no new endpoint, since
+   * `buildLayout` already discards edges whose endpoints it cannot resolve.
+   * Removing a node removes its edges for free.
+   */
+  private scoped(graph: GraphV2, scope: SchemaTagScope): GraphV2 {
+    const excludedSchemas = new Set(scope.excludedSchemas.map(name => name.toLowerCase()));
+    const excludedTables = new Set(scope.excludedTables);
+    const included = scope.includedSchemas === null
+      ? null : new Set(scope.includedSchemas.map(name => name.toLowerCase()));
+    return {
+      ...graph,
+      nodes: graph.nodes.filter(node => {
+        const schema = (node.schema ?? '').toLowerCase();
+        if (excludedSchemas.has(schema)) { return false; }
+        if (excludedTables.has(tableKey(node.schema, node.table))) { return false; }
+        return included === null || included.has(schema);
+      })
+    };
+  }
+
+  private loadSearchGraph() {
+    const state = decodeSearchParams(this.route.snapshot.queryParamMap);
     this.loading = true;
-    tagScope$.pipe(switchMap(tagScope =>
+    this.tagScope$().pipe(switchMap(tagScope =>
       this.schemaLensService.getSearchGraph(buildSearchRequest(state, tagScope, { limit: null, offset: null }))
     )).subscribe({
       next: graph => {

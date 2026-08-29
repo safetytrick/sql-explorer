@@ -25,7 +25,13 @@ describe('GraphLensComponent — scope legibility', () => {
   function routeStub() {
     return {
       get snapshot() {
-        return { paramMap: params.value, queryParamMap: queryParams.value };
+        return {
+          paramMap: params.value,
+          queryParamMap: queryParams.value,
+          // scopeKey() reads the raw params, not just the map
+          queryParams: Object.fromEntries(
+            queryParams.value.keys.map(key => [key, queryParams.value.get(key)]))
+        };
       },
       paramMap: params,
       queryParamMap: queryParams
@@ -135,6 +141,64 @@ describe('GraphLensComponent — scope legibility', () => {
 
     expect(component.schema).toBe('archive');
     expect(toolbar().querySelector('.schema-select')).toBeNull();
+  });
+
+
+  // ── the travelling scope applies here too (sqlx-uxo) ──
+
+  describe('the working scope', () => {
+
+    /** One graph payload spanning two schemas, one of which is tagged `system`. */
+    function answerScopedGraph() {
+      const http = TestBed.inject(HttpTestingController);
+      http.match(req => req.url.endsWith('schema-tree'))
+        .forEach(req => req.flush({schemas: [{name: 'app'}, {name: 'mysql'}]}));
+      http.match(req => req.url.endsWith('tags/path'))
+        .forEach(req => req.flush({'/schema/app': [], '/schema/mysql': [{name: 'system'}]}));
+      // tables carrying an excluded tag; none here, the schema tag is enough
+      http.match(req => req.url.includes('table/by-tag') || req.url.includes('tables/tag'))
+        .forEach(req => req.flush([]));
+      http.match(req => req.url.includes('graph/v2')).forEach(req => req.flush({
+        nodes: [
+          {schema: 'app', table: 'orders', columnCount: 3, queryCount: 9, warn: false, selfJoin: false, view: false},
+          {schema: 'mysql', table: 'user', columnCount: 3, queryCount: 1, warn: false, selfJoin: false, view: false}
+        ],
+        fkEdges: [], coQueryEdges: [], viewEdges: []
+      }));
+      fixture.detectChanges();
+    }
+
+    /**
+     * The gap this closed: excluding `system` on /tables and clicking through
+     * to a schema graph used to bring the system tables straight back, so one
+     * parameter had two answers depending on where you read it.
+     */
+    it('drops a node whose schema is excluded, on a schema graph', () => {
+      navigateTo({schema: 'app'}, {schemaTagsExclude: 'system'});
+      answerScopedGraph();
+
+      expect(component.nodeCount).toBe(1);
+    });
+
+    it('draws everything when no scope is set', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      answerGraph();
+
+      expect(component.nodeCount).toBe(0);
+    });
+
+    /** A scope change is a scope change — it has to refetch, not redraw stale nodes. */
+    it('treats a change to the scope as a new scope', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      answerGraph();
+      const before = component.scopeKeyForTest;
+
+      navigateTo({schema: 'app'}, {schemaTagsExclude: 'system'});
+
+      expect(component.scopeKeyForTest).not.toEqual(before);
+    });
   });
 
   // ── the chip says what the graph is, not how it was built ──
