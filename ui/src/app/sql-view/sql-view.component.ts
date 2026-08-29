@@ -105,6 +105,17 @@ export class SqlViewComponent implements OnInit {
 
   // ── performance strip ──
 
+  /**
+   * Column types for every table this query touches, flattened, to type the
+   * example form's inputs. `typeName` is the database's own spelling
+   * (VARCHAR, BIGINT, DATETIME) rather than the JDBC enum, which is what the
+   * form matches on.
+   */
+  get exampleColumnTypes(): { name: string; type: string }[] {
+    return this.tables.flatMap(table => (table.columns || [])
+      .map(column => ({name: column.columnName, type: column.typeName || column.type})));
+  }
+
   get metrics() {
     return this.query?.runtimeMetrics ?? null;
   }

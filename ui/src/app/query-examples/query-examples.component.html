@@ -9,15 +9,85 @@
 
   @if (open) {
     <div class="add-form">
-      <p class="form-note">
-        The corpus stores this query with its values stripped, which is why it cannot be run.
-        Paste a real statement — parameters and all — and the server works out which query it
-        belongs to by normalizing it. You do not tell it; it derives it.
-      </p>
+      @if (!pasteMode) {
+        <p class="form-note">
+          Fill in this query's own values. Everything else stays exactly as the query is,
+          so what you save belongs to <em>this</em> query rather than landing somewhere else.
+        </p>
 
-      <textarea class="draft" rows="5" [(ngModel)]="draft"
-                placeholder="select id from orders where total > 100"
-                [disabled]="submitting"></textarea>
+        <div class="placeholders">
+          @for (placeholder of placeholders; track placeholder.offset) {
+            <div class="placeholder">
+              <span class="ph-col mono">{{placeholder.column || '?'}}</span>
+              <span class="ph-type">{{placeholder.columnType || 'unknown'}}</span>
+
+              @switch (placeholder.kind) {
+                @case ('list') {
+                  <!-- the corpus renders every IN as `IN (?)`, so how many
+                       elements the real statement had is not recorded — choosing
+                       it here chooses which performance shape this example is -->
+                  <div class="ph-list">
+                    @for (value of placeholder.values; track trackByIndex($index); let i = $index) {
+                      <div class="ph-list-row">
+                        <input type="text" [(ngModel)]="placeholder.values[i]"
+                               [ngModelOptions]="{standalone: true}" [disabled]="submitting">
+                        <button type="button" class="ph-drop" (click)="removeListValue(placeholder, i)"
+                                title="remove">×</button>
+                      </div>
+                    }
+                    <button type="button" class="ph-add" (click)="addListValue(placeholder)">+ value</button>
+                  </div>
+                }
+                @case ('date') {
+                  <input type="date" [(ngModel)]="placeholder.value"
+                         [ngModelOptions]="{standalone: true}" [disabled]="submitting">
+                }
+                @case ('datetime') {
+                  <input type="datetime-local" [(ngModel)]="placeholder.value"
+                         [ngModelOptions]="{standalone: true}" [disabled]="submitting">
+                }
+                @case ('time') {
+                  <input type="time" [(ngModel)]="placeholder.value"
+                         [ngModelOptions]="{standalone: true}" [disabled]="submitting">
+                }
+                @case ('number') {
+                  <input type="number" [(ngModel)]="placeholder.value"
+                         [ngModelOptions]="{standalone: true}" [disabled]="submitting">
+                }
+                @default {
+                  <input type="text" [(ngModel)]="placeholder.value"
+                         [ngModelOptions]="{standalone: true}" [disabled]="submitting">
+                }
+              }
+            </div>
+          }
+        </div>
+
+        <div class="preview">
+          <div class="preview-label">what will be saved</div>
+          <pre class="mono">{{preview}}</pre>
+        </div>
+
+        <button type="button" class="link-btn" (click)="usePaste(true)">
+          I already have a statement — paste it instead
+        </button>
+      } @else {
+        <p class="form-note">
+          Paste a real statement — parameters and all. The server works out which query it
+          belongs to by normalizing it; you do not tell it, it derives it. If it turns out to
+          belong to a different query, this panel will say so rather than filing it here.
+        </p>
+
+        <textarea class="draft" rows="5" [(ngModel)]="draft"
+                  placeholder="select id from orders where total > 100"
+                  [disabled]="submitting"></textarea>
+
+        @if (placeholders.length) {
+          <button type="button" class="link-btn" (click)="usePaste(false)">
+            back to filling in this query's values
+          </button>
+        }
+      }
 
       <input class="description" type="text" [(ngModel)]="description"
              placeholder="where this came from (optional)" [disabled]="submitting">
@@ -44,7 +114,7 @@
 
       <div class="form-actions">
         <button type="button" class="btn primary" (click)="submit()"
-                [disabled]="!draft.trim() || submitting">
+                [disabled]="submitting || (pasteMode ? !draft.trim() : !formComplete)">
           {{submitting ? 'saving…' : 'save example'}}
         </button>
       </div>

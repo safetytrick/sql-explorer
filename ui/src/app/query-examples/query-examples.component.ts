@@ -5,6 +5,9 @@ import {Highlight} from 'ngx-highlightjs';
 import {HttpErrorResponse} from '@angular/common/http';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ExplainResult, QueryExample, QueryExampleRejected} from '../api-types';
+import {
+  buildStatement, ColumnType, isComplete, Placeholder, readPlaceholders
+} from './placeholder-form';
 
 /**
  * Newest first.
@@ -52,11 +55,34 @@ export class QueryExamplesComponent implements OnInit {
   /** The digest of the query this panel is showing examples for. */
   @Input({required: true}) digest!: string;
 
+  /**
+   * The query's own text, with its `?` placeholders — what the form is built
+   * from. Without it the panel falls back to the paste box.
+   */
+  @Input() queryText: string | null = null;
+
+  /** Column types for the tables this query touches, to type the inputs. */
+  @Input() columnTypes: ColumnType[] = [];
+
   examples: QueryExample[] = [];
   loading = true;
 
   // ── the form ──
   open = false;
+
+  /**
+   * Placeholders read off {@link queryText}. The primary way to add an example:
+   * everything but the values is fixed, so what it builds normalizes back to
+   * this page's digest rather than drifting somewhere else the way a paste can.
+   */
+  placeholders: Placeholder[] = [];
+
+  /**
+   * The paste box, kept as the fallback for when someone already has a
+   * statement — or when the query has no placeholders to fill, or its text
+   * could not be read.
+   */
+  pasteMode = false;
   draft = '';
   description = '';
   submitting = false;
@@ -100,16 +126,54 @@ export class QueryExamplesComponent implements OnInit {
 
   toggleForm() {
     this.open = !this.open;
-    if (!this.open) { this.resetForm(); }
+    if (this.open) {
+      this.placeholders = this.queryText ? readPlaceholders(this.queryText, this.columnTypes) : [];
+      // nothing to fill in means the form has nothing to offer; the paste box
+      // is the only useful control, so go straight to it
+      this.pasteMode = this.placeholders.length === 0;
+    } else {
+      this.resetForm();
+    }
+  }
+
+  /** Switch between filling the query's own placeholders and pasting a statement. */
+  usePaste(paste: boolean) {
+    this.pasteMode = paste;
+    this.rejected = null;
+  }
+
+  /** The statement the filled form currently describes, for the preview. */
+  get preview(): string {
+    return this.queryText ? buildStatement(this.queryText, this.placeholders) : '';
+  }
+
+  get formComplete(): boolean {
+    return this.placeholders.length > 0 && isComplete(this.placeholders);
+  }
+
+  addListValue(placeholder: Placeholder) {
+    placeholder.values.push('');
+  }
+
+  removeListValue(placeholder: Placeholder, index: number) {
+    placeholder.values.splice(index, 1);
+    if (placeholder.values.length === 0) { placeholder.values.push(''); }
+  }
+
+  /** ngModel needs a stable identity per row; the index is it. */
+  trackByIndex(index: number): number {
+    return index;
   }
 
   submit() {
-    if (!this.draft.trim() || this.submitting) { return; }
+    // the form builds the statement; the paste box supplies one directly
+    const statement = this.pasteMode ? this.draft : this.preview;
+    if (!statement.trim() || this.submitting) { return; }
     this.submitting = true;
     this.rejected = null;
     this.storedElsewhere = null;
 
-    this.sqlService.createQueryExample(this.draft, this.chosenSchema, this.description).subscribe({
+    this.sqlService.createQueryExample(statement, this.chosenSchema, this.description).subscribe({
       next: example => {
         this.submitting = false;
         if (example.normalizedDigest === this.digest) {
@@ -187,6 +251,8 @@ export class QueryExamplesComponent implements OnInit {
   }
 
   private resetForm() {
+    this.placeholders = this.queryText ? readPlaceholders(this.queryText, this.columnTypes) : [];
+    this.pasteMode = this.placeholders.length === 0;
     this.draft = '';
     this.description = '';
     this.chosenSchema = null;

@@ -39,8 +39,14 @@ describe('QueryExamplesComponent', () => {
     fixture.detectChanges();
   }
 
+  /**
+   * Drives the paste path, which these cases are about. It is the fallback now
+   * — the form over the query's own placeholders is primary — so a test that
+   * wants to paste has to say so.
+   */
   function submit(statement: string): void {
     component.open = true;
+    component.usePaste(true);
     component.draft = statement;
     component.submit();
   }
@@ -72,6 +78,69 @@ describe('QueryExamplesComponent', () => {
    * asynchronously, so the text is not in the DOM synchronously. The SQL card
    * above renders the same way for the same reason.
    */
+  // ── the form over the query's own placeholders ──
+
+  describe('building an example from the query itself', () => {
+
+    /** The whole reason the form beats pasting: it cannot drift to another query. */
+    it('submits the query text with its placeholders filled in', () => {
+      fixture.componentRef.setInput('queryText', 'select id from orders where total > ? and name = ?');
+      fixture.componentRef.setInput('columnTypes', [{name: 'total', type: 'INT'}, {name: 'name', type: 'VARCHAR'}]);
+      openWith([]);
+
+      component.toggleForm();
+      component.placeholders[0].value = '100';
+      component.placeholders[1].value = 'bob';
+      component.submit();
+
+      const request = http.expectOne(req => req.method === 'POST' && req.url.endsWith('query-examples'));
+      expect(request.request.body.queryText)
+        .toBe('select id from orders where total > 100 and name = \'bob\'');
+      request.flush(example());
+    });
+
+    it('types the inputs from the schema', () => {
+      fixture.componentRef.setInput('queryText', 'select a from t where created_on > ? and id in (?)');
+      fixture.componentRef.setInput('columnTypes', [{name: 'created_on', type: 'DATETIME'}, {name: 'id', type: 'BIGINT'}]);
+      openWith([]);
+
+      component.toggleForm();
+
+      expect(component.placeholders.map(p => p.kind)).toEqual(['datetime', 'list']);
+    });
+
+    it('will not submit until every placeholder is filled', () => {
+      fixture.componentRef.setInput('queryText', 'select a from t where x = ? and y = ?');
+      openWith([]);
+      component.toggleForm();
+
+      expect(component.formComplete).toBeFalse();
+      component.placeholders[0].value = '1';
+      expect(component.formComplete).toBeFalse();
+      component.placeholders[1].value = '2';
+      expect(component.formComplete).toBeTrue();
+    });
+
+    /** Nothing to fill means the form has nothing to offer. */
+    it('goes straight to the paste box when the query has no placeholders', () => {
+      fixture.componentRef.setInput('queryText', 'select count(*) from orders');
+      openWith([]);
+
+      component.toggleForm();
+
+      expect(component.placeholders).toHaveSize(0);
+      expect(component.pasteMode).toBeTrue();
+    });
+
+    it('falls back to the paste box when the query text is unavailable', () => {
+      openWith([]);
+
+      component.toggleForm();
+
+      expect(component.pasteMode).toBeTrue();
+    });
+  });
+
   it('lists the examples it is given', () => {
     openWith([example({queryText: 'select 1'})]);
 
