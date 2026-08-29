@@ -28,3 +28,9 @@ mcp/node_modules/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Design canvas working files. The artboards are authored here and published
+# to a Claude artifact; the published page embeds its own editor and is ~2.5MB,
+# so neither it nor its sources belong in the repo. Findings that matter get
+# written up in docs/plans/ instead.
+.design/
