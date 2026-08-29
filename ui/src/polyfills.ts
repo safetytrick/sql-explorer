@@ -38,9 +38,12 @@
 // import 'core-js/es6/reflect';
 
 
-/** Evergreen browsers require these. **/
-// Used for reflect-metadata in JIT. If you use AOT (and only Angular decorators), you can remove.
-import 'core-js/es7/reflect';
+/**
+ * `core-js/es7/reflect` used to be imported here. Its own comment said it was
+ * for reflect-metadata under JIT and removable under AOT — Angular has been
+ * AOT-only since Ivy, so it was polyfilling for a compiler this project has
+ * not used in years, on core-js 2 paths that core-js 3 does not have.
+ */
 
 
 
