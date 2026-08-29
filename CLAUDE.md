@@ -30,7 +30,6 @@ npm run build               # Production build
 npm run lint                # Run eslint (eslint src --ext .ts)
 npm run test:ci             # Karma/Jasmine unit tests, headless, single run
 ng test                     # Same, in watch mode
-npm run e2e                 # Run Playwright e2e tests
 ```
 
 ### The gate before pushing
