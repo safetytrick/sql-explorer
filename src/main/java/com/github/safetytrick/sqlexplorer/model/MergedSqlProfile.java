@@ -11,6 +11,69 @@ import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.MergedChild;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 
+/**
+ * One query, seen through several Performance Schema digests.
+ *
+ * <h2>What a merge group is</h2>
+ *
+ * <p>Members share a {@code normalizedDigest} and differ in their MySQL
+ * digest. That is the whole membership rule, and it is what makes the
+ * aggregation policy below answerable rather than arbitrary: MySQL sees two
+ * statements, our normalization sees one, and the group exists to put the two
+ * MySQL rows back together.
+ *
+ * <p>Concretely, the normalization strips select-item aliases, so Hibernate
+ * emitting {@code AS id92_0_} on one revision and {@code AS id93_0_} on the
+ * next produces two MySQL digests for a query that is the same query. It also
+ * collapses repeated blocks — see the caveat below, which is the one place
+ * this gets interesting.
+ *
+ * <h2>Why the getters split the way they do</h2>
+ *
+ * <p>Two rules, and which applies follows from what the field describes:
+ *
+ * <ul>
+ *   <li><b>Delegate to {@link #first()}</b> for anything that describes the
+ *       <em>query</em>. Members are the same statement shape, so they agree:
+ *       the tables are the same tables, the columns the same columns,
+ *       {@code isDml} the same answer. Asking the representative is not a
+ *       shortcut, it is the correct answer — and asking every member and
+ *       reconciling them would invent a disagreement that cannot exist.</li>
+ *   <li><b>Aggregate across the group</b> for anything that describes an
+ *       <em>observation</em>. Execution counts, timings and first/last seen are
+ *       per-MySQL-digest facts, and the group's answer is their sum or extreme.
+ *       {@link #getSourcedFiles()} is the same shape: which files contributed
+ *       is a fact about the group, not about the query.</li>
+ * </ul>
+ *
+ * <p>{@code modifiedForAnalysis} unions rather than delegating, which looks
+ * inconsistent with the first rule and is not: it records whether the
+ * <em>input text</em> had to be rewritten before parsing, which is a property
+ * of each captured row rather than of the query.
+ *
+ * <h2>The caveat: merged does not mean equally fast</h2>
+ *
+ * <p>Repeat collapsing means two statements with genuinely different runtime
+ * behaviour can land in one group. Measured:
+ *
+ * <pre>
+ *   WHERE id IN (?, ?, ?)          and  WHERE id IN (?)           → one digest
+ *   INSERT … VALUES (?,?),(?,?),(?,?)  and  INSERT … VALUES (?,?) → one digest
+ * </pre>
+ *
+ * <p>IN-list cardinality and batch size are first-order performance factors, so
+ * a group's aggregate metrics can average a cheap statement with an expensive
+ * one. The collapsed blocks are recorded as {@code repeatedBlocks} with their
+ * occurrence counts, so the information is not lost — but it is per-member, and
+ * nothing today shows its spread across a group.
+ *
+ * <p>Note what does <em>not</em> cause this, because it is the intuitive guess:
+ * differing select lists do not merge. {@code SELECT a} and {@code SELECT a, b}
+ * normalize distinctly, so a query covered by an index is not merged with one
+ * that selects past it. Only aliases are stripped, and an alias cannot change a
+ * plan. See {@code sqlx-6v1} for a digest variant that would surface
+ * the cardinality spread.
+ */
 public class MergedSqlProfile extends SqlProfile {
 
     private List<SqlProfile> sourceList;

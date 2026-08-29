@@ -592,6 +592,13 @@ public class SqlEvidenceInputService {
             }
         }
 
+        /** The indexed profiles in index order, for the ordering-invariant test. */
+        List<SqlProfile> profilesForTest() {
+            synchronized (lock) {
+                return List.copyOf(sqlProfiles);
+            }
+        }
+
         int parquetRowCount() {
             synchronized (lock) {
                 return parquetRows.size();

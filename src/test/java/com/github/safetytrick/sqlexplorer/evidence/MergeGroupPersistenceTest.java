@@ -139,6 +139,47 @@ class MergeGroupPersistenceTest {
      * and repeats already computed, which is the ordering change that makes a
      * child's counts recordable at all.
      */
+    /**
+     * The ordering invariant `index()` provides, pinned so a regression is loud.
+     *
+     * <p>`MergedSqlProfile` delegates almost everything to `first()`, and
+     * `mergeByDigest` groups in list order — so "the representative is first in
+     * the profile list" is load-bearing. It used not to be guaranteed: `index()`
+     * published to the digest map outside the lock and added to the list inside
+     * it, so a child could reach the list ahead of the representative it merged
+     * into. Both publications now happen under one lock.
+     *
+     * <p>This is the failure signal for that. Without it, reopening the window
+     * shows up as a flipped representative and a vanished "×N variants"
+     * expander — a symptom far from its cause. Note the assertion is on order,
+     * not on the lock: it pins what callers depend on rather than how it is
+     * currently achieved.
+     */
+    @Test
+    void theRepresentativeIsFirstInTheProfileList() {
+        SqlRepositoryBuilder repository = new SqlRepositoryBuilder(new TestSource());
+
+        SqlProfile.Builder first = profile("digest-a", 100L, 3);
+        assertThat(repository.attemptMerge(NORMALIZED_DIGEST, first)).isFalse();
+        SqlProfile representative = first.completeBuild("tdb");
+        repository.addToIndex(representative);
+
+        // a child folds into the representative and is never indexed itself,
+        // which is what keeps the ordering true
+        assertThat(repository.attemptMerge(NORMALIZED_DIGEST, profile("digest-b", 5L, 2))).isTrue();
+
+        // an unrelated profile, indexed after, must not displace it
+        SqlProfile other = profile("digest-c", 1L, 1)
+            .setNormalizedDigest("a-different-digest").completeBuild("tdb");
+        repository.addToIndex(other);
+
+        assertThat(repository.profilesForTest())
+            .as("the representative must be indexed before anything that merged into it")
+            .first()
+            .isSameAs(representative);
+        assertThat(representative.getMergedChildren()).hasSize(1);
+    }
+
     private static SqlProfile.Builder profile(String digest, long executed, int repeatCount) {
         return SqlProfile.newBuilder()
             .setId(digest)
