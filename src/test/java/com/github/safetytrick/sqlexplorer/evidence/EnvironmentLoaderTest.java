@@ -15,6 +15,7 @@ import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceFactory;
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import org.junit.jupiter.api.BeforeEach;
+import com.github.safetytrick.sqlexplorer.analysis.AnalysisFailureRecorder;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -85,7 +86,7 @@ class EnvironmentLoaderTest {
     }
 
     private EnvironmentLoader loader(SqlSourceFactory... factories) {
-        return new EnvironmentLoader(List.of(factories), sqlRepositoryManager, registry);
+        return new EnvironmentLoader(List.of(factories), sqlRepositoryManager, registry, new AnalysisFailureRecorder());
     }
 
     private List<String> loadedSourceRefs(String environmentName) {

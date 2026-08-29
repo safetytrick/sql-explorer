@@ -14,6 +14,7 @@ import com.github.safetytrick.sqlexplorer.environment.SourceDefinition;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceFactory;
 import jakarta.annotation.PostConstruct;
+import com.github.safetytrick.sqlexplorer.analysis.AnalysisFailureRecorder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -33,14 +34,17 @@ public class EnvironmentLoader {
     private final Map<String, SqlSourceFactory> factoriesByType;
     private final SqlRepositoryManager sqlRepositoryManager;
     private final EnvironmentRegistry environmentRegistry;
+    private final AnalysisFailureRecorder analysisFailureRecorder;
 
     public EnvironmentLoader(List<SqlSourceFactory> factories,
                              SqlRepositoryManager sqlRepositoryManager,
-                             EnvironmentRegistry environmentRegistry) {
+                             EnvironmentRegistry environmentRegistry,
+                             AnalysisFailureRecorder analysisFailureRecorder) {
         this.factoriesByType = factories.stream()
             .collect(Collectors.toMap(SqlSourceFactory::type, Function.identity()));
         this.sqlRepositoryManager = sqlRepositoryManager;
         this.environmentRegistry = environmentRegistry;
+        this.analysisFailureRecorder = analysisFailureRecorder;
     }
 
     @PostConstruct
@@ -59,6 +63,11 @@ public class EnvironmentLoader {
      * configured sources must be part of every load or they would be dropped.
      */
     public SqlImportStats load(String environmentName, Stream<? extends SqlSource> extraSources) {
+        // Analysis is about to run again over the whole source, so anything
+        // captured from the previous run describes a corpus that no longer
+        // exists. Dropping it here keeps the captures and the profiles
+        // describing the same import.
+        analysisFailureRecorder.clear();
         List<SqlSource> sources = buildConfiguredSources(environmentName);
         List<SqlSource> all = Stream.concat(sources.stream(), extraSources).toList();
 

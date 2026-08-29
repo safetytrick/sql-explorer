@@ -21,15 +21,24 @@ public class SqlAnalysisService {
 
     private final List<SqlAnalyzer> analyzers;
     private final SqlParser sqlParser;
+    /** Optional: null in the direct-construction path the analyzer tests use. */
+    private final AnalysisFailureRecorder failureRecorder;
 
     @Inject
     public SqlAnalysisService(List<SqlAnalyzer> analyzers,
-                              SqlParser sqlParser) {
+                              SqlParser sqlParser,
+                              AnalysisFailureRecorder failureRecorder) {
         this.analyzers = analyzers;
         this.sqlParser = sqlParser;
+        this.failureRecorder = failureRecorder;
     }
+
+    public SqlAnalysisService(List<SqlAnalyzer> analyzers, SqlParser sqlParser) {
+        this(analyzers, sqlParser, null);
+    }
+
     public SqlAnalysisService(SqlAnalyzer ...analyzer) {
-        this(Arrays.asList(analyzer), new SqlParser());
+        this(Arrays.asList(analyzer), new SqlParser(), null);
     }
 
     /** Analyze with no schema context (resolution falls back to unsupported). */
@@ -48,8 +57,17 @@ public class SqlAnalysisService {
             try {
                 analyzer.analyze(statement, builder, schema);
             } catch (Exception e) {
+                // Left exactly as it was: QuerySearchService.ANALYZER_FAILURE_PREFIX
+                // and two report services classify failures by this prefix, so
+                // capture has to be additive rather than a reformat. Note this
+                // *assigns* — with two analyzers throwing the first is lost,
+                // which is why the recorder accumulates instead.
                 builder.setAnalysisFailureReason("Failure on: " + analyzer.getClass().getSimpleName() + " message: " + getRootCauseMessage(e));
                 log.debug("Failure on: {}", analyzer.getClass().getSimpleName(), e);
+                if (failureRecorder != null) {
+                    failureRecorder.record(sql, builder.hasSchemaName() ? builder.getSchemaName() : null,
+                        schema, builder.getTables(), analyzer.getClass().getSimpleName(), e);
+                }
             }
         }
     }
