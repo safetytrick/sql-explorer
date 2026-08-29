@@ -86,6 +86,9 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         private List<JoinColumns> joinColumns;
         private TableAliasResolver tableAliasResolver;
         private final java.util.Set<String> cteNames = new java.util.HashSet<>();
+        /** Set when the statement has a WITH prefix; used to map references through it. */
+        private CteProjections cteProjections = CteProjections.EMPTY;
+        private Select statementSelect;
 
         public JoinColumnVisitor(String schema, ColumnTableResolver columnTableResolver) {
             super();
@@ -94,13 +97,40 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         }
 
         private void addJoin(JoinColumns join) {
-            // A join against a CTE is a reference to a result set, not a
-            // relationship between two tables; emitting it would invent a
-            // table the schema does not have.
-            if (referencesCte(join.getLeft()) || referencesCte(join.getRight())) {
+            // A join against a CTE names a result set rather than a table, so it
+            // cannot be emitted as-is — that would invent a table the schema does
+            // not have. But it is not nothing: the CTE projects real columns, so
+            // the reference can be mapped through to what it stands for. In the
+            // corpus's recursive example that recovers a genuine self-join.
+            ColumnReference left = throughCte(join.getLeft());
+            ColumnReference right = throughCte(join.getRight());
+            if (left == null || right == null) {
+                // one side is a CTE column with no source column behind it —
+                // a projected expression, or a CTE we could not read
+                return;
+            }
+            if (left != join.getLeft() || right != join.getRight()) {
+                joinColumns.add(new JoinColumns(left, right, join.getJoinType()));
                 return;
             }
             joinColumns.add(join);
+        }
+
+        /**
+         * The reference itself when it names a real table, the column it stands
+         * for when it names a CTE, or null when it names a CTE position with no
+         * source column.
+         */
+        private ColumnReference throughCte(ColumnReference reference) {
+            if (!referencesCte(reference)) {
+                return reference;
+            }
+            String cte = reference.getTable().getTableName();
+            Select body = statementSelect == null ? null : cteProjections.bodyOf(statementSelect, cte);
+            if (body == null) {
+                return null;
+            }
+            return cteProjections.resolve(cte, reference.getColumn(), columnTableResolver, body);
         }
 
         private boolean referencesCte(ColumnReference reference) {
@@ -119,6 +149,10 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         @Override
         public <S> Void visit(Select select, S context) {
             cteNames.addAll(WithItems.namesOf(select));
+            if (cteProjections.isEmpty()) {
+                cteProjections = CteProjections.of(select);
+                statementSelect = select;
+            }
             for (Select cte : WithItems.bodiesOf(select)) {
                 visit(cte, context);
             }

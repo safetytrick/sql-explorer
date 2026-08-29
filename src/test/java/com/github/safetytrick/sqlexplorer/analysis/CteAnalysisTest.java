@@ -55,6 +55,41 @@ public class CteAnalysisTest {
         }
     }
 
+    /** The corpus's recursive CTE, used by several cases below. */
+    private static final String RECURSIVE_TREE = """
+        WITH RECURSIVE `tree`(
+            `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+        ) AS (SELECT
+            `entity_id`, `entity_id` AS `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+            FROM `node_link`
+        WHERE
+            `entity_id` = ?
+        UNION
+        ALL SELECT
+            `child`.`entity_id`, `parent`.`entity_id`, `child`.`propagate`, `child`.`object_id`,
+            `child`.`object_type`, `child`.`parent_type`, `child`.`parent_type`
+            FROM `node_link` `child`
+        JOIN
+            `tree` `parent`
+                ON `child`.`parent_object` = `parent`.`object_id`
+                AND `child`.`parent_type` = `parent`.`object_type`
+        WHERE
+            `child`.`object_type` IN (?)) SELECT
+            `entity_id`, `parent_id`, `propagate`
+        FROM
+            `tree`
+        """;
+
+    private static List<String> joinKeys(SqlProfile profile) {
+        return profile.getJoinColumns().stream()
+            .map(join -> key(join.getLeft()) + "=" + key(join.getRight()))
+            .sorted().toList();
+    }
+
+    private static String key(com.github.safetytrick.sqlexplorer.avro.ColumnReference reference) {
+        return reference.getTable().getNormalizedTableName() + "." + reference.getNormalizedColumn();
+    }
+
     private static List<String> tableNames(SqlProfile profile) {
         return profile.getTables().stream().map(t -> t.getNormalizedTableName()).distinct().sorted().toList();
     }
@@ -124,6 +159,75 @@ public class CteAnalysisTest {
             assertThat(join.getLeft().getTable().getNormalizedTableName()).isNotEqualTo("tree");
             assertThat(join.getRight().getTable().getNormalizedTableName()).isNotEqualTo("tree");
         });
+    }
+
+    /**
+     * A reference *through* a CTE, mapped to the column it stands for.
+     *
+     * <p>`tree` declares its columns and its anchor arm projects them from
+     * `node_link`, so `parent`.`object_id` — where `parent` aliases the
+     * CTE — is `node_link`.`object_id`. The join
+     *
+     * <pre>ON `child`.`parent_object` = `parent`.`object_id`</pre>
+     *
+     * is therefore a real self-join on `node_link`, which used to be
+     * dropped entirely because one side named the CTE.
+     */
+    @Test
+    public void resolvesAJoinThroughACteToItsSourceColumns() throws JSQLParserException {
+        SqlProfile profile = FIXTURE.analyze(RECURSIVE_TREE);
+
+        assertThat(profile.getAnalysisFailed()).isFalse();
+        assertThat(joinKeys(profile))
+            .contains("node_link.parent_object=node_link.object_id")
+            .contains("node_link.parent_type=node_link.object_type");
+    }
+
+    /** Mapping through must not reintroduce the CTE name it was avoiding. */
+    @Test
+    public void mapsThroughWithoutEmittingTheCteAsATable() throws JSQLParserException {
+        SqlProfile profile = FIXTURE.analyze(RECURSIVE_TREE);
+
+        assertThat(tableNames(profile)).containsExactly("node_link");
+        assertThat(joinKeys(profile)).noneMatch(key -> key.contains("tree."));
+    }
+
+    /**
+     * A CTE position holding an expression has no source column, so a join
+     * through it stays dropped. Partial by nature — inventing a column would
+     * be worse than losing one.
+     */
+    @Test
+    public void leavesAJoinThroughAProjectedExpressionAlone() throws JSQLParserException {
+        SqlProfile profile = FIXTURE.analyze("""
+            WITH `counts`(`category_uuid`, `n`) AS (
+                SELECT `category_uuid`, count(*) FROM `users` GROUP BY `category_uuid`
+            )
+            SELECT `f`.`name`
+            FROM `folders` `f`
+            JOIN `counts` `c` ON `f`.`uuid` = `c`.`n`
+            """);
+
+        assertThat(profile.getAnalysisFailed()).isFalse();
+        // `c`.`n` is count(*), which is not a column of anything
+        assertThat(joinKeys(profile)).noneMatch(key -> key.contains("counts."));
+        assertThat(joinKeys(profile)).noneMatch(key -> key.endsWith(".n"));
+    }
+
+    /** A CTE with no declared list inherits its names from the projection. */
+    @Test
+    public void mapsThroughACteThatInheritsItsColumnNames() throws JSQLParserException {
+        SqlProfile profile = FIXTURE.analyze("""
+            WITH `recent` AS (
+                SELECT `uuid`, `parent_uuid` FROM `folders` WHERE `status` = ?
+            )
+            SELECT `u`.`id`
+            FROM `users` `u`
+            JOIN `recent` `r` ON `u`.`category_uuid` = `r`.`uuid`
+            """);
+
+        assertThat(profile.getAnalysisFailed()).isFalse();
+        assertThat(joinKeys(profile)).contains("users.category_uuid=folders.uuid");
     }
 
     @Test
