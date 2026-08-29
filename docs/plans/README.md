@@ -12,6 +12,7 @@ reasoning is in the commit that closed it.
 | [legacy-ui.md](legacy-ui.md)             | Lens migration — one deletion decision left (`TableViewComponent`, `TableGraph*`)                       | S remaining       |
 | [history-rewrite.md](history-rewrite.md) | Scrub older git history (working-tree scrub already done)                                               | S + coordination  |
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
+| [live-explain.md](live-explain.md)       | Live EXPLAIN against the environment's servers (`sqlx-cgh`) — decided, not started                      | M–L               |
 
 Supporting plan (not tracked as a bead, unscheduled, stands on its own):
 [normalization-versioning.md](normalization-versioning.md). It is less often
@@ -31,5 +32,13 @@ scheduled).
 
 The explain-parser plan is gone — `sqlx-mr0` was validated on 2026-08-27 and
 closed, so the plan was deleted per the rule above. Its one unfinished piece,
-running `EXPLAIN` against live servers, is `sqlx-cgh`: a decision rather than
-a task, so it carries no plan doc.
+running `EXPLAIN` against live servers, was `sqlx-cgh`. That was a decision
+rather than a task and carried no plan doc; Michael decided on 2026-08-28 to
+build it, so it is a task now and [live-explain.md](live-explain.md) is its
+plan.
+
+**live-explain** is the one item here that can execute a statement against an
+analyzed server — everything else in this app only reads schema metadata and
+`performance_schema`. Its three gating requirements are requirements, not
+suggestions, and the one that carries the weight is that the endpoint takes a
+digest and never a statement.
