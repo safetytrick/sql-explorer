@@ -49,6 +49,9 @@ export class SchemaListComponent implements OnInit {
 
   // Recomputed on each change rather than in a template getter: change
   // detection would otherwise re-filter the whole list on every pass.
+  //
+  // No inherited tags: a schema belongs to nothing, so exclusion here is
+  // exactly the row's own tags.
   private applyFilter() {
     this.visible = this.schemas.filter(schema =>
       matchesTagFilter((schema.tags ?? []).map(tag => tag.name), this.filter));

@@ -13,12 +13,12 @@ describe('tag filter url', () => {
   });
 
   it('keeps an untouched view free of params', () => {
-    expect(encodeTagFilter(emptyTagFilter())).toEqual({tags: null, tagsExclude: null, tagMode: null});
+    expect(encodeTagFilter(emptyTagFilter())).toEqual({tags: null, schemaTagsExclude: null, tagMode: null});
   });
 
   it('round-trips a selection', () => {
     const params = encodeTagFilter({tags: ['pii', 'audit'], excludeTags: [], mode: 'ANY'});
-    expect(params).toEqual({tags: 'pii,audit', tagsExclude: null, tagMode: 'ANY'});
+    expect(params).toEqual({tags: 'pii,audit', schemaTagsExclude: null, tagMode: 'ANY'});
     expect(decodeTagFilter(reader(params as Record<string, string>)))
       .toEqual({tags: ['pii', 'audit'], excludeTags: [], mode: 'ANY'});
   });
@@ -63,9 +63,11 @@ describe('tag filter url', () => {
       expect(decodeTagFilter(reader({})).excludeTags).toEqual([]);
     });
 
-    it('round-trips, spelled the way the workbench spells it', () => {
+    /** The point of sqlx-uxo: ONE spelling, the workbench's own. */
+    it('writes the same parameter the workbench scope tree writes', () => {
       const params = encodeTagFilter({tags: [], excludeTags: ['system', 'clickhouse'], mode: 'ALL'});
-      expect(params['tagsExclude']).toBe('system,clickhouse');
+      expect(params['schemaTagsExclude']).toBe('system,clickhouse');
+      expect(params['tagsExclude']).withContext('the duplicate spelling is gone').toBeUndefined();
       expect(decodeTagFilter(reader(params as Record<string, string>)).excludeTags)
         .toEqual(['system', 'clickhouse']);
     });
@@ -75,7 +77,7 @@ describe('tag filter url', () => {
       const params = encodeTagFilter({tags: [], excludeTags: ['system'], mode: 'ALL'});
       expect(params['tags']).toBeNull();
       expect(params['tagMode']).toBeNull();
-      expect(params['tagsExclude']).toBe('system');
+      expect(params['schemaTagsExclude']).toBe('system');
     });
 
     it('hides a row carrying an excluded tag', () => {
@@ -93,6 +95,34 @@ describe('tag filter url', () => {
       const state = {tags: ['core'], excludeTags: ['legacy'], mode: 'ANY' as const};
       expect(matchesTagFilter(['core'], state)).toBeTrue();
       expect(matchesTagFilter(['core', 'legacy'], state)).toBeFalse();
+    });
+
+
+    // ── exclusion reaches through what a row belongs to ──
+
+    /**
+     * The semantics /queries already applies to this parameter. A table in a
+     * schema tagged `system` is outside the working set even when the table
+     * itself carries no tag — otherwise one parameter would mean two things
+     * depending on the page, which is the defect sqlx-uxo exists to remove.
+     */
+    it('excludes a row whose container carries the tag', () => {
+      const state = {tags: [], excludeTags: ['system'], mode: 'ANY' as const};
+
+      expect(matchesTagFilter([], state, ['system'])).toBeFalse();
+      expect(matchesTagFilter([], state, ['core'])).toBeTrue();
+    });
+
+    /** Inclusion is about the row itself, or "tagged core" would match a whole schema. */
+    it('does not let a row be included by what contains it', () => {
+      const state = {tags: ['core'], excludeTags: [], mode: 'ANY' as const};
+
+      expect(matchesTagFilter(['core'], state, [])).toBeTrue();
+      expect(matchesTagFilter([], state, ['core'])).toBeFalse();
+    });
+
+    it('treats an absent container as no inherited tags', () => {
+      expect(matchesTagFilter(['core'], {tags: [], excludeTags: ['system'], mode: 'ALL'})).toBeTrue();
     });
 
     it('leaves an untagged row alone', () => {

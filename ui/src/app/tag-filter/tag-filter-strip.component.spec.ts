@@ -127,16 +127,51 @@ describe('TagFilterStripComponent', () => {
     expect(component.chipTitle({name: 'core', count: 2})).toContain('stop filtering');
   });
 
+
+  // ── exclusion reaches through the container ──
+
+  /**
+   * `system` is typically attached to schemas, not to individual tables, so
+   * without inherited tags the chip would never appear on /tables — the strip
+   * would be unable to offer the filter it exists for.
+   */
+  it('offers a tag that only the container carries', () => {
+    fixture.componentRef.setInput('rows',
+      [{tags: [], inheritedTags: ['system']}, {tags: [], inheritedTags: ['app']}]);
+    fixture.detectChanges();
+
+    expect(component.stripTags.map(tag => tag.name)).toContain('system');
+  });
+
+  it('counts a row once when it both carries and inherits a tag', () => {
+    fixture.componentRef.setInput('rows', [{tags: [{name: 'core'}], inheritedTags: ['core']}]);
+    fixture.detectChanges();
+
+    expect(component.stripTags.find(tag => tag.name === 'core')?.count).toBe(1);
+  });
+
+  it('hides a row whose container is excluded, though the row is untagged', () => {
+    fixture.componentRef.setInput('rows',
+      [{tags: [], inheritedTags: ['system']}, {tags: [], inheritedTags: ['app']}]);
+    fixture.detectChanges();
+
+    component.toggle('system');
+    component.toggle('system');
+
+    expect(component.matched).toBe(1);
+  });
+
   // ── url ──
 
-  it('writes the exclusion into the url and clears it again', () => {
+  /** One spelling, and it is the workbench's — see sqlx-uxo. */
+  it('writes the exclusion as the workbench scope parameter, and clears it again', () => {
     const navigate = TestBed.inject(Router).navigate as jasmine.Spy;
 
     component.toggle('system');
     component.toggle('system');
-    expect(navigate.calls.mostRecent().args[1].queryParams['tagsExclude']).toBe('system');
+    expect(navigate.calls.mostRecent().args[1].queryParams['schemaTagsExclude']).toBe('system');
 
     component.toggle('system');
-    expect(navigate.calls.mostRecent().args[1].queryParams['tagsExclude']).toBeNull();
+    expect(navigate.calls.mostRecent().args[1].queryParams['schemaTagsExclude']).toBeNull();
   });
 });

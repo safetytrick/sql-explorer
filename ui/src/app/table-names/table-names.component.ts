@@ -3,7 +3,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
-import { TagFilterStripComponent } from '../tag-filter/tag-filter-strip.component';
+import { TagFilterStripComponent, TaggedRow } from '../tag-filter/tag-filter-strip.component';
 import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
 import { TableRollup } from '../api-types';
 import { TypeFilter } from '../schema-tree/tree-filter';
@@ -39,7 +39,32 @@ export class TableNamesComponent implements OnInit {
   /** `tables` narrowed by the tag strip; the type filter still applies inside. */
   visible: TableRollup[] = [];
 
+  /**
+   * Rows as the strip counts them: own tags plus what the schema lends.
+   *
+   * <p>A field rebuilt in {@link applyFilter}, not a template getter. The
+   * strip re-counts whenever this array's identity changes, so a getter would
+   * hand it a fresh array on every change-detection pass and re-count the
+   * whole page each time — the same trap the filtering below already avoids.
+   */
+  stripRows: TaggedRow[] = [];
+
   private filter: TagFilterState = emptyTagFilter();
+
+  /**
+   * Schema name (lower-cased) → that schema's tag names.
+   *
+   * <p>Needed because exclusion is a statement about objects, not about rows:
+   * `schemaTagsExclude=system` has to take out every table in a schema tagged
+   * `system`, not only the tables carrying the tag themselves. That is the
+   * semantics `/queries` already applies to the same parameter, and the two
+   * must not diverge — one parameter meaning two things per page is the defect
+   * this change exists to remove (sqlx-uxo).
+   *
+   * <p>One request for the whole page: the schema set is small and
+   * `tags/path` batches.
+   */
+  private schemaTags = new Map<string, string[]>();
 
   constructor(public sqlService: AnalyzedSqlService, private route: ActivatedRoute,
               private router: Router, private titleService: Title) { }
@@ -70,7 +95,29 @@ export class TableNamesComponent implements OnInit {
     this.sqlService.getTables().subscribe(data => {
       this.tables = data;
       this.applyFilter();
+      this.loadSchemaTags(data);
     });
+  }
+
+  /** The tags of every schema represented on this page, batched into one call. */
+  private loadSchemaTags(tables: TableRollup[]) {
+    const names = [...new Set(tables.map(table => table.schema).filter(Boolean))];
+    if (!names.length) { return; }
+    this.sqlService.getTagsForPaths(names.map(name => '/schema/' + name)).subscribe({
+      next: byPath => {
+        this.schemaTags = new Map(names.map(name =>
+          [name.toLowerCase(), (byPath['/schema/' + name] ?? []).map(tag => tag.name)]));
+        this.applyFilter();
+      },
+      // a missing tag map narrows exclusion to the row's own tags rather than
+      // failing the page; the filter still works, it just reaches less far
+      error: () => { /* keep the empty map */ }
+    });
+  }
+
+  /** What a table inherits from its schema, for exclusion only. */
+  private inherited(table: TableRollup): string[] {
+    return this.schemaTags.get((table.schema ?? '').toLowerCase()) ?? [];
   }
 
   /** See the note in SchemaListComponent. */
@@ -92,9 +139,14 @@ export class TableNamesComponent implements OnInit {
   // Recomputed on each change rather than in a template getter; see the note
   // in SchemaListComponent.
   private applyFilter() {
+    this.stripRows = this.tables.map(table =>
+      ({tags: table.tags ?? [], inheritedTags: this.inherited(table)}));
     this.visible = this.tables.filter(table =>
-      matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter));
+      matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter,
+        this.inherited(table)));
   }
+
+
 
   /**
    * Written with `replaceUrl` so flipping between all/tables/views does not

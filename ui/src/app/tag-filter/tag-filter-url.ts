@@ -20,13 +20,19 @@ export interface TagFilterState {
   /** Tags a row must carry, per {@link TagFilterState.mode}. */
   tags: string[];
   /**
-   * Tags that disqualify a row outright, whatever else it carries.
+   * Tags that put an object outside the working set, whatever else it carries.
    *
-   * Exclusion is the operation that makes a list about your work rather than
-   * about the database — a `system` tag over information_schema, mysql, sys
-   * and performance_schema is not "hide these forever", it is "not while I am
-   * looking for index opportunities". Which is why it lives on the filter
-   * strip and not in a setting.
+   * <p>Unlike {@link TagFilterState.tags} this is not a filter over this page's
+   * rows — it is a statement about objects in the corpus, and it means the
+   * same thing on every page. That is why it is spelled
+   * `schemaTagsExclude`, the same parameter the workbench's scope tree writes:
+   * "hide the system schemas" had two spellings and two implementations until
+   * 2026-08-29 (sqlx-uxo).
+   *
+   * <p>A `system` tag over information_schema, mysql, sys and
+   * performance_schema is not "hide these forever" — it is "not while I am
+   * looking for index opportunities". Which is why it is a control and not a
+   * setting.
    */
   excludeTags: string[];
   mode: TagMode;
@@ -48,7 +54,7 @@ export function decodeTagFilter(params: ParamReader): TagFilterState {
       : DEFAULT_TAG_MODE;
   return {
     tags: csv(params.get('tags')),
-    excludeTags: csv(params.get('tagsExclude')),
+    excludeTags: csv(params.get('schemaTagsExclude')),
     mode
   };
 }
@@ -64,26 +70,43 @@ function csv(raw: string | null): string[] {
 export function encodeTagFilter(state: TagFilterState): Record<string, string | null> {
   return {
     tags: state.tags.length ? state.tags.join(',') : null,
-    // `tagsExclude` mirrors the workbench's `schemaTagsExclude`: the same
-    // `<thing>Exclude` shape, so exclusion reads the same wherever it appears
-    tagsExclude: state.excludeTags.length ? state.excludeTags.join(',') : null,
+    // The workbench's own scope parameter, not a mirror of it. One spelling
+    // for one statement — see the note on `excludeTags`. The name undersells
+    // it (it excludes tagged tables too, and reads oddly on a page listing
+    // tables) and is kept anyway: renaming would break workbench links that
+    // already carry it, and one imperfect name beats two good ones.
+    schemaTagsExclude: state.excludeTags.length ? state.excludeTags.join(',') : null,
     // mode governs the include set only, so it is pointless without one
     tagMode: state.tags.length ? state.mode : null
   };
 }
 
 /**
- * An excluded tag disqualifies the row outright; then ALL — the row must carry
- * every selected tag — or ANY — at least one. No selection matches everything,
- * so an untouched page is unfiltered.
+ * Whether a row survives the strip.
  *
- * <p>Exclusion is checked first and wins, which is the same rule the schema
- * tree's own filter applies (`schema-tree/tree-filter.ts`). Deliberately the
- * same: two places in the app answering "does this row survive the tag filter"
- * differently would be worse than either answer.
+ * <p>The two halves deliberately look at different tag sets, because they are
+ * different kinds of statement:
+ *
+ * <ul>
+ *   <li><b>Exclusion is about objects</b>, so it also applies to what the row
+ *       belongs to. A table in a schema tagged `system` is outside the working
+ *       set even when the table itself carries no tag — which is exactly what
+ *       the workbench's scope tree already does with the same parameter.
+ *   <li><b>Inclusion is about the row</b>. "Tables tagged core" must not match
+ *       every table in a schema tagged core; that would be a different and
+ *       much less useful question.
+ * </ul>
+ *
+ * <p>Exclusion is checked first and wins, matching
+ * `schema-tree/tree-filter.ts`. Two places answering "does this row survive
+ * the tag filter" differently would be worse than either answer.
+ *
+ * @param inheritedTags tags of the thing this row belongs to — a table's
+ *                      schema. Empty for rows that belong to nothing.
  */
-export function matchesTagFilter(rowTags: string[], state: TagFilterState): boolean {
-  if (state.excludeTags.some(tag => rowTags.includes(tag))) {
+export function matchesTagFilter(rowTags: string[], state: TagFilterState,
+                                 inheritedTags: string[] = []): boolean {
+  if (state.excludeTags.some(tag => rowTags.includes(tag) || inheritedTags.includes(tag))) {
     return false;
   }
   if (!state.tags.length) {

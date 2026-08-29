@@ -15,6 +15,12 @@ export interface StripTag {
 /** Anything the strip can count tags on — both list rollups qualify. */
 export interface TaggedRow {
   tags: Tag[];
+  /**
+   * Tags of the thing this row belongs to — a table's schema. Exclusion is a
+   * statement about objects, so it reaches a row through what contains it;
+   * inclusion is about the row itself and ignores this.
+   */
+  inheritedTags?: string[];
 }
 
 /**
@@ -140,14 +146,22 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Tags worth offering: those some row carries, plus any already selected so
-   * a filter that now matches nothing can still be switched off.
+   * Tags worth offering: those some row carries or inherits, plus any already
+   * selected so a filter that now matches nothing can still be switched off.
+   *
+   * <p>Inherited tags have to be counted or the strip cannot offer the very
+   * tag it exists for: `system` may be attached to schemas only, so no row on
+   * `/tables` carries it and the chip would never appear.
    */
   private recount() {
     const counts = new Map<string, number>();
     for (const row of this.allRows) {
-      for (const tag of row.tags ?? []) {
-        counts.set(tag.name, (counts.get(tag.name) ?? 0) + 1);
+      const names = new Set((row.tags ?? []).map(tag => tag.name));
+      for (const inherited of row.inheritedTags ?? []) {
+        names.add(inherited);
+      }
+      for (const name of names) {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
       }
     }
     for (const selected of [...this.state.tags, ...this.state.excludeTags]) {
@@ -159,6 +173,7 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
       .map(([name, count]) => ({name, count}))
       .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
     this.matched = this.allRows.filter(row =>
-      matchesTagFilter((row.tags ?? []).map(tag => tag.name), this.state)).length;
+      matchesTagFilter((row.tags ?? []).map(tag => tag.name), this.state,
+        row.inheritedTags ?? [])).length;
   }
 }
