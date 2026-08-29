@@ -40,6 +40,26 @@
   // Selected chips take the tag's own colour inline, so the strip reads with
   // the same vocabulary as the chips in the rows below it.
   &.on { font-weight: 500; }
+
+  // Excluded: struck through, not dimmed. Dimming is what "unselected"
+  // already looks like, and an exclusion is an active choice — the strongest
+  // one the strip makes, since it removes rows the include set would keep.
+  &.off {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    border-style: dashed;
+    border-color: var(--red);
+    color: var(--red);
+    opacity: 0.85;
+
+    .strip-dot { opacity: 0.4; }
+    &:hover { opacity: 1; border-color: var(--red); color: var(--red); }
+  }
+}
+
+.strip-minus {
+  font-weight: 600;
+  margin-right: -2px;
 }
 
 .strip-dot {

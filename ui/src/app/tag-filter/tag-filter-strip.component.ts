@@ -4,7 +4,7 @@ import {Subscription} from 'rxjs';
 import {TagColorsService} from '../tag-colors.service';
 import {TagMode} from '../query-search.service';
 import {Tag} from '../api-types';
-import {decodeTagFilter, emptyTagFilter, encodeTagFilter, TagFilterState} from './tag-filter-url';
+import {decodeTagFilter, emptyTagFilter, encodeTagFilter, matchesTagFilter, TagFilterState} from './tag-filter-url';
 
 /** A tag as offered by the strip: name and how many rows carry it. */
 export interface StripTag {
@@ -74,21 +74,47 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
     return this.tagColors.chipStyle(name);
   }
 
+  /** Says what the chip does next, not just what it counts. */
+  chipTitle(tag: StripTag): string {
+    const carried = `${tag.count} of the rows on this page carry ${tag.name}`;
+    if (this.isExcluded(tag.name)) {
+      return `${carried}. Hidden — click to stop filtering on it.`;
+    }
+    return this.isOn(tag.name)
+      ? `${carried}. Required — click to hide them instead.`
+      : `${carried}. Click to require it, again to hide it.`;
+  }
+
   get active(): boolean {
-    return this.state.tags.length > 0;
+    return this.state.tags.length > 0 || this.state.excludeTags.length > 0;
   }
 
   isOn(name: string): boolean {
     return this.state.tags.includes(name);
   }
 
+  isExcluded(name: string): boolean {
+    return this.state.excludeTags.includes(name);
+  }
+
+  /**
+   * Cycle a chip: off → include → exclude → off.
+   *
+   * <p>Tri-state rather than a second control, because it is the shape the app
+   * already uses for the same question — the workbench's flags are
+   * any/yes/no, and "show me what is *not* tagged system" is the same kind of
+   * ask as "show me what is *not* a full scan". A separate exclude row would
+   * be a second vocabulary for one idea.
+   */
   toggle(name: string) {
-    this.state = {
-      ...this.state,
-      tags: this.isOn(name)
-        ? this.state.tags.filter(tag => tag !== name)
-        : [...this.state.tags, name]
-    };
+    const tags = this.state.tags.filter(tag => tag !== name);
+    const excludeTags = this.state.excludeTags.filter(tag => tag !== name);
+    if (this.isOn(name)) {
+      excludeTags.push(name);          // include → exclude
+    } else if (!this.isExcluded(name)) {
+      tags.push(name);                 // off → include
+    }                                  // exclude → off: dropped from both
+    this.state = {...this.state, tags, excludeTags};
     this.apply();
   }
 
@@ -98,7 +124,7 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
   }
 
   clear() {
-    this.state = {...this.state, tags: []};
+    this.state = {...this.state, tags: [], excludeTags: []};
     this.apply();
   }
 
@@ -124,7 +150,7 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
         counts.set(tag.name, (counts.get(tag.name) ?? 0) + 1);
       }
     }
-    for (const selected of this.state.tags) {
+    for (const selected of [...this.state.tags, ...this.state.excludeTags]) {
       if (!counts.has(selected)) {
         counts.set(selected, 0);
       }
@@ -132,11 +158,7 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
     this.stripTags = [...counts.entries()]
       .map(([name, count]) => ({name, count}))
       .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
-    this.matched = this.allRows.filter(row => {
-      const names = (row.tags ?? []).map(tag => tag.name);
-      return !this.state.tags.length || (this.state.mode === 'ALL'
-        ? this.state.tags.every(tag => names.includes(tag))
-        : this.state.tags.some(tag => names.includes(tag)));
-    }).length;
+    this.matched = this.allRows.filter(row =>
+      matchesTagFilter((row.tags ?? []).map(tag => tag.name), this.state)).length;
   }
 }

@@ -17,14 +17,25 @@ import {TagMode} from '../query-search.service';
  * at all, which is what "omit defaults" is protecting.
  */
 export interface TagFilterState {
+  /** Tags a row must carry, per {@link TagFilterState.mode}. */
   tags: string[];
+  /**
+   * Tags that disqualify a row outright, whatever else it carries.
+   *
+   * Exclusion is the operation that makes a list about your work rather than
+   * about the database — a `system` tag over information_schema, mysql, sys
+   * and performance_schema is not "hide these forever", it is "not while I am
+   * looking for index opportunities". Which is why it lives on the filter
+   * strip and not in a setting.
+   */
+  excludeTags: string[];
   mode: TagMode;
 }
 
 export const DEFAULT_TAG_MODE: TagMode = 'ALL';
 
 export function emptyTagFilter(): TagFilterState {
-  return {tags: [], mode: DEFAULT_TAG_MODE};
+  return {tags: [], excludeTags: [], mode: DEFAULT_TAG_MODE};
 }
 
 export interface ParamReader {
@@ -32,12 +43,18 @@ export interface ParamReader {
 }
 
 export function decodeTagFilter(params: ParamReader): TagFilterState {
-  const raw = params.get('tags');
-  const tags = raw ? raw.split(',').map(tag => tag.trim()).filter(Boolean) : [];
   const mode = params.get('tagMode') === 'ANY' ? 'ANY'
     : params.get('tagMode') === 'ALL' ? 'ALL'
       : DEFAULT_TAG_MODE;
-  return {tags, mode};
+  return {
+    tags: csv(params.get('tags')),
+    excludeTags: csv(params.get('tagsExclude')),
+    mode
+  };
+}
+
+function csv(raw: string | null): string[] {
+  return raw ? raw.split(',').map(tag => tag.trim()).filter(Boolean) : [];
 }
 
 /**
@@ -47,15 +64,28 @@ export function decodeTagFilter(params: ParamReader): TagFilterState {
 export function encodeTagFilter(state: TagFilterState): Record<string, string | null> {
   return {
     tags: state.tags.length ? state.tags.join(',') : null,
+    // `tagsExclude` mirrors the workbench's `schemaTagsExclude`: the same
+    // `<thing>Exclude` shape, so exclusion reads the same wherever it appears
+    tagsExclude: state.excludeTags.length ? state.excludeTags.join(',') : null,
+    // mode governs the include set only, so it is pointless without one
     tagMode: state.tags.length ? state.mode : null
   };
 }
 
 /**
- * ALL — the row must carry every selected tag. ANY — at least one.
- * No selection matches everything, so an untouched page is unfiltered.
+ * An excluded tag disqualifies the row outright; then ALL — the row must carry
+ * every selected tag — or ANY — at least one. No selection matches everything,
+ * so an untouched page is unfiltered.
+ *
+ * <p>Exclusion is checked first and wins, which is the same rule the schema
+ * tree's own filter applies (`schema-tree/tree-filter.ts`). Deliberately the
+ * same: two places in the app answering "does this row survive the tag filter"
+ * differently would be worse than either answer.
  */
 export function matchesTagFilter(rowTags: string[], state: TagFilterState): boolean {
+  if (state.excludeTags.some(tag => rowTags.includes(tag))) {
+    return false;
+  }
   if (!state.tags.length) {
     return true;
   }

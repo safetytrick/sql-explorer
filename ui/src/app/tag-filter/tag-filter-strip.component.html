@@ -3,15 +3,20 @@
     <span class="strip-label">tags</span>
 
     @for (tag of stripTags; track tag.name) {
+      <!-- One chip, three states — click cycles off → include → exclude. An
+           excluded chip is struck through rather than merely dimmed, so it
+           does not read as "unselected". -->
       <button type="button"
               class="strip-chip"
               [class.on]="isOn(tag.name)"
+              [class.off]="isExcluded(tag.name)"
               [style.background]="isOn(tag.name) ? chipStyle(tag.name).background : null"
               [style.color]="isOn(tag.name) ? chipStyle(tag.name).color : null"
               [style.border-color]="isOn(tag.name) ? chipStyle(tag.name).color : null"
-              [title]="tag.count + ' of the rows on this page carry ' + tag.name"
+              [title]="chipTitle(tag)"
               (click)="toggle(tag.name)">
         <span class="strip-dot" [style.background]="chipStyle(tag.name).color"></span>
+        @if (isExcluded(tag.name)) { <span class="strip-minus">&minus;</span> }
         {{tag.name}}
         <span class="strip-count" [class.zero]="tag.count === 0">{{tag.count}}</span>
       </button>
