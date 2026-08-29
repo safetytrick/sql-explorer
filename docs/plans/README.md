@@ -12,7 +12,6 @@ reasoning is in the commit that closed it.
 | [legacy-ui.md](legacy-ui.md)             | Lens migration — `TableViewComponent` retired; the graph half is `sqlx-m0x`, **deferred**               | parity work       |
 | [history-rewrite.md](history-rewrite.md) | Scrub older git history (working-tree scrub already done)                                               | S + coordination  |
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
-| [live-explain.md](live-explain.md)       | Live EXPLAIN against the environment's servers (`sqlx-cgh`) — decided, not started                      | M–L               |
 | [query-examples.md](query-examples.md)   | Capture example queries with their parameters (`sqlx-hlu`) — design done, scope question open           | S–M / M–L         |
 
 Supporting plan (not tracked as a bead, unscheduled, stands on its own):
@@ -48,8 +47,12 @@ exist. Its design turns on one rule — the write endpoint *derives* the digest
 from the submitted statement rather than accepting one, because nothing
 otherwise checks that the text matches the digest it claims.
 
-**live-explain** is the one item here that can execute a statement against an
-analyzed server — everything else in this app only reads schema metadata and
-`performance_schema`. Its three gating requirements are requirements, not
-suggestions, and the one that carries the weight is that the endpoint takes a
-digest and never a statement.
+**live-explain is shipped** (`sqlx-cgh`, 2026-08-28) and its plan is deleted
+per the rule above. It remains the one thing in this application that runs a
+statement of our choosing against an analyzed server, so what guards it is
+documented in the README rather than only in the code: the environment opts in
+(`explainEnabled`, false by default), every endpoint takes an identifier and
+declares no request body, `EXPLAIN ANALYZE` is refused because it executes
+rather than plans, and each call is time-boxed. What gets planned is a stored
+query example — the corpus holds `?` placeholders, which `EXPLAIN` rejects
+outright.

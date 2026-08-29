@@ -23,4 +23,28 @@
 		<Package name="com.github.safetytrick.sqlexplorer.schema"/>
 		<Bug code="DLS"/>
 	</Match>
+	<Match>
+		<!--
+			SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE, and SpotBugs is right that
+			the string is built rather than constant — that is the feature. This
+			method exists to run `EXPLAIN FORMAT=JSON <statement>`, and a
+			PreparedStatement cannot parameterize a whole statement.
+
+			Suppressed here and at this one method only, because the risk is
+			answered structurally rather than dismissed:
+			  - the text is read from storage, never from a request. Every
+			    endpoint in LiveExplainResource takes an identifier and declares
+			    no request body, so no caller-supplied string can reach here.
+			  - assertExplainable() refuses anything already an EXPLAIN, anything
+			    containing ANALYZE (which executes rather than plans), more than
+			    one statement, and digest text with ? placeholders.
+			  - the environment must set explainEnabled: true, which defaults off.
+			  - every statement is time-boxed.
+			If this method ever grows a parameter carrying SQL from a caller,
+			this suppression is wrong and must go.
+		-->
+		<Class name="com.github.safetytrick.sqlexplorer.explain.LiveExplainService" />
+		<Method name="explain" />
+		<Bug pattern="SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE" />
+	</Match>
 </FindBugsFilter>

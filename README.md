@@ -173,6 +173,45 @@ environments:
         password: password
 ```
 
+Running EXPLAIN against a server
+--------------------------------
+
+Everything else this application does against an analyzed database is a read of
+the server's own bookkeeping — schema metadata and `performance_schema`.
+Planning a statement is the one thing that puts SQL of ours in front of a
+customer's data, so it is off unless an environment names itself:
+
+```yaml
+environments:
+  local:
+    explainEnabled: true   # absent means false
+```
+
+The flag defaults to false, which is the safety property rather than a
+convenience: a config file that has never heard of this feature cannot enable
+it by omission. In this repo only the `local` environment — the disposable
+`explorer-mysql` container — has it on.
+
+**Give it a read-only account.** The guards below make it hard for this
+endpoint to run anything but a plan, and a connection that *cannot* write makes
+it impossible. Prefer credentials with `SELECT` and nothing else.
+
+What is enforced, in `LiveExplainService`:
+
+- **The statement never comes from the request.** Every explain endpoint takes
+  an identifier and has no request body; the text is read from storage. There
+  is no code path from a caller's string to the database.
+- **`EXPLAIN ANALYZE` is refused.** It is not a planning operation — MySQL runs
+  the statement and reports actual timings.
+- **One statement only.** Anything after a `;` is rejected.
+- **Ten-second query timeout** on every call.
+
+What gets planned is a stored *query example*, not the corpus text: the corpus
+holds MySQL's digest text, whose values are `?` placeholders, and `EXPLAIN` of
+that is a syntax error (1064). Add an example with real parameters via
+`POST /query-examples`, then `POST /analyzed-sql/{digest}/explain` plans the
+most recent one — or `POST /query-examples/{id}/explain` to choose which.
+
 Further reading
 ---------------
 

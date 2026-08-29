@@ -14,9 +14,21 @@ public final class Environment implements AutoCloseable {
     private final String name;
     private final List<DatabaseServer> servers;
 
+    private final boolean explainEnabled;
+
     public Environment(String name, List<DatabaseServer> servers) {
+        this(name, servers, false);
+    }
+
+    public Environment(String name, List<DatabaseServer> servers, boolean explainEnabled) {
+        this.explainEnabled = explainEnabled;
         this.name = name;
         this.servers = List.copyOf(servers);
+    }
+
+    /** Whether EXPLAIN may be run against this environment's servers. Off by default. */
+    public boolean isExplainEnabled() {
+        return explainEnabled;
     }
 
     public String getName() {

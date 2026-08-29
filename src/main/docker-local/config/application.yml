@@ -12,6 +12,12 @@ environments:
   # second environment backed by the local explorer database, used to exercise
   # environment switching (the X-Sql-Explorer-Environment header selects it)
   local:
+    # EXPLAIN is allowed here and nowhere else. This environment points at the
+    # disposable explorer-mysql container that docker compose brings up, so
+    # planning a statement against it costs nothing and reaches nobody's data.
+    # `regression` above is a real server and is deliberately left off — the
+    # flag defaults to false, so leaving it unmentioned is what keeps it off.
+    explainEnabled: true
     servers:
       explorer:
         jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
