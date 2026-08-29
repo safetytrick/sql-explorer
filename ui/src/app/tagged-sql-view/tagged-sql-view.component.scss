@@ -1,11 +1,5 @@
 // Replaces Bootstrap's badge-pill/badge-primary on the heading tag.
 .tag-chip {
-  display: inline-flex;
-  align-items: center;
-  font-family: var(--mono);
-  font-size: 12px;
-  padding: 1px 10px;
-  border-radius: 12px;
   background: var(--blue-dim);
   color: var(--blue);
 }
