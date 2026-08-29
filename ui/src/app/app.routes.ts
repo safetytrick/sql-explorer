@@ -22,6 +22,7 @@ import {TableLensComponent} from './table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.component';
 import {GraphLensComponent} from './graph-lens/graph-lens.component';
 import {TagManagerComponent} from './tag-manager/tag-manager.component';
+import {NotFoundComponent} from './not-found/not-found.component';
 
 /**
  * `/table/{schema}/{table}/{column}` → the table lens with that column drilled
@@ -232,6 +233,21 @@ export const appRoutes: Routes = [
     path: '',
     redirectTo: '/tables',
     pathMatch: 'full'
+  },
+  /**
+   * Last, and it has to stay last — `**` matches everything, so any route
+   * declared below it is dead. Before this existed an unmatched URL rendered
+   * an empty outlet and the address bar quietly reset to `/`, which reads as
+   * a broken app rather than a wrong link.
+   *
+   * A component rather than a redirect: redirecting to `/tables` would throw
+   * away the address that missed, and these are overwhelmingly links someone
+   * was sent. Seeing what arrived is what makes the typo findable.
+   */
+  {
+    path: '**',
+    component: NotFoundComponent,
+    data: { title: 'Not found' }
   }
 
 ];

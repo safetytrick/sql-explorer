@@ -7,6 +7,7 @@ import {HIGHLIGHT_OPTIONS} from 'ngx-highlightjs';
 import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
 import {TableLensComponent} from './table-lens/table-lens.component';
+import {NotFoundComponent} from './not-found/not-found.component';
 
 /**
  * Route *matching*, asserted without rendering anything: `/table/:schema/:name/:column`
@@ -77,6 +78,35 @@ describe('appRoutes: the table drill-downs', () => {
     // ?columns=app_other.user_profile.queries, which renders a normal-looking page
     await router.navigateByUrl('/table/app_other/user_profile/queries');
     expect(router.url).not.toContain('columns=');
+  });
+
+  describe('the catch-all', () => {
+
+    it('renders the not-found page instead of an empty outlet', async () => {
+      await router.navigateByUrl('/no/such/place');
+
+      expect(matched()).toBe(NotFoundComponent);
+      // the address that missed survives — it is what makes a bad link findable
+      expect(router.url).toBe('/no/such/place');
+    });
+
+    it('does not swallow a real route', async () => {
+      await router.navigateByUrl('/tables');
+      expect(matched()).not.toBe(NotFoundComponent);
+
+      await router.navigateByUrl('/queries');
+      expect(matched()).not.toBe(NotFoundComponent);
+
+      await router.navigateByUrl('/table/app_other/user_profile');
+      expect(matched()).toBe(TableLensComponent);
+    });
+
+    it('still sends the bare root to /tables', async () => {
+      await router.navigateByUrl('/');
+
+      expect(matched()).not.toBe(NotFoundComponent);
+      expect(router.url).toBe('/tables');
+    });
   });
 
   it('leaves the bare table route alone', async () => {
