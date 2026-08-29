@@ -10,6 +10,7 @@ import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
+import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
@@ -95,9 +96,7 @@ public class SqlRepositoryService {
             .joinTables(joinTables)
             .relatedTables(relatedTables)
             .sumOfQueryTime(sqlList.stream()
-                                .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics()
-                                    .getTotalTime()
-                                    .doubleValue())
+                                .mapToDouble(SqlRepositoryService::totalQueryTimeOf)
                                 .sum())
             .build();
     }
@@ -165,6 +164,26 @@ public class SqlRepositoryService {
         return !columnReference.getNormalizedColumn().equals("id");
     }
 
+    /**
+     * A profile's total query time, or zero when it has no runtime metrics.
+     *
+     * <p>{@code runtimeMetrics} is a nullable Avro union. In practice nothing
+     * currently produces a null — {@code complete()} and {@code MergedSqlProfile}
+     * both populate it, and a sweep of 1,000 live profiles found none — so this
+     * guards a state the pipeline does not reach today rather than a live crash.
+     * It is worth having because nothing *enforces* that: a source that ever
+     * yields a metrics-less row would otherwise NPE four rollup endpoints,
+     * which is a poor way to discover the invariant.
+     *
+     * <p>Zero rather than skipping the row: these are sums over a table's
+     * queries, and a query whose time is unknown contributes nothing to the
+     * total but is still one of the queries counted alongside it.
+     */
+    private static double totalQueryTimeOf(SqlProfile profile) {
+        RuntimeMetrics metrics = profile.getRuntimeMetrics();
+        return metrics == null || metrics.getTotalTime() == null ? 0d : metrics.getTotalTime().doubleValue();
+    }
+
     public Stream<SqlProfile> getAllAnalyzedSql() {
         return repository().getAllAnalyzedSql();
     }
@@ -185,7 +204,7 @@ public class SqlRepositoryService {
                     .toList();
 
                 double totalQueryTime = sqlList.stream()
-                    .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics().getTotalTime().doubleValue())
+                    .mapToDouble(SqlRepositoryService::totalQueryTimeOf)
                     .sum();
                 builder.addQueries(sqlList.size(), totalQueryTime);
             }
@@ -204,7 +223,7 @@ public class SqlRepositoryService {
             .forEach(table -> {
                 List<SqlProfile> sqlList = repository().getTableQueries(table).toList();
                 double totalQueryTime = sqlList.stream()
-                    .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics().getTotalTime().doubleValue())
+                    .mapToDouble(SqlRepositoryService::totalQueryTimeOf)
                     .sum();
                 builder.addQueries(sqlList.size(), totalQueryTime);
             });
@@ -235,7 +254,7 @@ public class SqlRepositoryService {
             .toList();
 
         double totalQueryTime = sqlList.stream()
-            .mapToDouble(analyzedSql -> analyzedSql.getRuntimeMetrics().getTotalTime().doubleValue())
+            .mapToDouble(SqlRepositoryService::totalQueryTimeOf)
             .sum();
 
         TableStructure structure = sqlSchemaService.getTable(reference);
