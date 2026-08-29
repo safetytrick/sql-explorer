@@ -226,9 +226,21 @@ public class SqlEvidenceInputService {
                 .isAfter(LocalDateTime.ofInstant(toProcess.source().getCreatedOn().minus(30, ChronoUnit.DAYS), ZoneId.systemDefault()))
                 && runtimeMetrics.getExecuted() > 1 ? QueryActivityStatus.ACTIVE : QueryActivityStatus.DORMANT;
 
+        // The file a row came from, when it came from a file at all. Null for a
+        // live source like x-statement-analysis, which is not a file.
+        String sourceFileName = toProcess.source() instanceof AbstractTsvSqlSource tsvSource
+            ? tsvSource.getResource().getFilename() : null;
+
         builder.setLineNumber(lineNumber)
             .setId(toProcess.source() + "-" + lineNumber)
-            .setSourceFileName(toProcess.source() instanceof AbstractTsvSqlSource tsvSource ?  tsvSource.getResource().getFilename() : null)
+            .setSourceFileName(sourceFileName)
+            // Seeded here so the merge aggregation has something to aggregate.
+            // `MergedSqlProfile.getSourcedFiles()` flat-maps this across a merge
+            // group — which is the useful fact, "which files contributed to this
+            // query" — and it has always flat-mapped empty lists, because the
+            // singular `sourceFileName` was never carried into the plural. One
+            // element per profile is what makes the group answer real.
+            .setSourcedFiles(sourceFileName == null ? List.of() : List.of(sourceFileName))
             .setQuery(query)
             .setType(firstToken)
             .setSchemaName(row.getSchemaName() != null ? row.getSchemaName() : "dual")
