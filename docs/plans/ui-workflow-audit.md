@@ -19,13 +19,21 @@ the app on what it already does well, and would have missed both of the
 findings that turned out to matter.
 
 Corpus figures throughout are from the live regression environment as of
-2026-08-29: 4,301 profiles, 1,802 of which skipped analysis, 68 merged
-groups, 684 in-schema tables, 373 of them with no query references.
+2026-08-29: 4,233 profiles, 1,802 of which skipped analysis, 684 in-schema
+tables, 373 of them with no query references.
+
+**Read finding 1 before quoting the 1,802.** The first draft of this audit
+treated it as a coverage hole; measuring it showed it is not one. That
+correction is the most useful thing in this document.
 
 ## The finding in one line
 
 **The app is excellent at evidence and has nothing for judgement**, and it is
 weak at the step before evidence — choosing what you are looking at.
+
+It is also, on the evidence, *more* trustworthy than the first draft of this
+audit gave it credit for: the corpus coverage it reports is effectively
+complete for user schemas (finding 1).
 
 The slow-query journey has six steps. Steps 1–3 — find it, cost it, ask why —
 are genuinely strong, and impact-first ordering plus index scoring against
@@ -50,19 +58,67 @@ the parts a redesign is most likely to lose while improving something else:
 - **Tag exclusion in the scope tree** — the only "everything except" control
   in the app, and the right idea.
 
-## Finding 1 — nothing says how much of the corpus you are seeing
+## Finding 1 — WITHDRAWN. The 42% is not a coverage hole
 
-1,802 of 4,301 profiles skipped analysis: 42%. Every count on every page is
-drawn from the remainder and none of them says so. A table lens column
-showing no criteria use may simply never have been analysed, and the page
-renders that identically to "analysed, and not used as criteria".
+**This finding was wrong, and the number that made it look alarming was doing
+no work.** It is kept rather than deleted because the corrected version is
+useful and because the way it failed is instructive: 42% was read off an
+import statistic and never decomposed.
 
-This is the same failure the table lens already fixed for one case — it
-stopped making confident affirmative statements about tables it had no data
-for (see the memory note on `/metadata/table/**` returning a null body). The
-rest of the app still makes them.
+Measured against the live corpus 2026-08-29, 4,233 profiles:
 
-→ `sqlx-3e2`
+| | count | share of skipped |
+|---|---:|---:|
+| `SHOW` | 834 | 46% |
+| `CREATE` / `DROP` / `ALTER` / `GRANT` | 519 | 29% |
+| `SET` / `USE` / `START` / `ROLLBACK` / `FLUSH` / `EXPLAIN` | 174 | 10% |
+| DML (`SELECT` / `INSERT` / `DELETE`) | 273 | 15% |
+| **total skipped** | **1,802** | **42% of the corpus** |
+
+Two facts kill the finding:
+
+- **85% of the skip is statements with no columns to give.** `SHOW`, DDL and
+  session control have no criteria columns, join columns or select columns.
+  Their absence from a column count is correct, not missing.
+- **Every one of the 273 skipped DML statements touches only ignored
+  schemas** — `information_schema` (270 table refs), `mysql` (44),
+  `performance_schema` (15). Checked exhaustively: **zero skipped statements
+  query a user schema.** These are precisely the schemas a `system` tag
+  excludes anyway (finding 2).
+
+So no page is making an unfounded confident claim about a user table on
+account of skipped analysis. Coverage of the queries anyone cares about is
+effectively complete.
+
+### The real hole is 1%, and it is concentrated
+
+What the 42% was hiding is a much smaller and far more actionable set — the
+statements that were *meant* to be analysed and were not:
+
+- **35 parse failures**, of which the largest coherent group is **8
+  `INSERT … VALUES (…) AS NEW ON DUPLICATE KEY UPDATE`** against the `search`
+  schema. That is MySQL 8.0.19's row-alias form, which jsqlparser 5.3 does not
+  accept. One syntax, one fix, eight real DML profiles recovered. → `sqlx-a1i`
+- **~22 of the 35 are not failures at all** — `RELEASE SAVEPOINT`,
+  `SAVEPOINT \`DOCTRINE_2\``, `ROLLBACK TO SAVEPOINT`, `PURGE BINARY LOGS`.
+  They belong in `ignoredFirstTokens` beside `BEGIN` and `FLUSH`. Leaving them
+  in the failure report is what buries the eight that matter. → `sqlx-96y`
+- **9 truncated**, 4 of them genuine user-schema SELECTs lost to unclosed
+  parens because Performance Schema cut the digest text off. Not fixable here.
+
+Genuinely lost, genuinely interesting: on the order of **14 profiles out of
+4,233 — 0.3%**.
+
+### What survives of the original finding
+
+Only this, and it is worth much less than a coverage banner: the SQL view
+already renders an analysis-failure reason, but no list page offers a route to
+"statements that should have parsed and did not". The workbench has
+`analFail`/`analSkipped` filters that lump the deliberate skips in with the
+real failures, which is why the 22 savepoints matter — they make the filter
+answer the wrong question.
+
+`sqlx-3e2` is closed as not-a-defect on the strength of this measurement.
 
 ## Finding 2 — focus does not travel
 
