@@ -1,9 +1,23 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {RouterLink} from '@angular/router';
+import {Highlight} from 'ngx-highlightjs';
 import {HttpErrorResponse} from '@angular/common/http';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ExplainResult, QueryExample, QueryExampleRejected} from '../api-types';
+
+/**
+ * Newest first.
+ *
+ * <p>The server already orders by id, which is a UUIDv7 and therefore
+ * chronological. Sorted again here so the order is a property of this list
+ * rather than of the endpoint that happened to fill it — a newly added example
+ * is spliced in locally without a refetch, and that path has no server
+ * ordering to inherit.
+ */
+function byRecency(examples: QueryExample[]): QueryExample[] {
+  return [...examples].sort((a, b) => b.createdOn.localeCompare(a.createdOn));
+}
 
 /**
  * Add and list example queries for one normalized query group.
@@ -31,7 +45,7 @@ import {ExplainResult, QueryExample, QueryExampleRejected} from '../api-types';
   selector: 'app-query-examples',
   templateUrl: './query-examples.component.html',
   styleUrls: ['./query-examples.component.scss'],
-  imports: [FormsModule, RouterLink]
+  imports: [FormsModule, RouterLink, Highlight]
 })
 export class QueryExamplesComponent implements OnInit {
 
@@ -65,17 +79,6 @@ export class QueryExamplesComponent implements OnInit {
    */
   storedElsewhere: QueryExample | null = null;
 
-  /**
-   * Examples whose SQL the reader has expanded.
-   *
-   * <p>Long statements are clamped by default. Measured before fixing: a
-   * 120-line example rendered the panel 2626px tall — 3.6 screens — with the
-   * indexes card and everything below it pushed off the page. The corpus has
-   * statements of 201 lines, so this is the normal case for a busy query, not
-   * an edge one.
-   */
-  expanded = new Set<string>();
-
   // ── live explain ──
   explaining: string | null = null;
   plans = new Map<string, ExplainResult>();
@@ -90,7 +93,7 @@ export class QueryExamplesComponent implements OnInit {
   reload() {
     this.loading = true;
     this.sqlService.getQueryExamples(this.digest).subscribe({
-      next: examples => { this.examples = examples; this.loading = false; },
+      next: examples => { this.examples = byRecency(examples); this.loading = false; },
       error: () => { this.examples = []; this.loading = false; }
     });
   }
@@ -111,7 +114,7 @@ export class QueryExamplesComponent implements OnInit {
         this.submitting = false;
         if (example.normalizedDigest === this.digest) {
           // most-recent-first, matching the server's own ordering
-          this.examples = [example, ...this.examples];
+          this.examples = byRecency([example, ...this.examples]);
           this.resetForm();
           this.open = false;
         } else {
@@ -132,29 +135,6 @@ export class QueryExamplesComponent implements OnInit {
         }
       }
     });
-  }
-
-  /**
-   * Whether this example is long enough to be worth clamping.
-   *
-   * <p>Counted rather than measured: a DOM measurement would have to happen
-   * after render and would make the control appear a frame late. The threshold
-   * only decides whether a toggle is offered, so being approximate costs
-   * nothing — the clamp itself is CSS and applies exactly.
-   */
-  isLong(example: QueryExample): boolean {
-    const text = example.queryText;
-    return text.length > 400 || text.split('\n').length > 10;
-  }
-
-  isExpanded(example: QueryExample): boolean {
-    return this.expanded.has(example.id);
-  }
-
-  toggleExpanded(example: QueryExample) {
-    if (!this.expanded.delete(example.id)) {
-      this.expanded.add(example.id);
-    }
   }
 
   /** Plan a stored example against the active environment's server. */

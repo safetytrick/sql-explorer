@@ -66,10 +66,18 @@ describe('QueryExamplesComponent', () => {
 
   afterEach(() => http.verify());
 
+  /**
+   * Asserted on the rendered element rather than its text: the statement is
+   * handed to the `highlight` directive, which fills the block in
+   * asynchronously, so the text is not in the DOM synchronously. The SQL card
+   * above renders the same way for the same reason.
+   */
   it('lists the examples it is given', () => {
     openWith([example({queryText: 'select 1'})]);
 
-    expect(rendered()).toContain('select 1');
+    expect(component.examples).toHaveSize(1);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.example')).toHaveSize(1);
+    expect((fixture.nativeElement as HTMLElement).querySelector('pre.sql-display')).toBeTruthy();
   });
 
   it('says why an empty list matters rather than just being empty', () => {
@@ -164,50 +172,45 @@ describe('QueryExamplesComponent', () => {
     request.flush(example());
   });
 
-  // ── long statements ──
+  // ── ordering and rendering ──
 
-  describe('a statement long enough to swamp the panel', () => {
+  /**
+   * The server orders by id (a UUIDv7, so chronological) and the component
+   * sorts again, because a newly submitted example is spliced in locally
+   * without a refetch and that path has no server ordering to inherit.
+   */
+  it('shows the newest example first, whatever order they arrive in', () => {
+    openWith([
+      example({id: 'old', queryText: 'select 1', createdOn: '2026-08-01T00:00:00Z'}),
+      example({id: 'new', queryText: 'select 2', createdOn: '2026-08-28T00:00:00Z'}),
+      example({id: 'mid', queryText: 'select 3', createdOn: '2026-08-14T00:00:00Z'})
+    ]);
 
-    /**
-     * Unclamped, a 120-line example measured 2626px — three and a half screens
-     * — and pushed the indexes card off the bottom of the page. The corpus
-     * holds statements of 201 lines, so this is a normal query, not an edge.
-     */
-    const LONG = Array.from({length: 120}, (_, i) => `  and col${i} = 'value ${i}'`).join('\n');
+    expect(component.examples.map(e => e.id)).toEqual(['new', 'mid', 'old']);
+  });
 
-    it('clamps it by default', () => {
-      openWith([example({queryText: LONG})]);
+  it('keeps a newly added example at the top', () => {
+    openWith([example({id: 'old', createdOn: '2026-08-01T00:00:00Z'})]);
+    submit('select id from orders where total > 1');
+    http.expectOne(request => request.method === 'POST' && request.url.endsWith('query-examples'))
+      .flush(example({id: 'fresh', createdOn: '2026-08-28T23:00:00Z'}));
+    fixture.detectChanges();
 
-      const sql = (fixture.nativeElement as HTMLElement).querySelector('.sql');
-      expect(sql!.classList).toContain('clamped');
-    });
+    expect(component.examples.map(e => e.id)).toEqual(['fresh', 'old']);
+  });
 
-    it('offers to show the whole thing, and says how much there is', () => {
-      openWith([example({queryText: LONG})]);
+  /**
+   * The panel sits under Runtime metrics in the main column, at the same width
+   * as the SQL card, so an example is rendered the same way as the query it is
+   * an example of — highlighted, unclamped. It used to live in the narrow rail
+   * where a long statement had to be truncated to fit.
+   */
+  it('renders the statement the way the SQL card above does', () => {
+    openWith([example({queryText: 'select id from orders'})]);
 
-      expect(rendered()).toContain('show all 120 lines');
-    });
-
-    it('unclamps when expanded, and clamps again when collapsed', () => {
-      openWith([example({queryText: LONG})]);
-      const sql = () => (fixture.nativeElement as HTMLElement).querySelector('.sql')!;
-
-      component.toggleExpanded(component.examples[0]);
-      fixture.detectChanges();
-      expect(sql().classList).not.toContain('clamped');
-
-      component.toggleExpanded(component.examples[0]);
-      fixture.detectChanges();
-      expect(sql().classList).toContain('clamped');
-    });
-
-    it('leaves a short statement alone, with no control to press', () => {
-      openWith([example({queryText: 'select 1'})]);
-
-      const sql = (fixture.nativeElement as HTMLElement).querySelector('.sql');
-      expect(sql!.classList).not.toContain('clamped');
-      expect((fixture.nativeElement as HTMLElement).querySelector('.expand')).toBeNull();
-    });
+    const block = (fixture.nativeElement as HTMLElement).querySelector('pre.sql-display code');
+    expect(block).toBeTruthy();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.clamped')).toBeNull();
   });
 
   // ── live explain ──

@@ -102,34 +102,15 @@
     .spacer { flex: 1; }
   }
 
-  .sql {
-    font-size: 11px;
-    color: var(--text2);
+  // matches .sql-display on the SQL card above, so an example reads the same
+  // way as the query it is an example of
+  .sql-display {
     margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-
-    // Clamped, because this panel lives in a narrow rail beside the page's
-    // other cards. Unclamped, a 120-line example measured 2626px — three and a
-    // half screens — and pushed the indexes card off the bottom. The corpus
-    // holds statements of 201 lines.
-    &.clamped {
-      max-height: 180px;
-      overflow: hidden;
-      // fade the cut rather than slicing a line in half, so it reads as
-      // "there is more" instead of as a rendering fault
-      mask-image: linear-gradient(to bottom, #000 130px, transparent 100%);
-    }
-  }
-
-  .expand {
-    background: none;
-    border: none;
-    padding: 2px 0 0;
-    font-size: 10px;
-    color: var(--blue);
-    cursor: pointer;
-    &:hover { text-decoration: underline; }
+    padding: 8px 0 0;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
   }
 }
 

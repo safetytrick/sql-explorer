@@ -115,11 +115,6 @@
     <!-- … relevant indexes at 1/4, beside the SQL. Each table's name is its
          section header and its link, which is where the old Tables list went. -->
     <div class="sql-side">
-      <!-- Examples sit above the indexes: an example is what makes this query
-           runnable at all, and the plan it can produce is the reason anyone
-           reads the index panel below. -->
-      <app-query-examples [digest]="query.normalizedDigest"></app-query-examples>
-
       <div class="lens-card">
         <div class="card-head">
           <span class="card-head-title">Relevant indexes</span>
@@ -276,6 +271,13 @@
             </div>
           </div>
         }
+
+        <!-- Examples sit here rather than in the right rail: an example is the
+             same kind of thing as the SQL at the top of the page — a statement
+             you read — so it wants the same width and the same rendering. In
+             the rail it had to be clamped to fit, which is the wrong trade for
+             the one artifact on this page you can actually run. -->
+        <app-query-examples [digest]="query.normalizedDigest"></app-query-examples>
 
         <!-- Mismatched joins -->
         @if (query.mismatchedJoins?.length) {
