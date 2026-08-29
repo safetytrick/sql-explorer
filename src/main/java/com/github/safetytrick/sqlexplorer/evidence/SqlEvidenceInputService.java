@@ -71,8 +71,22 @@ public class SqlEvidenceInputService {
     private final IgnoredSchemas ignoredSchemas;
     private final RegexTableExtractor tableExtractor = new RegexTableExtractor();
 
-    // an optimization to ignore parsing sql we likely can't and likely can't find useful data from.
-    private static final Set<String> ignoredFirstTokens = Set.of("ALTER",
+    /**
+     * Statements not worth parsing: they carry no columns, no joins and no
+     * criteria, so the analyzer has nothing to take from them.
+     *
+     * <p>Membership is load-bearing beyond the parsing cost. Anything absent
+     * here that also fails to parse lands in the parse-failures report and
+     * behind the workbench's {@code analFail} filter, both of which exist to
+     * answer "what should have been analysed and was not". Measured 2026-08-29,
+     * 25 of the corpus's 35 parse failures were {@code SAVEPOINT},
+     * {@code RELEASE SAVEPOINT} and {@code PURGE BINARY LOGS} — noise
+     * outnumbering the real failures 3:1 and burying them (sqlx-96y).
+     *
+     * <p>{@code ROLLBACK} covers {@code ROLLBACK TO SAVEPOINT} already, since
+     * the match is on the first token alone.
+     */
+    static final Set<String> ignoredFirstTokens = Set.of("ALTER",
             "ANALYZE",
             "BEGIN",
             "CALL",
@@ -86,9 +100,12 @@ public class SqlEvidenceInputService {
             "GRANT",
             "KILL",
             "LOCK",
+            "PURGE",
+            "RELEASE",
             "REVOKE",
             "RENAME",
             "ROLLBACK",
+            "SAVEPOINT",
             "SHOW",
             "SET",
             "START",
@@ -415,7 +432,7 @@ public class SqlEvidenceInputService {
         return alreadyGroupedList.size() > 1 ? new MergedSqlProfile(alreadyGroupedList) : alreadyGroupedList.getFirst();
     }
 
-    private static String firstToken(String sql) {
+    static String firstToken(String sql) {
         StringTokenizer tokenizer = new StringTokenizer(sql);
         if (tokenizer.hasMoreTokens()) {
             return tokenizer.nextToken().toUpperCase();
