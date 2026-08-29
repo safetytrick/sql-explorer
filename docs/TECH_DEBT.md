@@ -1,9 +1,31 @@
 # SQL Explorer — Technical Debt Report
 
-_Originally compiled 2026-07-19; resolved entries pruned 2026-08-15. Covers the
-Java backend (`src/`), the Angular frontend (`ui/`), and build/CI/infra/config.
-Findings are grouped by area and ranked by severity (HIGH / MED / LOW). File
-paths and line numbers will drift._
+_Originally compiled 2026-07-19; resolved entries pruned 2026-08-15;
+**re-verified 2026-08-28** (`sqlx-zoy`). Covers the Java backend (`src/`), the
+Angular frontend (`ui/`), and build/CI/infra/config. Findings are grouped by
+area and ranked by severity (HIGH / MED / LOW). File paths and line numbers
+will drift._
+
+> **What the 2026-08-28 pass changed.** Every entry below was checked against
+> the tree rather than assumed. Four findings were promoted to beads, where
+> they compete for time with everything else; the rest are deliberately left
+> here unscheduled. Two entries were wrong and are corrected in place — the
+> nullable-metrics NPE is latent rather than live, and the lens-migration
+> duplication is gone. Nothing was deleted merely for being old.
+>
+> | Promoted | Bead |
+> |---|---|
+> | Cache `getAllAnalyzedSql()` + guard the nullable metrics | `sqlx-2oq` |
+> | Version the normalization scheme | `sqlx-czd` |
+> | Component stylesheets override the global vocabulary | `sqlx-ila` |
+> | Retire the abandoned frontend toolchain corners | `sqlx-n77` |
+>
+> Left unscheduled on purpose: no integration tests, no `@ControllerAdvice`,
+> the two graph stacks, triplicated merge logic, large analyzer classes, the
+> silent-failure/unmanaged-subscription frontend items, `open-in-view`,
+> `include-stacktrace`, and the REST-convention inconsistency. All still true,
+> none currently worth displacing what is in `bd ready`. Filing them as beads
+> would be this inventory again with different storage.
 
 ## How to read this
 
@@ -35,7 +57,12 @@ has what was here. If something below turns out to be already done, delete it.
 
 ### Error handling
 
-- **HIGH — Analyzer loop swallows all exceptions.** `analysis/SqlAnalysisService.java:47-54` runs
+- **PARTLY ADDRESSED (2026-08-28, `sqlx-igm`) — Analyzer loop swallows all exceptions.** The swallow
+  itself remains, deliberately: one analyzer failing should not lose the rest of the analysis. What
+  changed is that it is no longer *silent* — `AnalysisFailureRecorder` captures the statement, the
+  session schema and the referenced tables' DDL per failure, and `/analysis-failures/fixtures`
+  renders them as paste-ready tests. The single `analysisFailureReason` string still keeps only the
+  last failure; the recorder accumulates. Original entry: `analysis/SqlAnalysisService.java:47-54` runs
   every analyzer in `try { … } catch (Exception e)`, recording failure only as a `"Failure on: …"`
   string logged at `debug`. Any analyzer bug (NPE, CCE, logic error) becomes an invisible
   "analysis failed" for that query. It's load-bearing too: `QuerySearchService` keys a UI filter off
@@ -96,7 +123,13 @@ has what was here. If something below turns out to be already done, delete it.
 
 ### Correctness / latent bugs
 
-- **HIGH — Unguarded nullable `getRuntimeMetrics()` → NPE.** `runtimeMetrics` is a nullable Avro union
+- **LATENT, not HIGH (corrected 2026-08-28) — Unguarded nullable `getRuntimeMetrics()` → NPE.**
+  Four unguarded sites confirmed in `SqlRepositoryService` (lines 98, 188, 207, 238; line 143 is
+  guarded and shows the shape). But measured across 1,000 live profiles, **zero** have a null
+  `runtimeMetrics` — `complete()` and `MergedSqlProfile` both populate it. So this is a guard against
+  a state the pipeline does not currently produce, not a live crash. Worth fixing because nothing
+  *enforces* that; not worth treating as an emergency. Scheduled as `sqlx-2oq`.
+  Original entry: `runtimeMetrics` is a nullable Avro union
   (`models/src/main/avro/SqlExplorer.avdl:19`). `SqlRepositoryService` guards it in some places (`:143`)
   but dereferences it unguarded at `:98`, `:188`, `:207`, `:238` — the `/table/*`, `/tables`, `/schemas`
   rollups NPE for any table whose queries include a profile with null metrics (e.g. analysis-skipped rows).
@@ -123,11 +156,17 @@ has what was here. If something below turns out to be already done, delete it.
 
 ## 2. Frontend (Angular)
 
-- **HIGH — Test coverage is thin.** 37 `.spec.ts` files, but 19 are still Angular CLI "should create"
+- **HIGH — Test coverage is thin.** (Re-checked 2026-08-28: still 37 `.spec.ts` files, 18 of them CLI
+  stubs — the ratio has barely moved, though the real specs added since are substantially deeper.)
+  37 `.spec.ts` files, but 18 are still Angular CLI "should create"
   stubs. Real coverage exists now in the pure-logic units (`search-url`, `date-math`, `refs`,
   `index-relevance`, `tag-filter-url`, `tag-members`, `tag-field`), and that is the pattern worth
   extending; the two most complex components (`queries-workbench`, `graph-lens`) still have no spec.
-- **MED — Old-vs-new duplication (the tail of the lens migration).** `table-lens` vs `table-view`, and
+- **RESOLVED 2026-08-28 (`sqlx-b50`) — Old-vs-new duplication (the tail of the lens migration).**
+  `TableViewComponent` is retired, along with `TableLinkComponent` and `CallbackPipePipe`, which had
+  no other consumers. Its two routes redirect to the lens rather than 404. The graph half is *not*
+  done and is not duplication either: the legacy graph does things the lens graph cannot, so it is
+  parity work, tracked as `sqlx-m0x` (deferred). Original entry: `table-lens` vs `table-view`, and
   `graph-lens` vs `table-graph(-loader)` — both legacy routes still live. Two HTTP services
   (`analyzed-sql.service`, `schema-lens.service`) hit overlapping backend endpoints. See
   `docs/plans/legacy-ui.md`; this is now a deletion decision, not a restyle.
@@ -152,6 +191,26 @@ has what was here. If something below turns out to be already done, delete it.
 
 ---
 
+### Found by the 2026-08-28 pass
+
+- **MED — Component stylesheets override the global lens vocabulary rather than using it.**
+  Eleven local copies redeclare the *same* properties as the global class, and a component-scoped
+  copy wins on specificity, so the global is decorative for those components: `.tag-chip`
+  (schema-tree, queries-workbench, tagged-sql-view, tag-field), `.data-table` (table-lens,
+  sql-view), `.lens-card` (table-lens, sql-view), `.view-header` (table-lens, sql-view), `.tri-btn`
+  (queries-workbench, table-lens), `.table-scroll` (explain-view, table-lens, sql-view).
+  `not-found.component.scss` is the counter-example — it extends `.lens-card` without redeclaring
+  anything. Scheduled as `sqlx-ila`.
+
+- **MED — Three component stylesheets exceed the 6kB `anyComponentStyle` budget**:
+  `queries-workbench` (12.58kB), `sql-view` (7.76kB), `table-lens` (7.62kB). Warning-only — the
+  budget sets `maximumWarning` and no `maximumError` — so it never fails a build and has been
+  ignored accordingly. Largely the same root cause as the entry above.
+
+- **NOTE — Normalizer versioning is now due rather than optional.** `docs/plans/normalization-versioning.md`
+  was safe to leave unscheduled while no digest was stored durably. `query_example` rows now store
+  one. Scheduled as `sqlx-czd`.
+
 ## 3. Build, CI, Infra, Config
 
 - **HIGH — Stack traces exposed in all environments.** `src/main/resources/application.yml:22-23`:
@@ -161,12 +220,18 @@ has what was here. If something below turns out to be already done, delete it.
   `.env.example`, example server keys renamed), but the strings remain in **history** until the rewrite in
   `docs/plans/history-rewrite.md` runs. (Working-tree `.env` holds live-looking creds but was never
   committed and is correctly gitignored — rotate if the machine is shared.)
-- **MED — Frontend toolchain has abandoned corners.** `ui/package.json` still carries `core-js ^2` (EOL),
+- **MED — Frontend toolchain has abandoned corners.** Re-verified 2026-08-28, every pin below still
+  present; scheduled as `sqlx-n77`. Note `protractor.conf.js` survives although protractor itself is
+  no longer a dependency at all. `ui/package.json` still carries `core-js ^2` (EOL),
   `@types/node ^12` (Docker builds on node:22), `@typescript-eslint ^4` + `eslint ^7` (several majors
   behind), and an unbounded `highlight.js ">=9"`. Dead config still committed: `ui/.angular-cli.json`,
   `ui/ngcc.config.js` (pre-Ivy), `ui/protractor.conf.js` + `ui/e2e/*` (the project uses Playwright).
   `ui/.npmrc` sets `legacy-peer-deps=true`, masking conflicts.
-- **MED — Spotbugs is near-toothless.** `build.gradle:44-59` disables XML reports; `spotbugs-exclude-filter.xml`
+- **MED — Spotbugs is near-toothless.** One deliberate, documented exception was added 2026-08-28:
+  `LiveExplainService.explain` is exempted from `SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE`, because
+  building `EXPLAIN <statement>` is that method's purpose and a PreparedStatement cannot parameterize
+  a whole statement. The filter records the condition that would invalidate it.
+  `build.gradle:44-59` disables XML reports; `spotbugs-exclude-filter.xml`
   blanket-suppresses `EI/EI2/MS/CT/UuF/RCN` under a misleading "try-with-resources false positive" comment
   and references classes that no longer exist (stale).
 - **MED — `open-in-view: true`** (`application.yml:19`) — keeps a DB session open for the whole request
