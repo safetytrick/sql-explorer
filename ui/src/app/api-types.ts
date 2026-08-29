@@ -256,3 +256,48 @@ export interface CrossSchemaTable {
   rundeckQuery: string;
   tables: string;
 }
+
+
+/**
+ * A stored example: one real statement, parameters intact, for a normalized
+ * query group.
+ *
+ * `normalizedDigest` is **derived by the server** from the submitted text — it
+ * is never sent. So the digest that comes back may not be the digest of the
+ * page the example was submitted from, and that is the feature working: the
+ * paste did not belong to this group. See `matchedAProfile`.
+ */
+export interface QueryExample {
+  id: string;
+  queryText: string;
+  normalizedDigest: string;
+  sessionSchema: string;
+  /** Whether the schema was guessed from the statement rather than stated. */
+  schemaInferred: boolean;
+  description: string | null;
+  environmentName: string | null;
+  createdOn: string;
+  /**
+   * Whether a loaded profile carries the derived digest. Null on a read, where
+   * the server did not evaluate it. False is not an error — a statement can age
+   * out of the live window — but it is also what a wrong parameterization looks
+   * like, so it is surfaced rather than swallowed.
+   */
+  matchedAProfile: boolean | null;
+}
+
+/** The body of a 4xx from the examples endpoint. */
+export interface QueryExampleRejected {
+  reason: string;
+  detail: string;
+  /** Populated for AMBIGUOUS_SCHEMA: the schemas the statement could have meant. */
+  candidateSchemas: string[];
+}
+
+/** A plan from the live EXPLAIN endpoint. */
+export interface ExplainResult {
+  /** MySQL's `FORMAT=JSON` document, which the explain parser already reads. */
+  plan: string;
+  serverName: string;
+  exampleId: string;
+}

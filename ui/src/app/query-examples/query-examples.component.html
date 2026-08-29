@@ -1,0 +1,112 @@
+<div class="lens-card">
+  <div class="card-head">
+    <span class="card-head-title">Examples</span>
+    <span class="card-head-note">{{examples.length || ''}}</span>
+    <button type="button" class="btn head-action" (click)="toggleForm()">
+      {{open ? 'cancel' : '+ add'}}
+    </button>
+  </div>
+
+  @if (open) {
+    <div class="add-form">
+      <p class="form-note">
+        The corpus stores this query with its values stripped, which is why it cannot be run.
+        Paste a real statement — parameters and all — and the server works out which query it
+        belongs to by normalizing it. You do not tell it; it derives it.
+      </p>
+
+      <textarea class="draft" rows="5" [(ngModel)]="draft"
+                placeholder="select id from orders where total > 100"
+                [disabled]="submitting"></textarea>
+
+      <input class="description" type="text" [(ngModel)]="description"
+             placeholder="where this came from (optional)" [disabled]="submitting">
+
+      <!-- only after the server says the statement is ambiguous, and only over
+           the schemas it actually offered -->
+      @if (candidateSchemas.length) {
+        <div class="schema-picker">
+          <span class="picker-label">which schema?</span>
+          @for (schema of candidateSchemas; track schema) {
+            <button type="button" class="tri-btn" [class.on]="chosenSchema === schema"
+                    (click)="chosenSchema = schema">{{schema}}</button>
+          }
+        </div>
+      }
+
+      @if (rejected) {
+        <div class="rejected" [class.ambiguous]="candidateSchemas.length">
+          <span class="reason">{{rejected.reason}}</span>
+          <span class="detail">{{rejected.detail}}</span>
+          <button type="button" class="dismiss" (click)="dismissRejection()" title="dismiss">×</button>
+        </div>
+      }
+
+      <div class="form-actions">
+        <button type="button" class="btn primary" (click)="submit()"
+                [disabled]="!draft.trim() || submitting">
+          {{submitting ? 'saving…' : 'save example'}}
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- stored, correctly, but under a different digest: this paste is an example
+       of a different query. Never filed under this page. -->
+  @if (storedElsewhere) {
+    <div class="elsewhere">
+      <div class="elsewhere-head">This example belongs to a different query</div>
+      <p>
+        It was saved — the statement normalizes to a different query than this page, so it is
+        filed there rather than here. That usually means the paste came from somewhere else.
+      </p>
+      <a class="btn" [routerLink]="['/analyzed-sql', storedElsewhere.normalizedDigest]">
+        open that query ↗
+      </a>
+      <button type="button" class="dismiss" (click)="dismissStoredElsewhere()" title="dismiss">×</button>
+    </div>
+  }
+
+  @if (loading) {
+    <div class="card-empty">loading…</div>
+  } @else if (!examples.length) {
+    <div class="card-empty">
+      No examples yet. Without one this query cannot be planned — the stored text carries
+      <span class="mono">?</span> placeholders, which EXPLAIN rejects.
+    </div>
+  } @else {
+    <div class="examples">
+      @for (example of examples; track example.id) {
+        <div class="example">
+          <div class="example-head">
+            <span class="schema mono">{{example.sessionSchema}}</span>
+            @if (example.schemaInferred) {
+              <span class="inferred" title="the schema was derived from the statement, not stated">inferred</span>
+            }
+            @if (example.description) {
+              <span class="desc">{{example.description}}</span>
+            }
+            <span class="spacer"></span>
+            <button type="button" class="btn small" (click)="explain(example)"
+                    [disabled]="explaining === example.id">
+              {{explaining === example.id ? 'planning…' : 'explain'}}
+            </button>
+          </div>
+
+          <pre class="sql mono">{{example.queryText}}</pre>
+
+          @if (explainErrorFor(example); as error) {
+            <div class="explain-error">{{error}}</div>
+          }
+
+          @if (planFor(example); as result) {
+            <div class="plan">
+              <div class="plan-head">plan from <span class="mono">{{result.serverName}}</span></div>
+              <pre class="mono">{{formatPlan(result.plan)}}</pre>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

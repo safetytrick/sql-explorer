@@ -3,8 +3,10 @@ import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {
   CleanedSql,
+  ExplainResult,
   GroupedTableRelationships,
   NormalizedQuery,
+  QueryExample,
   SchemaRollup,
   SqlProfile,
   Table,
@@ -122,5 +124,33 @@ export class AnalyzedSqlService {
 
   getSchemas(): Observable<SchemaRollup[]> {
     return this.http.get<SchemaRollup[]>(endpoint + 'schemas');
+  }
+
+  // ── query examples ──
+
+  /**
+   * Submit an example. Deliberately posts the *statement*, never a digest: the
+   * server derives the digest from the text, so the association cannot be
+   * asserted by the caller. `sessionSchema` is optional — omitted, the server
+   * infers it, and answers 409 with candidates when the statement does not
+   * determine one.
+   */
+  createQueryExample(queryText: string, sessionSchema: string | null, description: string | null):
+      Observable<QueryExample> {
+    return this.http.post<QueryExample>(endpoint + 'query-examples', {
+      queryText,
+      sessionSchema: sessionSchema || null,
+      description: description || null
+    });
+  }
+
+  /** Examples for a digest, most-recently-added first. */
+  getQueryExamples(digest: string): Observable<QueryExample[]> {
+    return this.http.get<QueryExample[]>(endpoint + 'query-examples/' + digest);
+  }
+
+  /** Plan a stored example on the active environment's server. */
+  explainQueryExample(exampleId: string): Observable<ExplainResult> {
+    return this.http.post<ExplainResult>(endpoint + 'query-examples/' + exampleId + '/explain', {});
   }
 }

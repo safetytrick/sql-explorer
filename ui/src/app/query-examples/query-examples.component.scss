@@ -1,0 +1,147 @@
+:host { display: block; }
+
+.head-action { margin-left: auto; font-size: 11px; padding: 2px 8px; }
+
+.add-form {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+
+  .form-note { font-size: 11px; color: var(--text3); line-height: 1.6; margin: 0 0 8px; }
+
+  .draft, .description {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    margin-bottom: 6px;
+  }
+  .draft { resize: vertical; }
+  .description { font-family: var(--sans); }
+
+  .form-actions { display: flex; justify-content: flex-end; }
+}
+
+// only rendered when the server offered candidates, so it is always a closed
+// set of correct answers rather than an invitation to guess
+.schema-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+
+  .picker-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
+}
+
+.rejected {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  border-left: 2px solid var(--red, #c66);
+  background: var(--bg2);
+  font-size: 11px;
+
+  // an ambiguous schema is not a mistake — the picker above resolves it — so it
+  // reads as a prompt rather than an error
+  &.ambiguous { border-left-color: var(--amber); }
+
+  .reason { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .detail { color: var(--text2); flex: 1; }
+}
+
+.elsewhere {
+  position: relative;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid var(--amber);
+  font-size: 11px;
+
+  .elsewhere-head { font-weight: 600; margin-bottom: 4px; }
+  p { color: var(--text2); line-height: 1.6; margin: 0 0 8px; }
+}
+
+.dismiss {
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  &:hover { color: var(--text); }
+}
+
+.examples { display: flex; flex-direction: column; }
+
+.example {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  &:last-child { border-bottom: none; }
+
+  .example-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 10px;
+
+    .schema { color: var(--blue); }
+    .inferred {
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text3);
+      border: 1px solid var(--border);
+      padding: 0 4px;
+    }
+    .desc { color: var(--text3); }
+    .spacer { flex: 1; }
+  }
+
+  .sql {
+    font-size: 11px;
+    color: var(--text2);
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+.btn.small { font-size: 10px; padding: 1px 6px; }
+
+.explain-error {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-left: 2px solid var(--amber);
+  background: var(--bg2);
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.plan {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+
+  .plan-head {
+    padding: 3px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+  }
+
+  pre {
+    margin: 0;
+    padding: 8px;
+    font-size: 10px;
+    color: var(--text2);
+    max-height: 320px;
+    overflow: auto;
+  }
+}

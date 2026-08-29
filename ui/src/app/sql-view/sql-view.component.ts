@@ -12,13 +12,15 @@ import {SqlProfile, TableStructure} from '../api-types';
 import {parseTableRef} from '../refs';
 import {MergeVariant, mergeVariants} from '../queries-workbench/merge-group';
 import {buildIndexPanels, TableIndexPanel} from './index-relevance';
+import {QueryExamplesComponent} from '../query-examples/query-examples.component';
 
 @Component({
   selector: 'app-sql-view',
   templateUrl: './sql-view.component.html',
   styleUrls: ['./sql-view.component.scss'],
   providers: [AnalyzedSqlService],
-  imports: [RouterLink, DecimalPipe, SlicePipe, Highlight, TagFieldComponent, PicoViewComponent, ColumnLinkComponent]
+  imports: [RouterLink, DecimalPipe, SlicePipe, Highlight, TagFieldComponent, PicoViewComponent, ColumnLinkComponent,
+    QueryExamplesComponent]
 })
 export class SqlViewComponent implements OnInit {
 
