@@ -88,7 +88,12 @@ public class NormalizedQueryDigest {
 
         QueryNormalizer.NormalizedSql normalized = queryNormalizer.normalizeWithRepeats(statement);
 
-        return new DigestedQuery(scopedDigest(sessionSchema, normalized.sql()),
+        // The hash sees identifiers canonicalized; the display text does not.
+        // MySQL backticks every identifier and a human types none, so without
+        // this the same statement written two ways is two profiles — and a query
+        // example, which is written by a human for a profile that came from
+        // MySQL, could never match the group it is an example of.
+        return new DigestedQuery(scopedDigest(sessionSchema, IdentifierCanonicalizer.canonicalize(normalized.sql())),
                                  normalized.sql(), normalized.repeats());
     }
 

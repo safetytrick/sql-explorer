@@ -9,6 +9,8 @@ import java.util.UUID;
 import com.fasterxml.uuid.Generators;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
+import com.github.safetytrick.sqlexplorer.analysis.parser.QueryParameterizer;
+import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.auth.UserService;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
@@ -32,6 +34,8 @@ class QueryExampleService {
 
     private final QueryExampleRepository repository;
     private final NormalizedQueryDigest normalizedQueryDigest;
+    private final QueryParameterizer queryParameterizer;
+    private final SqlRepositoryService sqlRepositoryService;
     private final SqlAnalysisService sqlAnalysisService;
     private final SqlSchemaRepository schemaRepository;
     private final EnvironmentContext environmentContext;
@@ -39,12 +43,16 @@ class QueryExampleService {
 
     QueryExampleService(QueryExampleRepository repository,
                         NormalizedQueryDigest normalizedQueryDigest,
+                        QueryParameterizer queryParameterizer,
+                        SqlRepositoryService sqlRepositoryService,
                         SqlAnalysisService sqlAnalysisService,
                         SqlSchemaRepository schemaRepository,
                         EnvironmentContext environmentContext,
                         UserService userService) {
         this.repository = repository;
         this.normalizedQueryDigest = normalizedQueryDigest;
+        this.queryParameterizer = queryParameterizer;
+        this.sqlRepositoryService = sqlRepositoryService;
         this.sqlAnalysisService = sqlAnalysisService;
         this.schemaRepository = schemaRepository;
         this.environmentContext = environmentContext;
@@ -66,7 +74,14 @@ class QueryExampleService {
         /** No schema in the active environment contains the statement's tables. */
         NO_MATCHING_SCHEMA,
         /** The active environment has no schema loaded, so nothing can be inferred. */
-        SCHEMA_UNAVAILABLE
+        SCHEMA_UNAVAILABLE,
+        /**
+         * The digest derived from this statement matches no profile the active
+         * environment has loaded. Stored anyway — see the note on the field —
+         * but reported, because the common cause is a parameterization this
+         * pipeline got wrong, and a silent orphan looks identical to success.
+         */
+        NO_MATCHING_PROFILE
     }
 
     /**
@@ -74,14 +89,15 @@ class QueryExampleService {
      * enough detail to act on. {@code candidateSchemas} is populated for
      * {@link Failure#AMBIGUOUS_SCHEMA} so the caller can pick one and resubmit.
      */
-    record Result(QueryExample stored, Failure failure, String detail, List<String> candidateSchemas) {
+    record Result(QueryExample stored, Failure failure, String detail, List<String> candidateSchemas,
+                  boolean matchedAProfile) {
 
-        static Result ok(QueryExample stored) {
-            return new Result(stored, null, null, List.of());
+        static Result ok(QueryExample stored, boolean matchedAProfile) {
+            return new Result(stored, null, null, List.of(), matchedAProfile);
         }
 
         static Result failed(Failure failure, String detail, List<String> candidates) {
-            return new Result(null, failure, detail, candidates);
+            return new Result(null, failure, detail, candidates, false);
         }
 
         boolean succeeded() {
@@ -136,7 +152,11 @@ class QueryExampleService {
 
         String digest;
         try {
-            digest = normalizedQueryDigest.normalizedDigest(queryText, resolved);
+            // The corpus holds MySQL's digest_text, whose literals are already
+            // `?`. An example is the one thing that arrives with its values, so
+            // it is reduced the same way before hashing — otherwise it keys to a
+            // digest no profile can carry.
+            digest = normalizedQueryDigest.normalizedDigest(queryParameterizer.parameterize(queryText), resolved);
         } catch (JSQLParserException e) {
             return Result.failed(Failure.UNPARSEABLE, rootMessage(e), List.of());
         }
@@ -151,7 +171,26 @@ class QueryExampleService {
         example.setEnvironmentName(environmentContext.current().getName());
         example.setAuthor(userService.currentUser());
 
-        return Result.ok(repository.save(example));
+        return Result.ok(repository.save(example), carriedByALoadedProfile(digest));
+    }
+
+    /**
+     * Whether any loaded profile carries this digest.
+     *
+     * <p>Not a precondition for storing — the corpus is a live window over
+     * `sys.x$statement_analysis` and a statement leaves it as soon as it stops
+     * being among the top consumers, so an example for one that has aged out is
+     * still worth keeping. It is reported instead, because the other reason a
+     * digest matches nothing is that the parameterization was wrong, and that
+     * failure is otherwise completely silent.
+     */
+    private boolean carriedByALoadedProfile(String digest) {
+        try {
+            return sqlRepositoryService.getById(digest) != null;
+        } catch (RuntimeException e) {
+            // no corpus loaded is not evidence about the digest either way
+            return false;
+        }
     }
 
     List<QueryExample> forDigest(String digest, org.springframework.data.domain.Pageable pageable) {

@@ -44,14 +44,26 @@ class QueryExampleResource {
      */
     record CreateExample(@NotBlank String queryText, String sessionSchema, String description) { }
 
+    /**
+     * @param matchedAProfile whether a loaded profile carries the derived
+     *                        digest. False is not an error — the corpus is a
+     *                        live window and a statement can age out of it —
+     *                        but it is also what a wrong parameterization looks
+     *                        like, so it is reported rather than left silent.
+     *                        Null on a read, where it has not been evaluated.
+     */
     record ExampleView(UUID id, String queryText, String normalizedDigest, String sessionSchema,
                        boolean schemaInferred, String description, String environmentName,
-                       Instant createdOn) {
+                       Instant createdOn, Boolean matchedAProfile) {
 
         static ExampleView of(QueryExample example) {
+            return of(example, null);
+        }
+
+        static ExampleView of(QueryExample example, Boolean matchedAProfile) {
             return new ExampleView(example.getId(), example.getQueryText(), example.getNormalizedDigest(),
                 example.getSessionSchema(), example.isSchemaInferred(), example.getDescription(),
-                example.getEnvironmentName(), example.getCreatedOn());
+                example.getEnvironmentName(), example.getCreatedOn(), matchedAProfile);
         }
     }
 
@@ -73,7 +85,8 @@ class QueryExampleResource {
             service.create(request.queryText(), request.sessionSchema(), request.description());
 
         if (result.succeeded()) {
-            return ResponseEntity.status(HttpStatus.CREATED).body(ExampleView.of(result.stored()));
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ExampleView.of(result.stored(), result.matchedAProfile()));
         }
 
         // 409 for the ambiguous case rather than 400: the request is well-formed

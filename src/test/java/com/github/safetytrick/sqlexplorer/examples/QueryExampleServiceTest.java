@@ -3,6 +3,8 @@ package com.github.safetytrick.sqlexplorer.examples;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
 import com.github.safetytrick.sqlexplorer.analysis.parser.QueryNormalizer;
+import com.github.safetytrick.sqlexplorer.analysis.parser.QueryParameterizer;
+import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.analysis.parser.SqlParser;
 import com.github.safetytrick.sqlexplorer.auth.User;
 import com.github.safetytrick.sqlexplorer.auth.UserService;
@@ -55,8 +57,14 @@ class QueryExampleServiceTest {
         UserService userService = mock(UserService.class);
         when(userService.currentUser()).thenReturn(new User());
 
+        // no corpus in a unit test, so nothing carries any digest — matchedAProfile
+        // is exercised in its own test rather than assumed here
+        SqlRepositoryService sqlRepositoryService = mock(SqlRepositoryService.class);
+        when(sqlRepositoryService.getById(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+
         service = new QueryExampleService(repository,
             new NormalizedQueryDigest(new QueryNormalizer(), new SqlParser()),
+            new QueryParameterizer(), sqlRepositoryService,
             analysis, fixture.schema(), environmentContext, userService);
     }
 
@@ -151,63 +159,52 @@ class QueryExampleServiceTest {
     }
 
     /**
-     * KNOWN GAP, pinned deliberately so it cannot be discovered twice.
-     *
-     * <p>`QueryNormalizer` does not strip literals — its javadoc is explicit
-     * that "distinct literals stay distinct", and it is right to be: the corpus
-     * text arrives from Performance Schema with MySQL's own `?` placeholders
-     * already in place, and this normalizer is a second pass over that.
-     *
-     * <p>So two examples differing only in their parameters digest differently,
-     * and — the part that matters — an example carrying real parameters digests
-     * differently from the profile it is an example *of*, whose text reads
-     * `total > ?`. Until a parameterization step exists, a stored example keys
-     * to a digest no profile has.
-     *
-     * <p>When that step lands, this test should inverted: both of these should
-     * produce the same digest, and it should equal the profile's.
+     * The gap this feature was blocked on, now closed. An example is submitted
+     * with its real parameters and reduced the way MySQL reduces a statement
+     * into a digest, so two examples differing only in their values land on the
+     * same digest — and, critically, on the same one as the `?`-carrying text
+     * the corpus actually stores.
      */
     @Test
-    void distinctLiteralsStillDigestDistinctly_theParameterizationGap() {
+    void reachesTheSameDigestWhateverTheParametersWere() {
         QueryExampleService.Result hundred =
             service.create("select id from orders where total > 100", "app", null);
         QueryExampleService.Result nineNineNine =
             service.create("select id from orders where total > 999", "app", null);
-        QueryExampleService.Result parameterized =
+        QueryExampleService.Result asTheCorpusHoldsIt =
             service.create("select id from orders where total > ?", "app", null);
 
         assertThat(hundred.stored().getNormalizedDigest())
-            .isNotEqualTo(nineNineNine.stored().getNormalizedDigest());
-        // and neither matches the shape the corpus actually stores
-        assertThat(hundred.stored().getNormalizedDigest())
-            .isNotEqualTo(parameterized.stored().getNormalizedDigest());
+            .isEqualTo(nineNineNine.stored().getNormalizedDigest())
+            .isEqualTo(asTheCorpusHoldsIt.stored().getNormalizedDigest());
     }
 
     /**
-     * The same text in two schemas is two groups, not one — `scopedDigest` keys
-     * by session schema deliberately. If this ever fails, examples from
-     * different schemas have started merging.
+     * The other half of the same gap: MySQL backticks every identifier and a
+     * human types none, so a hand-written example has to reach the digest the
+     * backticked corpus text reaches.
      */
     @Test
-    void derivesDifferentDigestsForTheSameStatementInDifferentSchemas() {
-        QueryExampleService.Result inApp =
+    void reachesTheSameDigestWhicheverWayIdentifiersAreWritten() {
+        QueryExampleService.Result human =
             service.create("select id from orders where total > 100", "app", null);
-        QueryExampleService.Result inArchive =
-            service.create("select id from orders where total > 100", "archive", null);
+        QueryExampleService.Result mysqlStyle =
+            service.create("SELECT `id` FROM `orders` WHERE `total` > ?", "app", null);
 
-        assertThat(inApp.stored().getNormalizedDigest())
-            .isNotEqualTo(inArchive.stored().getNormalizedDigest());
+        assertThat(human.stored().getNormalizedDigest())
+            .isEqualTo(mysqlStyle.stored().getNormalizedDigest());
     }
 
-    /** Literals are what the normalization strips; the stored text keeps them. */
+    /** A multi-element IN list reduces the same way MySQL's `IN (...)` does. */
     @Test
-    void storesTheStatementWithItsParametersIntact() {
-        String sql = "select id from orders where total > 100 and member_id = 42";
+    void reachesTheSameDigestForAnInListHoweverManyElements() {
+        QueryExampleService.Result three =
+            service.create("select id from orders where id in (1, 2, 3)", "app", null);
+        QueryExampleService.Result one =
+            service.create("select id from orders where id in (7)", "app", null);
 
-        QueryExampleService.Result result = service.create(sql, "app", "from the slow log");
-
-        assertThat(result.stored().getQueryText()).isEqualTo(sql);
-        assertThat(result.stored().getDescription()).isEqualTo("from the slow log");
+        assertThat(three.stored().getNormalizedDigest())
+            .isEqualTo(one.stored().getNormalizedDigest());
     }
 
     // ── derived rather than accepted, continued ──
