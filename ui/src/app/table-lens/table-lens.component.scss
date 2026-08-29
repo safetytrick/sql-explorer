@@ -89,13 +89,6 @@ td.lineage {
 
 .lens-rail { display: flex; flex-direction: column; gap: 10px; }
 
-.lens-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  margin-bottom: 12px;
-}
 
 .card-head {
   padding: 8px 14px;
@@ -132,7 +125,6 @@ td.lineage {
   .stat-val.blue { color: var(--blue); }
 }
 
-.table-scroll { overflow-x: auto; }
 
 .data-table {
   width: 100%;
