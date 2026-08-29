@@ -1,0 +1,193 @@
+import {ComponentFixture, TestBed, waitForAsync} from '@angular/core/testing';
+import {ActivatedRoute, convertToParamMap, ParamMap, Router} from '@angular/router';
+import {BehaviorSubject} from 'rxjs';
+import {HttpTestingController} from '@angular/common/http/testing';
+import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
+import {GraphLensComponent} from './graph-lens.component';
+
+/**
+ * What is tested here is the toolbar's honesty about scope, which is where
+ * sqlx-p7u lived: a tag or search graph used to render a schema select
+ * defaulted to a schema it was not showing, and changing it discarded the
+ * scope as a side effect of what read like a narrowing control.
+ *
+ * The graph drawing itself is canvas work and is not exercised.
+ */
+describe('GraphLensComponent — scope legibility', () => {
+
+  let fixture: ComponentFixture<GraphLensComponent>;
+  let component: GraphLensComponent;
+  let router: Router;
+  let params: BehaviorSubject<ParamMap>;
+  let queryParams: BehaviorSubject<ParamMap>;
+
+  /** Route stub whose snapshot tracks the subjects, the way a real one does. */
+  function routeStub() {
+    return {
+      get snapshot() {
+        return { paramMap: params.value, queryParamMap: queryParams.value };
+      },
+      paramMap: params,
+      queryParamMap: queryParams
+    };
+  }
+
+  function navigateTo(routeParams: Record<string, string>, query: Record<string, string>) {
+    params.next(convertToParamMap(routeParams));
+    queryParams.next(convertToParamMap(query));
+    fixture.detectChanges();
+  }
+
+  function toolbar(): HTMLElement {
+    return (fixture.nativeElement as HTMLElement).querySelector('.graph-toolbar') as HTMLElement;
+  }
+
+  beforeEach(waitForAsync(() => {
+    params = new BehaviorSubject<ParamMap>(convertToParamMap({}));
+    queryParams = new BehaviorSubject<ParamMap>(convertToParamMap({}));
+    TestBed.configureTestingModule({
+      imports: [GraphLensComponent],
+      providers: [COMMON_TEST_PROVIDERS, {provide: ActivatedRoute, useValue: routeStub()}]
+    }).compileComponents();
+  }));
+
+  beforeEach(() => {
+    fixture = TestBed.createComponent(GraphLensComponent);
+    component = fixture.componentInstance;
+    router = TestBed.inject(Router);
+    spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
+    fixture.detectChanges();
+  });
+
+  /**
+   * Resolve the schema-tree request that the environment subscription fires.
+   * Deliberately per-test and *after* navigating: flushing it up front would
+   * default the schema while the mode is still 'schema', which is exactly the
+   * ordering the fix depends on.
+   */
+  function loadSchemaTree(): void {
+    // `schema-tree` exactly — `graph/v2/schema/...` also contains "schema",
+    // and answering that with a tree body reaches buildLayout
+    TestBed.inject(HttpTestingController).match(req => req.url.endsWith('schema-tree'))
+      .forEach(req => req.flush({schemas: [{name: 'app'}, {name: 'archive'}]}));
+    fixture.detectChanges();
+  }
+
+  /** Whatever graph the current scope asked for. Empty is enough here. */
+  function answerGraph(): void {
+    TestBed.inject(HttpTestingController).match(req => req.url.includes('graph/v2'))
+      .forEach(req => req.flush({nodes: [], fkEdges: [], coQueryEdges: [], viewEdges: []}));
+    fixture.detectChanges();
+  }
+
+  // ── the select must not describe a graph it is not showing ──
+
+  it('offers the schema select on a schema graph', () => {
+    navigateTo({schema: 'app'}, {});
+    loadSchemaTree();
+    answerGraph();
+
+    expect(toolbar().querySelector('.schema-select')).toBeTruthy();
+  });
+
+  it('hides the schema select on a tag graph', () => {
+    navigateTo({}, {tag: 'system'});
+    loadSchemaTree();
+    answerGraph();
+
+    expect(component.mode).toBe('tag');
+    expect(toolbar().querySelector('.schema-select')).toBeNull();
+  });
+
+  it('hides the schema select on a search graph', () => {
+    navigateTo({}, {source: 'search'});
+    loadSchemaTree();
+    answerGraph();
+
+    expect(component.mode).toBe('search');
+    expect(toolbar().querySelector('.schema-select')).toBeNull();
+  });
+
+  /**
+   * The root of the bug: loadSchemas() defaulted `schema` regardless of mode,
+   * so a tag graph acquired the first schema alphabetically — a name nobody
+   * chose, describing nothing on screen.
+   */
+  it('does not adopt a default schema behind a scoped graph', () => {
+    navigateTo({}, {tag: 'system'});
+    loadSchemaTree();
+    answerGraph();
+
+    expect(component.schema).toBe('');
+  });
+
+  /**
+   * A schema you *did* choose is remembered, so leaving the scope returns you
+   * to it. That is fine precisely because the select is hidden meanwhile —
+   * the defect was displaying it, not holding it.
+   */
+  it('remembers a chosen schema while scoped, without showing it', () => {
+    navigateTo({schema: 'archive'}, {});
+    loadSchemaTree();
+    answerGraph();
+
+    navigateTo({}, {tag: 'system'});
+
+    expect(component.schema).toBe('archive');
+    expect(toolbar().querySelector('.schema-select')).toBeNull();
+  });
+
+  // ── the chip says what the graph is, not how it was built ──
+
+  it('names the tag on a tag graph', () => {
+    navigateTo({}, {tag: 'system'});
+
+    expect(toolbar().textContent).toContain('tag: system');
+  });
+
+  it('names the active filters on a search graph rather than saying "workbench results"', () => {
+    navigateTo({}, {source: 'search', q: 'orders', fullScan: 'YES'});
+
+    const rendered = toolbar().textContent || '';
+    expect(rendered).not.toContain('workbench results');
+    expect(rendered).toContain('q');
+    expect(rendered).toContain('fullScan');
+  });
+
+  it('says so plainly when a search graph has no filters at all', () => {
+    navigateTo({}, {source: 'search'});
+
+    expect(component.searchSummary()).toBe('all queries');
+  });
+
+  it('summarizes rather than listing every filter', () => {
+    navigateTo({}, {source: 'search', q: 'a', fullScan: 'YES', tmpDisk: 'YES', errors: 'YES', warnings: 'YES'});
+
+    expect(component.searchSummary()).toMatch(/\+\d+$/);
+  });
+
+  // ── leaving a scope is an act, not a side effect ──
+
+  it('offers a way off a scoped graph', () => {
+    navigateTo({}, {tag: 'system'});
+    loadSchemaTree();
+    answerGraph();
+
+    expect(toolbar().querySelector('.chip-x')).toBeTruthy();
+  });
+
+  it('clears the scope to a whole-schema graph, keeping the layer toggles', () => {
+    navigateTo({}, {tag: 'system'});
+    loadSchemaTree();
+    answerGraph();
+    component.layers = {...component.layers, co: true};
+
+    component.clearScope();
+
+    const [commands, extras] = (router.navigate as jasmine.Spy).calls.mostRecent().args;
+    expect(commands).toEqual(['/graph']);
+    expect(extras.queryParams['tag']).toBeFalsy();
+    expect(extras.queryParams['source']).toBeFalsy();
+    expect(extras.queryParams['var-layers']).toBeTruthy();
+  });
+});

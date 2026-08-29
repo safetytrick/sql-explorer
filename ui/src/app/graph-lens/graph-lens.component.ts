@@ -118,6 +118,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       const schema = this.route.snapshot.paramMap.get('schema');
       if (schema) {
         this.schema = schema;
+      } else if (!this.schema && this.schemaNames.length) {
+        // bare /graph, or leaving a scoped graph after the tree has loaded —
+        // loadSchemas() only re-runs on an environment change, so the default
+        // has to be applied here too
+        this.schema = this.schemaNames[0];
       }
     }
     if (this.scopeKey() === this.loadedScope) {
@@ -164,13 +169,57 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadSchemas() {
     this.schemaLensService.getSchemaTree().subscribe(tree => {
       this.schemaNames = tree.schemas.map(schema => schema.name);
-      if (!this.schema && this.schemaNames.length) {
+      // Only schema mode has a schema. Defaulting it unconditionally is what
+      // put a schema name into the toolbar of a tag or search graph that was
+      // not showing that schema at all (sqlx-p7u).
+      if (this.mode === 'schema' && !this.schema && this.schemaNames.length) {
         this.schema = this.schemaNames[0];
       }
       if (this.schema && this.mode === 'schema') {
         this.loadGraph();
       }
     });
+  }
+
+  /**
+   * Leave a tag or search scope for a whole-schema graph.
+   *
+   * <p>The chip used to be a label with no way off it, so the only exit was
+   * the schema select — which dropped the scope as a side effect of what read
+   * like a narrowing control. Discarding a working set should be something you
+   * did on purpose (sqlx-p7u).
+   */
+  clearScope() {
+    this.selectedTable = null;
+    this.router.navigate(['/graph'], {
+      queryParams: encodeGraphParams({ table: null, layers: this.layers, tag: null, source: null })
+    });
+  }
+
+  /**
+   * What the search graph is scoped to, rather than how it was built.
+   *
+   * <p>`encodeSearchParams` omits defaults, so its keys are exactly the
+   * filters that are doing something — no separate list to keep in step with
+   * the search state.
+   */
+  searchSummary(): string {
+    const active = this.activeSearchFilters();
+    if (!active.length) { return 'all queries'; }
+    return active.length <= 3
+      ? active.join(', ')
+      : `${active.slice(0, 3).join(', ')} +${active.length - 3}`;
+  }
+
+  searchScopeTitle(): string {
+    const active = this.activeSearchFilters();
+    const filters = active.length ? active.join(', ') : 'no filters — every query';
+    return `graph scoped to a workbench search (${filters}). The URL carries the full search, so this link is shareable.`;
+  }
+
+  private activeSearchFilters(): string[] {
+    const params = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
+    return Object.keys(params).filter(key => params[key] !== null && params[key] !== undefined);
   }
 
   onSchemaChange() {

@@ -8,15 +8,25 @@
 
   <div class="graph-toolbar">
     @if (mode === 'tag') {
-      <span class="mode-chip" title="graph scoped to the queries carrying this tag">tag: {{tag}}</span>
+      <span class="mode-chip" title="graph scoped to the queries carrying this tag">tag: {{tag}}<button
+        type="button" class="chip-x" (click)="clearScope()"
+        title="leave this scope and graph a whole schema">&times;</button></span>
     } @else if (mode === 'search') {
-      <span class="mode-chip" title="graph scoped to a workbench search — the URL carries the full search, so this link is shareable">workbench results</span>
+      <span class="mode-chip" [title]="searchScopeTitle()">search: {{searchSummary()}}<button
+        type="button" class="chip-x" (click)="clearScope()"
+        title="leave this scope and graph a whole schema">&times;</button></span>
     }
-    <select class="schema-select" [(ngModel)]="schema" (change)="onSchemaChange()">
-      @for (name of schemaNames; track name) {
-        <option [value]="name">{{name}}</option>
-      }
-    </select>
+    <!-- Only schema mode has a schema. Rendering the select behind a tag or
+         search graph put a schema name the graph was not showing beside the
+         chip that said what it was showing, and changing it silently threw the
+         scope away (sqlx-p7u). -->
+    @if (mode === 'schema') {
+      <select class="schema-select" [(ngModel)]="schema" (change)="onSchemaChange()">
+        @for (name of schemaNames; track name) {
+          <option [value]="name">{{name}}</option>
+        }
+      </select>
+    }
     <button class="btn" (click)="zoom(1.2)">+</button>
     <button class="btn" (click)="zoom(0.83)">−</button>
     <button class="btn" (click)="resetView()">reset</button>
