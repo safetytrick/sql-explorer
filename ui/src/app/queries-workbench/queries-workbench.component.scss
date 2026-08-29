@@ -76,14 +76,6 @@
 .tri-row { display: flex; gap: 4px; flex-wrap: wrap; }
 
 .tri-btn {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 20px;
-  border: 1px solid var(--border2);
-  background: transparent;
-  color: var(--text3);
-  cursor: pointer;
-
   &:hover { border-color: var(--blue); color: var(--blue); }
   &.on { background: var(--blue-dim2); border-color: var(--blue); color: var(--blue); }
   &.on-bad { background: var(--red-dim); border-color: var(--red); color: var(--red); }
@@ -175,17 +167,9 @@
 }
 
 .tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
   font-weight: 500;
-  padding: 1px 7px;
-  border-radius: 20px;
   background: var(--blue-dim);
   color: var(--blue);
-  white-space: nowrap;
-
   &.small { font-size: 9px; padding: 0 5px; }
   .rx { cursor: pointer; opacity: 0.6; }
   .rx:hover { opacity: 1; }

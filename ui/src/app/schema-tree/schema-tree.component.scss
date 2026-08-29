@@ -133,25 +133,16 @@
 }
 
 .tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 10px;
   font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 20px;
   background: var(--blue-dim);
   color: var(--blue);
-  white-space: nowrap;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-
   &.exclude {
     background: var(--red-dim);
     color: var(--red);
   }
-
   // a tag no schema carries: it cannot change the result, so it must not
   // read as an active filter — struck through and drained of colour, with
   // the reason on hover
@@ -162,14 +153,12 @@
     text-decoration: line-through;
     text-decoration-thickness: 1px;
   }
-
   .inert-mark {
     margin-left: 4px;
     font-size: 9px;
     text-decoration: none;
     opacity: 0.85;
   }
-
   .rx { cursor: pointer; opacity: 0.6; }
   .rx:hover { opacity: 1; }
 }
