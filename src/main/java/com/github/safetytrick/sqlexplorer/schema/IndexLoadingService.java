@@ -58,70 +58,96 @@ public class IndexLoadingService {
      *  <LI><B>FILTER_CONDITION</B> String {@code =>} Filter condition, if any.
      */
     IndicesFetcher getIndicesFetcher(DataSource dataSource) {
-        Map<TableReference, List<TableIndex>> indices = new HashMap<>();
+        Map<TableReference, List<TableIndex>> indices;
         log.info("Reading Indexes from database...");
         long start = System.nanoTime();
-        try (Connection connection = dataSource.getConnection()) {
-            TableReference table = null;
-            List<TableIndex> tableIndices = new ArrayList<>();
-            try (ResultSet indexInfo = getIndexInfo(connection)) {
-                TableIndex.Builder builder = null;
-                String prevIndexName = null;
-                while (indexInfo.next()) {
-                    String schema = indexInfo.getString("TABLE_CAT");
-                    String tableName = indexInfo.getString("TABLE_NAME");
-                    if (table == null || !(
-                        table.getNormalizedSchemaName().equalsIgnoreCase(schema) &&
-                            table.getNormalizedTableName().equalsIgnoreCase(tableName)
-                    )) {
-                        if (table != null) {
-                            indices.put(table, tableIndices);
-                            tableIndices = new ArrayList<>();
-                        }
-                        table = TableReference.newTableReference(schema, tableName).normalized();
-                    }
-                    String indexName = indexInfo.getString("INDEX_NAME");
-                    if (indexName == null) {
-                        continue;
-                    }
-
-                    if (builder == null || !Objects.equals(prevIndexName, indexName)) {
-                        if (builder != null) {
-                            tableIndices.add(builder.build());
-                        }
-                        prevIndexName = indexName;
-
-                        builder = TableIndex.builder()
-                            .name(indexName)
-                            // mysql sends over schema in the catalog column
-                            .schema(indexInfo.getString("TABLE_CAT"))
-                            .unique(!indexInfo.getBoolean("NON_UNIQUE"))
-                            .identifier(indexInfo.getString("INDEX_QUALIFIER"))
-                            .indexType(IndexType.fromIndex(indexInfo.getShort("TYPE")))
-                            .direction(IndexDirection.fromKey(indexInfo.getString("ASC_OR_DESC")))
-                            .cardinality(indexInfo.getLong("CARDINALITY"))
-                            .pages(indexInfo.getLong("PAGES"))
-                            .filterCondition(indexInfo.getString("FILTER_CONDITION"));
-                    }
-                    short ordinalPosition = indexInfo.getShort("ORDINAL_POSITION");
-                    String columnName = indexInfo.getString("COLUMN_NAME");
-
-                    builder.addColumn(ordinalPosition, columnName);
-
-                }
-                if (builder != null) {
-                    tableIndices.add(builder.build());
-                }
-                if (table != null) {
-                    indices.put(table, tableIndices);
-                }
-            }
+        try (Connection connection = dataSource.getConnection();
+             ResultSet indexInfo = getIndexInfo(connection)) {
+            indices = readIndices(indexInfo);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
 
         log.info("Completed read of indexes in {}", Duration.ofNanos(System.nanoTime() - start));
         return table -> indices.getOrDefault(table.normalized(), Collections.emptyList());
+    }
+
+    /**
+     * Groups the (table, index-name, column-sequence)-ordered rows into one
+     * {@link TableIndex} per index, keyed by the owning table.
+     *
+     * <p>The result set holds one row <em>per column of an index</em>, so rows
+     * accumulate into a builder that is flushed when the index changes. An
+     * index changes for two reasons and both have to be handled: the index
+     * name differs, <em>or</em> the table does. Handling only the first is the
+     * bug this method was extracted to pin — the pending builder was neither
+     * flushed into the table that owned it nor cleared at the boundary, so
+     * every table silently lost its last index to the next one, and where the
+     * two tables' boundary indexes shared a name (`PRIMARY`, almost always)
+     * the next table's columns were appended to the previous table's index
+     * instead, surfacing as a duplicate.
+     */
+    Map<TableReference, List<TableIndex>> readIndices(ResultSet indexInfo) throws SQLException {
+        Map<TableReference, List<TableIndex>> indices = new HashMap<>();
+        TableReference table = null;
+        List<TableIndex> tableIndices = new ArrayList<>();
+        TableIndex.Builder builder = null;
+        String prevIndexName = null;
+
+        while (indexInfo.next()) {
+            String schema = indexInfo.getString("TABLE_CAT");
+            String tableName = indexInfo.getString("TABLE_NAME");
+            boolean newTable = table == null || !(
+                table.getNormalizedSchemaName().equalsIgnoreCase(schema) &&
+                    table.getNormalizedTableName().equalsIgnoreCase(tableName)
+            );
+            if (newTable) {
+                // flush into the table being left, not the one being entered
+                if (builder != null) {
+                    tableIndices.add(builder.build());
+                    builder = null;
+                }
+                if (table != null) {
+                    indices.put(table, tableIndices);
+                    tableIndices = new ArrayList<>();
+                }
+                prevIndexName = null;
+                table = TableReference.newTableReference(schema, tableName).normalized();
+            }
+
+            String indexName = indexInfo.getString("INDEX_NAME");
+            if (indexName == null) {
+                continue;
+            }
+
+            if (builder == null || !Objects.equals(prevIndexName, indexName)) {
+                if (builder != null) {
+                    tableIndices.add(builder.build());
+                }
+                prevIndexName = indexName;
+
+                builder = TableIndex.builder()
+                    .name(indexName)
+                    // mysql sends over schema in the catalog column
+                    .schema(indexInfo.getString("TABLE_CAT"))
+                    .unique(!indexInfo.getBoolean("NON_UNIQUE"))
+                    .identifier(indexInfo.getString("INDEX_QUALIFIER"))
+                    .indexType(IndexType.fromIndex(indexInfo.getShort("TYPE")))
+                    .direction(IndexDirection.fromKey(indexInfo.getString("ASC_OR_DESC")))
+                    .cardinality(indexInfo.getLong("CARDINALITY"))
+                    .pages(indexInfo.getLong("PAGES"))
+                    .filterCondition(indexInfo.getString("FILTER_CONDITION"));
+            }
+            builder.addColumn(indexInfo.getShort("ORDINAL_POSITION"), indexInfo.getString("COLUMN_NAME"));
+        }
+
+        if (builder != null) {
+            tableIndices.add(builder.build());
+        }
+        if (table != null) {
+            indices.put(table, tableIndices);
+        }
+        return indices;
     }
 
     /**
