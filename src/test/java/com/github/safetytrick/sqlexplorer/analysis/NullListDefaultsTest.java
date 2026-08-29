@@ -62,20 +62,26 @@ public class NullListDefaultsTest {
     }
 
     /**
-     * `SELECT NOW` — the live case. The parentheses are gone, so `NOW` parses as
-     * a bare column with no FROM; SelectColumnAnalyzer asks the resolver for its
-     * table, there are no candidates, and it throws "missing schema" before ever
-     * creating the select-column list.
+     * `SELECT NOW` — the live case, and it no longer fails.
+     *
+     * <p>MySQL's digest canonicalises the `CURRENT_TIMESTAMP` keyword to its
+     * synonym `NOW`, with no parens because there were none to keep, so
+     * jsqlparser reads it as a bare column with no FROM. This test used to
+     * assert that the analysis *failed* — the resolver threw "missing schema"
+     * when asked which table a column with no candidate tables belonged to,
+     * and it was the only analyzer-thrown failure in the whole corpus.
+     *
+     * <p>A column with no candidates has no table, which is an answer rather
+     * than an error; the resolver now returns unresolved and the profile
+     * completes. The assertion is inverted deliberately, not relaxed.
      */
     @Test
-    public void aProfileWhoseAnalyzerThrewStillHasEmptyListsNotNulls() throws JSQLParserException {
+    public void aColumnWithNoCandidateTablesResolvesToNothingRatherThanFailing() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("SELECT\n        NOW");
 
-        assertThat(profile.getAnalysisFailed()).isTrue();
-        assertThat(profile.getAnalysisFailureReason()).contains("SelectColumnAnalyzer");
+        assertThat(profile.getAnalysisFailed()).isFalse();
+        assertThat(profile.getAnalysisFailureReason()).isNull();
         assertNoNullLists(profile);
-        assertThat(profile.getSelectColumns()).isEmpty();
-        assertThat(profile.getGroupByColumns()).isEmpty();
     }
 
     @Test
