@@ -74,6 +74,29 @@ public final class SchemaFixture {
     }
 
     /**
+     * The full analyzer chain over this schema, as a service.
+     *
+     * <p>Exists because the analyzers are package-private to {@code analysis}
+     * and this fixture is not — tests in other packages that need real analysis
+     * (rather than a mocked resolver) get it here instead of widening
+     * production visibility to reach it.
+     *
+     * <p>Includes {@link UnknownSchemaAnalyzer}, which {@link #analyze} does
+     * not: it infers a session schema when none was set, which is the behaviour
+     * under test for anything that resolves a schema from the statement itself.
+     */
+    public SqlAnalysisService analysisServiceWithSchemaInference() {
+        return service(
+            new TableNameAnalyzer(),
+            new SchemaAnalyzer(),
+            new JoinColumnAnalyzer(resolver),
+            new WhereClauseAnalyzer(resolver),
+            new SelectColumnAnalyzer(resolver),
+            new GeneratedSqlAnalyzer(),
+            new UnknownSchemaAnalyzer());
+    }
+
+    /**
      * Analyze a query with the full analyzer set against this schema and
      * return the completed profile.
      */

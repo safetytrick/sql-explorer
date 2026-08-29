@@ -1,7 +1,8 @@
 # Capture example queries with their complete parameters
 
-> **Status: design, 2026-08-28.** Bead `sqlx-hlu`. Nothing implemented. One
-> question gates the first line of code — see [Open questions](#open-questions).
+> **Status: design settled 2026-08-28, endpoint-only shape approved.** Bead
+> `sqlx-hlu`. Scope: **write endpoint only** — a UI affordance is `sqlx-j7n`
+> and an importer is `sqlx-1o9`, both split off rather than folded in.
 
 Analyzed profiles carry normalized SQL with the literals stripped. That is
 what makes merging work and it is why nothing in the corpus can be run. An
@@ -52,10 +53,90 @@ And it fails quietly by default: `schemaScope` folds `null`, blank and the
 schema-less, which is itself a real scope. Omission is indistinguishable from
 "this ran with no default database".
 
-**Proposed: `sessionSchema` is required, and absent means absent.** Make the
-caller say `""` (or an explicit "no schema" flag) rather than letting a
-missing field mean it. The cost is one required field; the alternative is a
-class of mis-attached examples that no later validation can find.
+**Decided: `sessionSchema` is optional and inferred when absent.** Requiring
+it would have made callers guess at something the server already knows —
+`UnknownSchemaAnalyzer` derives a schema from the statement's own tables and
+columns via `findSchemaForTablesAndColumns`, and that is *the same machinery
+that scoped the profile this example will attach to*. An inferred schema is
+therefore consistent by construction with how the corpus was keyed. A caller
+who does know says so and is believed; `UnknownSchemaAnalyzer:22` only runs
+when `builder.getSchemaName() == null`, so supplied-wins is existing
+behaviour rather than something to implement.
+
+When inference cannot reach one answer, the request fails **4xx with the
+candidate schemas** rather than guessing or defaulting to schema-less.
+
+### Inference makes the schema mutable state — so resolve once and store it
+
+This is the constraint that keeps the self-healing property below true.
+
+`scopedDigest` takes the session schema as an input. Once that input can be
+*inferred*, it depends on the currently-loaded schema of the active
+environment, which changes: a schema refresh, a newly introspected database,
+and the same statement submitted twice can derive two different digests.
+
+That is acceptable at write time — inference reflects best knowledge then.
+It is not acceptable at replay time. So:
+
+- **`session_schema` stores the resolved value**, whether supplied or inferred.
+- Inference runs **exactly once**, at write.
+- A normalizer version bump replays
+  `scopedDigest(stored_session_schema, renormalize(query_text))` — reusing the
+  stored schema, never re-inferring.
+
+Re-inferring on replay would silently re-key examples against whatever the
+schema happens to look like later, which is the failure the derive-don't-accept
+rule exists to prevent, arriving by the back door.
+
+`schema_inferred boolean` rides along so a later "why is this attached to that
+group" investigation can tell an asserted schema from a guessed one.
+
+## The parameterization gap — found while implementing, not yet closed
+
+> Tracked as **`sqlx-65t`**, which blocks `sqlx-hlu`.
+
+**`QueryNormalizer` does not strip literals.** Its javadoc is explicit:
+"distinct literals stay distinct". That is correct behaviour, not a bug — the
+corpus text arrives from Performance Schema with *MySQL's* `?` placeholders
+already substituted, and this normalizer is a second pass layered on top of
+that. Nothing in the codebase turns a literal into a placeholder; a search for
+one finds nothing.
+
+The consequence lands squarely on this feature:
+
+```
+example submitted:  select id from orders where total > 100
+profile in corpus:  select id from orders where total > ?
+```
+
+Those digest differently. An example carrying real parameters — which is the
+entire point of an example — keys to a digest **no profile has**. The write
+path is correct, the storage is correct, and the association is worthless.
+
+Verified against the running app: `/util/normalize` returns `total > 100`,
+`total > 999` and `total > ?` unchanged and distinct. Pinned by
+`QueryExampleServiceTest.distinctLiteralsStillDigestDistinctly_theParameterizationGap`
+so it cannot be rediscovered a third time.
+
+### What closing it requires
+
+A parameterization step ahead of the digest: parse the example, replace literal
+values with `?`, then normalize and hash. jsqlparser makes the traversal easy;
+matching *MySQL's* rules is the work, because the target is not "some canonical
+form" but "the exact form MySQL already produced for the profile". IN-list
+collapsing, negative numbers, string escaping and date literals are each a place
+the two can diverge, and a near-miss is as useless as no attempt — it keys to a
+digest nothing has.
+
+One mitigation makes near-misses survivable, and is worth building either way:
+**verify the derived digest against the loaded corpus before storing.** If no
+profile carries it, say so in the response instead of silently storing an
+orphan. That converts a silent wrong answer into a visible one, and it is
+useful even after parameterization lands, because it catches the cases the
+parameterizer gets wrong.
+
+Until this is resolved, the endpoint is only correct for examples whose text
+already matches the corpus's normalized shape.
 
 ## What gets stored
 

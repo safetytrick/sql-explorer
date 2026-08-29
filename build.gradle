@@ -89,6 +89,9 @@ dependencies {
     implementation 'tools.jackson.dataformat:jackson-dataformat-csv'
 
     implementation 'com.google.guava:guava:33.0.0-jre'
+    // UUIDv7 for query-example ids: time-ordered, so `order by id desc` is
+    // most-recent-first. java.util.UUID has no v7 factory and MySQL's UUID() is v1.
+    implementation 'com.fasterxml.uuid:java-uuid-generator:5.2.0'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
