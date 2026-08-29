@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.analysis.parser;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -71,4 +72,79 @@ public class SqlCleanerTest {
                 "only one instance should be left");
     }
 
+
+    // ── MySQL 8.0.19 row aliases (sqlx-a1i) ──
+
+    /**
+     * Verbatim from the corpus, whitespace and all: the shape that accounted
+     * for eight of the corpus's parse failures and every user-schema statement
+     * the analyzer genuinely lost.
+     */
+    private static final String ROW_ALIAS_INSERT = """
+                INSERT
+                INTO
+                    `search`
+                    . `user_info` (
+                        `last_name` , `full_name` , `email` , `id`
+                    )
+                VALUES
+                    (...) AS NEW
+                        ON DUPLICATE KEY UPDATE `last_name` = `new` . `last_name` , `full_name` = `new` . `full_name` , `email` = `new` . `email`
+            """;
+
+    @Test
+    void the_row_alias_insert_parses_once_cleaned() throws Exception {
+        SqlParser.CleanedStatement parsed = new SqlParser().parseSql(ROW_ALIAS_INSERT);
+
+        assertNotNull(parsed.statement());
+        assertTrue(parsed.modified(), "the rewrite has to be reported as a modification");
+    }
+
+    /**
+     * The point of rewriting rather than deleting. Dropping `AS NEW` alone
+     * leaves `= `new`.`col`` behind, which parses — and then the analyzers
+     * resolve `new` as a table that does not exist.
+     */
+    @Test
+    void the_alias_leaves_no_phantom_table_behind() {
+        String cleaned = new SqlCleaner().cleanSql(ROW_ALIAS_INSERT).sql();
+
+        assertFalse(cleaned.toLowerCase().contains("as new"), cleaned);
+        assertFalse(cleaned.contains("`new`"), cleaned);
+        assertTrue(cleaned.contains("VALUES(`last_name`)"), cleaned);
+    }
+
+    /** The values list keeps its closing paren — the alias clause is all that goes. */
+    @Test
+    void the_values_list_survives_the_rewrite() {
+        String cleaned = new SqlCleaner().cleanSql(ROW_ALIAS_INSERT).sql();
+
+        assertTrue(cleaned.contains("( ? )") || cleaned.contains("(?)"), cleaned);
+    }
+
+    /** An INSERT with no alias is not touched, and neither is a plain AS. */
+    @Test
+    void leaves_the_classic_form_alone() {
+        String classic = """
+                INSERT INTO `t` ( `a` ) VALUES ( ? )
+                    ON DUPLICATE KEY UPDATE `a` = VALUES ( `a` )
+            """;
+
+        assertEquals(classic.trim(), new SqlCleaner().cleanSql(classic).sql().trim());
+    }
+
+    /**
+     * The alias is declared upper and referenced lower in every corpus
+     * example, so the reference rewrite has to be case-insensitive.
+     */
+    @Test
+    void matches_the_alias_whatever_case_it_is_referenced_in() {
+        String mixed = "INSERT INTO `t` ( `a` ) VALUES ( ? ) AS Fresh "
+            + "ON DUPLICATE KEY UPDATE `a` = `FRESH` . `a`";
+
+        String cleaned = new SqlCleaner().cleanSql(mixed).sql();
+
+        assertTrue(cleaned.contains("VALUES(`a`)"), cleaned);
+        assertFalse(cleaned.toLowerCase().contains("fresh"), cleaned);
+    }
 }
