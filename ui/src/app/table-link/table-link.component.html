@@ -1,6 +1,0 @@
-@if (joinTable) {
-  <a class="{{linkClass}}" routerLink="/table/{{schema}}/{{table}}/join/{{joinSchema}}/{{joinTable}}">{{name}}</a>
-}
-@if (!joinTable) {
-  <a class="{{linkClass}}" routerLink="/table/{{schema}}/{{table}}">{{name}}</a>
-}

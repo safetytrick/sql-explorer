@@ -5,12 +5,12 @@
  */
 import {inject} from '@angular/core';
 import {RedirectFunction, Router, Routes} from '@angular/router';
+import {tableKey} from './query-scope.service';
 import {SchemaListComponent} from './schema-list/schema-list.component';
 import {TableNamesComponent} from './table-names/table-names.component';
 import {TablesWithColumnComponent} from './tables-with-column/tables-with-column.component';
 import {TaggedTableViewComponent} from './tagged-table-view/tagged-table-view.component';
 import {TaggedSchemaViewComponent} from './tagged-schema-view/tagged-schema-view.component';
-import {TableViewComponent} from './table-view/table-view.component';
 import {SqlViewComponent} from './sql-view/sql-view.component';
 import {TaggedSqlViewComponent} from './tagged-sql-view/tagged-sql-view.component';
 import {ExplainViewComponent} from './explain-view/explain-view.component';
@@ -44,6 +44,43 @@ export const columnDrillRedirect: RedirectFunction = route => {
   const column = route.params['column'];
   return router.createUrlTree(['/table', schema, table], {
     queryParams: {...route.queryParams, columns: `${schema}.${table}.${column}`}
+  });
+};
+
+/**
+ * `/table/{s}/{t}/queries` and `/table/{s}/{t}/join/{js}/{jt}` were the two
+ * routes into `TableViewComponent`, which the lens replaced. They redirect
+ * rather than 404 for the same reason the column path form does: links to
+ * them have been shared, and a link that has been sent to someone should keep
+ * working.
+ *
+ * They cannot simply be deleted either. `table/:schema/:name/:column` matches
+ * `/table/x/y/queries` perfectly well, so removing these would send that URL
+ * to the column drill-down, which would redirect it to `?columns=x.y.queries`
+ * and render a confident, wrong, empty-looking page. A `**` catch-all does
+ * not help — `:column` matches first. Declaration order is still the only
+ * thing separating them, and `app.routes.spec.ts` still pins it.
+ */
+export const tableQueriesRedirect: RedirectFunction = route => {
+  const router = inject(Router);
+  // the lens *is* the queries view; there is nothing extra to express
+  return router.createUrlTree(['/table', route.params['schema'], route.params['name']],
+    { queryParams: route.queryParams });
+};
+
+/**
+ * The join view becomes the lens scoped to both tables — `?tables=a,b` with
+ * `tableMode=ALL`, which is exactly what the lens's own join toggle writes,
+ * so the redirect lands on a URL the page already round-trips.
+ */
+export const tableJoinRedirect: RedirectFunction = route => {
+  const router = inject(Router);
+  const schema = route.params['schema'];
+  const name = route.params['name'];
+  const self = tableKey(schema, name);
+  const other = tableKey(route.params['joinSchema'], route.params['joinTable']);
+  return router.createUrlTree(['/table', schema, name], {
+    queryParams: { ...route.queryParams, tables: `${self},${other}`, tableMode: 'ALL' }
   });
 };
 
@@ -108,13 +145,13 @@ export const appRoutes: Routes = [
   // names. Pinned by app.routes.spec.ts.
   {
     path: 'table/:schema/:name/queries',
-    component: TableViewComponent,
-    data: { title: 'Table Queries'}
+    pathMatch: 'full',
+    redirectTo: tableQueriesRedirect
   },
   {
     path: 'table/:schema/:name/join/:joinSchema/:joinTable',
-    component: TableViewComponent,
-    data: { title: 'Join View'}
+    pathMatch: 'full',
+    redirectTo: tableJoinRedirect
   },
   {
     path: 'table/:schema/:name/:column',

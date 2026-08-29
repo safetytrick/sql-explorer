@@ -7,7 +7,6 @@ import {HIGHLIGHT_OPTIONS} from 'ngx-highlightjs';
 import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
 import {TableLensComponent} from './table-lens/table-lens.component';
-import {TableViewComponent} from './table-view/table-view.component';
 
 /**
  * Route *matching*, asserted without rendering anything: `/table/:schema/:name/:column`
@@ -51,14 +50,33 @@ describe('appRoutes: the table drill-downs', () => {
     expect(router.url).toContain('columns=app_other.user_profile.user_id');
   });
 
-  it('still resolves the more specific queries and join routes', async () => {
+  /**
+   * These two used to render `TableViewComponent`. It is retired, but they
+   * still must not fall through to `table/:schema/:name/:column` — that
+   * matches them perfectly well and would send `/queries` to the column
+   * drill-down as if `queries` were a column name, producing a confident and
+   * entirely wrong page. Declaration order is the only thing preventing it.
+   */
+  it('redirects the retired queries route to the lens rather than reading "queries" as a column', async () => {
     await router.navigateByUrl('/table/app_other/user_profile/queries');
-    expect(matched()).toBe(TableViewComponent);
-    expect(router.url).toBe('/table/app_other/user_profile/queries');
 
+    expect(matched()).toBe(TableLensComponent);
+    expect(router.url).toBe('/table/app_other/user_profile');
+  });
+
+  it('redirects the retired join route to the lens scoped to both tables', async () => {
     await router.navigateByUrl('/table/app_other/group_member/join/app_other/groups');
-    expect(matched()).toBe(TableViewComponent);
-    expect(router.url).toBe('/table/app_other/group_member/join/app_other/groups');
+
+    expect(matched()).toBe(TableLensComponent);
+    // ?tables=a,b + tableMode=ALL is what the lens's own join toggle writes
+    expect(router.url).toBe('/table/app_other/group_member?tables=app_other.group_member,app_other.groups&tableMode=ALL');
+  });
+
+  it('keeps the retired routes ahead of the column drill-down', async () => {
+    // the failure this guards is silent: :column would match and redirect to
+    // ?columns=app_other.user_profile.queries, which renders a normal-looking page
+    await router.navigateByUrl('/table/app_other/user_profile/queries');
+    expect(router.url).not.toContain('columns=');
   });
 
   it('leaves the bare table route alone', async () => {
