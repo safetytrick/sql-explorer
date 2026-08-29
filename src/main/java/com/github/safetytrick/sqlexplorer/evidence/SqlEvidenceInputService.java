@@ -524,17 +524,27 @@ public class SqlEvidenceInputService {
         }
 
         private void index(SqlProfile sqlProfile) {
-
-            if (sqlProfile.getNormalizedDigest() != null) {
-                String digest = sqlProfile.getNormalizedDigest();
-                digestAnalyzedSqlRepository.put(digest, sqlProfile);
+            // Both publications under one lock, because they are one fact.
+            //
+            // These used to be separate: the digest map was written first and
+            // outside the lock, the list second and inside it. A profile was
+            // therefore findable as a merge representative before it existed in
+            // the list, so a child could reach the list ahead of the
+            // representative it merged into — and `mergeByDigest` groups in list
+            // order, which made `MergedSqlProfile.first()` a race.
+            //
+            // Swapping the order is not a fix, it is a different bug: a child
+            // arriving in the window would find no key, decline to merge, and
+            // become its own profile. The window is what has to go, not its
+            // direction.
+            synchronized (lock) {
+                if (sqlProfile.getNormalizedDigest() != null) {
+                    digestAnalyzedSqlRepository.put(sqlProfile.getNormalizedDigest(), sqlProfile);
+                }
+                this.sqlProfiles.add(sqlProfile);
             }
 
             reportStatistics(sqlProfile);
-
-            synchronized (lock) {
-                this.sqlProfiles.add(sqlProfile);
-            }
         }
 
         private void reportStatistics(SqlProfile sqlProfile) {
