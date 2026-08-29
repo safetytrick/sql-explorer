@@ -16,11 +16,11 @@
     <span class="type-scope">
       <span class="scope-label">show</span>
       <button type="button" class="tri-btn" [class.on]="typeFilter === 'all'"
-              (click)="typeFilter = 'all'">all</button>
+              (click)="setTypeFilter('all')">all</button>
       <button type="button" class="tri-btn" [class.on]="typeFilter === 'tables'"
-              (click)="typeFilter = 'tables'">tables</button>
+              (click)="setTypeFilter('tables')">tables</button>
       <button type="button" class="tri-btn" [class.on]="typeFilter === 'views'"
-              (click)="typeFilter = 'views'">views</button>
+              (click)="setTypeFilter('views')">views</button>
     </span>
   }
 
