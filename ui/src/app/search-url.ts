@@ -46,6 +46,8 @@ export interface SearchUrlState {
   truncated: Flag;
   multiSchema: Flag;
   analyzerWarnings: boolean;
+  /** Only queries that have at least one stored example — the ones that can be planned. */
+  hasExamples: boolean;
   analysisFailed: boolean;
   cleanAnalysis: boolean;
   analysisSkipped: boolean;
@@ -81,6 +83,7 @@ export function defaultSearchState(): SearchUrlState {
     rowsSorted: { min: null, max: null },
     fullScan: 'ANY', tmpTable: 'ANY', tmpDisk: 'ANY', errors: 'ANY',
     warnings: 'ANY', truncated: 'ANY', multiSchema: 'ANY',
+    hasExamples: false,
     analyzerWarnings: false, analysisFailed: false, cleanAnalysis: false, analysisSkipped: false,
     failureKind: null,
     sort: 'IMPACT',
@@ -117,6 +120,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
     if (state[key] !== 'ANY') { params[key] = state[key]; }
   }
   if (state.analyzerWarnings) { params['analWarn'] = '1'; }
+  if (state.hasExamples) { params['hasExamples'] = '1'; }
   if (state.analysisFailed) { params['analFail'] = '1'; }
   if (state.cleanAnalysis) { params['analClean'] = '1'; }
   if (state.analysisSkipped) { params['analSkipped'] = '1'; }
@@ -163,6 +167,7 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     truncated: (params.get('truncated') as Flag) || 'ANY',
     multiSchema: (params.get('multiSchema') as Flag) || 'ANY',
     analyzerWarnings: params.get('analWarn') === '1',
+    hasExamples: params.get('hasExamples') === '1',
     analysisFailed: params.get('analFail') === '1',
     cleanAnalysis: params.get('analClean') === '1',
     analysisSkipped: params.get('analSkipped') === '1',
@@ -284,6 +289,7 @@ export function buildSearchRequest(state: SearchUrlState,
     warnings: flag(state.warnings),
     truncated: flag(state.truncated),
     multiSchema: flag(state.multiSchema),
+    hasExamples: state.hasExamples || null,
     analyzerWarnings: state.analyzerWarnings || null,
     analysisFailed: state.analysisFailed || null,
     cleanAnalysis: state.cleanAnalysis || null,

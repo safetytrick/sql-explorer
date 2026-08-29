@@ -351,3 +351,30 @@ describe('column drill-down param', () => {
     expect(request.tableMode).toBe('ALL');
   });
 });
+
+describe('search-url: hasExamples', () => {
+
+  /**
+   * "Which queries can I actually plan?" is the question this answers — an
+   * example is what makes a query runnable, since the corpus text carries `?`.
+   */
+  it('round-trips through the URL', () => {
+    const params = encodeSearchParams({...defaultSearchState(), hasExamples: true});
+    expect(params['hasExamples']).toBe('1');
+
+    const decoded = decodeSearchParams(new URLSearchParams(params as Record<string, string>));
+    expect(decoded.hasExamples).toBeTrue();
+  });
+
+  /** Omitted when off, so an untouched workbench keeps a clean URL. */
+  it('is absent from the URL when off', () => {
+    expect(encodeSearchParams(defaultSearchState())['hasExamples']).toBeUndefined();
+  });
+
+  it('reaches the request body only when set', () => {
+    const paging = {limit: 50, offset: 0};
+    expect(buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, paging).hasExamples).toBeNull();
+    expect(buildSearchRequest({...defaultSearchState(), hasExamples: true}, UNCONSTRAINED_TAG_SCOPE, paging)
+      .hasExamples).toBeTrue();
+  });
+});

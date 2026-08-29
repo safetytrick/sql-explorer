@@ -93,7 +93,12 @@
             </button>
           </div>
 
-          <pre class="sql mono">{{example.queryText}}</pre>
+          <pre class="sql mono" [class.clamped]="isLong(example) && !isExpanded(example)">{{example.queryText}}</pre>
+          @if (isLong(example)) {
+            <button type="button" class="expand" (click)="toggleExpanded(example)">
+              {{isExpanded(example) ? 'show less' : 'show all ' + example.queryText.split('\n').length + ' lines'}}
+            </button>
+          }
 
           @if (explainErrorFor(example); as error) {
             <div class="explain-error">{{error}}</div>

@@ -49,7 +49,9 @@ export interface QuerySearchRequest {
   truncated?: Flag | null;
   multiSchema?: Flag | null;
   analyzerWarnings?: boolean | null;
-  analysisFailed?: boolean | null;
+    /** Only queries with at least one stored example — the ones that can be planned. */
+  hasExamples?: boolean | null;
+analysisFailed?: boolean | null;
   cleanAnalysis?: boolean | null;
   analysisSkipped?: boolean | null;
   failureKind?: 'ANALYZER' | 'PARSE' | null;

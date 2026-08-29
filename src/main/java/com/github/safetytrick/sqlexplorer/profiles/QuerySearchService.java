@@ -23,6 +23,7 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
+import com.github.safetytrick.sqlexplorer.examples.QueryExampleLookup;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.DateRange;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Flag;
@@ -52,14 +53,23 @@ public class QuerySearchService {
 
     private final SqlRepositoryService sqlRepositoryService;
     private final TagsService tagsService;
+    private final QueryExampleLookup queryExampleLookup;
 
-    public QuerySearchService(SqlRepositoryService sqlRepositoryService, TagsService tagsService) {
+    public QuerySearchService(SqlRepositoryService sqlRepositoryService, TagsService tagsService,
+                              QueryExampleLookup queryExampleLookup) {
         this.sqlRepositoryService = sqlRepositoryService;
         this.tagsService = tagsService;
+        this.queryExampleLookup = queryExampleLookup;
     }
 
     public QuerySearchResult search(QuerySearchRequest request) {
         QuerySearchRequest criteria = request == null ? QuerySearchRequest.UNCONSTRAINED : request;
+        // Fetched once per search rather than per profile: this filters the
+        // whole corpus, and a lookup per row would be thousands of round trips
+        // to answer one checkbox. Empty unless the filter is actually on.
+        Set<String> digestsWithExamples = Boolean.TRUE.equals(criteria.hasExamples())
+            ? queryExampleLookup.digestsWithExamples()
+            : Set.of();
         Map<String, List<Tag>> tagsByQueryId = queryTagsById();
 
         Map<String, Integer> tableFacets = new HashMap<>();
@@ -72,7 +82,7 @@ public class QuerySearchService {
         // those that also pass the table/schema scope form the result set.
         sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
             QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
-            if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit)) {
+            if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit, digestsWithExamples)) {
                 return;
             }
             ScopeKeys keys = scopeKeys(profile);
@@ -100,13 +110,16 @@ public class QuerySearchService {
      */
     public List<SqlProfile> matchingProfiles(QuerySearchRequest request) {
         QuerySearchRequest criteria = request == null ? QuerySearchRequest.UNCONSTRAINED : request;
+        Set<String> digestsWithExamples = Boolean.TRUE.equals(criteria.hasExamples())
+            ? queryExampleLookup.digestsWithExamples()
+            : Set.of();
         Map<String, List<Tag>> tagsByQueryId = queryTagsById();
         Pattern queryPattern = compileQueryPattern(criteria.queryRegex());
 
         List<SqlProfile> matches = new ArrayList<>();
         sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
             QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
-            if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit)) {
+            if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit, digestsWithExamples)) {
                 return;
             }
             if (matchesScope(criteria, scopeKeys(profile))) {
@@ -132,7 +145,7 @@ public class QuerySearchService {
             .collect(Collectors.groupingBy(tag -> tag.getPathElements().get(QUERY_TAG_TYPE)));
     }
 
-    private boolean matchesNonScope(QuerySearchRequest r, QueryHit hit) {
+    private boolean matchesNonScope(QuerySearchRequest r, QueryHit hit, Set<String> digestsWithExamples) {
         SqlProfile profile = hit.profile();
         RuntimeMetrics m = profile.getRuntimeMetrics();
 
@@ -167,6 +180,8 @@ public class QuerySearchService {
 
         boolean hasAnalyzerWarnings = !profile.getMismatchedJoins().isEmpty();
         if (Boolean.TRUE.equals(r.analyzerWarnings()) && !hasAnalyzerWarnings) return false;
+        if (Boolean.TRUE.equals(r.hasExamples())
+            && !digestsWithExamples.contains(profile.getNormalizedDigest())) return false;
         if (Boolean.TRUE.equals(r.analysisFailed()) && !profile.getAnalysisFailed()) return false;
         if (Boolean.TRUE.equals(r.cleanAnalysis()) && (hasAnalyzerWarnings || profile.getAnalysisFailed())) return false;
         if (Boolean.TRUE.equals(r.analysisSkipped()) && !profile.getAnalysisSkipped()) return false;

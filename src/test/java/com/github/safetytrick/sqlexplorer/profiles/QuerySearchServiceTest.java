@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.profiles;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,6 +14,7 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
+import com.github.safetytrick.sqlexplorer.examples.QueryExampleLookup;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import extensions.com.github.safetytrick.sqlexplorer.avro.ColumnReference.ColumnReferenceExtension;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Activity;
@@ -27,6 +29,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 class QuerySearchServiceTest {
@@ -35,13 +39,16 @@ class QuerySearchServiceTest {
 
     private SqlRepositoryService sqlRepositoryService;
     private TagsService tagsService;
+    private QueryExampleLookup queryExampleLookup;
     private QuerySearchService service;
 
     @BeforeEach
     void setUp() {
         sqlRepositoryService = mock(SqlRepositoryService.class);
         tagsService = mock(TagsService.class);
-        service = new QuerySearchService(sqlRepositoryService, tagsService);
+        queryExampleLookup = mock(QueryExampleLookup.class);
+        when(queryExampleLookup.digestsWithExamples()).thenReturn(Set.of());
+        service = new QuerySearchService(sqlRepositoryService, tagsService, queryExampleLookup);
         when(tagsService.findAllByType("query")).thenReturn(List.of());
     }
 
@@ -231,6 +238,34 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request().tags(List.of("audit", "slow")).tagMode(TagMode.ALL).build()))
             .containsExactly("a");
         assertThat(searchIds(request().untaggedOnly(true).build())).containsExactly("c");
+    }
+
+    /**
+     * "Which queries can I actually plan?" An example is what makes a query
+     * runnable — the corpus text carries `?` placeholders, which EXPLAIN
+     * rejects — so this filter is how you find the ones worth opening.
+     */
+    @Test
+    void hasExamplesKeepsOnlyQueriesWithAStoredExample() {
+        repositoryReturns(
+            profile("has", QueryActivityStatus.UNKNOWN, metrics().build(), false, List.of()),
+            profile("none", QueryActivityStatus.UNKNOWN, metrics().build(), false, List.of()));
+        when(queryExampleLookup.digestsWithExamples()).thenReturn(Set.of("has-norm"));
+
+        assertThat(searchIds(request().hasExamples(true).build())).containsExactly("has");
+    }
+
+    /** Off by default, and off means unfiltered rather than empty. */
+    @Test
+    void hasExamplesIsNotAppliedUnlessAskedFor() {
+        repositoryReturns(
+            profile("has", QueryActivityStatus.UNKNOWN, metrics().build(), false, List.of()),
+            profile("none", QueryActivityStatus.UNKNOWN, metrics().build(), false, List.of()));
+        when(queryExampleLookup.digestsWithExamples()).thenReturn(Set.of("has-norm"));
+
+        assertThat(searchIds(request().build())).containsExactlyInAnyOrder("has", "none");
+        // and the lookup is not even consulted when the filter is off
+        verify(queryExampleLookup, never()).digestsWithExamples();
     }
 
     @Test
@@ -573,7 +608,7 @@ class QuerySearchServiceTest {
         private TagMode tagMode;
         private List<String> schemas, excludeSchemas, tables, excludeTables, columns;
         private TableMode tableMode;
-        private Boolean untaggedOnly, analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped;
+        private Boolean untaggedOnly, analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
         private Flag fullScan, truncated, multiSchema;
         private Sort sort;
@@ -602,6 +637,7 @@ class QuerySearchServiceTest {
         RequestBuilder fullScan(Flag v) { this.fullScan = v; return this; }
         RequestBuilder truncated(Flag v) { this.truncated = v; return this; }
         RequestBuilder multiSchema(Flag v) { this.multiSchema = v; return this; }
+        RequestBuilder hasExamples(Boolean v) { this.hasExamples = v; return this; }
         RequestBuilder sort(Sort v) { this.sort = v; return this; }
         RequestBuilder limit(Integer v) { this.limit = v; return this; }
         RequestBuilder offset(Integer v) { this.offset = v; return this; }
@@ -612,7 +648,7 @@ class QuerySearchServiceTest {
                 schemas, excludeSchemas, tables, tableMode, excludeTables, columns,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
-                analyzerWarnings, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);
+                analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);
         }
     }
 }

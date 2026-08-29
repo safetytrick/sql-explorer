@@ -65,6 +65,17 @@ export class QueryExamplesComponent implements OnInit {
    */
   storedElsewhere: QueryExample | null = null;
 
+  /**
+   * Examples whose SQL the reader has expanded.
+   *
+   * <p>Long statements are clamped by default. Measured before fixing: a
+   * 120-line example rendered the panel 2626px tall — 3.6 screens — with the
+   * indexes card and everything below it pushed off the page. The corpus has
+   * statements of 201 lines, so this is the normal case for a busy query, not
+   * an edge one.
+   */
+  expanded = new Set<string>();
+
   // ── live explain ──
   explaining: string | null = null;
   plans = new Map<string, ExplainResult>();
@@ -121,6 +132,29 @@ export class QueryExamplesComponent implements OnInit {
         }
       }
     });
+  }
+
+  /**
+   * Whether this example is long enough to be worth clamping.
+   *
+   * <p>Counted rather than measured: a DOM measurement would have to happen
+   * after render and would make the control appear a frame late. The threshold
+   * only decides whether a toggle is offered, so being approximate costs
+   * nothing — the clamp itself is CSS and applies exactly.
+   */
+  isLong(example: QueryExample): boolean {
+    const text = example.queryText;
+    return text.length > 400 || text.split('\n').length > 10;
+  }
+
+  isExpanded(example: QueryExample): boolean {
+    return this.expanded.has(example.id);
+  }
+
+  toggleExpanded(example: QueryExample) {
+    if (!this.expanded.delete(example.id)) {
+      this.expanded.add(example.id);
+    }
   }
 
   /** Plan a stored example against the active environment's server. */

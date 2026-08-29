@@ -108,6 +108,28 @@
     margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
+
+    // Clamped, because this panel lives in a narrow rail beside the page's
+    // other cards. Unclamped, a 120-line example measured 2626px — three and a
+    // half screens — and pushed the indexes card off the bottom. The corpus
+    // holds statements of 201 lines.
+    &.clamped {
+      max-height: 180px;
+      overflow: hidden;
+      // fade the cut rather than slicing a line in half, so it reads as
+      // "there is more" instead of as a rendering fault
+      mask-image: linear-gradient(to bottom, #000 130px, transparent 100%);
+    }
+  }
+
+  .expand {
+    background: none;
+    border: none;
+    padding: 2px 0 0;
+    font-size: 10px;
+    color: var(--blue);
+    cursor: pointer;
+    &:hover { text-decoration: underline; }
   }
 }
 

@@ -42,6 +42,15 @@ public class QueryExampleLookup {
         return found.isEmpty() ? null : toExample(found.getFirst());
     }
 
+    /**
+     * The digests that have at least one example, for the workbench's
+     * "has examples" filter. Fetched whole because the caller is filtering a
+     * corpus, not answering one question.
+     */
+    public java.util.Set<String> digestsWithExamples() {
+        return repository.findDistinctNormalizedDigests();
+    }
+
     private static Example toExample(QueryExample example) {
         return new Example(example.getId(), example.getQueryText(), example.getSessionSchema());
     }

@@ -69,6 +69,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   truncated: Flag = 'ANY';
   multiSchema: Flag = 'ANY';
   analyzerWarnings = false;
+  /**
+   * Only queries with a stored example. Its own section rather than living
+   * under Analyzer: an example says something about what has been *collected*
+   * for a query, not about how well the analyzer read it.
+   */
+  hasExamples = false;
   analysisFailed = false;
   cleanAnalysis = false;
   analysisSkipped = false;
@@ -211,6 +217,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       truncated: this.truncated,
       multiSchema: this.multiSchema,
       analyzerWarnings: this.analyzerWarnings,
+      hasExamples: this.hasExamples,
       analysisFailed: this.analysisFailed,
       cleanAnalysis: this.cleanAnalysis,
       analysisSkipped: this.analysisSkipped,
@@ -289,6 +296,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.rowsSorted = { min: null, max: null };
     this.fullScan = this.tmpTable = this.tmpDisk = this.errors = this.warnings = 'ANY';
     this.truncated = this.multiSchema = 'ANY';
+    this.hasExamples = false;
     this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = this.analysisSkipped = false;
     this.failureKind = null;
     this.queryScopeService.clear();
@@ -534,6 +542,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.truncated = state.truncated;
     this.multiSchema = state.multiSchema;
     this.analyzerWarnings = state.analyzerWarnings;
+    this.hasExamples = state.hasExamples;
     this.analysisFailed = state.analysisFailed;
     this.cleanAnalysis = state.cleanAnalysis;
     this.analysisSkipped = state.analysisSkipped;

@@ -20,4 +20,15 @@ interface QueryExampleRepository extends JpaRepository<QueryExample, UUID> {
     List<QueryExample> findByNormalizedDigestOrderByIdDesc(String normalizedDigest, Pageable pageable);
 
     long countByNormalizedDigest(String normalizedDigest);
+
+    /**
+     * Every digest that has at least one example.
+     *
+     * <p>The whole set in one query rather than a lookup per row: the queries
+     * workbench filters thousands of profiles at a time, and asking per profile
+     * would be that many round trips to answer one checkbox.
+     */
+    @org.springframework.data.jpa.repository.Query(
+        "select distinct e.normalizedDigest from QueryExample e")
+    java.util.Set<String> findDistinctNormalizedDigests();
 }

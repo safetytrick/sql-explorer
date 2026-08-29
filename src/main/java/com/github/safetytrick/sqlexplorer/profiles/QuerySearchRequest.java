@@ -67,6 +67,12 @@ public record QuerySearchRequest(
     Flag truncated,
     Flag multiSchema,
     Boolean analyzerWarnings,
+    /**
+     * Only queries that have at least one stored example — the ones that can
+     * actually be planned, since the corpus text carries {@code ?} placeholders
+     * that EXPLAIN rejects.
+     */
+    Boolean hasExamples,
     Boolean analysisFailed,
     Boolean cleanAnalysis,
     Boolean analysisSkipped,
@@ -136,5 +142,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null);
 }

@@ -164,6 +164,52 @@ describe('QueryExamplesComponent', () => {
     request.flush(example());
   });
 
+  // ── long statements ──
+
+  describe('a statement long enough to swamp the panel', () => {
+
+    /**
+     * Unclamped, a 120-line example measured 2626px — three and a half screens
+     * — and pushed the indexes card off the bottom of the page. The corpus
+     * holds statements of 201 lines, so this is a normal query, not an edge.
+     */
+    const LONG = Array.from({length: 120}, (_, i) => `  and col${i} = 'value ${i}'`).join('\n');
+
+    it('clamps it by default', () => {
+      openWith([example({queryText: LONG})]);
+
+      const sql = (fixture.nativeElement as HTMLElement).querySelector('.sql');
+      expect(sql!.classList).toContain('clamped');
+    });
+
+    it('offers to show the whole thing, and says how much there is', () => {
+      openWith([example({queryText: LONG})]);
+
+      expect(rendered()).toContain('show all 120 lines');
+    });
+
+    it('unclamps when expanded, and clamps again when collapsed', () => {
+      openWith([example({queryText: LONG})]);
+      const sql = () => (fixture.nativeElement as HTMLElement).querySelector('.sql')!;
+
+      component.toggleExpanded(component.examples[0]);
+      fixture.detectChanges();
+      expect(sql().classList).not.toContain('clamped');
+
+      component.toggleExpanded(component.examples[0]);
+      fixture.detectChanges();
+      expect(sql().classList).toContain('clamped');
+    });
+
+    it('leaves a short statement alone, with no control to press', () => {
+      openWith([example({queryText: 'select 1'})]);
+
+      const sql = (fixture.nativeElement as HTMLElement).querySelector('.sql');
+      expect(sql!.classList).not.toContain('clamped');
+      expect((fixture.nativeElement as HTMLElement).querySelector('.expand')).toBeNull();
+    });
+  });
+
   // ── live explain ──
 
   it('renders a plan for an example', () => {
