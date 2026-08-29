@@ -56,10 +56,21 @@ export interface SqlProfile {
   joinColumns: JoinPair[];
   criteriaColumns: ColumnRef[];
   /**
-   * Null, not empty, when the analyzer that fills these never ran or threw —
-   * a skipped analysis, a parse failure, or an analyzer exception. The wire
-   * really does send `null` here despite the Avro schema declaring `= []`,
-   * and ~5% of profiles are in that state, so every read has to guard.
+   * The `| null` is defence, not a description of the wire.
+   *
+   * <p>This used to read "the wire really does send null here … ~5% of
+   * profiles", which was true when it was written and is not now: `complete()`
+   * normalises these and `MergedSqlProfile` overrides them, so the backend
+   * sends `[]`. Checked against the live corpus — 1,000 profiles, zero nulls
+   * in any of `selectColumns`, `groupByColumns`, `schemas`, `tables`,
+   * `criteriaColumns`, `joinColumns`, `mismatchedJoins` or `sourcedFiles`.
+   *
+   * <p>The types are kept nullable anyway. Nothing in the backend *enforces*
+   * the normalisation — it is two call sites agreeing — so a guard costs
+   * nothing and a missing one would be a runtime error on a page. What is
+   * corrected here is the claim about how often it happens, because a comment
+   * that says "~5%" teaches a reader to expect something the backend no longer
+   * does.
    */
   selectColumns: ColumnRef[] | null;
   groupByColumns: ColumnRef[] | null;
@@ -72,6 +83,7 @@ export interface SqlProfile {
   digest: string;
   normalizedDigest: string;
   schemaName: string;
+  /** Nullable for the same reason as `selectColumns` above: defence, not the wire. */
   schemas: string[] | null;
   mismatchedJoins: JoinPair[];
   lineNumber: number | null;
