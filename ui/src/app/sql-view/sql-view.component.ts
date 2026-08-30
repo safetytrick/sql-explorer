@@ -2,7 +2,7 @@ import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
-import {DecimalPipe, SlicePipe} from '@angular/common';
+import {DatePipe, DecimalPipe, SlicePipe} from '@angular/common';
 import {RouterLink} from '@angular/router';
 import {Highlight} from 'ngx-highlightjs';
 import {TagFieldComponent} from '../tag-field/tag-field.component';
@@ -12,6 +12,7 @@ import {SqlProfile, TableStructure} from '../api-types';
 import {parseTableRef} from '../refs';
 import {MergeVariant, mergeVariants} from '../queries-workbench/merge-group';
 import {buildIndexPanels, TableIndexPanel} from './index-relevance';
+import {SEEN_FORMAT} from '../seen-format';
 import {QueryExamplesComponent} from '../query-examples/query-examples.component';
 
 @Component({
@@ -20,9 +21,12 @@ import {QueryExamplesComponent} from '../query-examples/query-examples.component
   styleUrls: ['./sql-view.component.scss'],
   providers: [AnalyzedSqlService],
   imports: [RouterLink, DecimalPipe, SlicePipe, Highlight, TagFieldComponent, PicoViewComponent, ColumnLinkComponent,
-    QueryExamplesComponent]
+    QueryExamplesComponent, DatePipe]
 })
 export class SqlViewComponent implements OnInit {
+
+  /** @see SEEN_FORMAT */
+  readonly SEEN_FORMAT = SEEN_FORMAT;
 
   query: SqlProfile | null = null;
   /** Structures for the query's tables, as they resolve. */

@@ -12,7 +12,7 @@
   <div class="view-header">
     <span class="view-title mono">{{query.schemaName}}</span>
     <span class="type-badge" [class.dormant]="query.queryActivityStatus === 'DORMANT'"
-          [title]="'last seen ' + (query.runtimeMetrics?.lastSeen || 'unknown')">
+          [title]="'last seen ' + (query.runtimeMetrics?.lastSeen ? (query.runtimeMetrics?.lastSeen | date:SEEN_FORMAT) : 'unknown')">
       {{query.queryActivityStatus.toLowerCase()}}
     </span>
     @if (query.isDml) { <span class="badge b-idx" title="this statement writes">DML</span> }
@@ -264,8 +264,8 @@
               </div>
               <div class="metric-group">
                 <div class="ds-label">Activity</div>
-                <div class="metric-row"><span class="metric-key">First seen</span><span class="metric-val">{{metrics.firstSeen || '—'}}</span></div>
-                <div class="metric-row"><span class="metric-key">Last seen</span><span class="metric-val">{{metrics.lastSeen || '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key">First seen</span><span class="metric-val">{{metrics.firstSeen ? (metrics.firstSeen | date:SEEN_FORMAT) : '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key">Last seen</span><span class="metric-val">{{metrics.lastSeen ? (metrics.lastSeen | date:SEEN_FORMAT) : '—'}}</span></div>
                 <div class="metric-row"><span class="metric-key">Status</span><span class="metric-val" [class.green]="query.queryActivityStatus === 'ACTIVE'">{{query.queryActivityStatus.toLowerCase()}}</span></div>
               </div>
             </div>

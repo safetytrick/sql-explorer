@@ -93,4 +93,51 @@ describe('SqlViewComponent', () => {
     expect(() => fixture.detectChanges()).not.toThrow();
     expect(component.indexPanels).toEqual([]);
   });
+
+  /**
+   * The backend sends a zone-less LocalDateTime, which reaches a template as
+   * 26 characters of raw ISO with microseconds. Every other surface formats
+   * it; this page did not, because the format was a private field on
+   * SqlSummaryComponent rather than something shared.
+   */
+  describe('first and last seen', () => {
+
+    function withSeen(): SqlProfile {
+      const profile = profileWithNullColumnArrays();
+      return {
+        ...profile,
+        runtimeMetrics: {
+          firstSeen: '2026-05-04T15:49:26.782619',
+          lastSeen: '2026-08-29T07:03:11.004821'
+        }
+      } as SqlProfile;
+    }
+
+    function rendered(): string {
+      return (fixture.nativeElement as HTMLElement).textContent || '';
+    }
+
+    beforeEach(() => {
+      component.query = withSeen();
+      component.loading = false;
+      fixture.detectChanges();
+    });
+
+    it('writes them to the minute, not to the microsecond', () => {
+      expect(rendered()).toContain('2026-05-04 15:49');
+      expect(rendered()).toContain('2026-08-29 07:03');
+    });
+
+    /** The whole defect: the raw value must not survive to the page. */
+    it('never shows the raw ISO value', () => {
+      expect(rendered()).not.toContain('782619');
+      expect(rendered()).not.toContain('15:49:26');
+      expect(rendered()).not.toContain('T15:49');
+    });
+
+    /** Fixed width is the point — 16 characters in May and in December alike. */
+    it('uses the one shared format', () => {
+      expect(component.SEEN_FORMAT).toBe('yyyy-MM-dd HH:mm');
+    });
+  });
 });
