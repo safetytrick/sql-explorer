@@ -16,6 +16,7 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.evidence.SqlEvidenceInputService.SqlRepositoryBuilder;
 import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetConfig;
 import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSink;
+import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSqlRepository;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import org.junit.jupiter.api.Test;
@@ -85,7 +86,7 @@ class MergeGroupPersistenceTest {
         repository.writeParquet(sink);
         sink.close();
 
-        List<SqlProfile> reloaded = sink.readAll(parquetFile);
+        List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
         assertThat(reloaded).hasSize(1);
         assertThat(reloaded.getFirst().getMergedChildren())
             .extracting(MergedChild::getDigest, MergedChild::getExecuted)
@@ -112,7 +113,7 @@ class MergeGroupPersistenceTest {
 
         repository.writeParquet(sink);
         sink.close();
-        assertThat(sink.readAll(parquetFile)).hasSize(1);
+        assertThat(sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()))).hasSize(1);
     }
 
     /** An unmerged query still owns exactly one row, and carries no group. */
@@ -129,7 +130,7 @@ class MergeGroupPersistenceTest {
         repository.writeParquet(sink);
         sink.close();
 
-        List<SqlProfile> reloaded = sink.readAll(parquetFile);
+        List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
         assertThat(reloaded).hasSize(1);
         assertThat(reloaded.getFirst().getMergedChildren()).isEmpty();
     }

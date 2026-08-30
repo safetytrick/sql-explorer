@@ -3,6 +3,11 @@ package com.github.safetytrick.sqlexplorer.evidence.sink;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.nio.file.Files;
+import java.util.Comparator;
+import java.util.Optional;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -26,6 +31,8 @@ import static org.apache.parquet.filter2.predicate.FilterApi.eq;
 
 @Service
 public class ParquetSqlRepository implements SqlRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(ParquetSqlRepository.class);
 
     private final ParquetConfig config;
 
@@ -76,9 +83,56 @@ public class ParquetSqlRepository implements SqlRepository {
         return new SqlImportStats(0,0,0,0,0,0,0);
     }
 
+    /**
+     * The most recent capture — the corpus — not every file on disk.
+     *
+     * <p>Reading them all would be wrong, not merely slow. Performance Schema
+     * accumulates until the server restarts, so consecutive captures overlap
+     * heavily and the union would hold several copies of most profiles,
+     * inflating every count the app reports.
+     *
+     * <p>The older files are the archive, and they are kept for a different
+     * question: whether there is a window between one capture's last observed
+     * statement and the next capture's first, which is how a Performance
+     * Schema reset becomes visible (sqlx-sy5). That reader is not this one.
+     *
+     * <p>Named stamps sort chronologically, so "latest" is the last entry in a
+     * sorted listing. The un-stamped configured name is the legacy single-file
+     * layout and is used only when no stamped capture exists.
+     */
+    public static Path latestCapture(String configuredPath) {
+        Path base = Path.of(configuredPath);
+        Path directory = base.getParent();
+        Path fileName = base.getFileName();
+        if (fileName == null) {
+            return base;
+        }
+        String name = fileName.toString();
+        int dot = name.lastIndexOf('.');
+        String stem = dot < 0 ? name : name.substring(0, dot);
+        String extension = dot < 0 ? "" : name.substring(dot);
+
+        if (directory != null && directory.toFile().isDirectory()) {
+            try (Stream<Path> entries = Files.list(directory)) {
+                Optional<Path> newest = entries
+                    .filter(path -> {
+                        String candidate = String.valueOf(path.getFileName());
+                        return candidate.startsWith(stem + "-") && candidate.endsWith(extension);
+                    })
+                    .max(Comparator.comparing(path -> String.valueOf(path.getFileName())));
+                if (newest.isPresent()) {
+                    return newest.get();
+                }
+            } catch (IOException e) {
+                log.warn("could not list captures in {}: {}", directory, e.getMessage());
+            }
+        }
+        return base;
+    }
+
     private Stream<SqlProfile> fetchWithFilter(FilterCompat.Filter filter) {
 
-        Path parquetFile = Path.of(config.getFilename());
+        Path parquetFile = latestCapture(config.getFilename());
 
         if (parquetFile.toFile().exists()) {
             try (ParquetReader<SqlProfile> parquetReader = AvroParquetReader.<SqlProfile>builder(

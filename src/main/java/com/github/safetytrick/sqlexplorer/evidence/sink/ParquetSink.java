@@ -3,6 +3,8 @@ package com.github.safetytrick.sqlexplorer.evidence.sink;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -61,10 +63,46 @@ public class ParquetSink {
         this.capture = context;
     }
 
+    /**
+     * Where a capture is written: the configured path with the capture instant
+     * folded into the stem.
+     *
+     * <p>One file per capture, not one file overwritten. Performance Schema is
+     * cleared when the server restarts, so an overwritten file destroyed the
+     * only record that a previous window was ever observed — and with it any
+     * chance of noticing the gap between them (sqlx-sy5).
+     *
+     * <p>The stamp is ordered lexicographically as well as chronologically, so
+     * the newest capture is the last name in a sorted listing and finding it
+     * costs no parsing.
+     *
+     * <p>Falls back to the plain configured name when there is no capture
+     * instant, which keeps a context-less write working and readable.
+     */
+    static Path fileFor(String configuredPath, CaptureContext context) {
+        Path base = Path.of(configuredPath);
+        Path fileName = base.getFileName();
+        // a root path has no file name to stamp; nothing sensible to derive
+        if (context == null || context.capturedAt() == null || fileName == null) {
+            return base;
+        }
+        String name = fileName.toString();
+        int dot = name.lastIndexOf('.');
+        String stem = dot < 0 ? name : name.substring(0, dot);
+        String extension = dot < 0 ? "" : name.substring(dot);
+        String stamp = STAMP.format(context.capturedAt());
+        Path parent = base.getParent();
+        Path stamped = Path.of(stem + "-" + stamp + extension);
+        return parent == null ? stamped : parent.resolve(stamped);
+    }
+
+    private static final DateTimeFormatter STAMP =
+        DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC);
+
     private ParquetWriter<Object> writer() throws IOException {
         if (objectWriter == null) {
             AvroParquetWriter.Builder<Object> parquetWriter =
-                AvroParquetWriter.builder(new LocalOutputFile(Path.of(config.getFilename())));
+                AvroParquetWriter.builder(new LocalOutputFile(fileFor(config.getFilename(), capture)));
             objectWriter = parquetWriter.withSchema(SqlProfile.getClassSchema())
                 .withDictionaryEncoding(true)
                 .withConf(new Configuration(false))

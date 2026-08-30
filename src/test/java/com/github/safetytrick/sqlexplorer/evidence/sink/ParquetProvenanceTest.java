@@ -43,6 +43,15 @@ class ParquetProvenanceTest {
             .completeBuild("app");
     }
 
+    /**
+     * Where the capture actually landed. A context-carrying write is stamped
+     * with its capture instant, so the configured path is not the file
+     * (sqlx-sy5) — asking the repository is how anything else finds it too.
+     */
+    private Path written(Path configured) {
+        return ParquetSqlRepository.latestCapture(configured.toString());
+    }
+
     private Map<String, String> metadataOf(Path file) throws IOException {
         try (ParquetFileReader reader = ParquetFileReader.open(new LocalInputFile(file))) {
             return reader.getFooter().getFileMetaData().getKeyValueMetaData();
@@ -63,7 +72,7 @@ class ParquetProvenanceTest {
         sink.write(profile("d1"));
         sink.close();
 
-        assertThat(metadataOf(file))
+        assertThat(metadataOf(written(file)))
             .containsEntry("sqlexplorer.origin", "PARQUET_COPY")
             .containsEntry("sqlexplorer.originTable", "sys.x$statement_analysis")
             .containsEntry("sqlexplorer.sourceRef", "primary")
@@ -118,6 +127,6 @@ class ParquetProvenanceTest {
         sink.write(profile("d2"));
         sink.close();
 
-        assertThat(sink.readAll(file)).hasSize(2);
+        assertThat(sink.readAll(written(file))).hasSize(2);
     }
 }
