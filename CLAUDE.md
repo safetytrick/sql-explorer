@@ -65,6 +65,38 @@ docker compose up explorer-shared-tags   # Optional: load table/SQL tags
 
 UI is accessible at `http://localhost:4200`. Backend runs on port 8080.
 
+#### Serving the UI from a local build
+
+`docker compose build explorer-ui` intermittently fails to pull `node:22`
+through Docker Desktop's proxy (`sqlx-dec`). Only the *builder* stage needs it
+— the nginx stage just copies a directory — so you can skip the pull:
+
+```bash
+cd ui && npm run build && cd ..
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ui-local.yml up -d explorer-ui
+```
+
+After that every `npm run build` refreshes the running app on a hard reload,
+with no Docker step at all.
+
+Deliberately **not** named `docker-compose.override.yml`: that name applies
+automatically, so it would shadow a genuine rebuild without saying so, and on a
+fresh clone — where `ui/build` does not exist — Docker would create an empty
+directory and nginx would serve 404s with no clue why.
+
+The failure this guards against is not the slow rebuild. It is that a stale
+container makes the running app lag the code *silently*: a reported bug once
+turned out to be a guard that simply was not in the bundle being run. When
+behaviour disagrees with the source, compare the served bundle against the
+local one before believing either:
+
+```bash
+curl -s localhost:4200/ | grep -o 'main-[A-Z0-9]*\.js'
+```
+
 ### Git remotes
 
 `origin` is GitHub (`git@github.com-mine:safetytrick/sql-explorer.git`) and is
