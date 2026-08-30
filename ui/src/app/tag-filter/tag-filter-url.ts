@@ -116,3 +116,15 @@ export function matchesTagFilter(rowTags: string[], state: TagFilterState,
     ? state.tags.every(tag => rowTags.includes(tag))
     : state.tags.some(tag => rowTags.includes(tag));
 }
+
+/**
+ * Value equality for a filter state.
+ *
+ * <p>Shared because two components now write the same URL parameter — the
+ * header strip and the schema-tree sidebar — and both have to recognise the
+ * echo of their own write, or they bounce off each other (sqlx-zl1).
+ */
+export function sameTagFilter(a: TagFilterState, b: TagFilterState): boolean {
+  const same = (x: string[], y: string[]) => x.length === y.length && x.every((v, i) => v === y[i]);
+  return a.mode === b.mode && same(a.tags, b.tags) && same(a.excludeTags, b.excludeTags);
+}

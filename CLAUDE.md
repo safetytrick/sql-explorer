@@ -81,8 +81,27 @@ just place one artifact. So build on the host and mount over that path:
 docker compose -f docker-compose.yml -f docker-compose.local-build.yml up -d
 ```
 
-After that each rebuild refreshes what is served: the UI on a hard reload, the
-backend on `docker compose ... restart sql-explorer`.
+Re-run the same `up -d` after every rebuild, and add `--force-recreate` for the
+UI:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-build.yml up -d --force-recreate explorer-ui
+```
+
+**A hard reload is not enough, and neither is `restart`.** `ng build` deletes
+and recreates its output directory, so the bind mount is left holding a dead
+inode and nginx serves the previous bundle indefinitely — `restart` reuses the
+same mount, so only recreating the container re-resolves it. The jar is a
+single file that is overwritten in place, so the backend only needs a
+`restart`.
+
+This trap looks exactly like a code bug, so when behaviour disagrees with the
+source, compare the served bundle against the local one before believing
+either:
+
+```bash
+curl -s localhost:4200/ | grep -o 'main-[A-Z0-9]*\.js'; ls ui/build/sql-explorer-ui/browser/main*.js
+```
 
 Deliberately **not** named `docker-compose.override.yml`: that name applies
 automatically, so it would shadow a genuine rebuild without saying so, and on a
@@ -92,13 +111,7 @@ with nothing to explain why.
 
 The failure this guards against is not the slow rebuild. It is that a stale
 container makes the running app lag the code *silently*: a reported bug once
-turned out to be a guard that simply was not in the bundle being run. When
-behaviour disagrees with the source, compare the served bundle against the
-local one before believing either:
-
-```bash
-curl -s localhost:4200/ | grep -o 'main-[A-Z0-9]*\.js'
-```
+turned out to be a guard that simply was not in the bundle being run.
 
 ### Git remotes
 

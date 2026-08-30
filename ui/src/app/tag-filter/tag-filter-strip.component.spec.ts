@@ -1,5 +1,6 @@
 import {ComponentFixture, TestBed, waitForAsync} from '@angular/core/testing';
-import {Router} from '@angular/router';
+import {ActivatedRoute, convertToParamMap, ParamMap, Router} from '@angular/router';
+import {BehaviorSubject} from 'rxjs';
 import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
 import {TagFilterStripComponent} from './tag-filter-strip.component';
 
@@ -27,7 +28,13 @@ describe('TagFilterStripComponent', () => {
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       imports: [TagFilterStripComponent],
-      providers: [COMMON_TEST_PROVIDERS]
+      providers: [COMMON_TEST_PROVIDERS, {
+        provide: ActivatedRoute,
+        useValue: (() => {
+          const params = new BehaviorSubject<ParamMap>(convertToParamMap({}));
+          return {queryParamMap: params, get snapshot() { return {queryParamMap: params.value}; }};
+        })()
+      }]
     }).compileComponents();
   }));
 
@@ -159,6 +166,52 @@ describe('TagFilterStripComponent', () => {
     component.toggle('system');
 
     expect(component.matched).toBe(1);
+  });
+
+
+  // ── the URL is the source of truth, not this component (sqlx-zl1) ──
+
+  describe('when something else writes the parameter', () => {
+
+    function urlSays(params: Record<string, string>) {
+      (TestBed.inject(ActivatedRoute).queryParamMap as BehaviorSubject<ParamMap>)
+        .next(convertToParamMap(params));
+      fixture.detectChanges();
+    }
+
+    /**
+     * The schema-tree sidebar writes the same `schemaTagsExclude`. Reading the
+     * snapshot once left this strip showing one state while the URL and the
+     * page showed another — which is how an exclude set in the sidebar could
+     * look applied and not be.
+     */
+    it('picks up an exclusion set elsewhere', () => {
+      urlSays({schemaTagsExclude: 'system'});
+
+      expect(component.isExcluded('system')).toBeTrue();
+      expect(component.state.excludeTags).toEqual(['system']);
+    });
+
+    it('emits so the page re-filters', () => {
+      const seen: string[][] = [];
+      component.filterChange.subscribe(state => seen.push(state.excludeTags));
+
+      urlSays({schemaTagsExclude: 'system'});
+
+      expect(seen).toContain(['system']);
+    });
+
+    /** Its own write comes back through the same channel; that must not re-emit. */
+    it('does not react to the echo of its own write', () => {
+      component.toggle('system');
+      component.toggle('system');
+      let emissions = 0;
+      component.filterChange.subscribe(() => emissions++);
+
+      urlSays({schemaTagsExclude: 'system'});
+
+      expect(emissions).toBe(0);
+    });
   });
 
   // ── url ──

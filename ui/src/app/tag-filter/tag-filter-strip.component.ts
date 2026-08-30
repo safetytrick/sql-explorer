@@ -4,7 +4,7 @@ import {Subscription} from 'rxjs';
 import {TagColorsService} from '../tag-colors.service';
 import {TagMode} from '../query-search.service';
 import {Tag} from '../api-types';
-import {decodeTagFilter, emptyTagFilter, encodeTagFilter, matchesTagFilter, TagFilterState} from './tag-filter-url';
+import {decodeTagFilter, emptyTagFilter, encodeTagFilter, matchesTagFilter, sameTagFilter, TagFilterState} from './tag-filter-url';
 
 /** A tag as offered by the strip: name and how many rows carry it. */
 export interface StripTag {
@@ -65,11 +65,19 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
               private router: Router) {}
 
   ngOnInit() {
-    this.state = decodeTagFilter(this.route.snapshot.queryParamMap);
+    // Tracked, not read once. The schema-tree sidebar writes the same
+    // `schemaTagsExclude` parameter, so a snapshot read would leave this strip
+    // showing one state while the URL and the page showed another (sqlx-zl1).
+    this.subscriptions.add(this.route.queryParamMap.subscribe(params => {
+      const next = decodeTagFilter(params);
+      if (sameTagFilter(next, this.state)) { return; }
+      this.state = next;
+      this.recount();
+      this.filterChange.emit(this.state);
+    }));
     // Subscribing is also what fills the colour map the chips read.
     this.subscriptions.add(this.tagColors.getSummaries().subscribe(() => this.recount()));
     this.recount();
-    this.filterChange.emit(this.state);
   }
 
   ngOnDestroy() {
@@ -136,6 +144,8 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
 
   private apply() {
     this.recount();
+    // the queryParamMap subscription sees this write come back and no-ops on
+    // it, because the decoded state will equal what is already held
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: encodeTagFilter(this.state),

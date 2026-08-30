@@ -1,10 +1,20 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
-import {RouterLink, RouterLinkActive} from '@angular/router';
+import {ActivatedRoute, Router, RouterLink, RouterLinkActive} from '@angular/router';
 import {forkJoin, Subscription} from 'rxjs';
 import {SchemaLensService, SchemaNode} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {QueryFacets, TagMode} from '../query-search.service';
-import {QueryScopeService, tableKey} from '../query-scope.service';
+import {QueryScopeService, SchemaTagFilter, tableKey} from '../query-scope.service';
+import {decodeTagFilter, encodeTagFilter, sameTagFilter, TagFilterState} from '../tag-filter/tag-filter-url';
+
+/**
+ * The sidebar's filter shape as the URL codec's. Two names for one idea —
+ * `includeTags`/`tagMode` here, `tags`/`mode` there — kept apart because the
+ * codec is shared with the list pages, and bridged in exactly one place.
+ */
+function asFilterState(filter: SchemaTagFilter): TagFilterState {
+  return { tags: filter.includeTags, excludeTags: filter.excludeTags, mode: filter.tagMode };
+}
 import {filterSchemaTree, TypeFilter, inertTags} from './tree-filter';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
@@ -50,7 +60,9 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
               private environmentService: EnvironmentService,
               private queryScopeService: QueryScopeService,
               private analyzedSqlService: AnalyzedSqlService,
-              private tagColorsService: TagColorsService) { }
+              private tagColorsService: TagColorsService,
+              private route: ActivatedRoute,
+              private router: Router) { }
 
   ngOnInit() {
     // the header interceptor scopes the request; reload whenever the selection changes
@@ -58,6 +70,17 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.queryScopeService.active$.subscribe(active => this.active = active));
     this.subscriptions.add(this.queryScopeService.facets$.subscribe(facets => this.facets = facets));
     this.subscriptions.add(this.queryScopeService.scope$.subscribe(() => { /* re-render selection */ }));
+    // The URL is the source of truth for this filter, not this component.
+    // The header strip on /tables and /schemas writes the same parameter, and
+    // the workbench seeds itself from it — so the sidebar has to read it too,
+    // or the two controls on those pages show different states (sqlx-zl1).
+    this.subscriptions.add(this.route.queryParamMap.subscribe(params => {
+      const fromUrl = decodeTagFilter(params);
+      if (sameTagFilter(fromUrl, asFilterState(this.queryScopeService.schemaTagFilter))) { return; }
+      this.queryScopeService.setSchemaTagFilter({
+        includeTags: fromUrl.tags, excludeTags: fromUrl.excludeTags, tagMode: fromUrl.mode
+      });
+    }));
     this.subscriptions.add(this.queryScopeService.schemaTagFilter$.subscribe(() => {
       // external clear (e.g. workbench "clear all") — keep panel open if filters remain
       if (this.tagFilterCount === 0) {
@@ -214,17 +237,47 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     this.includeSuggestions = [];
     this.excludeSuggestions = [];
     this.queryScopeService.clearSchemaTagFilter();
+    this.writeTagFilterToUrl({ includeTags: [], excludeTags: [], tagMode: 'ANY' });
   }
 
   private updateTagFilter(patch: Partial<{ includeTags: string[]; excludeTags: string[]; tagMode: TagMode }>) {
     const current = this.queryScopeService.schemaTagFilter;
-    this.queryScopeService.setSchemaTagFilter({
+    const next = {
       includeTags: patch.includeTags ?? current.includeTags,
       excludeTags: patch.excludeTags ?? current.excludeTags,
       tagMode: patch.tagMode ?? current.tagMode
-    });
+    };
+    this.queryScopeService.setSchemaTagFilter(next);
+    this.writeTagFilterToUrl(next);
     // the schemaTagFilter$ subscription in ngOnInit resolves + publishes
   }
+
+  /**
+   * Put the filter in the URL, which is what makes it act on the page.
+   *
+   * <p>Before this the sidebar wrote only to {@link QueryScopeService}, whose
+   * sole consumer is the queries workbench. On /tables and /schemas that made
+   * the exclude control accept input, show a chip, filter the sidebar's own
+   * tree — and change nothing about the page or the URL. Confirming feedback
+   * for a no-op, which is worse than a control that plainly does not work
+   * (sqlx-zl1).
+   *
+   * <p>Skipped when the URL already says this. The workbench also writes this
+   * parameter from its own subscription to `schemaTagFilter$`, and
+   * `setSchemaTagFilter` emits unconditionally, so writing on every emission
+   * would bounce between the two writers.
+   */
+  private writeTagFilterToUrl(filter: SchemaTagFilter) {
+    const wanted = asFilterState(filter);
+    if (sameTagFilter(wanted, decodeTagFilter(this.route.snapshot.queryParamMap))) { return; }
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: encodeTagFilter(wanted),
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+  }
+
 
   /**
    * Resolve the tag filter to the lists the workbench sends. This used to be a
