@@ -45,6 +45,21 @@ class CaptureFileLayoutTest {
         return directory.resolve("sql-repository.parquet").toString();
     }
 
+    /**
+     * A real, sealed capture. Empty placeholder files will not do any more:
+     * {@link ParquetSqlRepository#latestCapture} answers the newest capture
+     * that can actually be read, because the newest <em>name</em> is normally
+     * the running process's own file, still open and footerless (sqlx-sy5).
+     */
+    private void writeCapture(String instant) throws IOException {
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(base());
+        ParquetSink sink = new ParquetSink(config);
+        sink.capturing(capturedAt(instant));
+        sink.write(profile());
+        sink.close();
+    }
+
     @Test
     void aCaptureIsWrittenBesideTheConfiguredNameRatherThanOverIt() {
         Path file = ParquetSink.fileFor(base(), capturedAt("2026-08-30T02:51:36Z"));
@@ -81,9 +96,9 @@ class CaptureFileLayoutTest {
 
     @Test
     void theCorpusIsTheNewestCapture() throws IOException {
-        Files.createFile(directory.resolve("sql-repository-20260830T025136Z.parquet"));
-        Files.createFile(directory.resolve("sql-repository-20260901T000000Z.parquet"));
-        Files.createFile(directory.resolve("sql-repository-20260815T120000Z.parquet"));
+        writeCapture("2026-08-30T02:51:36Z");
+        writeCapture("2026-09-01T00:00:00Z");
+        writeCapture("2026-08-15T12:00:00Z");
 
         assertThat(ParquetSqlRepository.latestCapture(base()).getFileName().toString())
             .isEqualTo("sql-repository-20260901T000000Z.parquet");
@@ -102,17 +117,37 @@ class CaptureFileLayoutTest {
     @Test
     void aStampedCaptureIsPreferredOverTheLegacyFile() throws IOException {
         Files.createFile(directory.resolve("sql-repository.parquet"));
-        Files.createFile(directory.resolve("sql-repository-20260901T000000Z.parquet"));
+        writeCapture("2026-09-01T00:00:00Z");
 
         assertThat(ParquetSqlRepository.latestCapture(base()).getFileName().toString())
             .isEqualTo("sql-repository-20260901T000000Z.parquet");
     }
 
-    /** Unrelated files in the directory must not be mistaken for captures. */
+    /**
+     * Unrelated files in the directory must not be mistaken for captures. This
+     * is the naming question, so it asks {@code captures} — the one owner of
+     * what a capture file is called — rather than inferring it from which file
+     * the corpus happened to resolve to.
+     */
     @Test
     void ignoresFilesThatAreNotCapturesOfThisBase() throws IOException {
         Files.createFile(directory.resolve("something-else-20270101T000000Z.parquet"));
         Files.createFile(directory.resolve("sql-repository-20260830T025136Z.parquet"));
+
+        assertThat(ParquetSqlRepository.captures(base()))
+            .extracting(path -> String.valueOf(path.getFileName()))
+            .containsExactly("sql-repository-20260830T025136Z.parquet");
+    }
+
+    /**
+     * The capture an import is still writing has no footer, and must not be
+     * served as the corpus — it would read as an empty environment for the
+     * whole life of the process.
+     */
+    @Test
+    void anInProgressCaptureIsNotYetTheCorpus() throws IOException {
+        writeCapture("2026-08-30T02:51:36Z");
+        Files.createFile(directory.resolve("sql-repository-20260901T000000Z.parquet"));
 
         assertThat(ParquetSqlRepository.latestCapture(base()).getFileName().toString())
             .isEqualTo("sql-repository-20260830T025136Z.parquet");

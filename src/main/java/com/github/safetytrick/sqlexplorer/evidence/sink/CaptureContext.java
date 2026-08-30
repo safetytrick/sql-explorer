@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Where a written profile file came from, recorded in the file itself.
@@ -85,6 +86,53 @@ public record CaptureContext(
             server.forEach((key, value) -> put(metadata, "mysql." + key, value));
         }
         return metadata;
+    }
+
+    /**
+     * Read provenance back out of a footer, or {@code null} when the file
+     * carries none.
+     *
+     * <p>Null rather than an empty context, deliberately: "no provenance was
+     * recorded" and "provenance was recorded and said nothing" are different
+     * claims, and a reader deciding what it may assert about a file has to be
+     * able to tell them apart. A file written before this existed is the
+     * former.
+     *
+     * <p>Individual fields are independently optional for the same reason. An
+     * unparseable value is dropped rather than defaulted — a wrong instant
+     * would order the archive wrongly, which is worse than an unorderable
+     * capture the reader can simply set aside.
+     */
+    public static CaptureContext fromMetadata(Map<String, String> metadata) {
+        if (metadata == null || metadata.keySet().stream().noneMatch(key -> key.startsWith("sqlexplorer."))) {
+            return null;
+        }
+        Map<String, String> server = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (key.startsWith("mysql.")) {
+                server.put(key.substring("mysql.".length()), value);
+            }
+        });
+        Integer rowCount = parse(metadata.get("sqlexplorer.rowCount"), Integer::parseInt);
+        return new CaptureContext(
+            parse(metadata.get("sqlexplorer.origin"), Origin::valueOf),
+            metadata.get("sqlexplorer.sourceRef"),
+            parse(metadata.get("sqlexplorer.capturedAt"), Instant::parse),
+            rowCount == null ? 0 : rowCount,
+            parse(metadata.get("sqlexplorer.observedFrom"), LocalDateTime::parse),
+            parse(metadata.get("sqlexplorer.observedTo"), LocalDateTime::parse),
+            Map.copyOf(server));
+    }
+
+    private static <T> T parse(String value, Function<String, T> as) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return as.apply(value);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private static void put(Map<String, String> into, String key, String value) {
