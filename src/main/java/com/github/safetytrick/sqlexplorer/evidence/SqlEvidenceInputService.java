@@ -114,6 +114,9 @@ public class SqlEvidenceInputService {
 
     private static final Set<String> dmlTokens = Set.of("INSERT", "UPDATE", "DELETE");
 
+    /** Introspection, not query load — see the note where its tables are dropped. */
+    private static final String SHOW = "SHOW";
+
     public SqlEvidenceInputService(@Value("${sql-explorer.trace-errors}") boolean traceErrors, ParquetSink parquetSink,
                                    SqlAnalysisService sqlAnalysisService,
                                    NormalizedQueryDigest normalizedQueryDigest,
@@ -282,7 +285,28 @@ public class SqlEvidenceInputService {
         int nestingLevel = getOpenParens(query);
 
         if (ignoredFirstTokens.contains(firstToken) || ignoredSchemas.ignoreAll(tables)) {
-            builder.setTables(tables);
+            // A SHOW names tables it is *asking about*, never tables it uses, so
+            // its names are not evidence of anything and are recorded as none.
+            //
+            // They were worse than useless. `SHOW CREATE TABLE `x`` reaches only
+            // the regex extractor — SHOW is ignored here, so nothing parses it —
+            // and the extractor's DDL patterns match the CREATE TABLE *inside*
+            // it. Nothing corroborates the name either, because unknownTables
+            // skips DDL positions on the grounds that the object-type keyword
+            // proves the name is a table. True of `CREATE TABLE x`; false of
+            // `SHOW CREATE TABLE x`, which introspects a table that may be long
+            // gone. That put 162 tables into the schema tree that do not exist —
+            // 19% of it — all of them materialised-view rebuild artifacts named
+            // `<view>_<hex timestamp>` (sqlx-1mm).
+            //
+            // It also quietly inflated real tables: 13 that no query touches
+            // carried a query count of 1-3 because a SHOW had named them.
+            //
+            // Rejected: matching the `_<13 hex>` suffix. That describes this
+            // corpus's artifacts, would miss the next tool's naming scheme, and
+            // risks a real table that happens to look like one. The statement
+            // kind is the actual cause.
+            builder.setTables(SHOW.equals(firstToken) ? List.of() : tables);
             builder.setAnalysisSkipped(true);
             flagUnknownTables(builder, unknownTables);
         } else {
