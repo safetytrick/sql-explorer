@@ -77,6 +77,25 @@ public class SqlSourceEntity extends AbstractTsvSqlSource {
     @Column(name = "server_max_digest_length")
     private Integer serverMaxDigestLength;
 
+    /**
+     * The uploader-supplied values, in the shape every source reports them.
+     * Absent entries mean unknown — an export uploaded before this was
+     * required has none, and inventing them would be the error this guards.
+     */
+    @Override
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public java.util.Map<String, String> getCaptureServerContext() {
+        java.util.Map<String, String> context = new java.util.LinkedHashMap<>();
+        if (serverVersion != null) { context.put("version", serverVersion); }
+        if (serverDigestsSize != null) {
+            context.put("performance_schema_digests_size", String.valueOf(serverDigestsSize));
+        }
+        if (serverMaxDigestLength != null) {
+            context.put("performance_schema_max_digest_length", String.valueOf(serverMaxDigestLength));
+        }
+        return context;
+    }
+
     @JsonIgnore
     @Lob
     @Column(table="sql_source_content")

@@ -26,4 +26,16 @@ public interface SqlSource {
     default Instant getCapturedAt() {
         return null;
     }
+
+    /**
+     * What the source server was configured like when the rows were read —
+     * digest table size, digest length limits, version, eviction counter.
+     *
+     * <p>Empty by default, and empty means <em>unknown</em>. It must never be
+     * filled in later from a live connection: these values applied on that
+     * server at that moment, and today's describe neither (sqlx-sy5).
+     */
+    default java.util.Map<String, String> getCaptureServerContext() {
+        return java.util.Map.of();
+    }
 }

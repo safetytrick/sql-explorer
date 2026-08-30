@@ -650,11 +650,11 @@ public class SqlEvidenceInputService {
          * between and that interval went unrecorded. Stating the window per
          * file is what makes that detectable (sqlx-sy5).
          *
-         * <p>{@code server} is deliberately empty. The capture-time values of
-         * `performance_schema_digests_size` and `max_digest_length` belong
-         * here, but nothing reads them yet — and an empty map means "unknown",
-         * where filling it in later from a live connection would attribute one
-         * server's settings to another's data.
+         * <p>The server context comes from the source, which read it when it
+         * read the rows — over the same connection for a direct source, and
+         * from what the uploader supplied for an export. Empty means unknown,
+         * and it must stay that way: filling it in later from a live
+         * connection would attribute one server's settings to another's data.
          */
         private CaptureContext captureContext() {
             LocalDateTime from = null;
@@ -680,7 +680,8 @@ public class SqlEvidenceInputService {
                 source == null ? null : source.getSourceRef(),
                 capturedAt,
                 parquetRows.size(),
-                from, to, Map.of());
+                from, to,
+                source == null ? Map.of() : source.getCaptureServerContext());
         }
 
         private static LocalDateTime earliest(LocalDateTime current, LocalDateTime seen) {
