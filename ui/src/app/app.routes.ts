@@ -23,6 +23,7 @@ import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.c
 import {GraphLensComponent} from './graph-lens/graph-lens.component';
 import {TagManagerComponent} from './tag-manager/tag-manager.component';
 import {NotFoundComponent} from './not-found/not-found.component';
+import {UnqueriedTablesComponent} from './unqueried-tables/unqueried-tables.component';
 import {carryScope} from './scope-url';
 
 /**
@@ -91,6 +92,11 @@ const routes: Routes = [
     path: 'queries',
     component: QueriesWorkbenchComponent,
     data: { title: 'Queries' }
+  },
+  {
+    path: 'unqueried',
+    component: UnqueriedTablesComponent,
+    data: { title: 'Unqueried tables' }
   },
   {
     path: 'graph',

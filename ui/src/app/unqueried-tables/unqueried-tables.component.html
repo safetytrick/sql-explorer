@@ -1,0 +1,65 @@
+<div class="view-header wrap">
+  <span class="view-title">Unqueried tables</span>
+  <span class="view-sub">described by the schema, touched by no analyzed query</span>
+
+  @if (!loading && !failed) {
+    <span class="view-sub tally">{{counts.tables}} tables<span class="sep">·</span>{{counts.views}} views<span class="sep">·</span>{{counts.schemas}} schemas</span>
+    <span class="type-scope">
+      <span class="scope-label">MySQL's own schemas</span>
+      <button type="button" class="tri-btn" [class.on]="!includeSystem"
+              title="hide information_schema, mysql, sys and performance_schema"
+              (click)="setIncludeSystem(false)">hide</button>
+      <button type="button" class="tri-btn" [class.on]="includeSystem"
+              [title]="systemSchemaCount + ' system schemas also have unqueried tables'"
+              (click)="setIncludeSystem(true)">show</button>
+    </span>
+  }
+</div>
+
+@if (loading) {
+  <div class="view-note">reading the schema…</div>
+} @else if (failed) {
+  <!-- an empty list here would read as "nothing is unqueried", which is a
+       strong claim to make out of a failed request -->
+  <div class="view-note">the schema could not be read, so this list is unknown rather than empty.</div>
+} @else if (!rows.length) {
+  <div class="lens-card"><div class="card-empty">Every table the schema describes is touched by at least one query.</div></div>
+} @else {
+  @if (counts.silent) {
+    <div class="lens-card note-card">
+      <strong>{{counts.silent}} of these schemas have no queries at all.</strong>
+      They are marked <span class="silent-chip">no traffic</span> below. That is a
+      statement about the capture rather than about the tables — either nothing uses
+      the schema, or its traffic was never recorded — so treat those as unanswered,
+      not as deletion candidates.
+    </div>
+  }
+
+  @for (usage of rows; track usage.schema) {
+    <div class="lens-card">
+      <div class="card-head">
+        <span class="card-head-title">
+          <a [routerLink]="['/tables', usage.schema]">{{usage.schema}}</a>
+        </span>
+        @if (usage.silent) { <span class="silent-chip">no traffic</span> }
+        @if (usage.system) { <span class="sys-chip">MySQL</span> }
+        <span class="card-head-note">{{usage.unqueried.length}} of {{usage.described}} unqueried</span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table ledger">
+          <tbody>
+            @for (table of usage.unqueried; track table.name) {
+              <tr>
+                <td class="name-col">
+                  <a class="tbl-name" [routerLink]="['/table', usage.schema, table.name]">{{table.name}}</a>
+                  @if (table.view) { <span class="view-flag" title="a view">v</span> }
+                </td>
+                <td class="num">{{table.columnCount ?? '—'}}<span class="unit">c</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+}
