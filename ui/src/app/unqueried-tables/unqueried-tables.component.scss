@@ -44,3 +44,11 @@
   color: var(--purple);
 }
 .unit { color: var(--text3); margin-left: 2px; font-size: 10px; }
+
+// The note qualifies the list; the link is where the qualification is spelled
+// out in full. Inline rather than a button — it is a footnote, not an action.
+.coverage-link {
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: nowrap;
+}

@@ -1,0 +1,50 @@
+<div class="view-header wrap">
+  <span class="view-title">What was captured</span>
+  <span class="view-sub">how much of this environment sql-explorer actually saw</span>
+  @if (report?.loaded) {
+    <span class="view-sub">{{report!.sources.length}} source{{report!.sources.length === 1 ? '' : 's'}}</span>
+  }
+</div>
+
+@if (loading) {
+  <div class="view-note">reading the capture…</div>
+} @else if (failed) {
+  <div class="view-note">coverage could not be read, so what this corpus supports is unknown.</div>
+} @else if (!report?.loaded) {
+  <div class="lens-card"><div class="card-empty">Nothing has been loaded into this environment yet.</div></div>
+} @else {
+  <div class="lens-card note-card">
+    Every corpus sql-explorer holds originates in <code>{{report!.originTable}}</code>.
+    What differs is how it got here and when it was read — and that is what decides
+    whether an absence means "nothing uses this" or "nothing recorded it".
+  </div>
+
+  @for (source of report!.sources; track source.sourceRef) {
+    <div class="lens-card">
+      <div class="card-head">
+        <span class="card-head-title">{{source.sourceRef ?? 'unnamed source'}}</span>
+        @if (source.origin) { <span class="origin-chip">{{source.origin.toLowerCase().replace('_', ' ')}}</span> }
+        <span class="card-head-note">
+          {{source.profiles}} queries@if (source.window) {, {{source.window.days}} days}
+          @if (source.capturedAt) {, captured {{source.capturedAt | date: SEEN_FORMAT}}}
+        </span>
+      </div>
+
+      <div class="findings">
+        @for (finding of source.findings; track finding.signal) {
+          <div class="finding" [class.impaired]="finding.verdict === 'IMPAIRED'"
+               [class.unknown]="finding.verdict === 'UNKNOWN'">
+            <div class="finding-head">
+              <span class="finding-title">{{label(finding.signal).title}}</span>
+              <span class="verdict-chip">{{verdictText(finding.verdict)}}</span>
+              <span class="finding-measure">{{finding.measurement}}</span>
+            </div>
+            <div class="finding-question">{{label(finding.signal).question}}</div>
+            <p class="finding-why">{{finding.explanation}}</p>
+            <div class="finding-basis">judged against {{finding.basis}}</div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+}

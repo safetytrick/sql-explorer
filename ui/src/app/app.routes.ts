@@ -24,6 +24,7 @@ import {GraphLensComponent} from './graph-lens/graph-lens.component';
 import {TagManagerComponent} from './tag-manager/tag-manager.component';
 import {NotFoundComponent} from './not-found/not-found.component';
 import {UnqueriedTablesComponent} from './unqueried-tables/unqueried-tables.component';
+import {CoverageLensComponent} from './coverage-lens/coverage-lens.component';
 import {carryScope} from './scope-url';
 
 /**
@@ -97,6 +98,11 @@ const routes: Routes = [
     path: 'unqueried',
     component: UnqueriedTablesComponent,
     data: { title: 'Unqueried tables' }
+  },
+  {
+    path: 'coverage',
+    component: CoverageLensComponent,
+    data: { title: 'What was captured' }
   },
   {
     path: 'graph',

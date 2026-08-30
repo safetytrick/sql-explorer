@@ -1,0 +1,98 @@
+.note-card {
+  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text2);
+  border-left: 2px solid var(--border2);
+
+  code { font-family: var(--mono); color: var(--text); }
+}
+
+.origin-chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg3);
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+.findings {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+}
+
+// The stripe carries the verdict, so the words never have to shout it. Green
+// is deliberate and not decoration: a coverage page that only ever marks
+// problems is one people stop opening, and "this part is fine, here is why"
+// is half of what makes the rest believable.
+.finding {
+  padding: 12px 16px;
+  background: var(--bg2);
+  border-left: 2px solid var(--green);
+
+  &.impaired { border-left-color: var(--amber); }
+  &.unknown { border-left-color: var(--text3); }
+}
+
+.finding-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.finding-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.verdict-chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--green-dim);
+  color: var(--green);
+  white-space: nowrap;
+
+  .impaired & { background: var(--amber-dim); color: var(--amber); }
+  .unknown & { background: var(--bg3); color: var(--text3); }
+}
+
+// The measurement sits beside the verdict rather than under the prose: it is
+// the fact, and the paragraph below is only what it means.
+.finding-measure {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  margin-left: auto;
+}
+
+.finding-question {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.finding-why {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text2);
+  max-width: 78ch;
+}
+
+.finding-basis {
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+}

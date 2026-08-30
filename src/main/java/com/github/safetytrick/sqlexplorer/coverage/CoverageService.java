@@ -228,17 +228,20 @@ public class CoverageService {
                     + "through, and how stale they are, is unknown.");
         }
 
-        String when = capture.capturedAt() == null ? "at an unrecorded time" : "on " + capture.capturedAt();
+        // No timestamp in the measurement: capturedAt travels as its own field
+        // and a view formats it. Rendering an instant into a display string
+        // here is how a page ends up showing raw nanoseconds.
+        String when = capture.capturedAt() == null ? ", at an unrecorded time" : "";
         return switch (capture.origin()) {
-            case PERFORMANCE_SCHEMA -> new Finding(Signal.PROVENANCE, Verdict.OK, "read directly " + when,
+            case PERFORMANCE_SCHEMA -> new Finding(Signal.PROVENANCE, Verdict.OK, "read directly" + when,
                 CaptureContext.ORIGIN_TABLE + " on a live server",
                 "Read straight off the source server, so the settings judged above are that server's own and "
                     + "describe this data.");
-            case CSV_EXPORT -> new Finding(Signal.PROVENANCE, Verdict.OK, "exported " + when,
+            case CSV_EXPORT -> new Finding(Signal.PROVENANCE, Verdict.OK, "exported once" + when,
                 "a CSV export of " + CaptureContext.ORIGIN_TABLE,
                 "One hop from the origin table. Everything claimed here rests on what the export recorded "
                     + "about the server it came from; the server itself is not being consulted.");
-            case PARQUET_COPY -> new Finding(Signal.PROVENANCE, Verdict.OK, "captured " + when,
+            case PARQUET_COPY -> new Finding(Signal.PROVENANCE, Verdict.OK, "copied" + when,
                 "a Parquet copy sql-explorer wrote earlier",
                 "At least two hops from the origin table, and the source server cannot be consulted. The "
                     + "capture-time settings travelled with the file, which is what keeps the judgements "

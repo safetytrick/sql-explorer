@@ -30,8 +30,23 @@
       <strong>{{counts.silent}} of these schemas have no queries at all.</strong>
       They are marked <span class="silent-chip">no traffic</span> below. That is a
       statement about the capture rather than about the tables — either nothing uses
-      the schema, or its traffic was never recorded — so treat those as unanswered,
-      not as deletion candidates.
+      the schema, or its traffic was never recorded.
+      @if (window) {
+        This capture observed {{window.days}} days of traffic, from
+        {{window.from | date: SEEN_FORMAT}} to {{window.to | date: SEEN_FORMAT}}, so what
+        it can support is that nothing touched them in that period.
+      }
+      @if (capacity === 'OK') {
+        The source server never ran out of room to record a statement, so their silence
+        is not an artifact of a full digest table.
+      } @else if (capacity === 'IMPAIRED') {
+        The source server did run out of room to record statements, so some traffic was
+        never captured and these may simply be part of what was lost.
+      } @else if (capacity === 'UNKNOWN') {
+        Nothing recorded how much room the source server had for statements, so whether
+        their traffic was captured at all cannot be judged.
+      }
+      <a class="coverage-link" routerLink="/coverage">what was captured</a>
     </div>
   }
 

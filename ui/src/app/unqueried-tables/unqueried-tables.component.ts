@@ -1,7 +1,11 @@
 import {Component, OnInit} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
+import {DatePipe} from '@angular/common';
 import {Title} from '@angular/platform-browser';
 import {SchemaLensService} from '../schema-lens.service';
+import {CoverageService, findings, sharedWindow, worstVerdict} from '../coverage.service';
+import {SEEN_FORMAT} from '../seen-format';
+import type {CoverageVerdict, ObservedWindow} from '../api-types';
 import {SchemaUsage, totals, unqueriedBySchema} from './unqueried-tables';
 
 /** Include MySQL's own schemas. Off by default; they are 295 of the 382. */
@@ -22,7 +26,7 @@ const SYSTEM_PARAM = 'var-system';
   selector: 'app-unqueried-tables',
   templateUrl: './unqueried-tables.component.html',
   styleUrls: ['./unqueried-tables.component.scss'],
-  imports: [RouterLink]
+  imports: [RouterLink, DatePipe]
 })
 export class UnqueriedTablesComponent implements OnInit {
 
@@ -31,7 +35,18 @@ export class UnqueriedTablesComponent implements OnInit {
   failed = false;
   includeSystem = false;
 
+  /**
+   * What the capture can actually support, in place of the hedge this page
+   * used to carry. "Either nothing uses the schema, or its traffic was never
+   * recorded" named two possibilities and could not tell them apart; these
+   * two facts are how it tells them apart (sqlx-n01).
+   */
+  window: ObservedWindow | null = null;
+  capacity: CoverageVerdict | null = null;
+  protected readonly SEEN_FORMAT = SEEN_FORMAT;
+
   constructor(private schemaLensService: SchemaLensService,
+              private coverageService: CoverageService,
               private route: ActivatedRoute,
               private router: Router,
               titleService: Title) {
@@ -47,6 +62,15 @@ export class UnqueriedTablesComponent implements OnInit {
       // an empty list would read as "nothing is unqueried", which is a strong
       // and probably wrong claim to make out of a failed request
       error: () => { this.failed = true; this.loading = false; }
+    });
+    // A failure here leaves both null and the note simply says less. Coverage
+    // qualifies this page's claim; it must never be able to break it.
+    this.coverageService.getCoverage().subscribe({
+      next: report => {
+        this.window = sharedWindow(report);
+        this.capacity = worstVerdict(findings(report, 'DIGEST_CAPACITY'));
+      },
+      error: () => { this.window = null; this.capacity = null; }
     });
   }
 

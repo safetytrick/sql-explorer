@@ -313,3 +313,53 @@ export interface ExplainResult {
   serverName: string;
   exampleId: string;
 }
+
+/**
+ * How much of an environment sql-explorer actually saw.
+ *
+ * <p>Read this before concluding anything from an absence: "no query touches
+ * this table" is a claim about the capture as much as about the table. Every
+ * finding pairs its measurement with the sentence saying what to conclude, so
+ * a view renders it without knowing any MySQL internals — and the words cannot
+ * drift away from the number (sqlx-n01).
+ */
+export type CoverageVerdict = 'OK' | 'IMPAIRED' | 'UNKNOWN';
+
+export type CoverageSignal =
+  'DIGEST_CAPACITY' | 'DIGEST_TRUNCATION' | 'OBSERVATION_WINDOW' | 'PROVENANCE' | 'SAMPLING_GAPS';
+
+export interface CoverageFinding {
+  signal: CoverageSignal;
+  /** UNKNOWN is not a pass — it means the question could not be answered. */
+  verdict: CoverageVerdict;
+  measurement: string;
+  /** What the measurement was judged against, or why it could not be. */
+  basis: string;
+  explanation: string;
+}
+
+/** Zone-less, because that is what Performance Schema reports. */
+export interface ObservedWindow {
+  from: string;
+  to: string;
+  days: number;
+}
+
+export interface SourceCoverage {
+  sourceRef: string | null;
+  /** How the rows reached us: PERFORMANCE_SCHEMA, CSV_EXPORT or PARQUET_COPY. */
+  origin: string | null;
+  capturedAt: string | null;
+  profiles: number;
+  window: ObservedWindow | null;
+  findings: CoverageFinding[];
+}
+
+export interface CoverageReport {
+  environment: string;
+  loaded: boolean;
+  loadedOn: string | null;
+  originTable: string;
+  /** Never merged: two sources may have read different servers. */
+  sources: SourceCoverage[];
+}
