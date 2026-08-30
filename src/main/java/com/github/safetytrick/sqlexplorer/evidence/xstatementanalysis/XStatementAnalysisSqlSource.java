@@ -70,6 +70,12 @@ class XStatementAnalysisSqlSource implements SqlSource, AutoCloseable {
         return serverContext;
     }
 
+    /** Read off a live server, so no hops: this is the origin table itself. */
+    @Override
+    public com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin getCaptureOrigin() {
+        return com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin.PERFORMANCE_SCHEMA;
+    }
+
     @Override
     public String getSourceRef() {
         return sourceRef;

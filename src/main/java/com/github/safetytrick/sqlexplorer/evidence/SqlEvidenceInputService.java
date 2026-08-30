@@ -632,7 +632,7 @@ public class SqlEvidenceInputService {
                 // Declared before the first write: parquet seals file metadata
                 // into the writer when it is created, so a file that does not
                 // say where it came from can never be told afterwards.
-                sink.capturing(captureContext());
+                sink.capturing(capture());
                 for (SqlProfile sqlProfile : parquetRows) {
                     sink.write(sqlProfile);
                 }
@@ -656,6 +656,26 @@ public class SqlEvidenceInputService {
          * and it must stay that way: filling it in later from a live
          * connection would attribute one server's settings to another's data.
          */
+        /**
+         * Computed once, over {@code parquetRows}, and kept.
+         *
+         * <p>The written file and the coverage API must answer the same
+         * question with the same numbers. Recomputing later would read the
+         * merged representatives instead of the rows that were written — a
+         * different population, so the observed window could legitimately
+         * differ between the two and neither would be wrong (sqlx-n01).
+         */
+        CaptureContext capture() {
+            CaptureContext known = capture;
+            if (known == null) {
+                known = captureContext();
+                capture = known;
+            }
+            return known;
+        }
+
+        private CaptureContext capture;
+
         private CaptureContext captureContext() {
             LocalDateTime from = null;
             LocalDateTime to = null;
@@ -676,7 +696,11 @@ public class SqlEvidenceInputService {
                 capturedAt = source.getCapturedAt() != null ? source.getCapturedAt() : source.getCreatedOn();
             }
             return new CaptureContext(
-                CaptureContext.Origin.PARQUET_COPY,
+                // How the rows reached us, not what kind of file this becomes.
+                // Stamping PARQUET_COPY here reported a direct read off a live
+                // server as a two-hop copy, which understated exactly the case
+                // where the settings DO describe the data (sqlx-n01).
+                source == null ? null : source.getCaptureOrigin(),
                 source == null ? null : source.getSourceRef(),
                 capturedAt,
                 parquetRows.size(),
@@ -706,7 +730,7 @@ public class SqlEvidenceInputService {
         }
 
         public SqlRepository build() {
-            return new AnalyzedSqlRepository(source, statsBuilder.build(), sqlProfiles);
+            return new AnalyzedSqlRepository(source, statsBuilder.build(), sqlProfiles, capture());
         }
     }
 }

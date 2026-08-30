@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
 import com.google.common.collect.ImmutableList;
@@ -22,12 +23,19 @@ import jakarta.validation.constraints.NotNull;
 class AnalyzedSqlRepository implements SqlRepository {
 
     private final SqlSource source;
+    private final CaptureContext captureContext;
     private final SqlImportStats importStats;
     private final List<SqlProfile> sqlProfiles;
     private final Map<String, SqlProfile> analyzedSqlRepository;
     private final ImmutableListMultimap<TableReference, SqlProfile> tableNameAnalyzedSqlRepository;
 
     public AnalyzedSqlRepository(SqlSource source, SqlImportStats importStats, List<SqlProfile> sqlProfiles) {
+        this(source, importStats, sqlProfiles, null);
+    }
+
+    public AnalyzedSqlRepository(SqlSource source, SqlImportStats importStats, List<SqlProfile> sqlProfiles,
+                                 CaptureContext captureContext) {
+        this.captureContext = captureContext;
         this.source = source;
         this.importStats = importStats;
         this.sqlProfiles = Collections.unmodifiableList(mergeByDigest(sqlProfiles));
@@ -129,6 +137,11 @@ class AnalyzedSqlRepository implements SqlRepository {
     @Override
     public SqlSource getSource() {
         return source;
+    }
+
+    @Override
+    public CaptureContext getCaptureContext() {
+        return captureContext;
     }
 
     @Override

@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
@@ -36,11 +37,12 @@ class CaptureArchiveTest {
     }
 
     private static CaptureArchive.ArchiveReport report(CaptureContext... captures) {
-        Map<Path, CaptureContext> files = new LinkedHashMap<>();
+        List<CaptureArchive.ArchivedCapture> files = new ArrayList<>();
         for (int i = 0; i < captures.length; i++) {
-            files.put(Path.of("capture-" + i + ".parquet"), captures[i]);
+            files.add(new CaptureArchive.ArchivedCapture(
+                Path.of("capture-" + i + ".parquet"), true, captures[i]));
         }
-        return CaptureArchive.report(files);
+        return CaptureArchive.report(files, null);
     }
 
     /**
@@ -121,9 +123,8 @@ class CaptureArchiveTest {
     /** Likewise a file predating provenance entirely: unknown, not assumed. */
     @Test
     void aFileWithNoProvenanceAtAllIsUnorderable() {
-        Map<Path, CaptureContext> files = new LinkedHashMap<>();
-        files.put(Path.of("legacy.parquet"), null);
-        CaptureArchive.ArchiveReport report = CaptureArchive.report(files);
+        CaptureArchive.ArchiveReport report = CaptureArchive.report(
+            List.of(new CaptureArchive.ArchivedCapture(Path.of("legacy.parquet"), true, null)), null);
 
         assertThat(report.gaps()).isEmpty();
         assertThat(report.unorderable()).containsExactly("legacy.parquet");
@@ -164,7 +165,9 @@ class CaptureArchiveTest {
         ParquetConfig config = new ParquetConfig();
         config.setFilename(configured.toString());
         ParquetSink sink = new ParquetSink(config);
-        sink.capturing(context);
+        if (context != null) {
+            sink.capturing(context);
+        }
         sink.write(profile("d1"));
         sink.close();
     }
@@ -172,13 +175,15 @@ class CaptureArchiveTest {
     /**
      * A deployment that ran the single-file layout has its whole pre-migration
      * history in the un-stamped file. It is not a capture by the naming rule,
-     * so nothing lists it — but the archive must still account for it rather
-     * than drop the earliest window without saying so.
+     * so nothing lists it — but it is real, readable rows covering some
+     * unknown stretch, and the archive must account for it rather than drop
+     * the earliest window without saying so.
      */
     @Test
     void theLegacySingleFileIsAccountedForRatherThanIgnored() throws IOException {
         Path configured = directory.resolve("profiles.parquet");
-        java.nio.file.Files.createFile(configured);
+        // written before provenance existed: sealed, readable, says nothing
+        writeCapture(configured, null);
         writeCapture(configured, capture("primary", "2026-08-01T00:00:00Z",
             "2026-07-01T00:00:00", "2026-08-01T00:00:00"));
 
@@ -187,6 +192,60 @@ class CaptureArchiveTest {
 
         assertThat(new CaptureArchive(config).scan().unorderable())
             .containsExactly("profiles.parquet");
+    }
+
+    /**
+     * A running sql-explorer always has one footerless file — its own capture,
+     * still open, because Parquet writes the footer at close. Counting that as
+     * doubt would leave the gap signal permanently uncertain during normal
+     * operation, and a signal that always warns is one people stop reading.
+     * Its rows are the loaded corpus, so it hides no window.
+     */
+    @Test
+    void theCaptureCurrentlyBeingWrittenIsNotCountedAsDoubt() throws IOException {
+        Path configured = directory.resolve("profiles.parquet");
+        writeCapture(configured, capture("primary", "2026-08-01T00:00:00Z",
+            "2026-07-01T00:00:00", "2026-08-01T00:00:00"));
+        writeCapture(configured, capture("primary", "2026-08-20T00:00:00Z",
+            "2026-07-01T00:00:00", "2026-08-20T00:00:00"));
+        // what an import in flight leaves behind: newest name, no footer yet
+        java.nio.file.Files.createFile(directory.resolve("profiles-20260901T000000Z.parquet"));
+
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(configured.toString());
+        CaptureArchive.ArchiveReport report = new CaptureArchive(config).scan();
+
+        assertThat(report.inProgress()).isEqualTo("profiles-20260901T000000Z.parquet");
+        assertThat(report.unorderable()).isEmpty();
+        assertThat(report.gaps()).isEmpty();
+    }
+
+    /**
+     * An older footerless file is a capture that never finished — a shutdown
+     * that did not close the writer. It is reported, because an operator
+     * should know captures are failing, but it is not doubt about gaps: an
+     * unreadable file states no window, so the sealed captures on either side
+     * are still compared with each other and a reset between them still shows.
+     * What was lost is that sample, not the answer.
+     */
+    @Test
+    void anOlderFooterlessCaptureIsAFailedSampleNotDoubtAboutGaps() throws IOException {
+        Path configured = directory.resolve("profiles.parquet");
+        java.nio.file.Files.createFile(directory.resolve("profiles-20260701T000000Z.parquet"));
+        writeCapture(configured, capture("primary", "2026-08-01T00:00:00Z",
+            "2026-07-01T00:00:00", "2026-08-01T00:00:00"));
+        writeCapture(configured, capture("primary", "2026-08-20T00:00:00Z",
+            "2026-07-01T00:00:00", "2026-08-20T00:00:00"));
+
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(configured.toString());
+        CaptureArchive.ArchiveReport report = new CaptureArchive(config).scan();
+
+        assertThat(report.inProgress()).isNull();
+        assertThat(report.failed()).containsExactly("profiles-20260701T000000Z.parquet");
+        assertThat(report.unorderable()).isEmpty();
+        // the two completed captures overlap, and that is still decidable
+        assertThat(report.gaps()).isEmpty();
     }
 
     /**

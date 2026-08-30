@@ -43,9 +43,13 @@ public class SqlSourceEntity extends AbstractTsvSqlSource {
     private String md5Hash;
 
     /**
-     * What the file is, relative to {@code sys.x$statement_analysis} — every
-     * corpus originates there, but a TSV export is one hop away and a parquet
-     * copy two. Stored as the name of {@code CaptureContext.Origin}.
+     * How the rows reached sql-explorer, relative to
+     * {@code sys.x$statement_analysis} — every corpus originates there, but a
+     * TSV export is one hop away and a parquet copy two. Stored as the name of
+     * {@code CaptureContext.Origin}.
+     *
+     * <p>Kept as a String because this is a persisted column and the enum may
+     * gain values; {@link #getCaptureOrigin()} is the typed reading of it.
      */
     private String origin;
 
@@ -58,6 +62,24 @@ public class SqlSourceEntity extends AbstractTsvSqlSource {
      */
     @Column(name = "captured_at")
     private Instant capturedAt;
+
+    /**
+     * The stored origin, preferred over the {@code CSV_EXPORT} default this
+     * inherits: an uploaded file records what it actually was, and a row saved
+     * before that column existed correctly reads as unknown rather than being
+     * assumed to be an export.
+     */
+    @Override
+    public com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin getCaptureOrigin() {
+        if (origin == null || origin.isBlank()) {
+            return null;
+        }
+        try {
+            return com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin.valueOf(origin);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
 
     /**
      * What the source server looked like at capture time.

@@ -14,6 +14,17 @@ import org.springframework.core.io.Resource;
 public abstract class AbstractTsvSqlSource implements SqlSource {
 
     public abstract Resource getResource();
+
+    /**
+     * A tab-separated file is an export of {@code sys.x$statement_analysis} —
+     * one hop. Whatever ran the export is the only thing that could have
+     * recorded the server's settings; sql-explorer cannot recover them later.
+     */
+    @Override
+    public com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin getCaptureOrigin() {
+        return com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin.CSV_EXPORT;
+    }
+
     @Override
     public Stream<SqlInput> getSql() {
         ObjectReader objectReader = CsvImporter.getPerformanceSchemaReader();

@@ -86,9 +86,37 @@ public class CaptureArchive {
      *                    them to. Reported rather than dropped, because a
      *                    capture silently sorted first or last either invents
      *                    a gap or hides one
+     * @param failed      captures with no readable footer that are not the one
+     *                     being written — a shutdown that did not close the
+     *                     writer, most often. Held apart from
+     *                     {@code unorderable} because they cannot hide a gap:
+     *                     an unreadable file states no window, so the sealed
+     *                     captures on either side are still compared directly
+     *                     with each other and any reset between them still
+     *                     shows. What is lost is that sample, not the answer
+     * @param inProgress  the capture currently being written, if there is one.
+     *                    Held apart from {@code unorderable} deliberately: a
+     *                    running sql-explorer <em>always</em> has one, since
+     *                    Parquet writes no footer until close, and counting it
+     *                    as doubt would leave the gap signal permanently
+     *                    uncertain during normal operation. Its rows are the
+     *                    loaded corpus, so it hides no window
      */
-    public record ArchiveReport(List<CaptureGap> gaps, List<String> unorderable) {
-        public static final ArchiveReport EMPTY = new ArchiveReport(List.of(), List.of());
+    public record ArchiveReport(List<CaptureGap> gaps, List<String> unorderable,
+                                List<String> failed, String inProgress) {
+        public static final ArchiveReport EMPTY =
+            new ArchiveReport(List.of(), List.of(), List.of(), null);
+    }
+
+    /**
+     * One archived file and what it turned out to be.
+     *
+     * @param readable whether it has a footer at all. Distinct from carrying
+     *                 no provenance: a sealed legacy file is real data that
+     *                 simply cannot be placed, while a footerless one is
+     *                 either still being written or damaged
+     */
+    record ArchivedCapture(Path file, boolean readable, CaptureContext context) {
     }
 
     /**
@@ -103,15 +131,38 @@ public class CaptureArchive {
      * which is the honest place for it rather than an omission.
      */
     public ArchiveReport scan() {
-        Map<Path, CaptureContext> read = new LinkedHashMap<>();
+        List<ArchivedCapture> read = new ArrayList<>();
         Path legacy = Path.of(config.getFilename());
         if (legacy.toFile().isFile()) {
-            read.put(legacy, provenanceOf(legacy));
+            read.add(readCapture(legacy));
         }
-        for (Path capture : ParquetSqlRepository.captures(config.getFilename())) {
-            read.put(capture, provenanceOf(capture));
+        List<Path> stamped = ParquetSqlRepository.captures(config.getFilename());
+        for (Path capture : stamped) {
+            read.add(readCapture(capture));
         }
-        return report(read);
+
+        // The newest stamped name is what a running import is writing to. If it
+        // has no footer yet that is the normal state, not damage.
+        String inProgress = null;
+        if (!stamped.isEmpty()) {
+            Path newest = stamped.get(stamped.size() - 1);
+            ArchivedCapture last = read.get(read.size() - 1);
+            if (last.file().equals(newest) && !last.readable()) {
+                inProgress = String.valueOf(newest.getFileName());
+                read.remove(read.size() - 1);
+            }
+        }
+        return report(read, inProgress);
+    }
+
+    private static ArchivedCapture readCapture(Path file) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new LocalInputFile(file))) {
+            return new ArchivedCapture(file, true,
+                CaptureContext.fromMetadata(reader.getFooter().getFileMetaData().getKeyValueMetaData()));
+        } catch (IOException | RuntimeException e) {
+            log.debug("no footer on {}: {}", file, e.getMessage());
+            return new ArchivedCapture(file, false, null);
+        }
     }
 
     /**
@@ -135,24 +186,36 @@ public class CaptureArchive {
      * sequence show? Split out from the IO so the arithmetic is testable
      * without writing Parquet files.
      */
-    static ArchiveReport report(Map<Path, CaptureContext> captures) {
+    static ArchiveReport report(List<ArchivedCapture> captures, String inProgress) {
         List<String> unorderable = new ArrayList<>();
+        List<String> failed = new ArrayList<>();
         Map<String, List<CaptureContext>> bySource = new LinkedHashMap<>();
 
-        captures.forEach((file, context) -> {
-            // Ordered by the recorded instant, never by file name: the legacy
-            // un-stamped name carries no instant at all, and a capture placed
-            // by guesswork is the one way to report a gap that never happened.
+        for (ArchivedCapture capture : captures) {
+            String name = String.valueOf(capture.file().getFileName());
+            // No footer at all: the capture did not complete. It states no
+            // window, so it cannot hide a reset — the sealed captures on either
+            // side are still compared with each other. A lost sample, not doubt.
+            if (!capture.readable()) {
+                failed.add(name);
+                continue;
+            }
+            CaptureContext context = capture.context();
+            // Readable but unplaceable is different, and IS doubt: it holds
+            // rows covering some window at some unknown point in the sequence,
+            // and a reset on either side of it would not show. Ordered by the
+            // recorded instant, never by file name — a capture placed by
+            // guesswork is the one way to report a gap that never happened.
             if (context == null || context.capturedAt() == null || context.sourceRef() == null) {
-                unorderable.add(String.valueOf(file.getFileName()));
-                return;
+                unorderable.add(name);
+                continue;
             }
             bySource.computeIfAbsent(context.sourceRef(), key -> new ArrayList<>()).add(context);
-        });
+        }
 
         List<CaptureGap> gaps = new ArrayList<>();
         bySource.forEach((sourceRef, samples) -> gaps.addAll(gapsIn(sourceRef, samples)));
-        return new ArchiveReport(List.copyOf(gaps), List.copyOf(unorderable));
+        return new ArchiveReport(List.copyOf(gaps), List.copyOf(unorderable), List.copyOf(failed), inProgress);
     }
 
     private static List<CaptureGap> gapsIn(String sourceRef, Collection<CaptureContext> samples) {

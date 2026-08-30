@@ -30,7 +30,14 @@ import java.util.function.Function;
  * between and that interval went unrecorded. A file that states its own window
  * makes that detectable without parsing it back out of profile ids.
  *
- * @param origin       how this file relates to the origin table
+ * @param origin       how the rows reached sql-explorer — the last hop of
+ *                     the chain from {@link #ORIGIN_TABLE}. Not what kind of
+ *                     file this is: a Parquet file written from a live read
+ *                     records PERFORMANCE_SCHEMA, because that is what decides
+ *                     whether the settings below describe this data. That the
+ *                     file itself is a Parquet copy is self-evident from being
+ *                     one, and recording it instead would lose the only fact
+ *                     the reader cannot recover
  * @param sourceRef    which source produced it
  * @param capturedAt   when the rows were read
  * @param rowCount     how many profiles were written
@@ -54,13 +61,19 @@ public record CaptureContext(
     /** The origin table every corpus ultimately comes from. */
     public static final String ORIGIN_TABLE = "sys.x$statement_analysis";
 
-    /** How far a file sits from {@link #ORIGIN_TABLE}. */
+    /**
+     * How rows reached sql-explorer, and so how far they sit from
+     * {@link #ORIGIN_TABLE}. Each step weakens what can be claimed: a direct
+     * read is describable by the server it came from, an export is describable
+     * only by what the export recorded, and a copy of an export is one further
+     * removed again.
+     */
     public enum Origin {
-        /** Read straight from the table on a live server. */
+        /** Read straight from the table on a live server — no hops. */
         PERFORMANCE_SCHEMA,
-        /** A tab-separated export of the table. */
+        /** A tab-separated export of the table — one hop. */
         CSV_EXPORT,
-        /** Written by sql-explorer from one of the above. */
+        /** Read back from a Parquet file sql-explorer wrote — two or more. */
         PARQUET_COPY
     }
 

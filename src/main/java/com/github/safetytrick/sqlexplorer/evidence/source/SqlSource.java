@@ -38,4 +38,16 @@ public interface SqlSource {
     default java.util.Map<String, String> getCaptureServerContext() {
         return java.util.Map.of();
     }
+
+    /**
+     * How rows from this source reached sql-explorer, or null when unknown.
+     *
+     * <p>Every source originates in {@code sys.x$statement_analysis}; what
+     * differs is how many hands the rows passed through, and that is what
+     * decides how much the capture-time settings can be trusted to describe
+     * them (sqlx-sy5, sqlx-n01).
+     */
+    default com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin getCaptureOrigin() {
+        return null;
+    }
 }

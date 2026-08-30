@@ -1,0 +1,300 @@
+package com.github.safetytrick.sqlexplorer.coverage;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
+import com.github.safetytrick.sqlexplorer.evidence.SqlRepository;
+import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
+import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureArchive;
+import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
+import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
+import org.springframework.stereotype.Service;
+
+import static com.github.safetytrick.sqlexplorer.coverage.Coverage.Finding;
+import static com.github.safetytrick.sqlexplorer.coverage.Coverage.ObservedWindow;
+import static com.github.safetytrick.sqlexplorer.coverage.Coverage.Signal;
+import static com.github.safetytrick.sqlexplorer.coverage.Coverage.SourceCoverage;
+import static com.github.safetytrick.sqlexplorer.coverage.Coverage.Verdict;
+
+/**
+ * Judges each loaded source against what its own capture recorded.
+ *
+ * <p>Every value read here comes from the capture — the footer written when
+ * the rows were read — and never from a live connection. Reading
+ * {@code performance_schema_digests_size} off a server today and attaching it
+ * to an export taken months ago from possibly another machine produces a
+ * confident wrong answer, which is worse than saying nothing because it looks
+ * like information (sqlx-sy5, sqlx-n01).
+ */
+@Service
+public class CoverageService {
+
+    /**
+     * The value worth setting {@code performance_schema_max_digest_length} to.
+     * The default is 1024, and MySQL needs 1028 bytes internally to compute a
+     * digest, so at the default a statement barely over a kilobyte is already
+     * truncated before its digest is formed.
+     */
+    static final int RECOMMENDED_MAX_DIGEST_LENGTH = 4096;
+
+    private final SqlRepositoryManager repositories;
+    private final CaptureArchive archive;
+
+    public CoverageService(SqlRepositoryManager repositories, CaptureArchive archive) {
+        this.repositories = repositories;
+        this.archive = archive;
+    }
+
+    public Coverage.Report report(String environmentName) {
+        SqlRepositoryManager.LoadState state = repositories.getLoadState(environmentName);
+        List<SqlRepository> loaded = repositories.getRepositories(environmentName);
+        if (state == null || loaded.isEmpty()) {
+            return new Coverage.Report(environmentName, false, null, CaptureContext.ORIGIN_TABLE, List.of());
+        }
+
+        // Read once for the whole report: the archive is a footer seek per
+        // file, and every source would otherwise re-scan the same directory.
+        CaptureArchive.ArchiveReport gaps = archive.scan();
+
+        List<SourceCoverage> sources = loaded.stream()
+            .map(repository -> describe(repository, gaps))
+            .toList();
+        return new Coverage.Report(environmentName, true, state.loadedOn(), CaptureContext.ORIGIN_TABLE, sources);
+    }
+
+    private SourceCoverage describe(SqlRepository repository, CaptureArchive.ArchiveReport gaps) {
+        CaptureContext capture = repository.getCaptureContext();
+        SqlSource source = repository.getSource();
+        SqlImportStats stats = repository.getImportStats();
+        String sourceRef = capture != null && capture.sourceRef() != null ? capture.sourceRef()
+            : source == null ? null : source.getSourceRef();
+        Map<String, String> server = capture == null || capture.server() == null ? Map.of() : capture.server();
+
+        ObservedWindow window = windowOf(capture);
+        List<Finding> findings = new ArrayList<>();
+        findings.add(digestCapacity(server, stats));
+        findings.add(digestTruncation(server, stats));
+        findings.add(observationWindow(window, server));
+        findings.add(provenance(capture, source));
+        findings.add(samplingGaps(sourceRef, gaps));
+
+        return new SourceCoverage(sourceRef,
+            capture == null || capture.origin() == null ? null : capture.origin().name(),
+            capture == null ? null : capture.capturedAt(),
+            stats == null ? 0 : stats.count(),
+            window,
+            List.copyOf(findings));
+    }
+
+    private static ObservedWindow windowOf(CaptureContext capture) {
+        if (capture == null || capture.observedFrom() == null || capture.observedTo() == null) {
+            return null;
+        }
+        LocalDateTime from = capture.observedFrom();
+        LocalDateTime to = capture.observedTo();
+        return new ObservedWindow(from, to, Duration.between(from, to).toDays());
+    }
+
+    /**
+     * Was the digest table full?
+     *
+     * <p>{@code Performance_schema_digest_lost} counts digests the server could
+     * not record, so it is the direct measurement and is preferred whenever it
+     * was captured. Row count against {@code performance_schema_digests_size}
+     * is the inference to fall back on: at the cap the table is full and an
+     * unknowable number of statements were evicted.
+     */
+    private static Finding digestCapacity(Map<String, String> server, SqlImportStats stats) {
+        Integer lost = number(server.get("Performance_schema_digest_lost"));
+        if (lost != null) {
+            return lost > 0
+                ? new Finding(Signal.DIGEST_CAPACITY, Verdict.IMPAIRED,
+                    lost + " digests lost", "Performance_schema_digest_lost on the source server",
+                    "The digest table filled up and the server discarded " + lost + " statements it could not "
+                        + "record. Those queries are missing from this corpus, and nothing here can say which.")
+                : new Finding(Signal.DIGEST_CAPACITY, Verdict.OK,
+                    "0 digests lost", "Performance_schema_digest_lost on the source server",
+                    "The source server reports that it never ran out of room for a digest, so no statement "
+                        + "was dropped for lack of space.");
+        }
+
+        Integer size = number(server.get("performance_schema_digests_size"));
+        if (size == null || stats == null) {
+            return new Finding(Signal.DIGEST_CAPACITY, Verdict.UNKNOWN,
+                stats == null ? "unknown" : stats.count() + " profiles", "no capture-time server settings recorded",
+                "Nothing recorded how much room the source server had for digests, so whether statements were "
+                    + "evicted cannot be judged. It is not safe to assume none were.");
+        }
+
+        int count = stats.count();
+        String measurement = count + " of " + size + " digests";
+        return count >= size
+            ? new Finding(Signal.DIGEST_CAPACITY, Verdict.IMPAIRED, measurement,
+                "performance_schema_digests_size on the source server",
+                "The digest table was at capacity when this was captured, so statements were evicted to make "
+                    + "room for others. The corpus is a subset of the traffic, and its size is unknowable.")
+            : new Finding(Signal.DIGEST_CAPACITY, Verdict.OK, measurement,
+                "performance_schema_digests_size on the source server",
+                "The digest table had room to spare, so no statement was dropped for lack of space.");
+    }
+
+    /**
+     * Were statements too long to digest in full?
+     *
+     * <p>Two facts only mean something together: how many profiles came back
+     * truncated, and what the server's {@code max_digest_length} actually was.
+     * The second says whether to expect more of the first.
+     */
+    private static Finding digestTruncation(Map<String, String> server, SqlImportStats stats) {
+        int truncated = stats == null ? 0 : stats.truncated();
+        Integer limit = number(server.get("performance_schema_max_digest_length"));
+        String measurement = truncated + " truncated";
+
+        if (limit == null) {
+            return new Finding(Signal.DIGEST_TRUNCATION,
+                truncated > 0 ? Verdict.IMPAIRED : Verdict.UNKNOWN,
+                measurement, "the source server's max_digest_length was not recorded",
+                truncated + " statements arrived cut short, and without the server's digest length limit there "
+                    + "is no telling whether to expect more. Two statements truncated at the same point can "
+                    + "share a digest, so they may have been merged into one profile here.");
+        }
+
+        String basis = "performance_schema_max_digest_length = " + limit + " on the source server";
+        if (truncated > 0) {
+            String advice = limit < RECOMMENDED_MAX_DIGEST_LENGTH
+                ? " Raising it to " + RECOMMENDED_MAX_DIGEST_LENGTH + " would capture more of them."
+                : "";
+            return new Finding(Signal.DIGEST_TRUNCATION, Verdict.IMPAIRED, measurement, basis,
+                truncated + " statements were longer than the server's digest limit of " + limit + " bytes and "
+                    + "were cut short before their digest was computed. Two statements truncated at the same "
+                    + "point share a digest, so some of these may be several queries merged into one." + advice);
+        }
+        return limit < RECOMMENDED_MAX_DIGEST_LENGTH
+            ? new Finding(Signal.DIGEST_TRUNCATION, Verdict.OK, measurement, basis,
+                "No statement was cut short, though the limit of " + limit + " bytes is low enough that a "
+                    + "longer query would be. " + RECOMMENDED_MAX_DIGEST_LENGTH + " is the value worth setting.")
+            : new Finding(Signal.DIGEST_TRUNCATION, Verdict.OK, measurement, basis,
+                "No statement was long enough to be cut short before its digest was computed.");
+    }
+
+    /**
+     * How long a period do the rows cover?
+     *
+     * <p>This is the signal that turns "no query touches this table" from a
+     * shrug into a claim: unused across 117 days says something, unused across
+     * two days says almost nothing. Server uptime corroborates it — Performance
+     * Schema is cleared on restart, so an uptime shorter than the observed
+     * window means one of the two is wrong.
+     */
+    private static Finding observationWindow(ObservedWindow window, Map<String, String> server) {
+        if (window == null) {
+            return new Finding(Signal.OBSERVATION_WINDOW, Verdict.UNKNOWN, "unknown",
+                "no statement timestamps were recorded with this capture",
+                "How long a period these queries cover is unrecorded, so the absence of a query says nothing "
+                    + "about whether it is unused.");
+        }
+
+        String measurement = window.days() + " days";
+        String span = window.from() + " to " + window.to();
+        Integer uptime = number(server.get("Uptime"));
+        if (uptime != null && uptime < Duration.between(window.from(), window.to()).toSeconds()) {
+            return new Finding(Signal.OBSERVATION_WINDOW, Verdict.IMPAIRED, measurement,
+                "statement timestamps " + span + ", but the server reported only " + uptime + "s of uptime",
+                "The rows span a longer period than the server had been running, and Performance Schema is "
+                    + "cleared on restart — so the timestamps and the uptime disagree and one of them is wrong. "
+                    + "Treat the window as unreliable.");
+        }
+        return new Finding(Signal.OBSERVATION_WINDOW, Verdict.OK, measurement, "statement timestamps " + span,
+            "Queries here were observed across " + window.days() + " days. A table no query touched in that "
+                + "period is a claim about " + window.days() + " days of traffic — no more, and no less.");
+    }
+
+    /**
+     * How far from {@code sys.x$statement_analysis} is this, and when was it
+     * read? A copy of an export from a server nobody can query any more
+     * supports weaker claims than a direct read, and saying so is the point.
+     */
+    private static Finding provenance(CaptureContext capture, SqlSource source) {
+        if (capture == null || capture.origin() == null) {
+            return new Finding(Signal.PROVENANCE, Verdict.UNKNOWN,
+                source == null ? "unknown" : source.getSourceRef(), "no provenance was recorded",
+                "Nothing records where these rows came from or when they were read. They still originate in "
+                    + CaptureContext.ORIGIN_TABLE + " — every corpus does — but how many hands they passed "
+                    + "through, and how stale they are, is unknown.");
+        }
+
+        String when = capture.capturedAt() == null ? "at an unrecorded time" : "on " + capture.capturedAt();
+        return switch (capture.origin()) {
+            case PERFORMANCE_SCHEMA -> new Finding(Signal.PROVENANCE, Verdict.OK, "read directly " + when,
+                CaptureContext.ORIGIN_TABLE + " on a live server",
+                "Read straight off the source server, so the settings judged above are that server's own and "
+                    + "describe this data.");
+            case CSV_EXPORT -> new Finding(Signal.PROVENANCE, Verdict.OK, "exported " + when,
+                "a CSV export of " + CaptureContext.ORIGIN_TABLE,
+                "One hop from the origin table. Everything claimed here rests on what the export recorded "
+                    + "about the server it came from; the server itself is not being consulted.");
+            case PARQUET_COPY -> new Finding(Signal.PROVENANCE, Verdict.OK, "captured " + when,
+                "a Parquet copy sql-explorer wrote earlier",
+                "At least two hops from the origin table, and the source server cannot be consulted. The "
+                    + "capture-time settings travelled with the file, which is what keeps the judgements "
+                    + "above about the right server at the right moment.");
+        };
+    }
+
+    /**
+     * Was the digest table reset between two captures of this source?
+     *
+     * <p>Per source, because each is its own sampling stream. The archive
+     * reports the interval; nothing here can know why it reset, so "unobserved
+     * between X and Y" is the whole claim.
+     */
+    private static Finding samplingGaps(String sourceRef, CaptureArchive.ArchiveReport archive) {
+        List<CaptureArchive.CaptureGap> mine = archive.gaps().stream()
+            .filter(gap -> gap.sourceRef() != null && gap.sourceRef().equals(sourceRef))
+            .toList();
+
+        if (!mine.isEmpty()) {
+            String intervals = mine.stream()
+                .map(gap -> gap.unobservedFrom() + " to " + gap.unobservedTo())
+                .reduce((a, b) -> a + ", " + b).orElse("");
+            return new Finding(Signal.SAMPLING_GAPS, Verdict.IMPAIRED,
+                mine.size() + (mine.size() == 1 ? " gap" : " gaps"), "unobserved: " + intervals,
+                "Between two captures of this source the digest table was reset — a server restart, or a "
+                    + "TRUNCATE — and traffic in those intervals was never recorded by anything.");
+        }
+        String failures = archive.failed().isEmpty() ? ""
+            : " " + archive.failed().size() + (archive.failed().size() == 1 ? " capture" : " captures")
+                + " did not finish writing and hold nothing readable; that costs those samples, but not this "
+                + "answer — the completed captures on either side are still compared with each other.";
+
+        if (archive.unorderable().isEmpty()) {
+            return new Finding(Signal.SAMPLING_GAPS, Verdict.OK, "no gaps",
+                "consecutive captures of this source overlap",
+                "Each capture of this source still contained what the one before it saw, which is what an "
+                    + "uninterrupted Performance Schema looks like. Nothing went unobserved between them."
+                    + failures);
+        }
+        int unplaceable = archive.unorderable().size();
+        return new Finding(Signal.SAMPLING_GAPS, Verdict.UNKNOWN, "no gaps found",
+            unplaceable + (unplaceable == 1 ? " capture" : " captures") + " could not be placed in order",
+            "No gap was found among the captures that could be ordered, but " + unplaceable + " could not be "
+                + "placed — they record no capture time — so they cover some unknown stretch and a reset "
+                + "beside them would not show up here." + failures);
+    }
+
+    private static Integer number(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+}
