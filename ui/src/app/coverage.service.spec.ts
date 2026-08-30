@@ -89,3 +89,55 @@ describe('coverage helpers', () => {
     });
   });
 });
+
+import {TestBed} from '@angular/core/testing';
+import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {provideHttpClient} from '@angular/common/http';
+import {CoverageService} from './coverage.service';
+import {EnvironmentService} from './environment.service';
+
+/**
+ * The cache is what makes coverage cheap enough to ask for on any page, and
+ * also the one way it could actively misinform: /coverage is resolved from the
+ * environment header, and switching environments does not reload the page.
+ */
+describe('CoverageService caching', () => {
+
+  let service: CoverageService;
+  let environments: EnvironmentService;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    localStorage.removeItem('sql-explorer.environment');
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), CoverageService, EnvironmentService]
+    });
+    service = TestBed.inject(CoverageService);
+    environments = TestBed.inject(EnvironmentService);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  const body = {
+    environment: 'env', loaded: true, loadedOn: null,
+    originTable: 'sys.x$statement_analysis', sources: []
+  };
+
+  it('asks once for several readers on the same page', () => {
+    service.getCoverage().subscribe();
+    service.getCoverage().subscribe();
+
+    http.expectOne('/api/sql-explorer/coverage').flush(body);
+  });
+
+  it('asks again after the environment changes', () => {
+    service.getCoverage().subscribe();
+    http.expectOne('/api/sql-explorer/coverage').flush(body);
+
+    environments.setCurrent('other');
+    service.getCoverage().subscribe();
+
+    http.expectOne('/api/sql-explorer/coverage').flush(body);
+  });
+});

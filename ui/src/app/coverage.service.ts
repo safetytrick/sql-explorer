@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable, shareReplay} from 'rxjs';
+import {EnvironmentService} from './environment.service';
 import type {CoverageFinding, CoverageReport, CoverageSignal, ObservedWindow} from './api-types';
 
 const endpoint = '/api/sql-explorer/';
@@ -9,16 +10,24 @@ const endpoint = '/api/sql-explorer/';
  * What the loaded corpus can honestly support.
  *
  * <p>`shareReplay(1)` because coverage describes the load, not the request:
- * several views ask the same question on the same page, and the answer does
- * not change until an environment is reloaded — at which point the app
- * navigates anyway.
+ * several views ask the same question on the same page and the answer does not
+ * change between them.
+ *
+ * <p>It does change when the environment does, and that is the one way this
+ * cache could actively misinform. `/coverage` is resolved from the
+ * `X-Sql-Explorer-Environment` header, and switching environments does not
+ * reload the page — components resubscribe instead — so a cache held for the
+ * session would keep asserting the previous environment's window on a page
+ * whose entire purpose is to stop people trusting the wrong claim. Dropped on
+ * every switch.
  */
 @Injectable({providedIn: 'root'})
 export class CoverageService {
 
   private report$?: Observable<CoverageReport>;
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, environmentService: EnvironmentService) {
+    environmentService.current$.subscribe(() => this.report$ = undefined);
   }
 
   getCoverage(): Observable<CoverageReport> {

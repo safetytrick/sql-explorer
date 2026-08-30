@@ -1,9 +1,11 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit} from '@angular/core';
+import {Subscription} from 'rxjs';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DatePipe} from '@angular/common';
 import {Title} from '@angular/platform-browser';
 import {SchemaLensService} from '../schema-lens.service';
 import {CoverageService, findings, sharedWindow, worstVerdict} from '../coverage.service';
+import {EnvironmentService} from '../environment.service';
 import {SEEN_FORMAT} from '../seen-format';
 import type {CoverageVerdict, ObservedWindow} from '../api-types';
 import {SchemaUsage, totals, unqueriedBySchema} from './unqueried-tables';
@@ -28,7 +30,7 @@ const SYSTEM_PARAM = 'var-system';
   styleUrls: ['./unqueried-tables.component.scss'],
   imports: [RouterLink, DatePipe]
 })
-export class UnqueriedTablesComponent implements OnInit {
+export class UnqueriedTablesComponent implements OnInit, OnDestroy {
 
   all: SchemaUsage[] = [];
   loading = true;
@@ -45,8 +47,11 @@ export class UnqueriedTablesComponent implements OnInit {
   capacity: CoverageVerdict | null = null;
   protected readonly SEEN_FORMAT = SEEN_FORMAT;
 
+  private readonly subscriptions = new Subscription();
+
   constructor(private schemaLensService: SchemaLensService,
               private coverageService: CoverageService,
+              private environmentService: EnvironmentService,
               private route: ActivatedRoute,
               private router: Router,
               titleService: Title) {
@@ -54,9 +59,22 @@ export class UnqueriedTablesComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.route.queryParamMap.subscribe(params => {
+    this.subscriptions.add(this.route.queryParamMap.subscribe(params => {
       this.includeSystem = params.get(SYSTEM_PARAM) === '1';
-    });
+    }));
+    // Both halves belong to the selected environment, so both are re-read when
+    // it changes. Switching without this would leave one environment's tables
+    // qualified by another's capture, which is worse than saying nothing.
+    this.subscriptions.add(this.environmentService.current$.subscribe(() => this.load()));
+  }
+
+  ngOnDestroy() {
+    this.subscriptions.unsubscribe();
+  }
+
+  private load() {
+    this.loading = true;
+    this.failed = false;
     this.schemaLensService.getSchemaTree().subscribe({
       next: tree => { this.all = unqueriedBySchema(tree); this.loading = false; },
       // an empty list would read as "nothing is unqueried", which is a strong
@@ -65,6 +83,8 @@ export class UnqueriedTablesComponent implements OnInit {
     });
     // A failure here leaves both null and the note simply says less. Coverage
     // qualifies this page's claim; it must never be able to break it.
+    this.window = null;
+    this.capacity = null;
     this.coverageService.getCoverage().subscribe({
       next: report => {
         this.window = sharedWindow(report);

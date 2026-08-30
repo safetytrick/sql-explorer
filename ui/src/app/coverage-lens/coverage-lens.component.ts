@@ -1,7 +1,9 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit} from '@angular/core';
+import {Subscription} from 'rxjs';
 import {DatePipe} from '@angular/common';
 import {Title} from '@angular/platform-browser';
 import {CoverageService} from '../coverage.service';
+import {EnvironmentService} from '../environment.service';
 import {SEEN_FORMAT} from '../seen-format';
 import type {CoverageReport, CoverageSignal} from '../api-types';
 
@@ -45,18 +47,35 @@ const SIGNAL_LABELS: Record<CoverageSignal, {title: string; question: string}> =
   styleUrls: ['./coverage-lens.component.scss'],
   imports: [DatePipe]
 })
-export class CoverageLensComponent implements OnInit {
+export class CoverageLensComponent implements OnInit, OnDestroy {
 
   report: CoverageReport | null = null;
   loading = true;
   failed = false;
   protected readonly SEEN_FORMAT = SEEN_FORMAT;
 
-  constructor(private coverageService: CoverageService, titleService: Title) {
+  private readonly subscriptions = new Subscription();
+
+  constructor(private coverageService: CoverageService,
+              private environmentService: EnvironmentService,
+              titleService: Title) {
     titleService.setTitle('::: what was captured :::');
   }
 
   ngOnInit() {
+    // Coverage is per environment; showing the previous one's findings under
+    // the new one's name is the single most misleading thing this page could do.
+    this.subscriptions.add(this.environmentService.current$.subscribe(() => this.load()));
+  }
+
+  ngOnDestroy() {
+    this.subscriptions.unsubscribe();
+  }
+
+  private load() {
+    this.loading = true;
+    this.failed = false;
+    this.report = null;
     this.coverageService.getCoverage().subscribe({
       next: report => { this.report = report; this.loading = false; },
       // an empty page would read as "nothing is wrong", which is the one
