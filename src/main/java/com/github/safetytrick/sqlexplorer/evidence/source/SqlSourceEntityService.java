@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
+import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,21 +46,35 @@ public class SqlSourceEntityService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        // Discovered from disk rather than uploaded, so nobody supplied a
+        // capture context and none is invented. Unknown is the honest record.
         return doSave(sqlSource.getSourceRef(),
                 sourceUrl,
                 sqlSource.getResource(),
-                environmentName);
+                environmentName,
+                CaptureDetails.UNKNOWN);
     }
 
     @CacheEvict(value = "sourceref", allEntries = true)
+    /**
+     * What the uploader knows about the export and nobody else can recover.
+     * Only {@code capturedAt} is required; the rest read as unknown when absent.
+     */
+    public record CaptureDetails(java.time.Instant capturedAt, String serverVersion,
+                                 Integer digestsSize, Integer maxDigestLength) {
+        static final CaptureDetails UNKNOWN = new CaptureDetails(null, null, null, null);
+    }
+
     public SqlSourceEntity saveUploadedSqlSource(String sourceRef,
                                                  String sourceUrl,
                                                  Resource resource,
-                                                 String environmentName) {
-        return doSave(sourceRef, sourceUrl, resource, environmentName);
+                                                 String environmentName,
+                                                 CaptureDetails capture) {
+        return doSave(sourceRef, sourceUrl, resource, environmentName, capture);
     }
 
-    private SqlSourceEntity doSave(String sourceRef, String sourceUrl, Resource resource, String environmentName) {
+    private SqlSourceEntity doSave(String sourceRef, String sourceUrl, Resource resource,
+                                   String environmentName, CaptureDetails capture) {
         try {
             attributeSourceRef(sourceRef, environmentName);
             String md5 = calculateMd5Hash(resource);
@@ -72,6 +87,13 @@ public class SqlSourceEntityService {
             entity.setSourceRef(sourceRef);
             entity.setSourceUrl(sourceUrl);
             entity.setCreator(userService.currentUser());
+            // A TSV upload is one hop from sys.x$statement_analysis; the parquet
+            // we later write from it is two, and inherits this chain.
+            entity.setOrigin(CaptureContext.Origin.CSV_EXPORT.name());
+            entity.setCapturedAt(capture.capturedAt());
+            entity.setServerVersion(capture.serverVersion());
+            entity.setServerDigestsSize(capture.digestsSize());
+            entity.setServerMaxDigestLength(capture.maxDigestLength());
 
             SessionImplementor hibernateSession = entityManager.unwrap(SessionImplementor.class);
 

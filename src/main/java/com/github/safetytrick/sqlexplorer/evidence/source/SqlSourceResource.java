@@ -1,5 +1,7 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.sql.SQLException;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -107,14 +109,44 @@ class SqlSourceResource {
                 .filter(str -> !Strings.isNullOrEmpty(str))
                 .findFirst().orElse(body.sourceRef());
 
+        // Required rather than optional. An export whose capture time is
+        // unknown can never have one attached later — nobody but the uploader
+        // knows it — and a corpus that cannot say when it was taken cannot be
+        // reasoned about at all (sqlx-sy5).
+        Instant capturedAt = parseCapturedAt(body.capturedAt());
+
         SqlSourceEntity entity = sqlSourceEntityService.saveUploadedSqlSource(body.sourceRef(),
                 sourceUrl,
                 body.file().getResource(),
-                environmentContext.current().getName());
+                environmentContext.current().getName(),
+                new SqlSourceEntityService.CaptureDetails(capturedAt, body.serverVersion(),
+                    body.serverDigestsSize(), body.serverMaxDigestLength()));
 
         UriComponents uriComponents = MvcUriComponentsBuilder.fromMethodCall(on(SqlSourceResource.class).getSqlSource(entity.getId())).buildAndExpand(1);
 
         return ResponseEntity.created(uriComponents.toUri()).build();
+    }
+
+    /**
+     * The capture instant, or a 400 saying what is missing and why.
+     *
+     * <p>Deliberately not defaulted to "now". Upload time is already recorded
+     * as {@code createdOn}, and the two are routinely months apart — silently
+     * conflating them would put a confident wrong timestamp on the one field
+     * the confidence signals hang off.
+     */
+    private static Instant parseCapturedAt(String capturedAt) {
+        if (Strings.isNullOrEmpty(capturedAt)) {
+            throw new IllegalArgumentException(
+                "capturedAt is required: when the export was taken off the source server, ISO-8601. "
+                    + "It cannot be recovered later, and upload time is not a substitute.");
+        }
+        try {
+            return Instant.parse(capturedAt);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException(
+                "capturedAt must be ISO-8601, for example 2026-08-29T14:03:35Z; got: " + capturedAt, e);
+        }
     }
 
     @PostMapping("/sources/load")
@@ -196,6 +228,29 @@ class SqlSourceResource {
         }
     }
 
-    record SqlSourceUpload(String sourceRef, String sourceUrl, MultipartFile file) { }
+    /**
+     * An uploaded source, and the capture context it must arrive with.
+     *
+     * <p>A TSV export of {@code sys.x$statement_analysis} carries nothing about
+     * the server it came from or when it was taken, and those facts cannot be
+     * recovered afterwards — reading them off a live connection later would
+     * attribute one server's settings to another's data. So they are supplied
+     * here, by whoever ran the export and is the only party that knows
+     * (sqlx-sy5).
+     *
+     * @param capturedAt              when the export was taken, ISO-8601. Required.
+     * @param serverVersion           the source server's version. Optional.
+     * @param serverDigestsSize       its `performance_schema_digests_size` at
+     *                                capture. Optional, and the signal for
+     *                                whether digests were being evicted.
+     * @param serverMaxDigestLength   its `performance_schema_max_digest_length`
+     *                                at capture. Optional, and what says
+     *                                whether truncation was expected.
+     */
+    record SqlSourceUpload(String sourceRef, String sourceUrl, MultipartFile file,
+                           String capturedAt,
+                           String serverVersion,
+                           Integer serverDigestsSize,
+                           Integer serverMaxDigestLength) { }
 
 }

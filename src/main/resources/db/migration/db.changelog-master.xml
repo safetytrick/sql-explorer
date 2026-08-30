@@ -214,4 +214,31 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		Capture context for an uploaded source. A TSV export of
+		sys.x$statement_analysis says nothing about the server it came from or
+		when, and looking those facts up later against a live connection
+		attributes one server's settings to another's data — a confident wrong
+		answer (sqlx-sy5). Recorded at upload instead.
+
+		Nullable on purpose: every source uploaded before this existed has no
+		capture context and must read as unknown rather than as zero. New
+		uploads are required to supply it at the API, which is where the
+		requirement belongs — a NOT NULL here would only make old rows
+		unreadable.
+	-->
+	<changeSet id="sql_source-capture-context" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><columnExists tableName="sql_source" columnName="captured_at"/></not>
+		</preConditions>
+		<sql>
+			alter table sql_source
+				add column origin                    varchar(32),
+				add column captured_at               timestamp null,
+				add column server_version            varchar(64),
+				add column server_digests_size       int,
+				add column server_max_digest_length  int;
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

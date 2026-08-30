@@ -42,6 +42,41 @@ public class SqlSourceEntity extends AbstractTsvSqlSource {
     @Column(name="md5_hash")
     private String md5Hash;
 
+    /**
+     * What the file is, relative to {@code sys.x$statement_analysis} — every
+     * corpus originates there, but a TSV export is one hop away and a parquet
+     * copy two. Stored as the name of {@code CaptureContext.Origin}.
+     */
+    private String origin;
+
+    /**
+     * When the rows were read off the source server.
+     *
+     * <p>Not when the file was uploaded — {@code createdOn} is that, and the
+     * two can be months apart. This is the one that makes the server settings
+     * below mean anything, and the one gap detection orders samples by.
+     */
+    @Column(name = "captured_at")
+    private Instant capturedAt;
+
+    /**
+     * What the source server looked like at capture time.
+     *
+     * <p>Null means unknown, which is the honest reading for anything uploaded
+     * before these existed. They must never be backfilled from a live
+     * connection: {@code performance_schema_digests_size} and
+     * {@code max_digest_length} applied on <em>that</em> server at
+     * <em>that</em> moment, and today's values describe neither (sqlx-sy5).
+     */
+    @Column(name = "server_version")
+    private String serverVersion;
+
+    @Column(name = "server_digests_size")
+    private Integer serverDigestsSize;
+
+    @Column(name = "server_max_digest_length")
+    private Integer serverMaxDigestLength;
+
     @JsonIgnore
     @Lob
     @Column(table="sql_source_content")

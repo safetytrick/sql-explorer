@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.evidence;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -666,10 +667,18 @@ public class SqlEvidenceInputService {
                 from = earliest(from, metrics.getFirstSeen());
                 to = latest(to, metrics.getLastSeen());
             }
+            // Prefer the capture instant over the source's creation time. For an
+            // uploaded export the two can be months apart, and it is the capture
+            // that the coverage signals are about; creation time is only a
+            // fallback for sources that never knew (sqlx-sy5).
+            Instant capturedAt = null;
+            if (source != null) {
+                capturedAt = source.getCapturedAt() != null ? source.getCapturedAt() : source.getCreatedOn();
+            }
             return new CaptureContext(
                 CaptureContext.Origin.PARQUET_COPY,
                 source == null ? null : source.getSourceRef(),
-                source == null ? null : source.getCreatedOn(),
+                capturedAt,
                 parquetRows.size(),
                 from, to, Map.of());
         }
