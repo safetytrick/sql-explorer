@@ -136,15 +136,19 @@ class SqlSourceResource {
      * the confidence signals hang off.
      */
     private static Instant parseCapturedAt(String capturedAt) {
+        // 400, not the 500 an IllegalArgumentException produces here. The
+        // uploader supplied a bad request and the message tells them how to fix
+        // it; reporting that as a server fault sends them looking at logs they
+        // have no access to and cannot act on.
         if (Strings.isNullOrEmpty(capturedAt)) {
-            throw new IllegalArgumentException(
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "capturedAt is required: when the export was taken off the source server, ISO-8601. "
                     + "It cannot be recovered later, and upload time is not a substitute.");
         }
         try {
             return Instant.parse(capturedAt);
         } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException(
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "capturedAt must be ISO-8601, for example 2026-08-29T14:03:35Z; got: " + capturedAt, e);
         }
     }

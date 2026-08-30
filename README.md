@@ -212,6 +212,14 @@ that is a syntax error (1064). Add an example with real parameters via
 `POST /query-examples`, then `POST /analyzed-sql/{digest}/explain` plans the
 most recent one — or `POST /query-examples/{id}/explain` to choose which.
 
+Setting it up
+-------------
+
+- [docs/running-sql-explorer.md](docs/running-sql-explorer.md) — standing the tool up, where configuration lives,
+  and the three shapes a source comes in.
+- [docs/mysql-performance-schema.md](docs/mysql-performance-schema.md) — the MySQL settings that decide whether
+  there is anything worth reading. Two of them are wrong by default, and they fail silently.
+
 Further reading
 ---------------
 
@@ -222,4 +230,4 @@ Further reading
 - Open work lives in **beads** (`.beads/`, the `bd` CLI) — `bd ready` for unblocked work. `docs/WORK_TODO.md` is
   now just a signpost to it.
 - [docs/](docs/) — `plans/` for the longer design write-ups, `TECH_DEBT.md` for the standing inventory,
-  `local-dev-mysql.md` for running MySQL locally.
+  `local-dev-mysql.md` for a proposed throwaway MySQL to develop against.

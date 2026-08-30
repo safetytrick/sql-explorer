@@ -42,6 +42,7 @@ class CoverageServiceTest {
         "version", "8.4.8",
         "performance_schema_digests_size", "10000",
         "performance_schema_max_digest_length", "4096",
+        "max_digest_length", "4096",
         "Performance_schema_digest_lost", "0",
         "Uptime", "10205030");
 
@@ -162,7 +163,7 @@ class CoverageServiceTest {
 
         assertThat(truncation.verdict()).isEqualTo(Coverage.Verdict.IMPAIRED);
         assertThat(truncation.measurement()).isEqualTo("9 truncated");
-        assertThat(truncation.basis()).contains("max_digest_length = 4096");
+        assertThat(truncation.basis()).contains("effective digest limit of 4096");
     }
 
     /** Below the recommended limit, say so even when nothing was cut short. */
@@ -170,12 +171,49 @@ class CoverageServiceTest {
     void aLowDigestLimitIsWorthMentioningEvenWithNothingTruncated() {
         Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
         server.put("performance_schema_max_digest_length", "1024");
+        server.put("max_digest_length", "1024");
         Coverage.Finding truncation = finding(
             service(repository(capture(server), stats(4243, 0))).report("env"),
             Coverage.Signal.DIGEST_TRUNCATION);
 
         assertThat(truncation.verdict()).isEqualTo(Coverage.Verdict.OK);
         assertThat(truncation.explanation()).contains("4096");
+    }
+
+    /**
+     * The lower of the two variables binds, and reporting the higher one would
+     * tell an operator the limit is fine when it is not. Measured on a stock
+     * MySQL 8.4.4: with max_digest_length at 1024 and its performance_schema
+     * companion at 4096, a 3.6KB statement is still cut at 1024. Raising only
+     * the performance_schema one — which is the advice usually given — changes
+     * nothing, because a digest cannot be stored longer than it was computed.
+     */
+    @Test
+    void theLowerOfTheTwoDigestLimitsIsTheOneThatBinds() {
+        Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
+        server.put("performance_schema_max_digest_length", "4096");
+        server.put("max_digest_length", "1024");
+        Coverage.Finding truncation = finding(
+            service(repository(capture(server), stats(4243, 9))).report("env"),
+            Coverage.Signal.DIGEST_TRUNCATION);
+
+        assertThat(truncation.basis()).contains("effective digest limit of 1024");
+        assertThat(truncation.explanation()).contains("BOTH");
+    }
+
+    /** One recorded limit is still evidence; do not discard it for the other. */
+    @Test
+    void aServerThatRecordedOnlyOneLimitIsJudgedOnThatOne() {
+        Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
+        server.remove("max_digest_length");
+        server.put("performance_schema_max_digest_length", "1024");
+        Coverage.Finding truncation = finding(
+            service(repository(capture(server), stats(4243, 9))).report("env"),
+            Coverage.Signal.DIGEST_TRUNCATION);
+
+        assertThat(truncation.verdict()).isEqualTo(Coverage.Verdict.IMPAIRED);
+        assertThat(truncation.basis()).contains("effective digest limit of 1024");
+        assertThat(truncation.basis()).contains("max_digest_length not recorded");
     }
 
     /** Truncation with no recorded limit still cannot say whether to expect more. */
@@ -185,7 +223,7 @@ class CoverageServiceTest {
             service(repository(capture(Map.of()), stats(4243, 9))).report("env"),
             Coverage.Signal.DIGEST_TRUNCATION);
 
-        assertThat(truncation.basis()).contains("was not recorded");
+        assertThat(truncation.basis()).contains("limits were not recorded");
         assertThat(truncation.explanation()).doesNotContain("1024");
     }
 

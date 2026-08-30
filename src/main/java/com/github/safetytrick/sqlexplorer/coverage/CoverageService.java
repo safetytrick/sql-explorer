@@ -147,39 +147,75 @@ public class CoverageService {
      * Were statements too long to digest in full?
      *
      * <p>Two facts only mean something together: how many profiles came back
-     * truncated, and what the server's {@code max_digest_length} actually was.
-     * The second says whether to expect more of the first.
+     * truncated, and what the server's effective digest limit actually was.
+     * The second says whether to expect more.
+     *
+     * <p>THE EFFECTIVE LIMIT IS THE LOWER OF TWO VARIABLES, and getting this
+     * wrong is the difference between advice that works and advice that does
+     * nothing. {@code max_digest_length} governs computing the digest;
+     * {@code performance_schema_max_digest_length} governs storing it, and
+     * Performance Schema cannot store more than was computed. Measured on a
+     * stock MySQL 8.4.4: with the pair at (1024, 4096) a 3.6KB statement is
+     * still cut at 1024, and only raising BOTH to 4096 retains it. The common
+     * advice to raise the performance_schema one alone has no effect.
      */
     private static Finding digestTruncation(Map<String, String> server, SqlImportStats stats) {
         int truncated = stats == null ? 0 : stats.truncated();
-        Integer limit = number(server.get("performance_schema_max_digest_length"));
+        Integer stored = number(server.get("performance_schema_max_digest_length"));
+        Integer computed = number(server.get("max_digest_length"));
         String measurement = truncated + " truncated";
 
+        Integer limit = effectiveDigestLimit(stored, computed);
         if (limit == null) {
             return new Finding(Signal.DIGEST_TRUNCATION,
                 truncated > 0 ? Verdict.IMPAIRED : Verdict.UNKNOWN,
-                measurement, "the source server's max_digest_length was not recorded",
-                truncated + " statements arrived cut short, and without the server's digest length limit there "
-                    + "is no telling whether to expect more. Two statements truncated at the same point can "
+                measurement, "the source server's digest length limits were not recorded",
+                truncated + " statements arrived cut short, and without the server's digest length limits "
+                    + "there is no telling whether to expect more. Two statements truncated at the same point "
                     + "share a digest, so they may have been merged into one profile here.");
         }
 
-        String basis = "performance_schema_max_digest_length = " + limit + " on the source server";
+        String basis = "an effective digest limit of " + limit + " bytes on the source server"
+            + " (max_digest_length " + describe(computed) + ", performance_schema_max_digest_length "
+            + describe(stored) + "; the lower one binds)";
+
         if (truncated > 0) {
             String advice = limit < RECOMMENDED_MAX_DIGEST_LENGTH
-                ? " Raising it to " + RECOMMENDED_MAX_DIGEST_LENGTH + " would capture more of them."
+                ? " Raising BOTH variables to " + RECOMMENDED_MAX_DIGEST_LENGTH + " would capture more of them"
+                    + " — raising only one has no effect, because a digest cannot be stored longer than it was"
+                    + " computed. Both need a server restart."
                 : "";
             return new Finding(Signal.DIGEST_TRUNCATION, Verdict.IMPAIRED, measurement, basis,
-                truncated + " statements were longer than the server's digest limit of " + limit + " bytes and "
-                    + "were cut short before their digest was computed. Two statements truncated at the same "
-                    + "point share a digest, so some of these may be several queries merged into one." + advice);
+                truncated + " statements were longer than the server's effective digest limit of " + limit
+                    + " bytes and were cut short before their digest was computed. Two statements truncated at "
+                    + "the same point share a digest, so some of these may be several queries merged into one."
+                    + advice);
         }
         return limit < RECOMMENDED_MAX_DIGEST_LENGTH
             ? new Finding(Signal.DIGEST_TRUNCATION, Verdict.OK, measurement, basis,
-                "No statement was cut short, though the limit of " + limit + " bytes is low enough that a "
-                    + "longer query would be. " + RECOMMENDED_MAX_DIGEST_LENGTH + " is the value worth setting.")
+                "No statement was cut short, though the effective limit of " + limit + " bytes is low enough "
+                    + "that a longer query would be. " + RECOMMENDED_MAX_DIGEST_LENGTH + " is the value worth "
+                    + "setting, on both variables.")
             : new Finding(Signal.DIGEST_TRUNCATION, Verdict.OK, measurement, basis,
                 "No statement was long enough to be cut short before its digest was computed.");
+    }
+
+    /**
+     * The lower of the two limits, or whichever one was recorded.
+     *
+     * <p>A server that reported only one is judged on that one — it is the
+     * only evidence there is, and saying nothing because the other is missing
+     * would discard a real measurement.
+     */
+    private static Integer effectiveDigestLimit(Integer stored, Integer computed) {
+        if (stored == null) {
+            return computed;
+        }
+        return computed == null ? stored : Math.min(stored, computed);
+    }
+
+    private static String describe(Integer value) {
+        return value == null ? "not recorded" : String.valueOf(value);
     }
 
     /**

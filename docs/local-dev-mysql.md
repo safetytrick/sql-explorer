@@ -1,5 +1,9 @@
 # Local Development MySQL with Performance Schema Data
 
+> **This is a proposal, not a description.** The `dev-mysql` and `dev-workload`
+> services below are not in `docker-compose.yml`. For how to actually run the
+> tool, see [running sql-explorer](running-sql-explorer.md).
+
 ## Goal
 
 Replace the requirement of connecting to a live MySQL instance by providing a self-contained Docker Compose setup that:
@@ -58,10 +62,18 @@ MySQL 8.4 ships with `performance_schema=ON` and `statements_digest` consumer en
 # Increase digest history so slow/infrequent queries survive between restarts
 performance_schema_events_statements_history_long_size = 10000
 
-# Make sure full statement text is captured (default is 1024 bytes, truncates long queries)
-performance_schema_max_digest_length = 4096
+# Make sure full statement text is captured (both default to 1024 bytes)
+max_digest_length                      = 4096
+performance_schema_max_digest_length   = 4096
 performance_schema_max_sql_text_length = 4096
 ```
+
+> `max_digest_length` was missing here, and without it the rest does nothing.
+> It governs *computing* the digest while its `performance_schema_` companion
+> governs *storing* it, so the effective limit is the lower of the two —
+> measured on stock `mysql:8.4.4`, raising only the `performance_schema_` one
+> leaves a 3.6 KB statement still cut at 1024 bytes. See
+> [configuring MySQL](mysql-performance-schema.md) for the measurement.
 
 Mount this as `dev-mysql/my.cnf` → `/etc/mysql/conf.d/perf-schema.cnf` inside the container.
 
