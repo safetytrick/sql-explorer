@@ -5,16 +5,7 @@ import {SchemaLensService, SchemaNode} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {QueryFacets, TagMode} from '../query-search.service';
 import {QueryScopeService, SchemaTagFilter, tableKey} from '../query-scope.service';
-import {decodeTagFilter, encodeTagFilter, sameTagFilter, TagFilterState} from '../tag-filter/tag-filter-url';
-
-/**
- * The sidebar's filter shape as the URL codec's. Two names for one idea —
- * `includeTags`/`tagMode` here, `tags`/`mode` there — kept apart because the
- * codec is shared with the list pages, and bridged in exactly one place.
- */
-function asFilterState(filter: SchemaTagFilter): TagFilterState {
-  return { tags: filter.includeTags, excludeTags: filter.excludeTags, mode: filter.tagMode };
-}
+import {decodeScopeTags, encodeScopeTags, sameScopeTags} from '../scope-tags';
 import {filterSchemaTree, TypeFilter, inertTags} from './tree-filter';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
@@ -75,11 +66,9 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     // the workbench seeds itself from it — so the sidebar has to read it too,
     // or the two controls on those pages show different states (sqlx-zl1).
     this.subscriptions.add(this.route.queryParamMap.subscribe(params => {
-      const fromUrl = decodeTagFilter(params);
-      if (sameTagFilter(fromUrl, asFilterState(this.queryScopeService.schemaTagFilter))) { return; }
-      this.queryScopeService.setSchemaTagFilter({
-        includeTags: fromUrl.tags, excludeTags: fromUrl.excludeTags, tagMode: fromUrl.mode
-      });
+      const fromUrl = decodeScopeTags(params);
+      if (sameScopeTags(fromUrl, this.queryScopeService.schemaTagFilter)) { return; }
+      this.queryScopeService.setSchemaTagFilter(fromUrl);
     }));
     this.subscriptions.add(this.queryScopeService.schemaTagFilter$.subscribe(() => {
       // external clear (e.g. workbench "clear all") — keep panel open if filters remain
@@ -267,12 +256,11 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
    * `setSchemaTagFilter` emits unconditionally, so writing on every emission
    * would bounce between the two writers.
    */
-  private writeTagFilterToUrl(filter: SchemaTagFilter) {
-    const wanted = asFilterState(filter);
-    if (sameTagFilter(wanted, decodeTagFilter(this.route.snapshot.queryParamMap))) { return; }
+  private writeTagFilterToUrl(scope: SchemaTagFilter) {
+    if (sameScopeTags(scope, decodeScopeTags(this.route.snapshot.queryParamMap))) { return; }
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: encodeTagFilter(wanted),
+      queryParams: encodeScopeTags(scope),
       queryParamsHandling: 'merge',
       replaceUrl: true
     });

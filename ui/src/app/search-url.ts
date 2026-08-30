@@ -15,6 +15,7 @@
  * map when the link opens — the same way date-math expressions like
  * `now-7d` stay live.
  */
+import {decodeScopeTags, encodeScopeTags} from './scope-tags';
 import type {Activity, Flag, QuerySearchRequest, SortKey, TableMode, TagMode} from './query-search.service';
 import type {QueryScope, SchemaTagFilter, SchemaTagScope} from './query-scope.service';
 import type {ColumnRef} from './refs';
@@ -130,9 +131,10 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   if (state.scope.schemas.length) { params['schemas'] = state.scope.schemas.join(','); }
   if (state.scope.tables.length) { params['tables'] = state.scope.tables.join(','); }
   if (state.scope.tableMode !== 'ANY') { params['tableMode'] = state.scope.tableMode; }
-  if (state.schemaTagFilter.includeTags.length) { params['schemaTags'] = state.schemaTagFilter.includeTags.join(','); }
-  if (state.schemaTagFilter.excludeTags.length) { params['schemaTagsExclude'] = state.schemaTagFilter.excludeTags.join(','); }
-  if (state.schemaTagFilter.tagMode !== 'ANY') { params['schemaTagMode'] = state.schemaTagFilter.tagMode; }
+  // the scope vocabulary is spelled in exactly one place — see scope-tags.ts
+  for (const [key, value] of Object.entries(encodeScopeTags(state.schemaTagFilter))) {
+    if (value !== null) { params[key] = value; }
+  }
   if (state.columns.length) { params['columns'] = state.columns.join(','); }
   return params;
 }
@@ -178,11 +180,7 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
       tables: csv('tables'),
       tableMode: (params.get('tableMode') as TableMode) || 'ANY'
     },
-    schemaTagFilter: {
-      includeTags: csv('schemaTags'),
-      excludeTags: csv('schemaTagsExclude'),
-      tagMode: (params.get('schemaTagMode') as TagMode) || 'ANY'
-    },
+    schemaTagFilter: decodeScopeTags(params),
     columns: csv('columns')
   };
 }

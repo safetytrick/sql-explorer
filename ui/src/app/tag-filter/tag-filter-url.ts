@@ -1,3 +1,4 @@
+import {decodeScopeTags, encodeScopeTags} from '../scope-tags';
 import {TagMode} from '../query-search.service';
 
 /**
@@ -54,7 +55,7 @@ export function decodeTagFilter(params: ParamReader): TagFilterState {
       : DEFAULT_TAG_MODE;
   return {
     tags: csv(params.get('tags')),
-    excludeTags: csv(params.get('schemaTagsExclude')),
+    excludeTags: decodeScopeTags(params).excludeTags,
     mode
   };
 }
@@ -70,12 +71,11 @@ function csv(raw: string | null): string[] {
 export function encodeTagFilter(state: TagFilterState): Record<string, string | null> {
   return {
     tags: state.tags.length ? state.tags.join(',') : null,
-    // The workbench's own scope parameter, not a mirror of it. One spelling
-    // for one statement — see the note on `excludeTags`. The name undersells
-    // it (it excludes tagged tables too, and reads oddly on a page listing
-    // tables) and is kept anyway: renaming would break workbench links that
-    // already carry it, and one imperfect name beats two good ones.
-    schemaTagsExclude: state.excludeTags.length ? state.excludeTags.join(',') : null,
+    // The exclude half is scope, not a row filter, so it is spelled by the
+    // module that owns that vocabulary rather than here. Writing it locally is
+    // what let this codec and search-url.ts drift (sqlx-04q).
+    schemaTagsExclude: encodeScopeTags(
+      {includeTags: [], excludeTags: state.excludeTags, tagMode: 'ANY'}).schemaTagsExclude,
     // mode governs the include set only, so it is pointless without one
     tagMode: state.tags.length ? state.mode : null
   };
