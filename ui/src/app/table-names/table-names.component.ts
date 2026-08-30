@@ -8,12 +8,15 @@ import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/
 import { TableRollup } from '../api-types';
 import { TypeFilter } from '../schema-tree/tree-filter';
 import { readTypeFilter, TYPE_PARAM } from './type-filter-url';
+import { matchesTypeFilter } from '../schema-tree/tree-filter';
+import {schemaPath, tablePath} from '../tag-path';
+import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
 
 @Component({
     selector: 'app-table-names',
     templateUrl: './table-names.component.html',
     styleUrls: ['./table-names.component.scss'],
-    imports: [TableListComponent, TagFilterStripComponent]
+    imports: [TableListComponent, TagFilterStripComponent, BulkTagBarComponent]
 })
 export class TableNamesComponent implements OnInit {
 
@@ -38,6 +41,17 @@ export class TableNamesComponent implements OnInit {
   typeFilter: TypeFilter = 'all';
   /** `tables` narrowed by the tag strip; the type filter still applies inside. */
   visible: TableRollup[] = [];
+
+  /**
+   * Exactly the rows on screen, which is what a bulk tag has to act on.
+   *
+   * <p>Not the same as {@link visible}: the all/tables/views control narrows
+   * further, and it does so inside the list component. Tagging `visible` while
+   * the user is looking at "views only" would tag base tables they cannot see,
+   * which is the worst kind of bulk-action bug — invisible and plausible
+   * (sqlx-agl).
+   */
+  displayed: TableRollup[] = [];
 
   /**
    * Rows as the strip counts them: own tags plus what the schema lends.
@@ -75,6 +89,7 @@ export class TableNamesComponent implements OnInit {
     this.typeFilter = readTypeFilter(this.route.snapshot.queryParamMap.get(TYPE_PARAM));
     this.route.queryParamMap.subscribe(params => {
       this.typeFilter = readTypeFilter(params.get(TYPE_PARAM));
+      this.applyFilter();
     });
     this.route.params.subscribe(params => {
         this.schema = params['schema'];
@@ -103,10 +118,10 @@ export class TableNamesComponent implements OnInit {
   private loadSchemaTags(tables: TableRollup[]) {
     const names = [...new Set(tables.map(table => table.schema).filter(Boolean))];
     if (!names.length) { return; }
-    this.sqlService.getTagsForPaths(names.map(name => '/schema/' + name)).subscribe({
+    this.sqlService.getTagsForPaths(names.map(schemaPath)).subscribe({
       next: byPath => {
         this.schemaTags = new Map(names.map(name =>
-          [name.toLowerCase(), (byPath['/schema/' + name] ?? []).map(tag => tag.name)]));
+          [name.toLowerCase(), (byPath[schemaPath(name)] ?? []).map(tag => tag.name)]));
         this.applyFilter();
       },
       // a missing tag map narrows exclusion to the row's own tags rather than
@@ -144,6 +159,36 @@ export class TableNamesComponent implements OnInit {
     this.visible = this.tables.filter(table =>
       matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter,
         this.inherited(table)));
+    this.displayed = this.visible.filter(table => matchesTypeFilter(this.typeFilter, table.view));
+  }
+
+  /** The tag path of every row on screen. */
+  get bulkPaths(): string[] {
+    return this.displayed.map(table => tablePath(table.schema, table.name));
+  }
+
+  /**
+   * What the confirmation calls the set. Says "of 308" whenever the view is
+   * narrowed, because the same button does very different things depending on
+   * the filters and the count alone would not show it.
+   */
+  get bulkLabel(): string {
+    const noun = this.displayed.length === 1 ? 'table' : 'tables';
+    return this.displayed.length === this.tables.length
+      ? `all ${this.tables.length} ${noun}`
+      : `${this.displayed.length} of ${this.tables.length} ${noun}`;
+  }
+
+  /** Re-read tags for the rows just written, without re-fetching the page. */
+  onBulkChanged() {
+    const paths = this.displayed.map(table => tablePath(table.schema, table.name));
+    this.sqlService.getTagsForPaths(paths).subscribe(byPath => {
+      this.tables = this.tables.map(table => {
+        const path = tablePath(table.schema, table.name);
+        return paths.includes(path) ? {...table, tags: byPath[path] ?? []} : table;
+      });
+      this.applyFilter();
+    });
   }
 
 

@@ -1,0 +1,42 @@
+.bulk-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// The question, not a warning: this is a reversible action with a bulk undo
+// beside it, and dressing it as danger would teach people to dismiss it.
+.confirm-text {
+  font-size: 11px;
+  color: var(--text2);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.go {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+// A refusal, and the one state that IS a warning — the action did not happen.
+.over-cap {
+  font-size: 11px;
+  color: var(--amber);
+  max-width: 52ch;
+}
+
+.note {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+
+  &.done { color: var(--green); }
+  &.bad { color: var(--red); }
+}

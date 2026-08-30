@@ -203,6 +203,10 @@
         <span class="result-count">{{hits.length}}/{{total}}</span>
         <button type="button" class="graph-results" (click)="graphResults()"
                 title="open the table graph scoped to the queries matching the current filters">graph results ↗</button>
+        <!-- Acts on the whole match set, not the loaded page; the server
+             resolves it from the same filters the count above came from. -->
+        <app-bulk-tag-bar [search]="bulkSearch" [count]="total" [setLabel]="bulkLabel"
+                          (changed)="reloadAfterBulkTag()"></app-bulk-tag-bar>
       </div>
     </div>
 

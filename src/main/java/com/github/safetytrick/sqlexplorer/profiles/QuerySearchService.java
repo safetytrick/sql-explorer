@@ -64,6 +64,46 @@ public class QuerySearchService {
 
     public QuerySearchResult search(QuerySearchRequest request) {
         QuerySearchRequest criteria = request == null ? QuerySearchRequest.UNCONSTRAINED : request;
+        Sweep sweep = sweep(criteria);
+        List<QueryHit> matches = new ArrayList<>(sweep.matches());
+        matches.sort(comparator(criteria.sort()));
+
+        int offset = Math.max(criteria.offset() == null ? 0 : criteria.offset(), 0);
+        int limit = Math.min(criteria.limit() == null || criteria.limit() < 1 ? DEFAULT_LIMIT : criteria.limit(), MAX_LIMIT);
+        int from = Math.min(offset, matches.size());
+        int to = Math.min(from + limit, matches.size());
+        return new QuerySearchResult(matches.size(), List.copyOf(matches.subList(from, to)),
+            new QuerySearchResult.Facets(sweep.tableFacets(), sweep.schemaFacets()));
+    }
+
+    /**
+     * Every profile matching the request's filters and scope — unsorted,
+     * unpaged (limit/offset ignored). Feeds set-oriented consumers like the
+     * graph and bulk tagging; {@link #search} remains the paged/faceted entry
+     * point.
+     *
+     * <p>Both go through {@link #sweep}, and that matters beyond tidiness.
+     * These were two hand-copied loops over the same predicates, which is fine
+     * until the two counts reach a user together: bulk tagging shows "tag 1,847
+     * queries?" from this method while the workbench header shows its total
+     * from {@code search}. Two loops that must stay in sync eventually do not,
+     * and the disagreement would surface as a confirmation the page contradicts
+     * (sqlx-agl).
+     */
+    public List<SqlProfile> matchingProfiles(QuerySearchRequest request) {
+        return sweep(request == null ? QuerySearchRequest.UNCONSTRAINED : request).matches().stream()
+            .map(QueryHit::profile)
+            .toList();
+    }
+
+    /**
+     * One pass over the corpus: what matched, and the facet counts.
+     *
+     * <p>Facets count everything passing the non-scope filters, while the
+     * matches are those that also pass the table/schema scope — which is why
+     * this is one traversal rather than two calls.
+     */
+    private Sweep sweep(QuerySearchRequest criteria) {
         // Fetched once per search rather than per profile: this filters the
         // whole corpus, and a lookup per row would be thousands of round trips
         // to answer one checkbox. Empty unless the filter is actually on.
@@ -78,8 +118,6 @@ public class QuerySearchService {
         // compiled once, not per profile
         Pattern queryPattern = compileQueryPattern(criteria.queryRegex());
 
-        // One pass: everything passing the non-scope filters feeds the facet counts;
-        // those that also pass the table/schema scope form the result set.
         sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
             QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
             if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit, digestsWithExamples)) {
@@ -92,42 +130,11 @@ public class QuerySearchService {
                 matches.add(hit);
             }
         });
-
-        matches.sort(comparator(criteria.sort()));
-
-        int offset = Math.max(criteria.offset() == null ? 0 : criteria.offset(), 0);
-        int limit = Math.min(criteria.limit() == null || criteria.limit() < 1 ? DEFAULT_LIMIT : criteria.limit(), MAX_LIMIT);
-        int from = Math.min(offset, matches.size());
-        int to = Math.min(from + limit, matches.size());
-        return new QuerySearchResult(matches.size(), List.copyOf(matches.subList(from, to)),
-            new QuerySearchResult.Facets(tableFacets, schemaFacets));
+        return new Sweep(matches, tableFacets, schemaFacets);
     }
 
-    /**
-     * Every profile matching the request's filters and scope — unsorted,
-     * unpaged (limit/offset ignored). Feeds set-oriented consumers like the
-     * graph; {@link #search} remains the paged/faceted entry point.
-     */
-    public List<SqlProfile> matchingProfiles(QuerySearchRequest request) {
-        QuerySearchRequest criteria = request == null ? QuerySearchRequest.UNCONSTRAINED : request;
-        Set<String> digestsWithExamples = Boolean.TRUE.equals(criteria.hasExamples())
-            ? queryExampleLookup.digestsWithExamples()
-            : Set.of();
-        Map<String, List<Tag>> tagsByQueryId = queryTagsById();
-        Pattern queryPattern = compileQueryPattern(criteria.queryRegex());
-
-        List<SqlProfile> matches = new ArrayList<>();
-        sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
-            QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
-            if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit, digestsWithExamples)) {
-                return;
-            }
-            if (matchesScope(criteria, scopeKeys(profile))) {
-                matches.add(profile);
-            }
-        });
-        return matches;
-    }
+    private record Sweep(List<QueryHit> matches, Map<String, Integer> tableFacets,
+                         Map<String, Integer> schemaFacets) { }
 
     private List<Tag> tagsForQuery(SqlProfile profile, Map<String, List<Tag>> tags) {
         return profile.getAllIds()

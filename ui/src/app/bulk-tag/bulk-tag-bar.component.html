@@ -1,0 +1,33 @@
+<span class="bulk-bar">
+  @if (pending) {
+    <span class="confirm">
+      @if (pending.overCap !== null) {
+        <span class="over-cap">
+          {{pending.count}} is more than the {{pending.overCap}} one action may touch.
+          Nothing was changed — narrow the filter first.
+        </span>
+        <button type="button" class="btn" (click)="cancel()">close</button>
+      } @else {
+        <span class="confirm-text">
+          {{pending.remove ? 'Remove' : 'Apply'}}
+          <span class="tag-chip" [style.background]="chipStyle(pending.name).background"
+                [style.color]="chipStyle(pending.name).color">{{pending.name}}</span>
+          {{pending.remove ? 'from' : 'to'}} {{setLabel || pending.count}}?
+        </span>
+        <button type="button" class="btn go" (click)="confirm()">
+          {{pending.remove ? 'remove' : 'apply'}}
+        </button>
+        <button type="button" class="btn" (click)="cancel()">cancel</button>
+      }
+    </span>
+  } @else {
+    <span class="scope-label">tag all</span>
+    <app-tag-picker placeholder="+ tag" [disabled]="busy || empty"
+                    (picked)="pick($event, false)"></app-tag-picker>
+    <app-tag-picker placeholder="− tag" [disabled]="busy || empty" [allowCreate]="false"
+                    (picked)="pick($event, true)"></app-tag-picker>
+    @if (busy) { <span class="note">working…</span> }
+    @if (result) { <span class="note done">{{resultText}}</span> }
+    @if (failed) { <span class="note bad">{{failed}}</span> }
+  }
+</span>

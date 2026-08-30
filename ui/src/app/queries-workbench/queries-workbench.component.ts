@@ -20,6 +20,7 @@ import {Highlight} from 'ngx-highlightjs';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
 import {MergeVariant, mergeVariants} from './merge-group';
+import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
 
 const PAGE_SIZE = 50;
 
@@ -37,7 +38,8 @@ type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'tr
   selector: 'app-queries-workbench',
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, Highlight, DateRangeSelectorComponent]
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, Highlight, DateRangeSelectorComponent,
+    BulkTagBarComponent]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
@@ -241,6 +243,32 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   graphResults() {
     this.router.navigate(['/graph'],
       { queryParams: { source: 'search', ...encodeSearchParams(this.currentState()) } });
+  }
+
+  /**
+   * The search a bulk tag would act on: the current filters with paging
+   * stripped, since the action is over the whole match set rather than the
+   * page on screen. The server ignores limit/offset here, but sending the
+   * page's values would make the request read as though it did not.
+   */
+  get bulkSearch(): QuerySearchRequest {
+    return {...this.buildRequest(0), limit: undefined, offset: undefined};
+  }
+
+  /** What the confirmation calls the set, in the same words as the header. */
+  get bulkLabel(): string {
+    return `${this.total} ${this.total === 1 ? 'query' : 'queries'}`;
+  }
+
+  /**
+   * Re-run the search after a bulk write.
+   *
+   * <p>Not a cosmetic refresh: tags are a filter here, so tagging the result
+   * set can change what the result set is. Re-running is the only way the page
+   * can still be describing itself accurately afterwards.
+   */
+  reloadAfterBulkTag() {
+    this.searchTrigger.next();
   }
 
   private runSearch() {

@@ -1,0 +1,83 @@
+// Mirrors the TagField popover deliberately: the same gesture in the header
+// should look like the same gesture in a row. Its own copy rather than a
+// shared class because the two differ where it matters — this one anchors to
+// the button rather than positioning itself against the viewport, since it is
+// never inside a scrolling ledger.
+:host {
+  position: relative;
+  display: inline-block;
+}
+
+.pick-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 90;
+  width: 236px;
+  padding: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+}
+
+.pop-input {
+  width: 100%;
+  padding: 5px 7px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.pop-list {
+  max-height: 190px;
+  overflow-y: auto;
+  margin-top: 5px;
+}
+
+.pop-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 5px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text2);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+
+  &.on,
+  &:hover { background: var(--bg4); }
+}
+
+.create {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+}
+
+.new-name {
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.pop-empty {
+  padding: 6px;
+  font-size: 11px;
+  color: var(--text3);
+}

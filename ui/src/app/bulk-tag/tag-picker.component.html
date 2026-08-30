@@ -1,0 +1,29 @@
+<button type="button" class="btn pick-btn" [disabled]="disabled" (click)="toggle()">
+  {{placeholder}}
+</button>
+
+@if (open) {
+  <div class="pop">
+    <input #input type="text" class="pop-input" [value]="filter" placeholder="filter or new name…"
+           (input)="onFilter($any($event.target).value)" (keydown)="onKey($event)">
+    <div class="pop-list">
+      @for (name of options; track name; let i = $index) {
+        <button type="button" class="pop-option" [class.on]="i === cursor" (click)="pick(name)">
+          <span class="tag-chip" [style.background]="chipStyle(name).background"
+                [style.color]="chipStyle(name).color">{{name}}</span>
+        </button>
+      }
+      @if (newName) {
+        <button type="button" class="pop-option create" [class.on]="cursor === options.length"
+                (click)="pick(newName!)">
+          create <span class="new-name">{{newName}}</span>
+        </button>
+      }
+      @if (!options.length && !newName) {
+        <div class="pop-empty">
+          {{allowCreate ? 'no tags yet — type a name to create one' : 'no tag by that name'}}
+        </div>
+      }
+    </div>
+  </div>
+}

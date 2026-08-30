@@ -9,6 +9,7 @@ import { AnalyzedSqlService } from '../analyzed-sql.service';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
 import { SchemaRollup, TableRollup } from '../api-types';
 import { orderMembers, queryMembers, queryPath, schemaMembers, TagMember, tableMembers } from './tag-members';
+import {schemaPath} from '../tag-path';
 
 const TAG_COLORS = ['#f5a623', '#2dd4bf', '#a78bfa', '#4a9eff', '#f56565', '#3dd68c', '#8b93a8'];
 
@@ -154,7 +155,7 @@ export class TagManagerComponent implements OnInit {
         schemas: this.sqlService.getSchemas(),
         tables: this.sqlService.getTables()
       }).subscribe(loaded => this.targets = [
-        ...loaded.schemas.map((schema: SchemaRollup) => ({label: schema.name, path: '/schema/' + schema.name})),
+        ...loaded.schemas.map((schema: SchemaRollup) => ({label: schema.name, path: schemaPath(schema.name)})),
         ...loaded.tables.map((table: TableRollup) => ({
           label: `${table.schema}.${table.name}`,
           path: `/schema/${table.schema}/table/${table.name}`

@@ -22,12 +22,14 @@ import org.springframework.web.bind.annotation.RestController;
 class TagsResource {
     private final TagRepository tagRepository;
     private final UserService userService;
+    private final BulkTagService bulkTagService;
     private final Pattern tagPattern = Pattern.compile("[\\w-]+");
     private final Pattern pathTypePattern = Pattern.compile("([^/]+)/[^/]+$");
 
-    public TagsResource(TagRepository tagRepository, UserService userService) {
+    public TagsResource(TagRepository tagRepository, UserService userService, BulkTagService bulkTagService) {
         this.tagRepository = tagRepository;
         this.userService = userService;
+        this.bulkTagService = bulkTagService;
     }
 
     @GetMapping("/tags/names")
@@ -89,9 +91,37 @@ class TagsResource {
         return tag;
     }
 
+    /**
+     * Attach one tag to every path given.
+     *
+     * <p>The paths are the set, and the caller enumerates them — right for the
+     * list pages, which have already loaded every row they are showing and so
+     * know exactly what "the current result set" means. The query workbench
+     * filters server-side over thousands of rows and uses
+     * {@code POST /tags/search} instead (sqlx-agl).
+     */
+    @PostMapping("/tags/bulk")
+    public BulkTagService.BulkResult bulkTag(@RequestBody BulkTag request) {
+        return bulkTagService.attach(request.getName(), request.getPaths(), request.getType());
+    }
+
+    /** Remove one tag from every path given, and from nowhere else. */
+    @PostMapping("/tags/bulk/remove")
+    public BulkTagService.BulkResult bulkUntag(@RequestBody BulkTag request) {
+        return bulkTagService.detach(request.getName(), request.getPaths());
+    }
+
     @DeleteMapping("/tag/{id}")
     public void deleteTag(@PathVariable int id) {
         tagRepository.deleteById(id);
+    }
+
+    @Data
+    public static class BulkTag {
+        private String name;
+        private List<String> paths;
+        /** Derived from each path when absent, as a single tag does. */
+        private String type;
     }
 
     @Data

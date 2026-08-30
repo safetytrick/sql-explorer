@@ -5,12 +5,14 @@ import { SchemaListTableComponent } from '../schema-list-table/schema-list-table
 import { TagFilterStripComponent } from '../tag-filter/tag-filter-strip.component';
 import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
 import { SchemaRollup } from '../api-types';
+import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
+import { schemaPath } from '../tag-path';
 
 @Component({
     selector: 'app-schema-list',
     templateUrl: './schema-list.component.html',
     styleUrls: ['./schema-list.component.scss'],
-    imports: [SchemaListTableComponent, TagFilterStripComponent]
+    imports: [SchemaListTableComponent, TagFilterStripComponent, BulkTagBarComponent]
 })
 export class SchemaListComponent implements OnInit {
 
@@ -55,5 +57,29 @@ export class SchemaListComponent implements OnInit {
   private applyFilter() {
     this.visible = this.schemas.filter(schema =>
       matchesTagFilter((schema.tags ?? []).map(tag => tag.name), this.filter));
+  }
+
+  /** The tag path of every schema on screen — nothing narrows further here. */
+  get bulkPaths(): string[] {
+    return this.visible.map(schema => schemaPath(schema.name));
+  }
+
+  get bulkLabel(): string {
+    const noun = this.visible.length === 1 ? 'schema' : 'schemas';
+    return this.visible.length === this.schemas.length
+      ? `all ${this.schemas.length} ${noun}`
+      : `${this.visible.length} of ${this.schemas.length} ${noun}`;
+  }
+
+  /** Re-read tags for the rows just written, without re-fetching the page. */
+  onBulkChanged() {
+    const paths = this.bulkPaths;
+    this.sqlService.getTagsForPaths(paths).subscribe(byPath => {
+      this.schemas = this.schemas.map(schema => {
+        const path = schemaPath(schema.name);
+        return paths.includes(path) ? {...schema, tags: byPath[path] ?? []} : schema;
+      });
+      this.applyFilter();
+    });
   }
 }

@@ -38,6 +38,16 @@ interface TagRepository extends CrudRepository<Tag,Integer> {
 
     void deleteAllByName(String name);
 
+    /**
+     * Detach one tag from exactly these paths.
+     *
+     * <p>Deliberately not {@link #deleteAllByName}, which would strip the tag
+     * from the whole corpus. Bulk untag is the most destructive thing in the
+     * tagging API and its scope is the set the user was shown — nothing else
+     * carrying the same name may be touched (sqlx-agl).
+     */
+    void deleteAllByNameAndPathIn(String name, List<String> paths);
+
     interface TagUsage {
         String getName();
         String getType();
