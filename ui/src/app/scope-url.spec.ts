@@ -130,6 +130,38 @@ describe('carryScope, across real navigations', () => {
     expect(url()).toBe('/tables');
   });
 
+
+  /**
+   * The exact hop Michael reported: /queries to a table lens, which is how you
+   * follow a query to the table it touches (`app-column-link` and the SQL
+   * view's table links both route here).
+   */
+  it('carries the scope from the workbench to a table lens', async () => {
+    await router.navigateByUrl('/queries?schemaTagsExclude=system');
+
+    await router.navigateByUrl('/table/app/orders');
+
+    expect(url()).toContain('schemaTagsExclude=system');
+  });
+
+  /** The column drill-down is a redirect, so the guard cannot run on it. */
+  it('carries the scope through the column redirect too', async () => {
+    await router.navigateByUrl('/queries?schemaTagsExclude=system');
+
+    await router.navigateByUrl('/table/app/orders/total');
+
+    expect(url()).toContain('schemaTagsExclude=system');
+    expect(url()).toContain('columns=app.orders.total');
+  });
+
+  it('carries the scope onto a single query', async () => {
+    await router.navigateByUrl('/queries?schemaTagsExclude=system');
+
+    await router.navigateByUrl('/analyzed-sql/abc123');
+
+    expect(url()).toContain('schemaTagsExclude=system');
+  });
+
   /** Returning a UrlTree restarts navigation; if it did not terminate, this hangs. */
   it('settles rather than redirecting forever', async () => {
     await router.navigateByUrl('/queries?schemaTagsExclude=system');
