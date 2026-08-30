@@ -65,27 +65,30 @@ docker compose up explorer-shared-tags   # Optional: load table/SQL tags
 
 UI is accessible at `http://localhost:4200`. Backend runs on port 8080.
 
-#### Serving the UI from a local build
+#### Running from local builds
 
-`docker compose build explorer-ui` intermittently fails to pull `node:22`
-through Docker Desktop's proxy (`sqlx-dec`). Only the *builder* stage needs it
-— the nginx stage just copies a directory — so you can skip the pull:
+`docker compose build` intermittently fails to reach the registry through
+Docker Desktop's proxy (`sqlx-dec`) — on `node:22` for the UI, and on the
+backend before it can even pull the dockerfile frontend. Both Dockerfiles are
+two-stage and only their *builder* stages pull anything; the runtime stages
+just place one artifact. So build on the host and mount over that path:
 
 ```bash
-cd ui && npm run build && cd ..
+./gradlew assemble && (cd ui && npm run build)
 ```
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.ui-local.yml up -d explorer-ui
+docker compose -f docker-compose.yml -f docker-compose.local-build.yml up -d
 ```
 
-After that every `npm run build` refreshes the running app on a hard reload,
-with no Docker step at all.
+After that each rebuild refreshes what is served: the UI on a hard reload, the
+backend on `docker compose ... restart sql-explorer`.
 
 Deliberately **not** named `docker-compose.override.yml`: that name applies
 automatically, so it would shadow a genuine rebuild without saying so, and on a
-fresh clone — where `ui/build` does not exist — Docker would create an empty
-directory and nginx would serve 404s with no clue why.
+fresh clone — where `build/libs` and `ui/build` do not exist — Docker would
+create empty directories, nginx would serve 404s and the JVM would find no jar,
+with nothing to explain why.
 
 The failure this guards against is not the slow rebuild. It is that a stale
 container makes the running app lag the code *silently*: a reported bug once

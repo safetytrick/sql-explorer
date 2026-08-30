@@ -1,0 +1,39 @@
+# Run the UI and the backend from local builds instead of the images' baked
+# artifacts, skipping the Docker build entirely.
+#
+#   ./gradlew assemble && (cd ui && npm run build)
+#   docker compose -f docker-compose.yml -f docker-compose.local-build.yml up -d
+#
+# After that each rebuild refreshes what is served: the UI on a hard reload,
+# the backend on `docker compose ... restart sql-explorer`.
+#
+# WHY THIS EXISTS. The daemon repeatedly fails to reach the registry through
+# Docker Desktop's proxy (sqlx-dec — intermittent, so it reads as fixed right
+# up until you need a rebuild). It has failed on `node:22` for the UI and, on
+# the backend, before even pulling the dockerfile frontend. Both Dockerfiles
+# are two-stage and only their BUILDER stages need to pull anything; the
+# runtime stages just place one artifact. So building on the host and mounting
+# over that path avoids the pull while keeping each image's runtime — nginx and
+# its /api proxy, the JVM entrypoint and its non-root user.
+#
+# The real cost of that bug was never the slow rebuild. It was that the running
+# stack silently lagged the code: a reported UI bug turned out to be a guard
+# that was not in the bundle being served. This is the cheap way to stay
+# current.
+#
+# WHY IT IS NOT `docker-compose.override.yml`. That name applies automatically.
+# It would shadow a genuine rebuild without saying so, and on a fresh clone —
+# where build/libs and ui/build do not exist — Docker would create empty
+# directories, nginx would serve 404s and the JVM would find no jar, with
+# nothing to explain why. Opting in by naming the file is worth the extra flag.
+services:
+  sql-explorer:
+    volumes:
+      - ./build/libs/sql-explorer.jar:/app/sql-explorer.jar:ro
+      - ./src/main/docker-local/config:/etc/sql-explorer/config
+      - ./src/main/docker-local/ssl:/etc/sql-explorer/ssl
+      - ./src/main/docker-local/parquet:/parquet
+
+  explorer-ui:
+    volumes:
+      - ./ui/build/sql-explorer-ui/browser:/app/sql-explorer-ui:ro
