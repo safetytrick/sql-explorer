@@ -112,9 +112,9 @@ dependencies {
     implementation 'org.apache.hadoop:hadoop-common:3.5.0'
     implementation 'org.apache.hadoop:hadoop-mapreduce-client-core:3.5.0'
 
-    implementation 'systems.manifold:manifold-ext-rt:2026.1.8'
-    annotationProcessor 'systems.manifold:manifold-ext:2026.1.8'
-    testAnnotationProcessor 'systems.manifold:manifold-ext:2026.1.8'
+    implementation 'systems.manifold:manifold-ext-rt:2026.1.11'
+    annotationProcessor 'systems.manifold:manifold-ext:2026.1.11'
+    testAnnotationProcessor 'systems.manifold:manifold-ext:2026.1.11'
 }
 
 bootJar {
