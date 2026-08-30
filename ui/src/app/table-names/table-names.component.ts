@@ -173,19 +173,24 @@ export class TableNamesComponent implements OnInit {
    * the filters and the count alone would not show it.
    */
   get bulkLabel(): string {
-    const noun = this.displayed.length === 1 ? 'table' : 'tables';
+    // The noun agrees with the number it follows, which is the total in the
+    // "N of M" form and the count in the "all N" form.
+    const noun = (count: number) => count === 1 ? 'table' : 'tables';
     return this.displayed.length === this.tables.length
-      ? `all ${this.tables.length} ${noun}`
-      : `${this.displayed.length} of ${this.tables.length} ${noun}`;
+      ? `all ${this.tables.length} ${noun(this.tables.length)}`
+      : `${this.displayed.length} of ${this.tables.length} ${noun(this.tables.length)}`;
   }
 
   /** Re-read tags for the rows just written, without re-fetching the page. */
   onBulkChanged() {
-    const paths = this.displayed.map(table => tablePath(table.schema, table.name));
+    const paths = this.bulkPaths;
+    // A Set, not `paths.includes`: this runs inside a map over every loaded
+    // table, and the written set is usually most of them.
+    const written = new Set(paths);
     this.sqlService.getTagsForPaths(paths).subscribe(byPath => {
       this.tables = this.tables.map(table => {
         const path = tablePath(table.schema, table.name);
-        return paths.includes(path) ? {...table, tags: byPath[path] ?? []} : table;
+        return written.has(path) ? {...table, tags: byPath[path] ?? []} : table;
       });
       this.applyFilter();
     });

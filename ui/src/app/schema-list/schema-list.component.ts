@@ -65,7 +65,8 @@ export class SchemaListComponent implements OnInit {
   }
 
   get bulkLabel(): string {
-    const noun = this.visible.length === 1 ? 'schema' : 'schemas';
+    // The noun agrees with the number it follows: the total in both forms.
+    const noun = this.schemas.length === 1 ? 'schema' : 'schemas';
     return this.visible.length === this.schemas.length
       ? `all ${this.schemas.length} ${noun}`
       : `${this.visible.length} of ${this.schemas.length} ${noun}`;
@@ -74,10 +75,11 @@ export class SchemaListComponent implements OnInit {
   /** Re-read tags for the rows just written, without re-fetching the page. */
   onBulkChanged() {
     const paths = this.bulkPaths;
+    const written = new Set(paths);
     this.sqlService.getTagsForPaths(paths).subscribe(byPath => {
       this.schemas = this.schemas.map(schema => {
         const path = schemaPath(schema.name);
-        return paths.includes(path) ? {...schema, tags: byPath[path] ?? []} : schema;
+        return written.has(path) ? {...schema, tags: byPath[path] ?? []} : schema;
       });
       this.applyFilter();
     });
