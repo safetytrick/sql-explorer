@@ -10,8 +10,12 @@ the one to settle before anything else:
 > real first task. Settle this before anything else — it decides whether the
 > item is a linking feature or an exporter.
 
-Settled, against the live production Grafana. The answer is **neither**, and it
-changes the design rather than choosing between the two options offered.
+Settled, against the live production Grafana: **the metrics do not exist
+today**, and MySQL observability here does not go through Prometheus at all.
+They can be created — Percona's `mysqld_exporter` is the standard way — but
+there is also a route that needs no exporter, and the two differ in what they
+can support. So the question resolves into a choice this spike frames rather
+than makes.
 
 ---
 
@@ -54,37 +58,62 @@ prior art in the sense of an idea, not code to extend; it is a dead link with a
 
 ---
 
-## The reframing: this is not an exporter
+## Two routes, and what separates them
 
-The bead's two options were "link to an exporter someone else runs" or "build
-the exporter". Both assume the metrics must become Prometheus series. They must
-not.
+The bead's options were "link to an exporter someone else runs" or "build the
+exporter". Neither is quite it.
 
-**Per-digest series would be a cardinality disaster.** The regression corpus
-alone holds 4,243 digests. Multiply by instances, and by the several
-`performance_schema` digests a normalized profile covers, and this is tens of
-thousands of series whose labels are opaque 64-character hashes. That is the
-textbook Prometheus anti-pattern, and no retention policy makes it pleasant.
+**The exporter exists and is standard — Michael, 2026-08-30.** Percona's
+`mysqld_exporter` fork (the one PMM ships) has a `perf_schema`
+events-statements collector that emits per-digest series labelled by schema and
+digest, sourced from the same `events_statements_summary_by_digest` this tool
+reads. So this is not bespoke work: it is deploying a standard component that
+nobody here runs yet. Check the exact flag names and defaults against the
+version actually deployed rather than trusting this document; the collector is
+opt-in and carries a **top-N limit** (a few hundred by default) for the reason
+set out next.
 
-**And it is unnecessary, because Grafana can already read the source
-directly.** `sys.x$statement_analysis` and
+**Cardinality is still the thing that shapes the design.** The regression
+corpus alone holds 4,243 digests. Multiply by instances, and by the several
+`performance_schema` digests a normalized profile covers, and unbounded
+per-digest series are tens of thousands of them, labelled by opaque
+64-character hashes. That is why the collector caps to top-N rather than
+exporting everything — and the cap has a direct consequence for this
+integration: **a link to a digest outside the top-N lands on an empty panel**,
+and an empty panel has to be legible as "not exported" rather than as "no
+traffic". sql-explorer sees the whole digest table; the exporter, by design,
+does not.
+
+**There is also a route that needs no exporter at all, because Grafana can
+already read the source directly.** `sys.x$statement_analysis` and
 `performance_schema.events_statements_summary_by_digest` live on the very
 servers Grafana already has 16 datasources for. A "SQL analysis" dashboard can
 query them live, filtered by digest, from the same tables sql-explorer reads —
 no exporter, no new series, no cardinality problem, and no second copy of the
 truth to drift.
 
-So the integration is a **linking feature after all**, but the thing it links
-to is a dashboard over a MySQL datasource, not over Prometheus. That is the
-single decision this spike exists to make, and everything below follows from it.
+So there are **two viable targets**, and the choice between them is the one
+decision this spike leaves open rather than settles:
 
-One consequence worth stating plainly: **`events_statements_summary_by_digest`
-is cumulative-since-restart, not a time series.** A dashboard over it shows
-totals and averages as they stand, and `$__timeFilter` has nothing to bind to
-except `FIRST_SEEN` / `LAST_SEEN`. If genuine per-digest *trend* is wanted, that
-needs periodic sampling into a table — which is exactly the shape `my2.status`
-already is, and the natural place to add it. Trend is a second, larger piece of
-work; do not let it block the linking feature, which is useful without it.
+- **A dashboard over the MySQL datasources that already exist.** No new
+  infrastructure, complete digest coverage, live. But
+  `events_statements_summary_by_digest` is cumulative-since-restart, so it
+  gives totals rather than trend.
+- **PMM / Percona's exporter into Prometheus.** Real time series and real
+  trend, at the cost of deploying and running it, and bounded to top-N digests.
+
+They are not exclusive — the first is a way to have the linking feature working
+before any exporter exists, and the link template shape below is the same
+either way. Note also that if PMM is deployed, its **Query Analytics (QAN)**
+gives a per-digest history view of its own, so the more useful link may be into
+QAN rather than into a dashboard this repo ships.
+
+One consequence worth stating plainly on the direct-SQL route:
+**`events_statements_summary_by_digest` is cumulative-since-restart, not a time
+series.** A dashboard over it shows totals and averages as they stand, and
+`$__timeFilter` has nothing to bind to except `FIRST_SEEN` / `LAST_SEEN`. Trend
+is exactly what the exporter route buys, and it is why that route is worth the
+deployment rather than merely an alternative.
 
 ---
 
@@ -121,17 +150,17 @@ Using `PathService`'s existing path shapes as the key is what lets a template be
 attached to *a kind of thing* rather than to a page, and it is the same
 vocabulary tags already speak.
 
-### The multi-digest case, corrected
+### The multi-digest case
 
 The bead says the regex case "maps onto a Prometheus label matcher rather than a
-value: `digest=~"a|b|c"`". With the Prometheus premise gone, so does that. It
-maps onto a **SQL predicate**:
+value: `digest=~"a|b|c"`", and on the exporter route that is exactly right. On
+the direct-SQL route it maps onto a **SQL predicate** instead:
 
 ```sql
 WHERE DIGEST IN ($digest)        -- Grafana expands a multi-value variable
 ```
 
-This is the more important half of the feature, not a refinement. A sql-explorer
+Either way this is the more important half of the feature, not a refinement. A sql-explorer
 profile is a *normalized* pattern that covers several MySQL digests —
 `SqlGraphService:139` uses `perfDigests.getFirst()` and silently discards the
 rest, so the existing link shows one arbitrary member of the set. The useful

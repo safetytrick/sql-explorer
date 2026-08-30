@@ -13,7 +13,7 @@ reasoning is in the commit that closed it.
 | [history-rewrite.md](history-rewrite.md) | Scrub older git history (working-tree scrub already done)                                               | S + coordination  |
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
 | [query-examples.md](query-examples.md)   | Capture example queries with their parameters (`sqlx-hlu`) — design done, scope question open           | S–M / M–L         |
-| [grafana-integration.md](grafana-integration.md) | Links from sql-explorer to Grafana (`sqlx-cec`) — spike done; **not** an exporter, see the reframing | M                 |
+| [grafana-integration.md](grafana-integration.md) | Links from sql-explorer to Grafana (`sqlx-cec`) — spike done, **deferred**; two routes framed, choice open | M                 |
 
 [normalization-versioning.md](normalization-versioning.md) is **partly done**
 (`sqlx-2oq`, 2026-08-28): `QueryNormalizer.VERSION` exists, digests are
