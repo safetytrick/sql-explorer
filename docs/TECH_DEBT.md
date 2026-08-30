@@ -103,7 +103,11 @@ has what was here. If something below turns out to be already done, delete it.
   Retiring `TableGraph*` (frontend §) is what would settle this.
 - **MED — Hardcoded infra URLs in a domain service.** `graph/SqlGraphService.java:32-35` compiles in
   `http://localhost:4200/...`, a `grafana.local` dashboard URL, and a `rundeck.local` job URL with an
-  embedded UUID + inline SQL (carries its own `// todo refactor`). Belongs in config.
+  embedded UUID + inline SQL (carries its own `// todo refactor`). Belongs in config. Verified
+  2026-08-30 against the production Grafana: dashboard uid `dvUfZxpZk` does not exist and neither
+  does the host, so this is a dead link, not merely a misplaced one. See
+  [plans/grafana-integration.md](plans/grafana-integration.md) — and note it sits on v1 above, so the
+  deletion may take it rather than a refactor.
 - **MED-HIGH — Triplicated "group-by-digest + merge" logic** (`SqlEvidenceInputService.java:343-374`,
   `AnalyzedSqlRepository.java:67-91`, `CompositeSqlRepository.java:103-110`), and profiles are merged
   **three times** along the pipeline (import → repository ctor → per-read). DRY violation and the root
