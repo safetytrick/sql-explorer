@@ -36,6 +36,23 @@ interface LayoutNode {
 
 interface Edge { from: LayoutNode; to: LayoutNode; label: string; warn?: boolean; execs?: number; }
 
+/** The area one schema's tables occupy, and the colour it is drawn in. */
+interface SchemaRegion {
+  schema: string;
+  color: string;
+  /** Where the layout pulls this schema's nodes; fixed before settling. */
+  cx: number;
+  cy: number;
+  /** Bounds measured from the settled nodes, so the box fits what is in it. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Padding between a region's outermost node and its drawn edge. */
+const REGION_PAD = 46;
+
 @Component({
   selector: 'app-graph-lens',
   templateUrl: './graph-lens.component.html',
@@ -77,7 +94,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private subscriptions = new Subscription();
   /** Canvas colors resolved from the active theme's CSS variables. */
   private palette = { blue: '#4a9eff', amber: '#f5a623', purple: '#b48cff', text: '#e8eaf0', text2: '#8b93a8',
-    bg: '#0f1117', bg2: '#161b27', bg3: '#1e2535', border2: 'rgba(255,255,255,0.14)' };
+    bg: '#0f1117', bg2: '#161b27', bg3: '#1e2535', border2: 'rgba(255,255,255,0.14)',
+    green: '#3dd68c', teal: '#2dd4bf', red: '#f56565' };
+
+  /** Settled bounds and colour per schema, drawn behind the nodes. */
+  private regions: SchemaRegion[] = [];
 
   constructor(private schemaLensService: SchemaLensService,
               private environmentService: EnvironmentService,
@@ -132,6 +153,16 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       this.loadGraph();
     }
     // schema mode without a schema: loadSchemas() picks a default and loads
+  }
+
+  /** The schemas that got a region, in drawn order. */
+  get regionSchemas(): string[] {
+    return this.regions.map(region => region.schema);
+  }
+
+  /** Region boxes, for asserting they contain their nodes and stay apart. */
+  get regionsForTest(): readonly SchemaRegion[] {
+    return this.regions;
   }
 
   /** Drawn node count — the observable result of scoping, for tests. */
@@ -353,10 +384,145 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // ── layout ──
 
+  /**
+   * Where each schema sits, before any node moves.
+   *
+   * <p>Regions are placed first and nodes settle <em>within</em> them, rather
+   * than regions being inferred from a settled cloud. A background needs a
+   * defined area to be drawn in, and deriving one from wherever the force
+   * layout happened to leave things is guesswork — two schemas that drifted
+   * together would produce overlapping boxes with no way to separate them.
+   *
+   * <p>Centres go on a circle sized by the largest region, so the spacing is
+   * set by the schema with the most tables rather than by the average.
+   */
+  private placeRegions(schemas: string[], counts: Map<string, number>) {
+    // How far a region reaches from its centre once its nodes have settled.
+    const extent = (name: string) =>
+      this.regionRadius(counts.get(name) ?? 1) * 0.7 + NW / 2 + REGION_PAD;
+    // Centres sit on a circle, so the gap between neighbours is the chord
+    // 2·R·sin(π/n). Solve that for R against the widest pair rather than
+    // guessing a multiplier: with four populated schemas a guess put two of
+    // them on top of each other, which makes the colours meaningless.
+    const widestPair = schemas.length < 2 ? 0
+      : Math.max(...schemas.map((name, index) =>
+          extent(name) + extent(schemas[(index + 1) % schemas.length])));
+    const ring = schemas.length < 2 ? 0
+      : Math.max(320, widestPair / (2 * Math.sin(Math.PI / schemas.length)) * 1.15);
+    this.regions = schemas.map((schema, index) => {
+      const angle = index / schemas.length * Math.PI * 2 - Math.PI / 2;
+      return {
+        schema,
+        color: this.regionColor(index),
+        cx: 400 + ring * Math.cos(angle),
+        cy: 300 + ring * Math.sin(angle),
+        x: 0, y: 0, w: 0, h: 0
+      };
+    });
+  }
+
+  /** Grows with node count, not linearly — area is what has to hold them. */
+  private regionRadius(count: number): number {
+    return 120 + Math.sqrt(count) * 62;
+  }
+
+  /**
+   * A schema's colour, by position in the sorted schema list.
+   *
+   * <p>Sorted so a schema keeps its colour between loads: assigning by
+   * arrival order would recolour the whole graph whenever the query changed,
+   * and a colour that moves carries no information.
+   *
+   * <p>Hues come from the theme tokens, so all four themes stay coherent.
+   * More schemas than hues cycles rather than inventing colours — with the
+   * region labelled, a repeated hue is a weaker signal, not a wrong one.
+   */
+  private regionColor(index: number): string {
+    const hues = [this.palette.blue, this.palette.teal, this.palette.purple,
+      this.palette.amber, this.palette.green, this.palette.red];
+    return hues[index % hues.length];
+  }
+
+  private assignRegionColors() {
+    this.regions.forEach((region, index) => region.color = this.regionColor(index));
+  }
+
+  /** Bounds of each region's settled nodes. Empty regions are dropped. */
+  private measureRegions() {
+    for (const region of this.regions) {
+      const members = this.nodes.filter(node => node.schema === region.schema);
+      if (!members.length) { region.w = 0; continue; }
+      // node.x/y is the box's top-left — drawNode roundRects straight from it,
+      // and edgePorts adds NW/2 to reach the centre
+      const left = Math.min(...members.map(node => node.x));
+      const right = Math.max(...members.map(node => node.x + NW));
+      const top = Math.min(...members.map(node => node.y));
+      const bottom = Math.max(...members.map(node => node.y + NH));
+      region.x = left - REGION_PAD;
+      region.y = top - REGION_PAD;
+      region.w = (right - left) + REGION_PAD * 2;
+      region.h = (bottom - top) + REGION_PAD * 2;
+    }
+    this.regions = this.regions.filter(region => region.w > 0);
+  }
+
+  /**
+   * Push overlapping regions apart, moving their nodes with them.
+   *
+   * <p>{@link placeRegions} spaces the centres from a predicted extent, and a
+   * prediction is all it can be: the settled radius of a cloud of mutually
+   * repelling nodes is not something a formula gets right — a 24-table schema
+   * overflowed its predicted box and sat on its neighbour. Measuring the boxes
+   * and separating them afterwards needs no prediction at all.
+   *
+   * <p>Separation is along whichever axis needs the smaller push, so regions
+   * slide the short way rather than being flung across the canvas, and both
+   * sides move half so no schema is privileged. Bounded iterations because
+   * this runs once per load and a pathological graph must not hang the tab.
+   */
+  private separateRegions() {
+    const members = new Map(this.regions.map(region =>
+      [region.schema, this.nodes.filter(node => node.schema === region.schema)]));
+    const shift = (region: SchemaRegion, dx: number, dy: number) => {
+      region.x += dx; region.y += dy; region.cx += dx; region.cy += dy;
+      for (const node of members.get(region.schema) ?? []) { node.x += dx; node.y += dy; }
+    };
+    const gap = 24;
+    for (let pass = 0; pass < 60; pass++) {
+      let moved = false;
+      for (let i = 0; i < this.regions.length; i++) {
+        for (let j = i + 1; j < this.regions.length; j++) {
+          const a = this.regions[i];
+          const b = this.regions[j];
+          const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) + gap;
+          const overlapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) + gap;
+          if (overlapX <= 0 || overlapY <= 0) { continue; }
+          moved = true;
+          if (overlapX < overlapY) {
+            const push = (overlapX / 2) * (a.x < b.x ? -1 : 1);
+            shift(a, push, 0); shift(b, -push, 0);
+          } else {
+            const push = (overlapY / 2) * (a.y < b.y ? -1 : 1);
+            shift(a, 0, push); shift(b, 0, -push);
+          }
+        }
+      }
+      if (!moved) { return; }
+    }
+  }
+
   private buildLayout(graph: GraphV2) {
     const byId = new Map<string, LayoutNode>();
-    const radius = Math.max(200, graph.nodes.length * 26);
+    // sorted, so a schema's colour and position do not move between loads
+    const schemas = [...new Set(graph.nodes.map(node => node.schema))].sort();
+    const counts = new Map<string, number>(
+      schemas.map(name => [name, graph.nodes.filter(node => node.schema === name).length]));
+    this.placeRegions(schemas, counts);
+    const homeOf = new Map(this.regions.map(region => [region.schema, region]));
+
     this.nodes = graph.nodes.map((node, index) => {
+      const home = homeOf.get(node.schema);
+      const spread = this.regionRadius(counts.get(node.schema) ?? 1) * 0.7;
       const angle = index / Math.max(1, graph.nodes.length) * Math.PI * 2;
       const layoutNode: LayoutNode = {
         id: `${node.schema}.${node.table}`,
@@ -367,8 +533,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         warn: node.warn,
         selfJoin: node.selfJoin,
         view: node.view,
-        x: 400 + radius * Math.cos(angle),
-        y: 300 + radius * Math.sin(angle)
+        // seeded inside its own region rather than on one global circle
+        x: (home?.cx ?? 400) + spread * Math.cos(angle),
+        y: (home?.cy ?? 300) + spread * Math.sin(angle)
       };
       byId.set(layoutNode.id.toLowerCase(), layoutNode);
       return layoutNode;
@@ -384,10 +551,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable), label: 'over' }))
       .filter(edge => edge.from && edge.to) as Edge[];
     this.runForceLayout();
+    this.measureRegions();
+    this.separateRegions();
   }
 
   private runForceLayout() {
     const springs = [...this.fkEdges, ...this.coEdges, ...this.viewEdges];
+    const homes = new Map(this.regions.map(region => [region.schema, region]));
     for (let iteration = 0; iteration < 220; iteration++) {
       const cooling = 1 - iteration / 220;
       // pairwise repulsion
@@ -405,19 +575,36 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
           b.x -= dx * force; b.y -= dy * force;
         }
       }
-      // springs
+      // Springs. A join that crosses schemas pulls at a fraction of the
+      // strength, because the grouping is now the primary structure and a
+      // handful of cross-schema foreign keys would otherwise haul two regions
+      // into each other — which is exactly what a dense four-schema graph did.
+      // The connection is not lost: it is still drawn, and now visibly as a
+      // line leaving one area for another, which is the point.
       for (const edge of springs) {
         const dx = edge.to.x - edge.from.x;
         const dy = edge.to.y - edge.from.y;
         const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-        const force = (dist - 230) * 0.02 * cooling;
+        const pull = edge.from.schema === edge.to.schema ? 0.02 : 0.002;
+        const force = (dist - 230) * pull * cooling;
         edge.from.x += dx / dist * force; edge.from.y += dy / dist * force;
         edge.to.x -= dx / dist * force; edge.to.y -= dy / dist * force;
       }
-      // gravity toward center
+      // Gravity toward the node's own schema, not the canvas centre. This is
+      // what keeps a schema together: repulsion and cross-schema springs would
+      // otherwise blend everything into one cloud, and a region measured from
+      // that cloud is a box around nothing in particular.
+      //
+      // Stronger than the global pull it replaces (0.004) because it now has
+      // to win against cross-schema springs. Not so strong that it freezes the
+      // layout — related tables still draw together inside a region, and two
+      // schemas that join heavily still lean toward each other.
       for (const node of this.nodes) {
-        node.x += (400 - node.x) * 0.004 * cooling;
-        node.y += (300 - node.y) * 0.004 * cooling;
+        const home = homes.get(node.schema);
+        const cx = home ? home.cx : 400;
+        const cy = home ? home.cy : 300;
+        node.x += (cx - node.x) * 0.022 * cooling;
+        node.y += (cy - node.y) * 0.022 * cooling;
       }
     }
   }
@@ -437,10 +624,18 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.nodes.length) { this.draw(); return; }
     const xs = this.nodes.map(node => node.x);
     const ys = this.nodes.map(node => node.y);
-    const minX = Math.min(...xs) - 40;
-    const maxX = Math.max(...xs) + NW + 40;
-    const minY = Math.min(...ys) - 40;
-    const maxY = Math.max(...ys) + NH + 40;
+    let minX = Math.min(...xs) - 40;
+    let maxX = Math.max(...xs) + NW + 40;
+    let minY = Math.min(...ys) - 40;
+    let maxY = Math.max(...ys) + NH + 40;
+    // Regions extend past their nodes by REGION_PAD, and their labels sit
+    // above the top edge — fitting to nodes alone clips both.
+    for (const region of this.regions) {
+      minX = Math.min(minX, region.x - 10);
+      maxX = Math.max(maxX, region.x + region.w + 10);
+      minY = Math.min(minY, region.y - 24);
+      maxY = Math.max(maxY, region.y + region.h + 10);
+    }
     this.scale = Math.min(canvas.width / (maxX - minX), canvas.height / (maxY - minY), 1.4) * 0.92;
     this.tx = (canvas.width - (maxX - minX) * this.scale) / 2 - minX * this.scale;
     this.ty = (canvas.height - (maxY - minY) * this.scale) / 2 - minY * this.scale;
@@ -573,7 +768,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       bg2: read('--bg2', '#161b27'),
       bg3: read('--bg3', '#1e2535'),
       border2: read('--border2', 'rgba(255,255,255,0.14)'),
+      green: read('--green', '#3dd68c'),
+      teal: read('--teal', '#2dd4bf'),
+      red: read('--red', '#f56565'),
     };
+    this.assignRegionColors();
   }
 
   /** #rrggbb → rgba(r,g,b,a); non-hex colors are returned unchanged. */
@@ -589,6 +788,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const canvas = this.graphCanvas.nativeElement;
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Regions first, so every edge and node draws over them. A cross-schema
+    // join is the most valuable thing this graph shows and used to look
+    // exactly like a local one; drawn this way it is visibly a line leaving
+    // one area for another.
+    this.drawRegions(ctx);
 
     if (this.layers.co) {
       for (const edge of this.coEdges) {
@@ -690,6 +895,51 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.fill();
     }
     ctx.restore();
+  }
+
+  /**
+   * One soft, labelled area per schema, behind the graph.
+   *
+   * <p>The fill is deliberately near-invisible. Node borders already carry
+   * selection (blue) and mismatch (amber), and a region that competed with
+   * them would trade a signal people rely on for one they do not yet. The
+   * label is what actually names the area; the colour only has to make the
+   * boundary findable.
+   */
+  private drawRegions(ctx: CanvasRenderingContext2D) {
+    if (this.regions.length < 2) { return; }   // one schema needs no boundary
+    for (const region of this.regions) {
+      const x = this.wx(region.x);
+      const y = this.wy(region.y);
+      const w = region.w * this.scale;
+      const h = region.h * this.scale;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 14 * this.scale);
+      ctx.fillStyle = this.alpha(region.color, 0.07);
+      ctx.fill();
+      ctx.strokeStyle = this.alpha(region.color, 0.34);
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6 * this.scale, 5 * this.scale]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = `600 ${Math.round(12 * this.scale)}px ${this.monoFont()}`;
+      ctx.fillStyle = this.alpha(region.color, 0.85);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(region.schema, x + 14 * this.scale, y - 5 * this.scale);
+      ctx.restore();
+    }
+  }
+
+  /**
+   * The app's mono stack, so region labels match the rest of the UI. Read from
+   * the same token the stylesheets use rather than restated, since a font
+   * hard-coded here would silently diverge from every other label.
+   */
+  private monoFont(): string {
+    return getComputedStyle(document.documentElement).getPropertyValue('--mono').trim()
+      || 'monospace';
   }
 
   private drawNode(ctx: CanvasRenderingContext2D, node: LayoutNode) {

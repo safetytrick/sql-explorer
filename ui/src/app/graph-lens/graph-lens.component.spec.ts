@@ -144,6 +144,114 @@ describe('GraphLensComponent — scope legibility', () => {
   });
 
 
+
+  // ── per-schema regions (sqlx-70t) ──
+
+  describe('schema regions', () => {
+
+    /** `{app: 3}` → three tables in `app`. Counts matter: regions grow with them. */
+    function graphAcross(sizes: Record<string, number>, joinAcross = false) {
+      const nodes = Object.entries(sizes).flatMap(([schema, count]) =>
+        Array.from({length: count}, (_, index) => ({
+          schema, table: `t${index}`, columnCount: 2, queryCount: 1,
+          warn: false, selfJoin: false, view: false
+        })));
+      // a cross-schema join is the case that pulls regions together, so it is
+      // the one worth asserting they survive
+      const names = Object.keys(sizes);
+      const fkEdges = joinAcross && names.length > 1
+        ? names.slice(1).map(schema => ({
+            fromSchema: names[0], fromTable: 't0', toSchema: schema, toTable: 't0',
+            label: 'fk', mismatch: false
+          }))
+        : [];
+      TestBed.inject(HttpTestingController).match(req => req.url.includes('graph/v2'))
+        .forEach(req => req.flush({nodes, fkEdges, coQueryEdges: [], viewEdges: []}));
+      fixture.detectChanges();
+    }
+
+    it('makes one region per schema', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      graphAcross({app: 2, del: 2, search: 2});
+
+      expect(component.regionSchemas).toEqual(['app', 'del', 'search']);
+    });
+
+    /**
+     * Sorted, not arrival-ordered. A colour that moves between loads carries
+     * no information, and arrival order changes whenever the query does.
+     */
+    it('orders schemas so a colour is stable across loads', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      graphAcross({search: 1, app: 1, del: 1});
+
+      expect(component.regionSchemas).toEqual(['app', 'del', 'search']);
+    });
+
+    it('gives every region a box that contains its own nodes', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      graphAcross({app: 4, del: 3});
+
+      for (const region of component.regionsForTest) {
+        expect(region.w).toBeGreaterThan(0);
+        expect(region.h).toBeGreaterThan(0);
+      }
+    });
+
+    /**
+     * The load-bearing one. Regions that overlap make the colours meaningless,
+     * and overlap is what the layout has to earn: several tables per schema
+     * grow the boxes, and a cross-schema join actively pulls them together.
+     */
+    it('keeps regions apart, even densely populated and joined across', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      graphAcross({app: 6, del: 5, search: 4, app_main: 3}, true);
+
+      const boxes = component.regionsForTest;
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i], b = boxes[j];
+          const apart = a.x + a.w <= b.x || b.x + b.w <= a.x
+            || a.y + a.h <= b.y || b.y + b.h <= a.y;
+          expect(apart).withContext(`${a.schema} overlaps ${b.schema}`).toBeTrue();
+        }
+      }
+    });
+
+
+    /** Well past anything the corpus produces, to find the breaking point. */
+    it('holds with many schemas of very different sizes', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      graphAcross({a: 24, b: 2, c: 11, d: 3, e: 18, f: 1, g: 7, h: 9}, true);
+
+      const boxes = component.regionsForTest;
+      expect(boxes.length).toBe(8);
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i], b = boxes[j];
+          const apart = a.x + a.w <= b.x || b.x + b.w <= a.x
+            || a.y + a.h <= b.y || b.y + b.h <= a.y;
+          expect(apart).withContext(`${a.schema} overlaps ${b.schema}`).toBeTrue();
+        }
+      }
+    });
+
+    it('takes its colours from the theme rather than hard-coding them', () => {
+      navigateTo({schema: 'app'}, {});
+      loadSchemaTree();
+      graphAcross({app: 2, del: 2});
+
+      const colors = component.regionsForTest.map(region => region.color);
+      expect(new Set(colors).size).toBe(2);
+      colors.forEach(color => expect(color).toBeTruthy());
+    });
+  });
+
   // ── the travelling scope applies here too (sqlx-uxo) ──
 
   describe('the working scope', () => {
