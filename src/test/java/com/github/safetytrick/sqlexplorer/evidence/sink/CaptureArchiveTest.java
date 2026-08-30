@@ -170,6 +170,26 @@ class CaptureArchiveTest {
     }
 
     /**
+     * A deployment that ran the single-file layout has its whole pre-migration
+     * history in the un-stamped file. It is not a capture by the naming rule,
+     * so nothing lists it — but the archive must still account for it rather
+     * than drop the earliest window without saying so.
+     */
+    @Test
+    void theLegacySingleFileIsAccountedForRatherThanIgnored() throws IOException {
+        Path configured = directory.resolve("profiles.parquet");
+        java.nio.file.Files.createFile(configured);
+        writeCapture(configured, capture("primary", "2026-08-01T00:00:00Z",
+            "2026-07-01T00:00:00", "2026-08-01T00:00:00"));
+
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(configured.toString());
+
+        assertThat(new CaptureArchive(config).scan().unorderable())
+            .containsExactly("profiles.parquet");
+    }
+
+    /**
      * End to end over real files: the footers the sink writes are the footers
      * this reads, and the archive keeps every capture while the repository
      * still resolves to only the newest.

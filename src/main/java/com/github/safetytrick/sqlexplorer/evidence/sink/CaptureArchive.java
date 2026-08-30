@@ -91,9 +91,23 @@ public class CaptureArchive {
         public static final ArchiveReport EMPTY = new ArchiveReport(List.of(), List.of());
     }
 
-    /** Read every capture footer on disk and report what the sequence shows. */
+    /**
+     * Read every capture footer on disk and report what the sequence shows.
+     *
+     * <p>The un-stamped configured name is included when it exists. It is not
+     * a capture by the naming rule — {@link ParquetSqlRepository#captures}
+     * will not list it — but on a deployment that ran the single-file layout
+     * it holds the whole pre-migration history, and dropping it silently would
+     * discard the only record of the earliest window. Written before
+     * provenance existed it carries none, so it lands in {@code unorderable},
+     * which is the honest place for it rather than an omission.
+     */
     public ArchiveReport scan() {
         Map<Path, CaptureContext> read = new LinkedHashMap<>();
+        Path legacy = Path.of(config.getFilename());
+        if (legacy.toFile().isFile()) {
+            read.put(legacy, provenanceOf(legacy));
+        }
         for (Path capture : ParquetSqlRepository.captures(config.getFilename())) {
             read.put(capture, provenanceOf(capture));
         }
