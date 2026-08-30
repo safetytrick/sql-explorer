@@ -29,6 +29,7 @@ import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.fileloader.AbstractTsvSqlSource;
+import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
 import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSink;
 import com.github.safetytrick.sqlexplorer.evidence.source.MeteredSql;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
@@ -627,10 +628,58 @@ public class SqlEvidenceInputService {
          */
         void writeParquet(ParquetSink sink) {
             synchronized (lock) {
+                // Declared before the first write: parquet seals file metadata
+                // into the writer when it is created, so a file that does not
+                // say where it came from can never be told afterwards.
+                sink.capturing(captureContext());
                 for (SqlProfile sqlProfile : parquetRows) {
                     sink.write(sqlProfile);
                 }
             }
+        }
+
+        /**
+         * What this file records, for the reader that opens it later.
+         *
+         * <p>The observed window is taken from the rows themselves rather than
+         * from the clock. Performance Schema accumulates until the server
+         * restarts, so consecutive samples of one source normally overlap;
+         * when a later sample's earliest {@code firstSeen} falls after an
+         * earlier one's latest {@code lastSeen}, the digest table was reset in
+         * between and that interval went unrecorded. Stating the window per
+         * file is what makes that detectable (sqlx-sy5).
+         *
+         * <p>{@code server} is deliberately empty. The capture-time values of
+         * `performance_schema_digests_size` and `max_digest_length` belong
+         * here, but nothing reads them yet — and an empty map means "unknown",
+         * where filling it in later from a live connection would attribute one
+         * server's settings to another's data.
+         */
+        private CaptureContext captureContext() {
+            LocalDateTime from = null;
+            LocalDateTime to = null;
+            for (SqlProfile profile : parquetRows) {
+                RuntimeMetrics metrics = profile.getRuntimeMetrics();
+                if (metrics == null) {
+                    continue;
+                }
+                from = earliest(from, metrics.getFirstSeen());
+                to = latest(to, metrics.getLastSeen());
+            }
+            return new CaptureContext(
+                CaptureContext.Origin.PARQUET_COPY,
+                source == null ? null : source.getSourceRef(),
+                source == null ? null : source.getCreatedOn(),
+                parquetRows.size(),
+                from, to, Map.of());
+        }
+
+        private static LocalDateTime earliest(LocalDateTime current, LocalDateTime seen) {
+            return seen == null ? current : (current == null || seen.isBefore(current) ? seen : current);
+        }
+
+        private static LocalDateTime latest(LocalDateTime current, LocalDateTime seen) {
+            return seen == null ? current : (current == null || seen.isAfter(current) ? seen : current);
         }
 
         /** The indexed profiles in index order, for the ordering-invariant test. */

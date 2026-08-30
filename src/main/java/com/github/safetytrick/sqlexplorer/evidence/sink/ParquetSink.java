@@ -30,19 +30,52 @@ public class ParquetSink {
     private static final Logger log = LoggerFactory.getLogger(ParquetSink.class);
 
     private final ParquetConfig config;
-    private final ParquetWriter<Object> objectWriter;
 
-    public ParquetSink(ParquetConfig config) throws IOException {
+    /**
+     * Built on first write, not in the constructor.
+     *
+     * <p>Parquet's file-level metadata is fixed when the writer is created,
+     * and the capture context is not known until the import has run — this is
+     * a {@code @Service}, constructed at startup. Deferring construction is
+     * what lets a file state where it came from (sqlx-sy5).
+     */
+    private ParquetWriter<Object> objectWriter;
+
+    /** Set before the first write, or the file carries no provenance. */
+    private CaptureContext capture;
+
+    public ParquetSink(ParquetConfig config) {
         this.config = config;
-        AvroParquetWriter.Builder<Object> parquetWriter =
-            AvroParquetWriter.builder(new LocalOutputFile(Path.of(config.getFilename())));
-        objectWriter = parquetWriter.withSchema(SqlProfile.getClassSchema())
-            .withDictionaryEncoding(true)
-            .withConf(
-                new Configuration(false)
-            )
-            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
-            .build();
+    }
+
+    /**
+     * Declare what the next file records. Must be called before the first
+     * {@link #write}: the metadata is sealed into the writer when it is
+     * created, and once a row has been written it is too late.
+     */
+    public synchronized void capturing(CaptureContext context) {
+        if (objectWriter != null) {
+            log.warn("capture context set after writing began; it will not reach the file");
+            return;
+        }
+        this.capture = context;
+    }
+
+    private ParquetWriter<Object> writer() throws IOException {
+        if (objectWriter == null) {
+            AvroParquetWriter.Builder<Object> parquetWriter =
+                AvroParquetWriter.builder(new LocalOutputFile(Path.of(config.getFilename())));
+            objectWriter = parquetWriter.withSchema(SqlProfile.getClassSchema())
+                .withDictionaryEncoding(true)
+                .withConf(new Configuration(false))
+                .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
+                // absent rather than empty when nothing is known: a reader must
+                // be able to tell "no provenance recorded" from "recorded as
+                // nothing", which is the distinction sqlx-sy5 turns on
+                .withExtraMetaData(capture == null ? Map.of() : capture.asMetadata())
+                .build();
+        }
+        return objectWriter;
     }
 
     /**
@@ -54,7 +87,9 @@ public class ParquetSink {
      */
     @PreDestroy
     public synchronized void close() throws IOException {
-        objectWriter.close();
+        if (objectWriter != null) {
+            objectWriter.close();
+        }
     }
 
     /**
@@ -89,7 +124,7 @@ public class ParquetSink {
 
     public synchronized void write(SqlProfile sqlProfile) {
         try {
-            objectWriter.write(sqlProfile);
+            writer().write(sqlProfile);
         } catch (IOException|RuntimeException e) {
             log.info("failed to write individual sql: {}", sqlProfile);
         }
