@@ -1,6 +1,17 @@
 import {SchemaTree} from '../schema-lens.service';
 
-/** The MySQL-owned schemas. Segregated by default or they drown the answer. */
+/**
+ * The MySQL-owned schemas — a LABEL, not a filter.
+ *
+ * <p>This used to decide what the page showed, which did by name what a
+ * `system` tag does by tag: two mechanisms for one intent, and the hardcoded
+ * one could not be adjusted per deployment, could not cover a schema a
+ * deployment considers operational when MySQL does not, and could not be shared
+ * as a link. What is in view now comes from the scope (sqlx-g7z).
+ *
+ * <p>It stays for the badge, because "this one belongs to MySQL" is useful
+ * information about a row whether or not the scope excluded it.
+ */
 export const SYSTEM_SCHEMAS = new Set(
   ['sys', 'performance_schema', 'mysql', 'information_schema', 'percona']);
 

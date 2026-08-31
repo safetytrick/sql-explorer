@@ -4,14 +4,29 @@ import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DatePipe} from '@angular/common';
 import {Title} from '@angular/platform-browser';
 import {SchemaLensService} from '../schema-lens.service';
+import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {CoverageService, findings, sharedWindow, worstVerdict} from '../coverage.service';
 import {EnvironmentService} from '../environment.service';
 import {SEEN_FORMAT} from '../seen-format';
 import type {CoverageVerdict, ObservedWindow} from '../api-types';
 import {SchemaUsage, totals, unqueriedBySchema} from './unqueried-tables';
+import {matchesScopeTags, NO_SCOPE_TAGS, ScopeTags, decodeScopeTags, isUnscoped} from '../scope-tags';
+import {schemaPath} from '../tag-path';
 
-/** Include MySQL's own schemas. Off by default; they are 295 of the 382. */
-const SYSTEM_PARAM = 'var-system';
+/**
+ * Also show the schemas the scope excluded. Off by default.
+ *
+ * <p>Replaces `var-system`, and the rename is the point: this used to reveal a
+ * compiled-in list of MySQL's own schema names, which did by name what a
+ * `system` tag does by tag — two mechanisms for one intent, and the hardcoded
+ * one could not be adjusted per deployment or shared as a link. What is out of
+ * scope now comes from the scope; this only decides whether you can see past it
+ * (sqlx-g7z).
+ *
+ * <p>`var-` because it is presentation this page owns, which is what keeps it
+ * from colliding with the cross-cutting scope parameters it sits beside.
+ */
+const EXCLUDED_PARAM = 'var-excluded';
 
 /**
  * Tables the schema describes that no analyzed query touches.
@@ -33,9 +48,28 @@ const SYSTEM_PARAM = 'var-system';
 export class UnqueriedTablesComponent implements OnInit, OnDestroy {
 
   all: SchemaUsage[] = [];
+
+  /**
+   * The schemas the scope leaves, which is what every count and note on this
+   * page describes.
+   *
+   * <p>A field rebuilt in {@link applyScope}, not a getter: change detection
+   * would otherwise re-filter and re-total the whole page on every pass. The
+   * sibling list pages carry the same note.
+   */
+  visible: SchemaUsage[] = [];
+  counts = totals([]);
   loading = true;
   failed = false;
-  includeSystem = false;
+
+  /** Whether the page is showing past its scope. */
+  showExcluded = false;
+
+  /** How many schemas the scope is currently keeping out. */
+  excludedCount = 0;
+
+  /** True when no scope is set at all, so nothing is being subtracted. */
+  unscoped = true;
 
   /**
    * What the capture can actually support, in place of the hedge this page
@@ -48,8 +82,19 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
   protected readonly SEEN_FORMAT = SEEN_FORMAT;
 
   private readonly subscriptions = new Subscription();
+  private scope: ScopeTags = NO_SCOPE_TAGS;
+
+  /**
+   * Schema name (lower-cased) → its tag names.
+   *
+   * <p>The scope is expressed in tags, and `/schema-tree` does not carry them,
+   * so they are fetched alongside — one batched call for the whole page, the
+   * same way `/tables` does it.
+   */
+  private schemaTags = new Map<string, string[]>();
 
   constructor(private schemaLensService: SchemaLensService,
+              private sqlService: AnalyzedSqlService,
               private coverageService: CoverageService,
               private environmentService: EnvironmentService,
               private route: ActivatedRoute,
@@ -59,8 +104,14 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    // Tracked rather than read once: the scope is written by controls on other
+    // pages and carried here by the router, so a snapshot read would leave this
+    // page showing one thing while its own URL said another (sqlx-uxo).
     this.subscriptions.add(this.route.queryParamMap.subscribe(params => {
-      this.includeSystem = params.get(SYSTEM_PARAM) === '1';
+      this.showExcluded = params.get(EXCLUDED_PARAM) === '1';
+      this.scope = decodeScopeTags(params);
+      this.unscoped = isUnscoped(this.scope);
+      this.applyScope();
     }));
     // Both halves belong to the selected environment, so both are re-read when
     // it changes. Switching without this would leave one environment's tables
@@ -76,7 +127,12 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.failed = false;
     this.schemaLensService.getSchemaTree().subscribe({
-      next: tree => { this.all = unqueriedBySchema(tree); this.loading = false; },
+      next: tree => {
+        this.all = unqueriedBySchema(tree);
+        this.loading = false;
+        this.applyScope();
+        this.loadSchemaTags();
+      },
       // an empty list would read as "nothing is unqueried", which is a strong
       // and probably wrong claim to make out of a failed request
       error: () => { this.failed = true; this.loading = false; }
@@ -94,22 +150,43 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
     });
   }
 
-  get rows(): SchemaUsage[] {
-    return this.includeSystem ? this.all : this.all.filter(usage => !usage.system);
+  /** The tags of every schema on the page, batched into one call. */
+  private loadSchemaTags() {
+    const names = this.all.map(usage => usage.schema).filter(Boolean);
+    if (!names.length) { return; }
+    this.sqlService.getTagsForPaths(names.map(schemaPath)).subscribe({
+      next: byPath => {
+        this.schemaTags = new Map(names.map(name =>
+          [name.toLowerCase(), (byPath[schemaPath(name)] ?? []).map(tag => tag.name)]));
+        this.applyScope();
+      },
+      // Without the tags nothing is excluded, so the page shows everything —
+      // which is the safe direction: too much, rather than a scope it only
+      // appears to have applied.
+      error: () => { /* keep the empty map */ }
+    });
   }
 
-  get counts() {
-    return totals(this.rows);
+  private tagsOf(usage: SchemaUsage): string[] {
+    return this.schemaTags.get(usage.schema.toLowerCase()) ?? [];
   }
 
-  get systemSchemaCount(): number {
-    return this.all.filter(usage => usage.system).length;
+  private applyScope() {
+    const inScope = this.all.filter(usage => matchesScopeTags(this.tagsOf(usage), this.scope));
+    this.excludedCount = this.all.length - inScope.length;
+    this.visible = this.showExcluded ? this.all : inScope;
+    this.counts = totals(this.visible);
   }
 
-  setIncludeSystem(include: boolean) {
+  /**
+   * Written with `replaceUrl` so looking past the scope and back does not stack
+   * history entries — the back button should leave the page, not walk through
+   * view states.
+   */
+  setShowExcluded(show: boolean) {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: {[SYSTEM_PARAM]: include ? '1' : null},
+      queryParams: {[EXCLUDED_PARAM]: show ? '1' : null},
       queryParamsHandling: 'merge',
       replaceUrl: true
     });

@@ -75,3 +75,41 @@ export function sameScopeTags(a: ScopeTags, b: ScopeTags): boolean {
 export function isUnscoped(scope: ScopeTags): boolean {
   return !scope.includeTags.length && !scope.excludeTags.length;
 }
+
+/**
+ * The tag algebra, once.
+ *
+ * <p>Exclusion first and unconditionally: a tag that puts an object outside the
+ * working set does so whatever else it carries. Then inclusion, which is a
+ * no-op when nothing is included.
+ *
+ * <p>Lives here rather than beside either caller because two questions share
+ * it. This module asks "is this object in the working set"; `tag-filter-url`
+ * asks "of the rows this page lists, which carry this tag". Different
+ * questions, different URL vocabulary — but one set algebra, and writing it
+ * twice is how the two spellings of `schemaTagsExclude` diverged in the first
+ * place (sqlx-04q).
+ *
+ * @param inheritedTags tags of whatever contains the row — a table's schema.
+ *                      Exclusion reaches a row through its container because it
+ *                      is a statement about objects; inclusion is about the row
+ *                      itself and ignores them.
+ */
+export function matchesTags(rowTags: string[], includeTags: string[], excludeTags: string[],
+                            mode: TagMode, inheritedTags: string[] = []): boolean {
+  if (excludeTags.some(tag => rowTags.includes(tag) || inheritedTags.includes(tag))) {
+    return false;
+  }
+  if (!includeTags.length) {
+    return true;
+  }
+  return mode === 'ALL'
+    ? includeTags.every(tag => rowTags.includes(tag))
+    : includeTags.some(tag => rowTags.includes(tag));
+}
+
+/** Whether an object carrying these tags is inside the scope. */
+export function matchesScopeTags(rowTags: string[], scope: ScopeTags,
+                                 inheritedTags: string[] = []): boolean {
+  return matchesTags(rowTags, scope.includeTags, scope.excludeTags, scope.tagMode, inheritedTags);
+}

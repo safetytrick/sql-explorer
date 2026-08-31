@@ -1,4 +1,4 @@
-import {decodeScopeTags, encodeScopeTags} from '../scope-tags';
+import {decodeScopeTags, encodeScopeTags, matchesTags} from '../scope-tags';
 import {TagMode} from '../query-search.service';
 
 /**
@@ -106,15 +106,7 @@ export function encodeTagFilter(state: TagFilterState): Record<string, string | 
  */
 export function matchesTagFilter(rowTags: string[], state: TagFilterState,
                                  inheritedTags: string[] = []): boolean {
-  if (state.excludeTags.some(tag => rowTags.includes(tag) || inheritedTags.includes(tag))) {
-    return false;
-  }
-  if (!state.tags.length) {
-    return true;
-  }
-  return state.mode === 'ALL'
-    ? state.tags.every(tag => rowTags.includes(tag))
-    : state.tags.some(tag => rowTags.includes(tag));
+  return matchesTags(rowTags, state.tags, state.excludeTags, state.mode, inheritedTags);
 }
 
 /**

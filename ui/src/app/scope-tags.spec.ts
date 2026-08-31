@@ -1,4 +1,4 @@
-import {decodeScopeTags, encodeScopeTags, isUnscoped, NO_SCOPE_TAGS, sameScopeTags} from './scope-tags';
+import {decodeScopeTags, encodeScopeTags, isUnscoped, NO_SCOPE_TAGS, sameScopeTags, matchesScopeTags} from './scope-tags';
 
 function reader(params: Record<string, string>) {
   return {get: (key: string) => (key in params ? params[key] : null)};
@@ -78,5 +78,38 @@ describe('scope tags', () => {
   it('knows when there is nothing to resolve', () => {
     expect(isUnscoped(NO_SCOPE_TAGS)).toBeTrue();
     expect(isUnscoped({includeTags: [], excludeTags: ['system'], tagMode: 'ANY'})).toBeFalse();
+  });
+});
+
+describe('matchesScopeTags', () => {
+
+  const scope = (includeTags: string[], excludeTags: string[], tagMode: 'ALL' | 'ANY' = 'ANY') =>
+    ({includeTags, excludeTags, tagMode});
+
+  it('lets everything through when no scope is set', () => {
+    expect(matchesScopeTags([], NO_SCOPE_TAGS)).toBeTrue();
+    expect(matchesScopeTags(['anything'], NO_SCOPE_TAGS)).toBeTrue();
+  });
+
+  // Exclusion is a statement about the object, so it wins whatever else the
+  // object carries — including a tag the scope asked to include.
+  it('excludes unconditionally, even against an include', () => {
+    expect(matchesScopeTags(['system', 'billing'], scope(['billing'], ['system']))).toBeFalse();
+  });
+
+  it('honours ANY and ALL for inclusion', () => {
+    expect(matchesScopeTags(['a'], scope(['a', 'b'], [], 'ANY'))).toBeTrue();
+    expect(matchesScopeTags(['a'], scope(['a', 'b'], [], 'ALL'))).toBeFalse();
+    expect(matchesScopeTags(['a', 'b'], scope(['a', 'b'], [], 'ALL'))).toBeTrue();
+  });
+
+  /**
+   * Exclusion reaches a row through what contains it — a table through its
+   * schema — because it is a statement about objects. Inclusion is about the
+   * row itself and ignores them.
+   */
+  it('excludes on a container tag but does not include on one', () => {
+    expect(matchesScopeTags([], scope([], ['system']), ['system'])).toBeFalse();
+    expect(matchesScopeTags([], scope(['billing'], []), ['billing'])).toBeFalse();
   });
 });
