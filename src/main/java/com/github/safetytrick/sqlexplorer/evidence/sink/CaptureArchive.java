@@ -94,6 +94,11 @@ public class CaptureArchive {
      *                     captures on either side are still compared directly
      *                     with each other and any reset between them still
      *                     shows. What is lost is that sample, not the answer
+     * @param runs        each source's captures divided into uninterrupted
+     *                     stretches. More than one run means the archive holds
+     *                     periods the loaded corpus does not cover — the
+     *                     captures either side of a reset describe disjoint
+     *                     intervals
      * @param inProgress  the capture currently being written, if there is one.
      *                    Held apart from {@code unorderable} deliberately: a
      *                    running sql-explorer <em>always</em> has one, since
@@ -102,10 +107,17 @@ public class CaptureArchive {
      *                    uncertain during normal operation. Its rows are the
      *                    loaded corpus, so it hides no window
      */
-    public record ArchiveReport(List<CaptureGap> gaps, List<String> unorderable,
+    public record ArchiveReport(List<CaptureGap> gaps, List<SourceRuns> runs, List<String> unorderable,
                                 List<String> failed, String inProgress) {
         public static final ArchiveReport EMPTY =
-            new ArchiveReport(List.of(), List.of(), List.of(), null);
+            new ArchiveReport(List.of(), List.of(), List.of(), List.of(), null);
+
+        /** The runs recorded for one source, or empty when it has no captures. */
+        public List<CaptureRun> runsOf(String sourceRef) {
+            return runs.stream()
+                .filter(entry -> entry.sourceRef().equals(sourceRef))
+                .findFirst().map(SourceRuns::runs).orElse(List.of());
+        }
     }
 
     /**
@@ -214,31 +226,104 @@ public class CaptureArchive {
         }
 
         List<CaptureGap> gaps = new ArrayList<>();
-        bySource.forEach((sourceRef, samples) -> gaps.addAll(gapsIn(sourceRef, samples)));
-        return new ArchiveReport(List.copyOf(gaps), List.copyOf(unorderable), List.copyOf(failed), inProgress);
+        List<SourceRuns> runs = new ArrayList<>();
+        bySource.forEach((sourceRef, samples) -> {
+            Segments segments = segmentsIn(sourceRef, samples);
+            gaps.addAll(segments.gaps());
+            runs.add(new SourceRuns(sourceRef, segments.runs()));
+        });
+        return new ArchiveReport(List.copyOf(gaps), List.copyOf(runs),
+            List.copyOf(unorderable), List.copyOf(failed), inProgress);
     }
 
-    private static List<CaptureGap> gapsIn(String sourceRef, Collection<CaptureContext> samples) {
+    /**
+     * One uninterrupted stretch of a source's captures — no reset inside it.
+     *
+     * <p>Within a run, consecutive captures overlap: Performance Schema
+     * accumulates, so the newest contains what the others saw and only it is
+     * ever read. Across runs they do not overlap, which is the whole point —
+     * the intervals are disjoint, so the earlier ones describe periods the
+     * corpus no longer covers.
+     *
+     * @param captures how many captures fell in this run
+     */
+    public record CaptureRun(LocalDateTime observedFrom, LocalDateTime observedTo, int captures) {
+    }
+
+    /** A source's captures divided into runs, newest last. */
+    public record SourceRuns(String sourceRef, List<CaptureRun> runs) {
+    }
+
+    private record Segments(List<CaptureGap> gaps, List<CaptureRun> runs) {
+    }
+
+    /**
+     * One traversal, two complementary answers: where the source was reset, and
+     * the stretches between those resets.
+     *
+     * <p>THE RESET SIGNAL IS {@code observedFrom} ADVANCING. The table lost its
+     * history, so the earliest statement it knows about is newer than it was.
+     * Measured on the live corpus, a source with no reset holds it EXACTLY
+     * stable — 2026-05-04T15:49:26.747645 across four captures spanning seven
+     * hours — so equality is the ordinary case and a strict advance is the
+     * event. Uptime going backwards proves a restart but is not necessary:
+     * performance_schema can be truncated without one. And capacity is not
+     * eviction — at {@code digests_size} the server stops taking NEW digests
+     * rather than dropping old ones, so a full table does not move
+     * {@code observedFrom} (sqlx-65m).
+     *
+     * <p>GAPS ARE A SUBSET OF RESETS, not the same thing. A reset leaves an
+     * unobserved interval only when traffic did not resume immediately —
+     * {@code later.observedFrom} past {@code earlier.observedTo}. A reset with
+     * traffic resuming at once is a real boundary with no gap to report, and
+     * conflating the two would either miss boundaries or invent intervals.
+     *
+     * <p>A capture stating no window cannot decide anything, so it is treated
+     * as a continuation rather than a boundary: inventing a reset from an empty
+     * capture would split a run that was never interrupted.
+     */
+    private static Segments segmentsIn(String sourceRef, Collection<CaptureContext> samples) {
         List<CaptureContext> ordered = samples.stream()
             .sorted(Comparator.comparing(CaptureContext::capturedAt))
             .toList();
 
         List<CaptureGap> gaps = new ArrayList<>();
+        List<CaptureRun> runs = new ArrayList<>();
+        int runStart = 0;
+
         for (int i = 1; i < ordered.size(); i++) {
             CaptureContext earlier = ordered.get(i - 1);
             CaptureContext later = ordered.get(i);
-            // An empty capture states no window, so this pair proves nothing.
-            // Reaching past it to compare i-1 with i+1 would find more gaps at
-            // the cost of inventing them; silence is the honest answer.
-            if (earlier.observedTo() == null || later.observedFrom() == null) {
+            if (earlier.observedFrom() == null || later.observedFrom() == null) {
                 continue;
             }
-            if (later.observedFrom().isAfter(earlier.observedTo())) {
+            if (!later.observedFrom().isAfter(earlier.observedFrom())) {
+                continue;
+            }
+            runs.add(runOf(ordered, runStart, i));
+            runStart = i;
+            // ...and only some resets leave a window nothing observed.
+            if (earlier.observedTo() != null && later.observedFrom().isAfter(earlier.observedTo())) {
                 gaps.add(new CaptureGap(sourceRef,
                     earlier.capturedAt(), later.capturedAt(),
                     earlier.observedTo(), later.observedFrom()));
             }
         }
-        return gaps;
+        if (!ordered.isEmpty()) {
+            runs.add(runOf(ordered, runStart, ordered.size()));
+        }
+        return new Segments(gaps, runs);
+    }
+
+    /**
+     * The window of captures {@code [from, to)}, taken from the newest of them.
+     *
+     * <p>Not the union: within a run the newest capture already has the widest
+     * window, because the counters accumulated into it. Reading the others
+     * would add nothing and risk describing a period twice.
+     */
+    private static CaptureRun runOf(List<CaptureContext> ordered, int from, int to) {
+        CaptureContext newest = ordered.get(to - 1);
+        return new CaptureRun(newest.observedFrom(), newest.observedTo(), to - from);
     }
 }

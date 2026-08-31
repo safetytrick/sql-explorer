@@ -56,7 +56,9 @@ public final class Coverage {
         /** How many hops from {@code sys.x$statement_analysis} is this? */
         PROVENANCE,
         /** Was the digest table reset between two captures of this source? */
-        SAMPLING_GAPS
+        SAMPLING_GAPS,
+        /** Does the archive hold periods the loaded corpus does not cover? */
+        ARCHIVED_HISTORY
     }
 
     /**

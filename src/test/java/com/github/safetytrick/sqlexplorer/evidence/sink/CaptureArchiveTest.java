@@ -243,6 +243,104 @@ class CaptureArchiveTest {
         assertThat(report.gaps()).isEmpty();
     }
 
+    // ── runs ──
+
+    /**
+     * The ordinary case, and the one measured on the live corpus: with no
+     * reset a source holds observedFrom EXACTLY stable, so equality is not a
+     * boundary. Getting this wrong would split every source into as many runs
+     * as it has captures and report resets that never happened.
+     */
+    @Test
+    void capturesWithAStableStartAreOneRun() {
+        CaptureArchive.ArchiveReport report = report(
+            capture("primary", "2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00"),
+            capture("primary", "2026-08-20T00:00:00Z", "2026-07-01T00:00:00", "2026-08-20T00:00:00"),
+            capture("primary", "2026-08-30T00:00:00Z", "2026-07-01T00:00:00", "2026-08-30T00:00:00"));
+
+        assertThat(report.runsOf("primary")).singleElement().satisfies(run -> {
+            assertThat(run.captures()).isEqualTo(3);
+            // the newest capture's window, which already contains the others'
+            assertThat(run.observedTo()).isEqualTo(LocalDateTime.parse("2026-08-30T00:00:00"));
+        });
+    }
+
+    /** A reset starts a new run: the table lost its history. */
+    @Test
+    void aResetStartsANewRun() {
+        CaptureArchive.ArchiveReport report = report(
+            capture("primary", "2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00"),
+            capture("primary", "2026-08-20T00:00:00Z", "2026-08-10T00:00:00", "2026-08-20T00:00:00"));
+
+        assertThat(report.runsOf("primary")).hasSize(2);
+        assertThat(report.runsOf("primary").getFirst().observedFrom())
+            .isEqualTo(LocalDateTime.parse("2026-07-01T00:00:00"));
+        assertThat(report.runsOf("primary").getLast().observedFrom())
+            .isEqualTo(LocalDateTime.parse("2026-08-10T00:00:00"));
+    }
+
+    /**
+     * GAPS ARE A SUBSET OF RESETS. Traffic that resumed immediately leaves a
+     * real boundary — the counters restarted — with no unobserved interval to
+     * report. Treating the two as the same thing would either miss this
+     * boundary or invent a gap that did not happen.
+     */
+    @Test
+    void aResetWithTrafficResumingAtOnceIsABoundaryWithNoGap() {
+        CaptureArchive.ArchiveReport report = report(
+            capture("primary", "2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00"),
+            // started again BEFORE the earlier capture's last statement
+            capture("primary", "2026-08-20T00:00:00Z", "2026-07-15T00:00:00", "2026-08-20T00:00:00"));
+
+        assertThat(report.runsOf("primary")).as("the counters restarted").hasSize(2);
+        assertThat(report.gaps()).as("but nothing went unobserved").isEmpty();
+    }
+
+    /** A reset that also left an unobserved interval reports both. */
+    @Test
+    void aResetThatLostTimeReportsAGapToo() {
+        CaptureArchive.ArchiveReport report = report(
+            capture("primary", "2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00"),
+            capture("primary", "2026-08-20T00:00:00Z", "2026-08-10T00:00:00", "2026-08-20T00:00:00"));
+
+        assertThat(report.runsOf("primary")).hasSize(2);
+        assertThat(report.gaps()).hasSize(1);
+    }
+
+    /**
+     * An empty capture decides nothing, so it continues the run rather than
+     * splitting it — inventing a reset from a capture with no window would
+     * break a stretch that was never interrupted.
+     */
+    @Test
+    void aCaptureWithNoWindowDoesNotSplitARun() {
+        CaptureArchive.ArchiveReport report = report(
+            capture("primary", "2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00"),
+            capture("primary", "2026-08-10T00:00:00Z", null, null),
+            capture("primary", "2026-08-20T00:00:00Z", "2026-07-01T00:00:00", "2026-08-20T00:00:00"));
+
+        assertThat(report.runsOf("primary")).hasSize(1);
+    }
+
+    @Test
+    void oneCaptureIsOneRun() {
+        assertThat(report(capture("primary", "2026-08-01T00:00:00Z",
+            "2026-07-01T00:00:00", "2026-08-01T00:00:00")).runsOf("primary")).hasSize(1);
+    }
+
+    /** Runs are per source, like everything else the archive reports. */
+    @Test
+    void runsAreCountedPerSource() {
+        CaptureArchive.ArchiveReport report = report(
+            capture("primary", "2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00"),
+            capture("primary", "2026-08-20T00:00:00Z", "2026-08-10T00:00:00", "2026-08-20T00:00:00"),
+            capture("replica", "2026-08-20T00:00:00Z", "2026-07-01T00:00:00", "2026-08-20T00:00:00"));
+
+        assertThat(report.runsOf("primary")).hasSize(2);
+        assertThat(report.runsOf("replica")).hasSize(1);
+        assertThat(report.runsOf("never-seen")).isEmpty();
+    }
+
     /**
      * End to end over real files: the footers the sink writes are the footers
      * this reads, and the archive keeps every capture while the repository

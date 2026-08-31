@@ -82,6 +82,7 @@ public class CoverageService {
         findings.add(observationWindow(window, server));
         findings.add(provenance(capture, source));
         findings.add(samplingGaps(sourceRef, gaps));
+        findings.add(archivedHistory(sourceRef, window, gaps));
 
         return new SourceCoverage(sourceRef,
             capture == null || capture.origin() == null ? null : capture.origin().name(),
@@ -333,6 +334,55 @@ public class CoverageService {
             "No gap was found among the captures that could be ordered, but " + unplaceable + " could not be "
                 + "placed — they record no capture time — so they cover some unknown stretch and a reset "
                 + "beside them would not show up here." + failures);
+    }
+
+    /**
+     * Does the archive hold periods this corpus does not cover?
+     *
+     * <p>The corpus is one capture — the newest — because consecutive captures
+     * of a source overlap and summing them would double-count. When the digest
+     * table is reset, though, the captures either side describe DISJOINT
+     * periods, and everything before the reset is on disk and unread. This says
+     * so, because "118 days observed" is a different claim depending on whether
+     * it is all the evidence there is or the most recent slice of it (sqlx-65m).
+     *
+     * <p>NOT A WARNING. A source with one run says so plainly, the same way
+     * DIGEST_CAPACITY reports OK rather than only ever complaining — a signal
+     * that speaks up only for problems is one people stop reading.
+     */
+    private static Finding archivedHistory(String sourceRef, ObservedWindow window,
+                                           CaptureArchive.ArchiveReport archive) {
+        List<CaptureArchive.CaptureRun> runs = archive.runsOf(sourceRef);
+        if (runs.isEmpty()) {
+            return new Finding(Signal.ARCHIVED_HISTORY, Verdict.UNKNOWN, "no captures on disk",
+                "nothing to compare this corpus against",
+                "No archived capture describes this source, so whether it once covered a longer period "
+                    + "cannot be told from here. A direct read that has never been written down looks "
+                    + "exactly like one whose history was lost.");
+        }
+        if (runs.size() == 1) {
+            return new Finding(Signal.ARCHIVED_HISTORY, Verdict.OK, "one unbroken period",
+                runs.getFirst().captures() + " captures, no reset between them",
+                "Every capture of this source belongs to one uninterrupted stretch, so what is loaded is "
+                    + "all the evidence there is. Nothing earlier is sitting on disk unread.");
+        }
+
+        LocalDateTime earliest = runs.stream().map(CaptureArchive.CaptureRun::observedFrom)
+            .filter(java.util.Objects::nonNull).min(LocalDateTime::compareTo).orElse(null);
+        LocalDateTime latest = runs.stream().map(CaptureArchive.CaptureRun::observedTo)
+            .filter(java.util.Objects::nonNull).max(LocalDateTime::compareTo).orElse(null);
+        String span = earliest == null || latest == null ? "an unrecorded period"
+            : Duration.between(earliest, latest).toDays() + " days, " + earliest + " to " + latest;
+        String loaded = window == null ? "an unrecorded period" : window.days() + " days";
+
+        return new Finding(Signal.ARCHIVED_HISTORY, Verdict.IMPAIRED,
+            (runs.size() - 1) + (runs.size() == 2 ? " reset" : " resets"),
+            "archive spans " + span + "; this corpus covers " + loaded,
+            "The digest table was reset " + (runs.size() - 1) + " time(s) across this source's captures, so "
+                + "the archive holds " + (runs.size() - 1) + " earlier period(s) that the loaded corpus does "
+                + "not cover. Those captures are on disk and describe intervals disjoint from this one — "
+                + "they are not loaded, because within a run captures overlap and summing them would "
+                + "double-count every query.");
     }
 
     private static Integer number(String value) {

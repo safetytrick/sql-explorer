@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.coverage;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,6 +15,7 @@ import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureArchive;
 import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
 import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetConfig;
+import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSink;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import org.junit.jupiter.api.Test;
@@ -290,6 +292,86 @@ class CoverageServiceTest {
 
         assertThat(finding(service(repository(capture(HEALTHY_SERVER), stats(10, 0))).report("env"),
             Coverage.Signal.PROVENANCE).explanation()).contains("two hops");
+    }
+
+    // ── archived history ──
+
+    /**
+     * With no captures on disk the question cannot be answered, and answering
+     * OK would claim there is nothing earlier when nothing was checked.
+     */
+    @Test
+    void aSourceWithNoArchiveCannotSayWhatItIsMissing() {
+        Coverage.Finding history = finding(
+            service(repository(capture(HEALTHY_SERVER), stats(4243, 0))).report("env"),
+            Coverage.Signal.ARCHIVED_HISTORY);
+
+        assertThat(history.verdict()).isEqualTo(Coverage.Verdict.UNKNOWN);
+        assertThat(history.explanation()).contains("never been written down");
+    }
+
+    /**
+     * A signal that speaks only for problems is one people stop reading, so
+     * the ordinary case says so plainly: everything on disk belongs to one
+     * stretch, and the corpus is all the evidence there is.
+     */
+    @Test
+    void oneUnbrokenRunIsReportedAsSuch() throws IOException {
+        Coverage.Finding history = archiveWith(List.of(
+            written("2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00"),
+            written("2026-08-20T00:00:00Z", "2026-07-01T00:00:00", "2026-08-20T00:00:00")));
+
+        assertThat(history.verdict()).isEqualTo(Coverage.Verdict.OK);
+        assertThat(history.measurement()).isEqualTo("one unbroken period");
+        assertThat(history.explanation()).contains("all the evidence there is");
+    }
+
+    /**
+     * The point of the signal. "118 days observed" means one thing when it is
+     * everything and another when it is the newest slice of a longer archive
+     * that is on disk and unread (sqlx-65m).
+     */
+    @Test
+    void aResetMeansTheArchiveHoldsMoreThanTheCorpus() throws IOException {
+        Coverage.Finding history = archiveWith(List.of(
+            written("2026-06-01T00:00:00Z", "2026-01-01T00:00:00", "2026-06-01T00:00:00"),
+            written("2026-08-20T00:00:00Z", "2026-08-10T00:00:00", "2026-08-20T00:00:00")));
+
+        assertThat(history.verdict()).isEqualTo(Coverage.Verdict.IMPAIRED);
+        assertThat(history.measurement()).isEqualTo("1 reset");
+        assertThat(history.basis()).contains("archive spans");
+        assertThat(history.explanation()).contains("disjoint");
+        // and it says why the earlier period is not simply loaded as well
+        assertThat(history.explanation()).contains("double-count");
+    }
+
+    private CaptureContext written(String capturedAt, String from, String to) {
+        return new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, "primary",
+            Instant.parse(capturedAt), 1,
+            LocalDateTime.parse(from), LocalDateTime.parse(to), HEALTHY_SERVER);
+    }
+
+    /** Writes real captures, so the finding is computed from real footers. */
+    private Coverage.Finding archiveWith(List<CaptureContext> captures) throws IOException {
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(directory.resolve("sql-repository.parquet").toString());
+        ParquetSink sink = new ParquetSink(config);
+        for (CaptureContext context : captures) {
+            sink.write(context, List.of(SqlProfile.newBuilder()
+                .setQuery("select 1").setType("SELECT")
+                .setDigest("d").setNormalizedDigest("d").setSchemaName("app")
+                .setQueryActivityStatus(com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus.ACTIVE)
+                .setRuntimeMetrics(null).completeBuild("app")));
+        }
+        SqlRepositoryManager manager = mock(SqlRepositoryManager.class);
+        when(manager.getLoadState("env")).thenReturn(
+            new SqlRepositoryManager.LoadState(1, Instant.parse("2026-08-30T18:33:00Z"), null, true));
+        when(manager.getRepositories("env")).thenReturn(
+            List.of(repository(capture(HEALTHY_SERVER), stats(1, 0))));
+
+        return new CoverageService(manager, new CaptureArchive(config)).report("env")
+            .sources().getFirst().findings().stream()
+            .filter(f -> f.signal() == Coverage.Signal.ARCHIVED_HISTORY).findFirst().orElseThrow();
     }
 
     // ── shape ──
