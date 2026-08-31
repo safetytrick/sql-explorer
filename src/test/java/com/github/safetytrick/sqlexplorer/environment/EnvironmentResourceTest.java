@@ -58,7 +58,7 @@ class EnvironmentResourceTest {
         when(registry.getDefaultName()).thenReturn("regression");
         SqlImportStats stats = SqlImportStats.builder().build();
         when(sqlRepositoryManager.getLoadState("regression"))
-            .thenReturn(new LoadState(2, Instant.EPOCH, stats));
+            .thenReturn(new LoadState(2, Instant.EPOCH, stats, true));
 
         EnvironmentSummary summary = resource.list().environments().getFirst();
 

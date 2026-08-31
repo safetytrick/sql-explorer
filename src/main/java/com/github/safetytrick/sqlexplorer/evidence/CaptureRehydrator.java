@@ -86,6 +86,19 @@ public class CaptureRehydrator {
     }
 
     /**
+     * Whether this source could be rebuilt without touching its server.
+     *
+     * <p>What eviction has to ask before dropping anything. Evicting a source
+     * with no usable capture trades bounded memory for an environment that can
+     * only come back by re-importing — which needs the analysed server to be
+     * reachable, and it may not be. Cheap: a directory listing and a footer
+     * seek, at eviction time only (sqlx-4ww).
+     */
+    public boolean canRehydrate(String sourceRef) {
+        return ParquetSqlRepository.latestCaptureOf(config.getFilename(), sourceRef) != null;
+    }
+
+    /**
      * Whether the file's digests were produced by the normalizer running now.
      *
      * <p>Digests are {@code v<N>:<sha256>} since sqlx-2oq precisely so that a

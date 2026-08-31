@@ -41,7 +41,8 @@ class EnvironmentResource {
         SqlRepositoryManager.LoadState state = sqlRepositoryManager.getLoadState(environment.getName());
         SourcesSummary sources = state == null
             ? SourcesSummary.NOT_LOADED
-            : new SourcesSummary(true, state.sourceCount(), state.loadedOn(), state.importStats());
+            : new SourcesSummary(true, state.sourceCount(), state.loadedOn(), state.importStats(),
+                state.resident());
         return new EnvironmentSummary(environment.getName(), servers, sources);
     }
 
@@ -62,7 +63,15 @@ class EnvironmentResource {
 
     record ServerSummary(String name, boolean schemaLoaded) { }
 
-    record SourcesSummary(boolean loaded, int sourceCount, Instant loadedOn, SqlImportStats importStats) {
-        static final SourcesSummary NOT_LOADED = new SourcesSummary(false, 0, null, null);
+    /**
+     * @param resident whether the corpus is in heap right now. An environment
+     *                 dropped under memory pressure is still loaded — it comes
+     *                 back on the next read — so reporting it as unloaded would
+     *                 be wrong, and reporting nothing would hide why its stats
+     *                 are absent (sqlx-4ww)
+     */
+    record SourcesSummary(boolean loaded, int sourceCount, Instant loadedOn, SqlImportStats importStats,
+                          boolean resident) {
+        static final SourcesSummary NOT_LOADED = new SourcesSummary(false, 0, null, null, false);
     }
 }

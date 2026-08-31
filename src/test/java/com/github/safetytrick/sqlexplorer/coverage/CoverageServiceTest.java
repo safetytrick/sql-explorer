@@ -49,7 +49,7 @@ class CoverageServiceTest {
     private CoverageService service(SqlRepository... repositories) {
         SqlRepositoryManager manager = mock(SqlRepositoryManager.class);
         when(manager.getLoadState("env")).thenReturn(
-            new SqlRepositoryManager.LoadState(repositories.length, Instant.parse("2026-08-30T18:33:00Z"), null));
+            new SqlRepositoryManager.LoadState(repositories.length, Instant.parse("2026-08-30T18:33:00Z"), null, true));
         when(manager.getRepositories("env")).thenReturn(List.of(repositories));
         ParquetConfig config = new ParquetConfig();
         config.setFilename(directory.resolve("none.parquet").toString());

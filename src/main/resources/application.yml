@@ -35,4 +35,11 @@ management:
 
 sql-explorer:
   trace-errors: false
+  # How many environments keep their corpus in heap at once; 0 disables
+  # eviction. An evicted environment rebuilds from its own captures on the next
+  # read, so this bounds memory rather than dropping data. Measured: ~7.7 KB per
+  # profile, so 10,000 profiles is ~77 MB and five environments would be ~380 MB
+  # of a 512 MB heap. A deployment with fewer environments than this never
+  # evicts anything.
+  resident-environments: 3
 
