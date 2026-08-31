@@ -8,7 +8,7 @@
  * digest). Counting members would tell a reader "22 variants" when there is
  * one. So the group is folded by digest, and the member count rides along.
  */
-import type {MergedChild, RepeatedBlock} from '../query-search.service';
+import type {MergedChild, RepeatedBlock, RuntimeMetrics} from '../query-search.service';
 
 export interface MergeVariant {
   /** The MySQL performance-schema digest — the lookup key worth showing. */
@@ -112,4 +112,34 @@ export function repeatSpread(representativeBlocks: RepeatedBlock[] | null | unde
   const min = Math.min(...members);
   const max = Math.max(...members);
   return min === max ? null : {min, max};
+}
+
+/** The two digest-bearing shapes this reads, so both pages can pass their own. */
+export interface DigestBearing {
+  perfDigests?: string[] | null;
+  runtimeMetrics?: RuntimeMetrics | null;
+}
+
+/**
+ * The MySQL digests behind a profile.
+ *
+ * <p>NOT `profile.digest`. That field is overwritten with the normalized digest
+ * when the profile completes, so every member of a merge group reports the same
+ * value there and only the metrics keep the performance-schema one. Labelling
+ * `digest` as `perf_schema` therefore shows the normalized digest under the
+ * wrong name — and beside the `app norm` box, the same string twice (sqlx-...).
+ *
+ * <p>`perfDigests` only reaches the wire for MERGED profiles: on the generated
+ * Avro class it is a Manifold extension method rather than a real bean getter,
+ * so Jackson only sees it on `MergedSqlProfile`, which overrides it in Java.
+ * For an unmerged query the field is absent entirely, and the metrics carry the
+ * one digest it has.
+ */
+export function perfDigestsOf(profile: DigestBearing | null | undefined): string[] {
+  const explicit = profile?.perfDigests;
+  if (explicit && explicit.length) {
+    return explicit;
+  }
+  const fromMetrics = profile?.runtimeMetrics?.digest;
+  return fromMetrics ? [fromMetrics] : [];
 }

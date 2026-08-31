@@ -364,14 +364,6 @@
             }
             <div class="detail-section">
               <div class="ds-label">Digests</div>
-              <div class="digest-tag dt-ps">perf_schema</div>
-              <div class="digest-box">
-                {{selected.profile.digest}}
-                <button type="button" class="copy-btn" (click)="copy(selected.profile.digest)"
-                        [title]="'copy ' + selected.profile.digest">
-                  {{copied === selected.profile.digest ? '✓' : '⧉'}}
-                </button>
-              </div>
               <div class="digest-tag dt-app">app norm</div>
               <div class="digest-box">
                 {{selected.profile.normalizedDigest}}
@@ -380,6 +372,32 @@
                   {{copied === selected.profile.normalizedDigest ? '✓' : '⧉'}}
                 </button>
               </div>
+              <!-- The MySQL digest, which is NOT profile.digest — that field is
+                   overwritten with the normalized one when the profile
+                   completes, so labelling it perf_schema showed the same string
+                   as the box above under a different name. -->
+              <div class="digest-tag dt-ps">perf_schema
+                @if (perfDigests.length > 1) { <span class="dim">· {{perfDigests.length}}</span> }
+              </div>
+              @if (!perfDigests.length) {
+                <div class="digest-note">none recorded</div>
+              } @else if (perfDigests.length === 1) {
+                <div class="digest-box">
+                  {{perfDigests[0]}}
+                  <button type="button" class="copy-btn" (click)="copy(perfDigests[0])" title="copy digest">
+                    {{copied === perfDigests[0] ? '✓' : '⧉'}}
+                  </button>
+                </div>
+              } @else {
+                <div class="digest-note">
+                  {{perfDigests.length}} statements merged into this profile — listed with their
+                  metrics in the merge table above.
+                </div>
+                <button type="button" class="copy-btn wide" (click)="copy(perfDigests.join('\n'))"
+                        title="copy all performance-schema digests">
+                  {{copied === perfDigests.join('\n') ? '✓ copied' : '⧉ copy all'}}
+                </button>
+              }
             </div>
             @if (selected.profile.runtimeMetrics; as m) {
               <div class="detail-section">

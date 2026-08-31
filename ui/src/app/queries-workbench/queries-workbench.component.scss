@@ -665,3 +665,20 @@
   &.blue { color: var(--blue); }
   &.green { color: var(--green); }
 }
+
+// The digest block gained the many-digest case, which the sql-view page already
+// had. Same vocabulary, so it reads the same in both places (sqlx-...).
+.digest-note {
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.5;
+}
+
+.copy-btn.wide {
+  margin: 6px 0 0;
+  width: 100%;
+  text-align: left;
+  font-size: 10px;
+}
+
+.digest-tag .dim { color: var(--text3); }

@@ -78,6 +78,16 @@ export interface RuntimeMetrics {
   sortMergePasses: number;
   firstSeen: string | null;
   lastSeen: string | null;
+  /**
+   * The MySQL performance-schema digest.
+   *
+   * <p>The profile's own `digest` field is NOT this — it is overwritten with
+   * the normalized digest when the profile completes, so the metrics are the
+   * only place the performance-schema one survives. Read it through
+   * `perfDigestsOf` rather than directly.
+   */
+  digest: string;
+  digestList: string[];
 }
 
 /** A block the normalizer collapsed: [start, end) in query text, seen count times. */

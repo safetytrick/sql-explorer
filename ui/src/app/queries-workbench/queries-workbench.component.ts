@@ -20,7 +20,7 @@ import {QueryScopeService} from '../query-scope.service';
 import {Highlight} from 'ngx-highlightjs';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
-import {MergeVariant, mergeVariants, repeatSpread, RepeatSpread} from './merge-group';
+import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from './merge-group';
 import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
 
 const PAGE_SIZE = 50;
@@ -496,6 +496,17 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
    */
   spreadOf(profile: QueryProfile): RepeatSpread | null {
     return repeatSpread(profile.repeatedBlocks, profile.mergedChildren);
+  }
+
+  /**
+   * The MySQL digests behind the selected profile.
+   *
+   * <p>This pane used to label `profile.digest` as `perf_schema`, which is the
+   * normalized digest — `complete()` overwrites the field — so it showed the
+   * same string as the `app norm` box beside it, under the wrong name.
+   */
+  get perfDigests(): string[] {
+    return perfDigestsOf(this.selected?.profile);
   }
 
   get mergeVariants(): MergeVariant[] {

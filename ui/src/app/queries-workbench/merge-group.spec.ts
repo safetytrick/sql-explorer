@@ -1,4 +1,4 @@
-import {mergeVariants, repeatCounts, repeatSpread} from './merge-group';
+import {mergeVariants, repeatCounts, repeatSpread, perfDigestsOf} from './merge-group';
 import type {MergedChild} from '../query-search.service';
 
 function child(digest: string, executed: number, averageTime: number, counts: number[]): MergedChild {
@@ -113,5 +113,45 @@ describe('repeatSpread', () => {
   it('summarises each member by its largest block', () => {
     expect(repeatSpread(blocks(2, 2, 2), [child('d1', 10, 1, [10, 10, 10])]))
       .toEqual({min: 2, max: 10});
+  });
+});
+
+describe('perfDigestsOf', () => {
+
+  /**
+   * The bug this exists to stop. `profile.digest` is overwritten with the
+   * normalized digest when the profile completes, so reading it as the MySQL
+   * digest shows the normalized one under the wrong label — and beside the
+   * "app norm" box, the same string twice.
+   */
+  it('reads the MySQL digest off the metrics, never the profile field', () => {
+    expect(perfDigestsOf({
+      perfDigests: null,
+      runtimeMetrics: {digest: 'f2b9be5f', digestList: ['f2b9be5f']} as never
+    })).toEqual(['f2b9be5f']);
+  });
+
+  /**
+   * perfDigests only reaches the wire for merged profiles — on the generated
+   * Avro class it is a Manifold extension rather than a bean getter, so Jackson
+   * sees it only on MergedSqlProfile. When it is there it wins, because a merge
+   * group has several and the metrics carry one.
+   */
+  it('prefers the explicit list when the profile is merged', () => {
+    expect(perfDigestsOf({
+      perfDigests: ['a', 'b', 'c'],
+      runtimeMetrics: {digest: 'a', digestList: ['a']} as never
+    })).toEqual(['a', 'b', 'c']);
+  });
+
+  it('falls back to the metrics when the list is absent or empty', () => {
+    expect(perfDigestsOf({perfDigests: [], runtimeMetrics: {digest: 'only'} as never})).toEqual(['only']);
+    expect(perfDigestsOf({runtimeMetrics: {digest: 'only'} as never})).toEqual(['only']);
+  });
+
+  /** No metrics means no digest to show, not a blank string in a box. */
+  it('reports none rather than an empty entry', () => {
+    expect(perfDigestsOf({perfDigests: null, runtimeMetrics: null})).toEqual([]);
+    expect(perfDigestsOf(null)).toEqual([]);
   });
 });

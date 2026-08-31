@@ -10,7 +10,7 @@ import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
 import {SqlProfile, TableStructure} from '../api-types';
 import {parseTableRef} from '../refs';
-import {MergeVariant, mergeVariants, repeatSpread, RepeatSpread} from '../queries-workbench/merge-group';
+import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from '../queries-workbench/merge-group';
 import {buildIndexPanels, TableIndexPanel} from './index-relevance';
 import {SEEN_FORMAT} from '../seen-format';
 import {QueryExamplesComponent} from '../query-examples/query-examples.component';
@@ -167,21 +167,9 @@ export class SqlViewComponent implements OnInit {
     return (this.query?.mismatchedJoins.length ?? 0) > 0;
   }
 
-  /**
-   * The MySQL digests behind this profile.
-   *
-   * `perfDigests` only reaches the wire for *merged* profiles: on the generated
-   * Avro class it is a Manifold extension method, not a real bean getter, so
-   * Jackson only sees it on `MergedSqlProfile`, which overrides it in Java. For
-   * an unmerged query the field is absent entirely — which is why this page
-   * used to render an empty "Performance Schema" list for most queries. The
-   * metrics carry the same digest, so fall back to it.
-   */
+  /** The MySQL digests behind this profile; see {@link perfDigestsOf}. */
   get perfDigests(): string[] {
-    const explicit = this.query?.perfDigests;
-    if (explicit && explicit.length) { return explicit; }
-    const fromMetrics = this.query?.runtimeMetrics?.digest;
-    return fromMetrics ? [fromMetrics] : [];
+    return perfDigestsOf(this.query);
   }
 
   // ── merge group (folds the many-perf-digest case) ──
