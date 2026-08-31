@@ -450,3 +450,20 @@
   .sql-body, .lens-grid { flex-direction: column; }
   .sql-side, .lens-rail { width: 100%; min-width: 0; }
 }
+
+
+// Qualifies the metrics rather than warning about them: the merge is correct,
+// and only the averaging across unlike members needs saying (sqlx-6v1).
+.spread-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--border2);
+  background: var(--bg2);
+  border-radius: var(--radius);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text2);
+  max-width: 72ch;
+
+  strong { font-family: var(--mono); color: var(--text); font-weight: 600; }
+}

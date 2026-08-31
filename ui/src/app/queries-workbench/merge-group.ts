@@ -70,3 +70,46 @@ export function mergeVariants(children: MergedChild[] | null | undefined,
 
   return [...byDigest.values()].sort((left, right) => right.executed - left.executed);
 }
+
+/**
+ * How far apart the members of a merge group are in repeat cardinality.
+ *
+ * <p>Members are deliberately NOT split on this. Queries whose IN-list length
+ * or batch size varies usually come from one place in the codebase, so one
+ * profile is the right unit — that call site is the thing someone would go and
+ * fix. What must not happen is presenting the group's average as though it
+ * described every member (sqlx-6v1).
+ *
+ * <p>Measured on the live corpus: one group of 29 members spans 1 to 57
+ * repeats, and its members run from 0.341 ms to 1.621 ms while the group
+ * average reads 0.333 ms — dominated by the cheap high-execution members, and
+ * describing the expensive ones badly.
+ *
+ * <p>A member with no {@link RepeatedBlock} repeated once, so it counts as 1
+ * rather than being skipped: within a group every member shares the normalized
+ * text, so an absent block means one occurrence, not an absent construct. The
+ * summary is over each member's LARGEST block, which is the one that drives
+ * the cost.
+ */
+export interface RepeatSpread {
+  min: number;
+  max: number;
+}
+
+function largestRepeat(blocks: RepeatedBlock[] | null | undefined): number {
+  const counts = repeatCounts(blocks);
+  return counts.length ? Math.max(...counts) : 1;
+}
+
+/**
+ * The group's repeat range, or null when every member repeats the same amount
+ * — including the common case of a profile that was never merged at all.
+ */
+export function repeatSpread(representativeBlocks: RepeatedBlock[] | null | undefined,
+                             children: MergedChild[] | null | undefined): RepeatSpread | null {
+  const members = [largestRepeat(representativeBlocks),
+    ...(children ?? []).map(child => largestRepeat(child.repeatedBlocks))];
+  const min = Math.min(...members);
+  const max = Math.max(...members);
+  return min === max ? null : {min, max};
+}

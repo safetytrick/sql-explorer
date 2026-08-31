@@ -1,4 +1,4 @@
-import {mergeVariants, repeatCounts} from './merge-group';
+import {mergeVariants, repeatCounts, repeatSpread} from './merge-group';
 import type {MergedChild} from '../query-search.service';
 
 function child(digest: string, executed: number, averageTime: number, counts: number[]): MergedChild {
@@ -72,5 +72,46 @@ describe('merge group', () => {
     expect(repeatCounts(null)).toEqual([]);
     expect(repeatCounts(undefined)).toEqual([]);
     expect(repeatCounts([{start: 0, end: 1, count: 7}])).toEqual([7]);
+  });
+});
+
+describe('repeatSpread', () => {
+
+  const blocks = (...counts: number[]) => counts.map((count, i) => ({start: i, end: i + 1, count}));
+
+  /** The common case: nothing merged, nothing to warn about. */
+  it('says nothing for a profile that was never merged', () => {
+    expect(repeatSpread(null, null)).toBeNull();
+    expect(repeatSpread(blocks(3), [])).toBeNull();
+  });
+
+  it('says nothing when every member repeats the same amount', () => {
+    expect(repeatSpread(blocks(3), [child('d1', 10, 1, [3]), child('d2', 10, 1, [3])])).toBeNull();
+  });
+
+  it('reports the range when members differ', () => {
+    expect(repeatSpread(blocks(2), [child('d1', 10, 1, [10]), child('d2', 10, 1, [5])]))
+      .toEqual({min: 2, max: 10});
+  });
+
+  /**
+   * A member with no repeat block repeated once. Within a group every member
+   * shares the normalized text, so an absent block means one occurrence — not
+   * an absent construct, and not a member to skip. Skipping it would have
+   * hidden the widest real spread in the corpus, where the representative is
+   * the single-element case and children run to 57.
+   */
+  it('counts a member with no repeat block as one', () => {
+    expect(repeatSpread(null, [child('d1', 10, 1, [57])])).toEqual({min: 1, max: 57});
+  });
+
+  /**
+   * Summarised over each member's largest block, which is the one driving the
+   * cost — not over every block, which would compare positions that vary
+   * together.
+   */
+  it('summarises each member by its largest block', () => {
+    expect(repeatSpread(blocks(2, 2, 2), [child('d1', 10, 1, [10, 10, 10])]))
+      .toEqual({min: 2, max: 10});
   });
 });

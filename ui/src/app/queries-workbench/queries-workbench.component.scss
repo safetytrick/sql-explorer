@@ -375,6 +375,31 @@
   &.b-warn    { background: var(--amber-dim); color: var(--amber); }
   &.b-err     { background: var(--red-dim); color: var(--red); }
   &.b-anal    { background: var(--amber-dim); color: var(--amber); }
+
+  // Not a severity. A spread is a fact about what the metrics beside it are
+  // averaging, and dressing it as a warning would push people to "fix" a merge
+  // that is correct. Monospace because it is a range of numbers.
+  &.b-spread  {
+    background: var(--bg3);
+    color: var(--text3);
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+}
+
+// Sits directly under the metrics it qualifies, in the detail pane.
+.spread-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--border2);
+  background: var(--bg2);
+  border-radius: var(--radius);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text2);
+  max-width: 72ch;
+
+  strong { font-family: var(--mono); color: var(--text); font-weight: 600; }
 }
 
 .q-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

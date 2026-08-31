@@ -95,6 +95,17 @@ same mount, so only recreating the container re-resolves it. The jar is a
 single file that is overwritten in place, so the backend only needs a
 `restart`.
 
+**Rebuilding the jar while the backend is running breaks the running process.**
+The JVM loads classes from the fat jar lazily, so overwriting it under a live
+container leaves already-started requests reading a file whose offsets have
+moved. It surfaces as `NoClassDefFoundError` on some unrelated library class —
+observed as a 500 from `/analyzed-sql/{id}` with
+`NoClassDefFoundError: com/fasterxml/jackson/databind/...` — which reads
+exactly like a dependency problem and is not one. A `restart` clears it. So
+"the backend only needs a restart" means *restart before you exercise it*: any
+`./gradlew build` or `assemble` during the container's life has already broken
+the process, including one you ran only to gate the frontend.
+
 This trap looks exactly like a code bug, so when behaviour disagrees with the
 source, compare the served bundle against the local one before believing
 either:

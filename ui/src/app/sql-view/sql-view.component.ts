@@ -10,7 +10,7 @@ import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
 import {SqlProfile, TableStructure} from '../api-types';
 import {parseTableRef} from '../refs';
-import {MergeVariant, mergeVariants} from '../queries-workbench/merge-group';
+import {MergeVariant, mergeVariants, repeatSpread, RepeatSpread} from '../queries-workbench/merge-group';
 import {buildIndexPanels, TableIndexPanel} from './index-relevance';
 import {SEEN_FORMAT} from '../seen-format';
 import {QueryExamplesComponent} from '../query-examples/query-examples.component';
@@ -185,6 +185,12 @@ export class SqlViewComponent implements OnInit {
   }
 
   // ── merge group (folds the many-perf-digest case) ──
+
+  /** The repeat range across this group's members, or null when they agree. */
+  get repeatSpread(): RepeatSpread | null {
+    if (!this.query) { return null; }
+    return repeatSpread(this.query.repeatedBlocks, this.query.mergedChildren);
+  }
 
   get mergeVariants(): MergeVariant[] {
     if (!this.query) { return []; }

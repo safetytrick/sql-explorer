@@ -7,6 +7,7 @@ import {
   Activity,
   Flag,
   QueryHit,
+  QueryProfile,
   QuerySearchRequest,
   QuerySearchService,
   SortKey,
@@ -19,7 +20,7 @@ import {QueryScopeService} from '../query-scope.service';
 import {Highlight} from 'ngx-highlightjs';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
-import {MergeVariant, mergeVariants} from './merge-group';
+import {MergeVariant, mergeVariants, repeatSpread, RepeatSpread} from './merge-group';
 import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
 
 const PAGE_SIZE = 50;
@@ -485,6 +486,18 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   }
 
   /** The merge group behind the selected query, one row per distinct digest. */
+  /**
+   * The repeat range across a group's members, or null when they agree.
+   *
+   * <p>Read per row while scanning, so it is computed from what the list
+   * already carries — `mergedChildren` and `repeatedBlocks` ride along on every
+   * hit — rather than fetched. The members are not split on this: they usually
+   * come from one call site, and that is the thing worth fixing (sqlx-6v1).
+   */
+  spreadOf(profile: QueryProfile): RepeatSpread | null {
+    return repeatSpread(profile.repeatedBlocks, profile.mergedChildren);
+  }
+
   get mergeVariants(): MergeVariant[] {
     if (!this.selected) { return []; }
     return mergeVariants(this.selected.profile.mergedChildren, this.selected.profile.repeatedBlocks);

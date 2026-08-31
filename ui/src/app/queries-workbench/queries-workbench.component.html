@@ -234,6 +234,13 @@
                 @if ((hit.profile.runtimeMetrics?.warnings ?? 0) > 0) { <span class="badge b-warn">{{hit.profile.runtimeMetrics?.warnings}}warn</span> }
                 @if (hit.profile.mismatchedJoins.length > 0) { <span class="badge b-anal">analyzer!</span> }
                 @if (hit.profile.analysisFailed) { <span class="badge b-err">failed</span> }
+                <!-- The merge is deliberate; what must not stay silent is that
+                     the metrics beside it average unlike members. -->
+                @if (spreadOf(hit.profile); as spread) {
+                  <span class="badge b-spread"
+                        [title]="'merged members repeat between ' + spread.min + ' and ' + spread.max
+                                 + ' times — the metrics below average across them'">×{{spread.min}}–{{spread.max}}</span>
+                }
               </div>
             </div>
             <div class="q-meta">
@@ -269,6 +276,14 @@
           <div class="detail-scroll">
             <div class="detail-section sql-section">
               <pre class="sql-display"><code highlight="{{selected.profile.query}}"></code></pre>
+              @if (spreadOf(selected.profile); as spread) {
+                <div class="spread-note">
+                  Members of this merge group repeat between <strong>{{spread.min}}</strong> and
+                  <strong>{{spread.max}}</strong> times. They are one query from one place in the code,
+                  so they stay merged — but the metrics above are an average across those shapes and
+                  describe none of them exactly. The per-variant breakdown is below.
+                </div>
+              }
               @if (selected.profile.repeatedBlocks?.length) {
                 <div class="repeat-strip" title="blocks that repeated in the sampled SQL, collapsed to one occurrence">
                   <span class="repeat-label">collapsed repeats</span>
