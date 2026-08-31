@@ -65,7 +65,7 @@ class EnvironmentEvictionTest {
 
     private static SqlRepository repositoryFor(String ref) {
         return new SqlRepository() {
-            @Override public SqlProfile getById(String id) { return null; }
+            @Override public SqlProfile getByDigest(String id) { return null; }
             @Override public Stream<SqlProfile> getTableQueries(TableReference t) { return Stream.empty(); }
             @Override public Stream<SqlProfile> getQueriesForColumn(TableReference t, String c) { return Stream.empty(); }
             @Override public Stream<TableReference> getAllTableReferences() { return Stream.empty(); }

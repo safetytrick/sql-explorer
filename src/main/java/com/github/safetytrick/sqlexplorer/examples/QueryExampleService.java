@@ -186,7 +186,7 @@ class QueryExampleService {
      */
     private boolean carriedByALoadedProfile(String digest) {
         try {
-            return sqlRepositoryService.getById(digest) != null;
+            return sqlRepositoryService.getByDigest(digest) != null;
         } catch (RuntimeException e) {
             // no corpus loaded is not evidence about the digest either way
             return false;

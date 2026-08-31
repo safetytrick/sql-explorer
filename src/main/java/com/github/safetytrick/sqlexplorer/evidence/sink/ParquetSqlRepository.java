@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
@@ -41,12 +42,50 @@ public class ParquetSqlRepository implements SqlRepository {
         this.config = config;
     }
 
+    /**
+     * The profile a digest names, resolved by pushing the predicate into the
+     * file rather than scanning it.
+     *
+     * <p>ON {@code normalizedDigest}, NOT {@code id}. This filtered the id
+     * column, which meant this implementation and the in-memory one answered
+     * different questions behind the same interface method: the heap
+     * repository indexes profiles by digest and never by id, so a digest
+     * resolved there and returned nothing here. Behind
+     * {@code CompositeSqlRepository}, which merges across sources, that is a
+     * silently partial answer rather than a visible failure — and the id it
+     * filtered on embeds the import timestamp, so it changed on every
+     * re-import anyway (sqlx-40c).
+     *
+     * <p>Falls back to a scan for the profile's other digests: a caller may
+     * hold a performance-schema digest or a merge member's, and only the
+     * normalized one is a column. The pushdown covers the common case; the
+     * scan covers the rest without pretending the file is indexed by
+     * something it is not.
+     */
     @Override
-    public SqlProfile getById(String id) {
-        return fetchWithFilter(
-            FilterCompat.get(
-                eq(binaryColumn("id"), Binary.fromString(id))))
+    public SqlProfile getByDigest(String digest) {
+        SqlProfile pushed = fetchWithFilter(
+            FilterCompat.get(eq(binaryColumn("normalizedDigest"), Binary.fromString(digest))))
             .findFirst().orElse(null);
+        if (pushed != null) {
+            return pushed;
+        }
+        try (Stream<SqlProfile> all = getAllAnalyzedSql()) {
+            return all.filter(profile -> carriesDigest(profile, digest)).findFirst().orElse(null);
+        }
+    }
+
+    /** Every digest a profile answers to, the same set the heap repository indexes. */
+    private static boolean carriesDigest(SqlProfile profile, String digest) {
+        if (digest.equals(profile.getNormalizedDigest()) || digest.equals(profile.getDigest())) {
+            return true;
+        }
+        RuntimeMetrics metrics = profile.getRuntimeMetrics();
+        if (metrics == null) {
+            return false;
+        }
+        return digest.equals(metrics.getDigest())
+            || (metrics.getDigestList() != null && metrics.getDigestList().contains(digest));
     }
 
     @Override
@@ -233,6 +272,12 @@ public class ParquetSqlRepository implements SqlRepository {
             try (ParquetReader<SqlProfile> parquetReader = AvroParquetReader.<SqlProfile>builder(
                     new LocalInputFile(parquetFile), ParquetSink.readerConfiguration())
                 .withDataModel(SpecificData.getForClass(SqlProfile.class))
+                // The filter was accepted and then dropped — never handed to
+                // the reader — so every "filtered" read returned the whole file
+                // and getById answered with whatever row came first, for ANY
+                // input including one matching nothing. Pushing it down is the
+                // entire reason to read parquet rather than scan (sqlx-40c).
+                .withFilter(filter)
                 .build()) {
 
 

@@ -256,6 +256,14 @@ public class SqlEvidenceInputService {
             ? tsvSource.getResource().getFilename() : null;
 
         builder.setLineNumber(lineNumber)
+            // A WITHIN-LOAD HANDLE, NOT AN IDENTITY. The source's toString
+            // embeds the import instant, so this changes on every import — and
+            // that is fine, because nothing resolves by it: the repositories
+            // index by digest, the frontend uses it only as a list track-by
+            // within one page, and nothing persists it. What it buys is
+            // knowing which source and which row a profile came from when
+            // reading a log or debugging an import, which a digest cannot say
+            // (sqlx-40c).
             .setId(toProcess.source() + "-" + lineNumber)
             .setSourceFileName(sourceFileName)
             // Seeded here so the merge aggregation has something to aggregate.

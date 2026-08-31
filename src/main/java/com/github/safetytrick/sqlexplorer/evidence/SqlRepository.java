@@ -10,7 +10,23 @@ import jakarta.validation.constraints.NotNull;
 
 public interface SqlRepository {
 
-    SqlProfile getById(@NotNull String id);
+    /**
+     * The profile a digest names, or null.
+     *
+     * <p>A DIGEST, not the profile's {@code id} — which is why this is no
+     * longer called {@code getById}. Nothing resolves by id: the in-memory
+     * repository indexes profiles under their performance-schema digests, their
+     * normalized digest and their {@code digest} field, and never under
+     * {@code id}. The old name let two implementations of this one method mean
+     * two different things — the heap one resolving digests, the parquet one
+     * pushing an equality filter onto the id column — which behind
+     * {@link CompositeSqlRepository} would have answered a digest from one
+     * source and nothing from the other, silently (sqlx-40c).
+     *
+     * <p>Accepts any digest a profile carries, and follows through to the
+     * merge-group representative when given a member's.
+     */
+    SqlProfile getByDigest(@NotNull String digest);
 
     Stream<SqlProfile> getTableQueries(@NotNull TableReference table);
 

@@ -31,7 +31,7 @@ class CompositeSqlRepositoryCacheTest {
             this.profiles = profiles;
         }
 
-        @Override public SqlProfile getById(String id) {
+        @Override public SqlProfile getByDigest(String id) {
             return profiles.stream().filter(p -> id.equals(p.getId())).findFirst().orElse(null);
         }
         @Override public Stream<SqlProfile> getTableQueries(TableReference table) { return Stream.of(); }

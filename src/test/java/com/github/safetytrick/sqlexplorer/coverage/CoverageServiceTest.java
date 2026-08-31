@@ -58,7 +58,7 @@ class CoverageServiceTest {
 
     private static SqlRepository repository(CaptureContext capture, SqlImportStats stats) {
         return new SqlRepository() {
-            @Override public SqlProfile getById(String id) { return null; }
+            @Override public SqlProfile getByDigest(String id) { return null; }
             @Override public Stream<SqlProfile> getTableQueries(TableReference table) { return Stream.empty(); }
             @Override public Stream<SqlProfile> getQueriesForColumn(TableReference t, String c) { return Stream.empty(); }
             @Override public Stream<TableReference> getAllTableReferences() { return Stream.empty(); }

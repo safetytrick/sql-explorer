@@ -100,12 +100,12 @@ class AnalyzedSqlRepository implements SqlRepository {
 
 
     @Override
-    public SqlProfile getById(@NotNull String id) {
+    public SqlProfile getByDigest(@NotNull String id) {
 
         SqlProfile sqlProfile = analyzedSqlRepository.get(id);
 
         if (sqlProfile != null && sqlProfile.getNormalizedDigest() != null && !Objects.equals(id, sqlProfile.getNormalizedDigest())) {
-            return getById(sqlProfile.getNormalizedDigest());
+            return getByDigest(sqlProfile.getNormalizedDigest());
         }
 
         return sqlProfile;

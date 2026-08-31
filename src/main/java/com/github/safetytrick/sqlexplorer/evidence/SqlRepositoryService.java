@@ -51,8 +51,8 @@ public class SqlRepositoryService {
         return sqlRepositoryManager.getSqlRepository(environmentContext.current().getName());
     }
 
-    public SqlProfile getById(String id) {
-        return repository().getById(id);
+    public SqlProfile getByDigest(String id) {
+        return repository().getByDigest(id);
     }
 
     // todo refactor threshold into a predicate to filter AnalyzedSql

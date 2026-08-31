@@ -60,7 +60,7 @@ class QueryExampleServiceTest {
         // no corpus in a unit test, so nothing carries any digest — matchedAProfile
         // is exercised in its own test rather than assumed here
         SqlRepositoryService sqlRepositoryService = mock(SqlRepositoryService.class);
-        when(sqlRepositoryService.getById(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+        when(sqlRepositoryService.getByDigest(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
 
         service = new QueryExampleService(repository,
             new NormalizedQueryDigest(new QueryNormalizer(), new SqlParser()),

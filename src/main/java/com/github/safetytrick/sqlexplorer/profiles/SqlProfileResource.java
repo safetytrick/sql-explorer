@@ -28,7 +28,7 @@ class SqlProfileResource {
 
     @GetMapping("/analyzed-sql/{id}")
     public SqlProfile getSql(@PathVariable String id) {
-        SqlProfile sqlProfile = sqlRepositoryService.getById(id);
+        SqlProfile sqlProfile = sqlRepositoryService.getByDigest(id);
         if (sqlProfile == null) {
             throw new ResourceNotFoundException();
         }

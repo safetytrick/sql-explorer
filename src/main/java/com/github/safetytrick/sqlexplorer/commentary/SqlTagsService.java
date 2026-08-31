@@ -35,7 +35,7 @@ public class SqlTagsService {
 
     private SqlProfile buildTaggedAnalyzedSql(Tag tag) {
         String queryId = tag.getPathElements().get(tag.getType());
-        return sqlRepositoryService.getById(queryId);
+        return sqlRepositoryService.getByDigest(queryId);
     }
 
     public Stream<TableRollup> getTablesByTag(String name) {

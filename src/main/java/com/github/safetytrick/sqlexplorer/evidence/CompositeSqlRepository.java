@@ -44,8 +44,8 @@ class CompositeSqlRepository implements SqlRepository {
     }
 
     @Override
-    public SqlProfile getById(@NotNull String id) {
-        List<SqlProfile> items = sources.stream().map(repo -> repo.getById(id))
+    public SqlProfile getByDigest(@NotNull String id) {
+        List<SqlProfile> items = sources.stream().map(repo -> repo.getByDigest(id))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
