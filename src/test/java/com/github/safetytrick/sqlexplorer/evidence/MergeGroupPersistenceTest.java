@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -53,7 +54,7 @@ class MergeGroupPersistenceTest {
     Path tempDir;
 
     @Test
-    void theGroupIsRecordedOnTheRepresentativeAndSurvivesParquet() throws IOException {
+    void theGroupSurvivesParquetByBeingRebuiltFromItsMembers() throws IOException {
         Path parquetFile = tempDir.resolve("profiles.parquet");
         ParquetSink sink = sink(parquetFile);
         SqlRepositoryBuilder repository = new SqlRepositoryBuilder(new TestSource());
@@ -69,36 +70,42 @@ class MergeGroupPersistenceTest {
         assertThat(repository.attemptMerge(NORMALIZED_DIGEST, profile("digest-b", 5L, 2))).isTrue();
 
         assertThat(representative.getRepeatedBlocks()).extracting(RepeatedBlock::getCount).containsExactly(3);
-        assertThat(representative.getMergedChildren())
+
+        // Both members are written, and nothing about the grouping is. The
+        // group is a function of the normalized digest, so the reader rebuilds
+        // it — storing it instead is what made a rehydrated corpus lose every
+        // group's aggregate (sqlx-4ww).
+        repository.writeParquet(sink);
+        List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
+        assertThat(reloaded).hasSize(2);
+        assertThat(reloaded).allSatisfy(row ->
+            assertThat(row.getMergedChildren()).as("grouping is not persisted").isEmpty());
+
+        SqlProfile group = new AnalyzedSqlRepository(new TestSource(),
+            SqlImportStats.builder().build(), reloaded).getAllAnalyzedSql().findFirst().orElseThrow();
+
+        assertThat(group.getMergedChildren())
             .extracting(MergedChild::getDigest, MergedChild::getExecuted)
             .containsExactly(tuple("digest-b", 5L));
-
-        MergedChild child = representative.getMergedChildren().getFirst();
+        MergedChild child = group.getMergedChildren().getFirst();
         assertThat(child.getRepeatedBlocks()).extracting(RepeatedBlock::getCount).containsExactly(2);
         assertThat(child.getAverageTime()).isEqualTo(BigDecimal.ONE);
         // the child's offsets index into the representative's text — the group
         // shares a normalized form, so they line up
         RepeatedBlock childBlock = child.getRepeatedBlocks().getFirst();
-        assertThat(representative.getQuery().substring(childBlock.getStart(), childBlock.getEnd()))
+        assertThat(group.getQuery().substring(childBlock.getStart(), childBlock.getEnd()))
             .isEqualTo("`a` like ?");
-
-        // and now the point: one row on disk, group intact
-        repository.writeParquet(sink);
-
-        List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
-        assertThat(reloaded).hasSize(1);
-        assertThat(reloaded.getFirst().getMergedChildren())
-            .extracting(MergedChild::getDigest, MergedChild::getExecuted)
-            .containsExactly(tuple("digest-b", 5L));
-        assertThat(reloaded.getFirst().getMergedChildren().getFirst().getRepeatedBlocks())
-            .extracting(RepeatedBlock::getCount)
-            .containsExactly(2);
     }
 
-    /** A merged child never gets a row of its own — it would double-count. */
+    /**
+     * Every member owns a row, and that is not double counting: each carries a
+     * distinct MySQL digest with its own counter, which is exactly what
+     * merging sums. Folding them onto the representative instead is what made
+     * the group unreconstructable (sqlx-4ww).
+     */
     @Test
-    void mergedChildrenDoNotGetTheirOwnParquetRow() throws IOException {
-        Path parquetFile = tempDir.resolve("no-dupes.parquet");
+    void everyMemberOfAGroupGetsItsOwnParquetRow() throws IOException {
+        Path parquetFile = tempDir.resolve("members.parquet");
         ParquetSink sink = sink(parquetFile);
         SqlRepositoryBuilder repository = new SqlRepositoryBuilder(new TestSource());
 
@@ -108,10 +115,15 @@ class MergeGroupPersistenceTest {
         repository.attemptMerge(NORMALIZED_DIGEST, profile("digest-b", 5L, 2));
         repository.attemptMerge(NORMALIZED_DIGEST, profile("digest-c", 7L, 4));
 
-        assertThat(repository.parquetRowCount()).isEqualTo(1);
+        assertThat(repository.parquetRowCount()).isEqualTo(3);
 
         repository.writeParquet(sink);
-        assertThat(sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()))).hasSize(1);
+        List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
+        assertThat(reloaded).hasSize(3);
+
+        // and they collapse back to one group, summing rather than duplicating
+        assertThat(new AnalyzedSqlRepository(new TestSource(), SqlImportStats.builder().build(), reloaded)
+            .getAllAnalyzedSql().count()).isEqualTo(1);
     }
 
     /** An unmerged query still owns exactly one row, and carries no group. */
@@ -162,8 +174,7 @@ class MergeGroupPersistenceTest {
         SqlProfile representative = first.completeBuild("tdb");
         repository.addToIndex(representative);
 
-        // a child folds into the representative and is never indexed itself,
-        // which is what keeps the ordering true
+        // the child is indexed too now, and must land after the representative
         assertThat(repository.attemptMerge(NORMALIZED_DIGEST, profile("digest-b", 5L, 2))).isTrue();
 
         // an unrelated profile, indexed after, must not displace it
@@ -175,7 +186,57 @@ class MergeGroupPersistenceTest {
             .as("the representative must be indexed before anything that merged into it")
             .first()
             .isSameAs(representative);
-        assertThat(representative.getMergedChildren()).hasSize(1);
+        assertThat(repository.profilesForTest()).hasSize(3);
+    }
+
+    /**
+     * THE ROUND TRIP. A corpus written and read back must report the same
+     * numbers, and merge groups are where that quietly failed: the capture held
+     * only representatives, so a rebuilt corpus served the representative's own
+     * metrics instead of the group's sum. Measured on a live query before the
+     * fix — 12,413 executions reported where the group had 18,181, understated
+     * by 32% (sqlx-4ww).
+     *
+     * <p>Nothing tested this, which is why it was invisible.
+     */
+    @Test
+    void aGroupReportsTheSameMetricsAfterARoundTrip() throws IOException {
+        Path parquetFile = tempDir.resolve("round-trip.parquet");
+        ParquetSink sink = sink(parquetFile);
+        SqlRepositoryBuilder repository = new SqlRepositoryBuilder(new TestSource());
+
+        SqlProfile.Builder first = profile("digest-a", 100L, 3);
+        repository.attemptMerge(NORMALIZED_DIGEST, first);
+        repository.addToIndex(first.completeBuild("tdb"));
+        repository.attemptMerge(NORMALIZED_DIGEST, profile("digest-b", 5L, 2));
+        repository.attemptMerge(NORMALIZED_DIGEST, profile("digest-c", 7L, 4));
+
+        SqlProfile before = new AnalyzedSqlRepository(new TestSource(), SqlImportStats.builder().build(),
+            repository.profilesForTest()).getAllAnalyzedSql().findFirst().orElseThrow();
+
+        repository.writeParquet(sink);
+        List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
+        SqlProfile after = new AnalyzedSqlRepository(new TestSource(), SqlImportStats.builder().build(),
+            reloaded).getAllAnalyzedSql().findFirst().orElseThrow();
+
+        assertThat(after.getRuntimeMetrics().getExecuted())
+            .as("the group's executions, not the representative's")
+            .isEqualTo(before.getRuntimeMetrics().getExecuted())
+            .isEqualTo(112L);
+        assertThat(after.getRuntimeMetrics().getTotalTime())
+            .isEqualByComparingTo(before.getRuntimeMetrics().getTotalTime());
+        // Truncated to milliseconds, which is the one thing a round trip does
+        // not preserve: the Avro/parquet timestamp is millis while Performance
+        // Schema reports micros. It costs nothing that matters — the observed
+        // window and gap detection are measured in days — but it is a real
+        // difference and asserting exact equality here would be asserting a
+        // fidelity the format does not offer.
+        assertThat(after.getRuntimeMetrics().getFirstSeen())
+            .isEqualTo(before.getRuntimeMetrics().getFirstSeen().truncatedTo(ChronoUnit.MILLIS));
+        assertThat(after.getRuntimeMetrics().getLastSeen())
+            .isEqualTo(before.getRuntimeMetrics().getLastSeen().truncatedTo(ChronoUnit.MILLIS));
+        assertThat(after.getMergedChildren()).hasSameSizeAs(before.getMergedChildren());
+        assertThat(after.getNormalizedDigest()).isEqualTo(before.getNormalizedDigest());
     }
 
     private static SqlProfile.Builder profile(String digest, long executed, int repeatCount) {

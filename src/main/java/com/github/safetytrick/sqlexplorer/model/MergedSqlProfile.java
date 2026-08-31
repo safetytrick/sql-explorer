@@ -274,13 +274,38 @@ public class MergedSqlProfile extends SqlProfile {
     }
 
     /**
-     * The merge group is recorded on the representative at load time, so it
-     * reads through {@link #first()} like the repeats do — this wrapper's own
-     * Avro field is never populated.
+     * The group's other members, described.
+     *
+     * <p>DERIVED, NOT STORED. This used to read a field the loader wrote onto
+     * the representative, which made the merge group a persisted fact — and a
+     * corpus rebuilt from a capture had no way to recreate it. Merging is a
+     * function of the normalized digest, so the group can always be rebuilt
+     * from the members; describing it from them keeps one source of truth
+     * (sqlx-4ww).
+     *
+     * <p>Every field a {@code MergedChild} carries is on the member itself.
+     * The digest is the member's <em>MySQL</em> digest, taken off its metrics:
+     * {@code SqlProfile.digest} is overwritten with the normalized digest when
+     * the profile completes, so every member reports the same value there and
+     * only the metrics keep the performance-schema one. That is the whole
+     * reason a child is worth listing.
      */
     @Override
     public List<MergedChild> getMergedChildren() {
-        return first().getMergedChildren();
+        return sourceList.stream()
+            .skip(1)
+            .map(MergedSqlProfile::describe)
+            .collect(Collectors.toList());
+    }
+
+    private static MergedChild describe(SqlProfile member) {
+        RuntimeMetrics metrics = member.getRuntimeMetrics();
+        return MergedChild.newBuilder()
+            .setDigest(metrics == null ? member.getDigest() : metrics.getDigest())
+            .setRepeatedBlocks(member.getRepeatedBlocks())
+            .setExecuted(metrics == null ? 0L : metrics.getExecuted())
+            .setAverageTime(metrics == null ? java.math.BigDecimal.ZERO : metrics.getAverageTime())
+            .build();
     }
 
     @Override

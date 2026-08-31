@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.MergedChild;
+import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * Pins the wire contract of the collapsed-repeat badges: the queries workbench
@@ -104,17 +106,60 @@ class RepeatedBlockSerializationTest {
     }
 
     /**
-     * The group is recorded on the representative at import, so the wrapper has
-     * to read through to it — its own Avro field is never populated.
+     * The group describes itself from its members rather than reading a stored
+     * field. That is what lets a corpus rebuilt from a capture recreate the
+     * group at all — merging is a function of the normalized digest, so
+     * persisting it left a rehydrated corpus unable to reconstruct it
+     * (sqlx-4ww).
      */
     @Test
-    void mergedProfileExposesTheGroupRecordedOnTheRepresentative() {
+    void mergedProfileDescribesItsGroupFromItsMembers() {
+        MergedSqlProfile merged =
+            new MergedSqlProfile(List.of(profileWithRepeats(), memberWithMetrics()));
+
+        assertThat(merged.getMergedChildren())
+            .extracting(MergedChild::getDigest, MergedChild::getExecuted)
+            .containsExactly(tuple("member-digest", 7L));
+        assertThat(merged.getMergedChildren().getFirst().getRepeatedBlocks())
+            .extracting(RepeatedBlock::getCount).containsExactly(4);
+    }
+
+    /** A stored group is ignored — the members are the truth. */
+    @Test
+    void aStoredGroupOnTheRepresentativeIsNotReadBack() {
         MergedSqlProfile merged =
             new MergedSqlProfile(List.of(representativeWithGroup(), profileWithRepeats()));
 
         assertThat(merged.getMergedChildren())
             .extracting(MergedChild::getDigest)
-            .containsExactly("child-digest");
+            .doesNotContain("child-digest");
+    }
+
+    private static SqlProfile memberWithMetrics() {
+        return SqlProfile.newBuilder()
+            .setQuery("SELECT ? FROM t WHERE id IN (?)")
+            .setType("SELECT")
+            .setQueryActivityStatus(QueryActivityStatus.ACTIVE)
+            .setRuntimeMetrics(RuntimeMetrics.newBuilder()
+                .setFullTableScan(false)
+                .setExecuted(7L)
+                .setErrors(0).setWarnings(0)
+                .setTotalTime(BigDecimal.TEN)
+                .setMaxTime(BigDecimal.ONE)
+                .setAverageTime(BigDecimal.ONE)
+                .setRowsSent(1).setAverageRowsSent(1)
+                .setRowsScanned(1).setAverageRowsScanned(1)
+                .setTempTables(0).setTempDiskTables(0)
+                .setRowsSorted(0).setSortMergePasses(0)
+                .setDigest("member-digest")
+                .setLastSeen(java.time.LocalDateTime.now())
+                .setFirstSeen(java.time.LocalDateTime.now().minusDays(1))
+                .setLockTime(BigDecimal.ZERO)
+                .setRowsAffected(0).setAverageRowsAffected(0)
+                .completeBuild())
+            .setLineNumber(2)
+            .setRepeatedBlocks(List.of(new RepeatedBlock(29, 30, 4)))
+            .completeBuild("tdb");
     }
 
     private static SqlProfile representativeWithGroup() {

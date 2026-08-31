@@ -205,6 +205,43 @@ class CaptureFileLayoutTest {
         assertThat(ParquetSink.fileToken("primary")).isEqualTo("primary-");
     }
 
+    // ── one snapshot per source ──
+
+    /**
+     * THE INVARIANT, and it is not obvious now that a capture is plainly one
+     * row per profile: two captures of ONE source must never both be read.
+     *
+     * <p>Performance Schema counters are cumulative since the last reset, so
+     * consecutive captures of a source are overlapping snapshots of the same
+     * counters rather than independent observations — adding them
+     * double-counts every query in the overlap. Every read path takes exactly
+     * one: PerformanceSchemaFileSourceFactory.scan takes max(createdOn) per
+     * source ref, this takes the newest sealed capture, and a direct read is a
+     * single snapshot. Summing ACROSS sources is the correct case, because
+     * those are different servers with different counters (sqlx-4ww).
+     *
+     * <p>A reset is the one case where two captures of one source could validly
+     * be summed, since the intervals are then disjoint. That is sqlx-65m, and
+     * it must prove the reset before it sums.
+     */
+    @Test
+    void aSourceResolvesToExactlyOneCaptureHoweverManyItHas() throws IOException {
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(base());
+        ParquetSink sink = new ParquetSink(config);
+
+        sink.write(capturedAt("2026-08-30T02:51:36Z"), List.of(profile()));
+        sink.write(capturedAt("2026-08-31T02:51:36Z"), List.of(profile()));
+        sink.write(capturedAt("2026-09-01T02:51:36Z"), List.of(profile()));
+
+        assertThat(ParquetSqlRepository.capturesOf(base(), "primary"))
+            .as("all three are kept — the archive needs them for gap detection")
+            .hasSize(3);
+        assertThat(ParquetSqlRepository.latestCaptureOf(base(), "primary").getFileName())
+            .as("but only the newest is ever the corpus")
+            .hasToString("sql-repository-primary-20260901T025136Z.parquet");
+    }
+
     /** End to end: written where it says, and found again as the corpus. */
     @Test
     void aWrittenCaptureIsTheOneTheCorpusFinds() throws IOException {

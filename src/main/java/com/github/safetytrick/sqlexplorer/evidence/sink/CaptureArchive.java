@@ -172,7 +172,7 @@ public class CaptureArchive {
      * provenance: unknown. Failing the whole scan because one archived file is
      * truncated would lose the answer for every other capture.
      */
-    static CaptureContext provenanceOf(Path capture) {
+    public static CaptureContext provenanceOf(Path capture) {
         try (ParquetFileReader reader = ParquetFileReader.open(new LocalInputFile(capture))) {
             return CaptureContext.fromMetadata(reader.getFooter().getFileMetaData().getKeyValueMetaData());
         } catch (IOException | RuntimeException e) {

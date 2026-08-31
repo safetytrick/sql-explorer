@@ -185,13 +185,15 @@ public class SqlEvidenceInputService {
             }
         }
 
-        // every child has been folded into its representative by now, and the
-        // profiles are still plain SqlProfiles — MergedSqlProfile overrides
-        // getters, not the Avro accessors parquet writes through, so this has
-        // to happen before mergeByDigest wraps them.
+        // Written before mergeByDigest, and that ordering is still load-bearing
+        // for a different reason than it used to be: parquet writes through the
+        // Avro accessors, which MergedSqlProfile does not override, so writing
+        // after the wrap would store each group's representative once and lose
+        // the members. Every profile gets a row; the reader rebuilds the groups
+        // by normalized digest exactly as the next line does (sqlx-4ww).
         repository.writeParquet(parquetSink);
-        log.info("Parquet rows written: {} (of {} profiles, the rest are merged children)",
-                 repository.parquetRowCount(), repository.sqlProfiles.size());
+        log.info("Parquet rows written: {} (one per profile; merging is rebuilt on read)",
+                 repository.parquetRowCount());
 
         repository.sqlProfiles = mergeByDigest(repository.sqlProfiles);
         repository.sqlProfiles.sort(SqlProfileExtension.comparator);
@@ -486,10 +488,18 @@ public class SqlEvidenceInputService {
         private List<SqlProfile> sqlProfiles = new ArrayList<>();
         private final ListMultimap<TableReference, SqlProfile> tableNameAnalyzedSqlRepository = ArrayListMultimap.create();
         /**
-         * Profiles that own a parquet row: representatives and ungrouped
-         * queries, never merged children. A child's contribution is durable
-         * inside its representative's {@code mergedChildren}, so writing it
-         * again as its own row would double-count it on reload.
+         * Every profile, one row each — including merged children.
+         *
+         * <p>MERGING IS NOT PERSISTED. It is a function of the normalized
+         * digest, so a reader recreates it by grouping the rows exactly as a
+         * fresh import does. This used to hold only representatives, with each
+         * child folded into its representative's {@code mergedChildren}; that
+         * made the group durable but not reconstructable, and a corpus rebuilt
+         * from a capture silently lost every group's aggregate metrics —
+         * measured at 32% understated on one live query (sqlx-4ww).
+         *
+         * <p>No double counting follows: each row is a distinct MySQL digest
+         * with its own counter, which is precisely what merging sums.
          */
         private final List<SqlProfile> parquetRows = new ArrayList<>();
 
@@ -539,36 +549,13 @@ public class SqlEvidenceInputService {
                 .setType(existingEntry.getType());
 
             SqlProfile sqlProfile = builder.completeBuild(existingEntry.getSchemaName());
-            recordMergedChild(existingEntry, sqlProfile);
-            index(sqlProfile);
+            // The child is indexed like any other profile and gets a row of its
+            // own. It used to be folded onto the representative instead, which
+            // made the merge group a persisted fact that a rebuilt corpus could
+            // not recreate — see writeParquet (sqlx-4ww).
+            addToIndex(sqlProfile);
 
             return true;
-        }
-
-        /**
-         * Fold the child's identity, repeat counts and metrics onto the
-         * representative. This is what makes the merge group durable: the
-         * child never gets a parquet row of its own, and the representative
-         * is written once at the end of the load, by which time every child
-         * has landed here.
-         */
-        private void recordMergedChild(SqlProfile representative, SqlProfile child) {
-            RuntimeMetrics metrics = child.getRuntimeMetrics();
-            // the *MySQL* digest, which is what makes a child worth listing —
-            // SqlProfile.digest is overwritten with the normalized digest in
-            // complete(), so every member of a group reports the same value
-            // there and only the metrics keep the performance-schema one
-            MergedChild merged = MergedChild.newBuilder()
-                .setDigest(metrics == null ? child.getDigest() : metrics.getDigest())
-                .setRepeatedBlocks(child.getRepeatedBlocks())
-                .setExecuted(metrics == null ? 0L : metrics.getExecuted())
-                .setAverageTime(metrics == null ? BigDecimal.ZERO : metrics.getAverageTime())
-                .build();
-            synchronized (lock) {
-                List<MergedChild> children = new ArrayList<>(representative.getMergedChildren());
-                children.add(merged);
-                representative.setMergedChildren(children);
-            }
         }
 
         void addToIndex(SqlProfile sqlProfile) {
