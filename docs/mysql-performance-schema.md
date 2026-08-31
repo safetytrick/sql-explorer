@@ -106,9 +106,16 @@ two variables is binding.
 ## Digest table capacity
 
 `performance_schema_digests_size` (default `10000`) is how many distinct
-statement digests the server will hold. Once it is full, digests are **evicted
-to make room for new ones**, and the corpus silently becomes a subset of the
-traffic — with no way to know how large a subset.
+statement digests the server will hold. Once it is full the server **stops
+taking on new digests** — it does not evict old ones to make room. Everything
+already in the table keeps counting accurately; what is lost is every query
+shape that first ran after the table filled, which lands against a `NULL`
+digest instead.
+
+That distinction is worth holding onto, because it says which half of the data
+to trust: the counts you can see are right, and it is the **absences** that are
+unreliable. "No query touches this table" is exactly the claim a full digest
+table can falsify.
 
 The server counts what it discarded:
 

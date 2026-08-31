@@ -106,8 +106,14 @@ public class CoverageService {
      * <p>{@code Performance_schema_digest_lost} counts digests the server could
      * not record, so it is the direct measurement and is preferred whenever it
      * was captured. Row count against {@code performance_schema_digests_size}
-     * is the inference to fall back on: at the cap the table is full and an
-     * unknowable number of statements were evicted.
+     * is the inference to fall back on.
+     *
+     * <p>AT CAPACITY THE SERVER STOPS TAKING NEW DIGESTS; it does not evict old
+     * ones (Michael, 2026-08-31 — this said "evicted" and was wrong). So the
+     * counts already in the table stay accurate and keep accumulating, and what
+     * is lost is every query shape that first appeared after the table filled.
+     * That is a different claim, and a more actionable one: the numbers you can
+     * see are trustworthy, the absences are not.
      */
     private static Finding digestCapacity(Map<String, String> server, SqlImportStats stats) {
         Integer lost = number(server.get("Performance_schema_digest_lost"));
@@ -115,8 +121,10 @@ public class CoverageService {
             return lost > 0
                 ? new Finding(Signal.DIGEST_CAPACITY, Verdict.IMPAIRED,
                     lost + " digests lost", "Performance_schema_digest_lost on the source server",
-                    "The digest table filled up and the server discarded " + lost + " statements it could not "
-                        + "record. Those queries are missing from this corpus, and nothing here can say which.")
+                    "The digest table was full, so " + lost + " statement shapes were never recorded at all — "
+                        + "at capacity the server stops taking on new digests rather than evicting old ones. The "
+                        + "counts you can see are accurate; what is missing is an unknowable number of distinct "
+                        + "queries, and nothing here can say which.")
                 : new Finding(Signal.DIGEST_CAPACITY, Verdict.OK,
                     "0 digests lost", "Performance_schema_digest_lost on the source server",
                     "The source server reports that it never ran out of room for a digest, so no statement "
@@ -136,8 +144,9 @@ public class CoverageService {
         return count >= size
             ? new Finding(Signal.DIGEST_CAPACITY, Verdict.IMPAIRED, measurement,
                 "performance_schema_digests_size on the source server",
-                "The digest table was at capacity when this was captured, so statements were evicted to make "
-                    + "room for others. The corpus is a subset of the traffic, and its size is unknowable.")
+                "The digest table was at capacity when this was captured. At the cap the server stops recording "
+                    + "new query shapes rather than evicting old ones, so these counts are accurate but any query "
+                    + "that first ran after the table filled is absent entirely, and how many is unknowable.")
             : new Finding(Signal.DIGEST_CAPACITY, Verdict.OK, measurement,
                 "performance_schema_digests_size on the source server",
                 "The digest table had room to spare, so no statement was dropped for lack of space.");
