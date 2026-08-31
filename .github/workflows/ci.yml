@@ -68,3 +68,23 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      # In the SAME job as the build, on purpose. The e2e suite this replaces
+      # needed MySQL, Spring Boot and docker compose, so it would have needed a
+      # job with service containers — it never got one, was never run, and sat
+      # Protractor-era long after Protractor was gone. This one serves the
+      # build just produced above and stubs every backend call, so it costs one
+      # browser download and nothing else (sqlx-6jy).
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        run: npm run e2e
+
+      - name: Upload e2e report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: ui/playwright-report/
+          retention-days: 7

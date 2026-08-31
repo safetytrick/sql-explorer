@@ -42,3 +42,8 @@ testem.log
 .DS_Store
 Thumbs.db
 build/
+
+# Playwright output — reports and traces are per-run artefacts, not sources.
+/playwright-report/
+/test-results/
+/blob-report/

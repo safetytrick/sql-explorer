@@ -44,8 +44,16 @@ or not you did. Run them first:
 ```
 
 ```bash
-cd ui && npm run lint && npx tsc --noEmit -p src/tsconfig.app.json && npm run test:ci && npm run build
+cd ui && npm run lint && npx tsc --noEmit -p src/tsconfig.app.json && npm run test:ci && npm run build && npm run e2e
 ```
+
+`npm run e2e` is the Playwright smoke suite. It serves the production build
+you just made and stubs every backend call at the network boundary, so it needs
+no MySQL, no Spring Boot and no docker — which is what lets it live in the
+frontend CI job instead of a job with service containers. That shape is
+deliberate: the suite it replaces needed the whole stack, so CI never ran it and
+it rotted (sqlx-6jy). It must be run after `npm run build`, because it serves
+`ui/build`. First run on a machine needs `npx playwright install chromium`.
 
 Note `./gradlew build`, not `./gradlew test` — CI runs the former, and it
 covers checks the latter does not. The standalone `tsc --noEmit` also catches
@@ -194,7 +202,9 @@ Components map directly to the URL hierarchy:
 
 Note: the `*-lens` components (`TableLensComponent`, `GraphLensComponent`, `SchemaTreeComponent`) are the current UI. `TableViewComponent` and `TableGraph*` are the last legacy components still routed — both have lens replacements, so what remains is a deletion decision, not a restyle (see `docs/plans/legacy-ui.md`). `SchemaListComponent` / `TableNamesComponent` are no longer legacy: they were rebuilt on the Ledger.
 
-There is no `**` catch-all route. `/` redirects to `/tables`, but an unknown URL matches nothing, renders an empty outlet and silently resets the address bar to `/` — it looks like a broken page rather than a 404.
+An unknown URL hits the `**` catch-all and renders `NotFoundComponent`: a "Not found" heading, the address that was attempted, and links back to Tables, Schemas and Queries. The address bar keeps the bad path, which is right — it is what the page shows you.
+
+This paragraph previously said there was no catch-all and that a bad URL rendered an empty outlet while silently resetting the address bar. Both halves were wrong, found by the e2e suite on 2026-08-31 (sqlx-6jy) while trying to pin the behaviour the doc described. The route is pinned by a test now, so the doc and the app can no longer drift apart quietly.
 
 Key services: `AnalyzedSqlService` / `SchemaLensService` (query profiles & schema data), `QuerySearchService` (the queries workbench), `SourceService` (data sources), `EnvironmentService` (active environment). Shared response types live in `ui/src/app/api-types.ts`.
 
