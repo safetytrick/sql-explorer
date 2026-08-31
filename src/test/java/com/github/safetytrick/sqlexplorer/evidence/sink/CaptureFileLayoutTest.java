@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
@@ -54,17 +55,14 @@ class CaptureFileLayoutTest {
     private void writeCapture(String instant) throws IOException {
         ParquetConfig config = new ParquetConfig();
         config.setFilename(base());
-        ParquetSink sink = new ParquetSink(config);
-        sink.capturing(capturedAt(instant));
-        sink.write(profile());
-        sink.close();
+        new ParquetSink(config).write(capturedAt(instant), List.of(profile()));
     }
 
     @Test
     void aCaptureIsWrittenBesideTheConfiguredNameRatherThanOverIt() {
         Path file = ParquetSink.fileFor(base(), capturedAt("2026-08-30T02:51:36Z"));
 
-        assertThat(String.valueOf(file.getFileName())).isEqualTo("sql-repository-20260830T025136Z.parquet");
+        assertThat(String.valueOf(file.getFileName())).isEqualTo("sql-repository-primary-20260830T025136Z.parquet");
         assertThat(file.getParent()).isEqualTo(directory);
     }
 
@@ -101,7 +99,7 @@ class CaptureFileLayoutTest {
         writeCapture("2026-08-15T12:00:00Z");
 
         assertThat(ParquetSqlRepository.latestCapture(base()).getFileName().toString())
-            .isEqualTo("sql-repository-20260901T000000Z.parquet");
+            .isEqualTo("sql-repository-primary-20260901T000000Z.parquet");
     }
 
     /** The single-file layout that existed before this must still load. */
@@ -120,7 +118,7 @@ class CaptureFileLayoutTest {
         writeCapture("2026-09-01T00:00:00Z");
 
         assertThat(ParquetSqlRepository.latestCapture(base()).getFileName().toString())
-            .isEqualTo("sql-repository-20260901T000000Z.parquet");
+            .isEqualTo("sql-repository-primary-20260901T000000Z.parquet");
     }
 
     /**
@@ -131,12 +129,12 @@ class CaptureFileLayoutTest {
      */
     @Test
     void ignoresFilesThatAreNotCapturesOfThisBase() throws IOException {
-        Files.createFile(directory.resolve("something-else-20270101T000000Z.parquet"));
-        Files.createFile(directory.resolve("sql-repository-20260830T025136Z.parquet"));
+        Files.createFile(directory.resolve("something-else-primary-20270101T000000Z.parquet"));
+        Files.createFile(directory.resolve("sql-repository-primary-20260830T025136Z.parquet"));
 
         assertThat(ParquetSqlRepository.captures(base()))
             .extracting(path -> String.valueOf(path.getFileName()))
-            .containsExactly("sql-repository-20260830T025136Z.parquet");
+            .containsExactly("sql-repository-primary-20260830T025136Z.parquet");
     }
 
     /**
@@ -147,10 +145,64 @@ class CaptureFileLayoutTest {
     @Test
     void anInProgressCaptureIsNotYetTheCorpus() throws IOException {
         writeCapture("2026-08-30T02:51:36Z");
-        Files.createFile(directory.resolve("sql-repository-20260901T000000Z.parquet"));
+        Files.createFile(directory.resolve("sql-repository-primary-20260901T000000Z.parquet"));
 
         assertThat(ParquetSqlRepository.latestCapture(base()).getFileName().toString())
-            .isEqualTo("sql-repository-20260830T025136Z.parquet");
+            .isEqualTo("sql-repository-primary-20260830T025136Z.parquet");
+    }
+
+    // ── per source ──
+
+    /**
+     * "The newest capture" and "the newest capture OF THIS SOURCE" are
+     * different questions once two sources are loaded, and the second is
+     * almost always the one meant. Asking the first returns whichever source
+     * happened to be captured last — which is the shape of the bug that made
+     * captures per-source (sqlx-fx2).
+     */
+    @Test
+    void aSourceFindsItsOwnLatestCaptureRatherThanTheNewestOverall() throws IOException {
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(base());
+        ParquetSink sink = new ParquetSink(config);
+
+        sink.write(capturedAt("2026-08-30T02:51:36Z"), List.of(profile()));
+        sink.write(new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, "replica",
+            Instant.parse("2026-09-01T00:00:00Z"), 1, null, null, Map.of()), List.of(profile()));
+
+        assertThat(ParquetSqlRepository.latestCapture(base()).getFileName())
+            .hasToString("sql-repository-replica-20260901T000000Z.parquet");
+        assertThat(ParquetSqlRepository.latestCaptureOf(base(), "primary").getFileName())
+            .hasToString("sql-repository-primary-20260830T025136Z.parquet");
+        assertThat(ParquetSqlRepository.capturesOf(base(), "primary")).hasSize(1);
+    }
+
+    /** A source that has never been captured has no capture, not someone else's. */
+    @Test
+    void anUncapturedSourceResolvesToNothing() throws IOException {
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(base());
+        new ParquetSink(config).write(capturedAt("2026-08-30T02:51:36Z"), List.of(profile()));
+
+        assertThat(ParquetSqlRepository.latestCaptureOf(base(), "never-loaded")).isNull();
+        assertThat(ParquetSqlRepository.capturesOf(base(), "never-loaded")).isEmpty();
+    }
+
+    /**
+     * Two refs must never share a file name — that would re-merge their
+     * captures and recreate the bug. A ref needing rewriting for the
+     * filesystem carries a digest of the original so it stays distinct;
+     * ParquetSqlSource uses a file path as its ref, so this is not theoretical.
+     */
+    @Test
+    void sourceRefsThatSanitiseAlikeStillGetDistinctFiles() {
+        String left = ParquetSink.fileToken("/var/data/one.parquet");
+        String right = ParquetSink.fileToken("/var/data/two.parquet");
+
+        assertThat(left).isNotEqualTo(right);
+        assertThat(left).doesNotContain("/");
+        // an already-safe ref is left legible
+        assertThat(ParquetSink.fileToken("primary")).isEqualTo("primary-");
     }
 
     /** End to end: written where it says, and found again as the corpus. */
@@ -159,10 +211,8 @@ class CaptureFileLayoutTest {
         ParquetConfig config = new ParquetConfig();
         config.setFilename(base());
         ParquetSink sink = new ParquetSink(config);
-        sink.capturing(capturedAt("2026-08-30T02:51:36Z"));
 
-        sink.write(profile());
-        sink.close();
+        sink.write(capturedAt("2026-08-30T02:51:36Z"), List.of(profile()));
 
         Path found = ParquetSqlRepository.latestCapture(base());
         assertThat(found.toFile()).exists();

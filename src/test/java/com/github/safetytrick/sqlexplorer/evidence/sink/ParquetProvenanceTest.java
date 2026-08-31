@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
@@ -61,16 +62,12 @@ class ParquetProvenanceTest {
     @Test
     void aWrittenFileSaysWhereItCameFrom() throws IOException {
         Path file = directory.resolve("profiles.parquet");
-        ParquetSink sink = sink(file);
-        sink.capturing(new CaptureContext(
+        sink(file).write(new CaptureContext(
             CaptureContext.Origin.PARQUET_COPY, "primary",
             Instant.parse("2026-08-29T14:03:35Z"), 1,
             LocalDateTime.parse("2026-05-04T15:49:26"),
             LocalDateTime.parse("2026-08-29T14:03:35"),
-            Map.of()));
-
-        sink.write(profile("d1"));
-        sink.close();
+            Map.of()), List.of(profile("d1")));
 
         assertThat(metadataOf(written(file)))
             .containsEntry("sqlexplorer.origin", "PARQUET_COPY")
@@ -87,31 +84,60 @@ class ParquetProvenanceTest {
         Path file = directory.resolve("bare.parquet");
         ParquetSink sink = sink(file);
 
-        sink.write(profile("d1"));
-        sink.close();
+        sink.write(null, List.of(profile("d1")));
 
         assertThat(metadataOf(file).keySet()).noneMatch(key -> key.startsWith("sqlexplorer."));
         assertThat(sink.readAll(file)).hasSize(1);
     }
 
     /**
-     * The ordering constraint, asserted because breaking it is silent. Parquet
-     * fixes the footer metadata at writer creation, so a context supplied after
-     * the first row cannot reach the file — it must warn and be ignored rather
-     * than appear to work.
+     * Two sources in one process write two files, each carrying only its own
+     * rows and its own provenance.
+     *
+     * <p>The regression this pins. One sink used to hold one lazily-built
+     * writer, so the first import owned the file and everything after it was
+     * appended under the first one's footer — across sources and across
+     * environments. Observed on a running instance before the fix: 4,366 rows
+     * in one capture, 4,244 from `primary` and 122 from `explorer`, under a
+     * footer claiming sourceRef=primary and rowCount=4244 (sqlx-fx2).
      */
     @Test
-    void contextArrivingAfterTheFirstRowDoesNotSilentlyAppearToWork() throws IOException {
-        Path file = directory.resolve("late.parquet");
-        ParquetSink sink = sink(file);
+    void twoSourcesDoNotShareAFile() throws IOException {
+        Path configured = directory.resolve("profiles.parquet");
+        ParquetSink sink = sink(configured);
 
-        sink.write(profile("d1"));
-        sink.capturing(new CaptureContext(
-            CaptureContext.Origin.PARQUET_COPY, "too-late",
-            Instant.parse("2026-08-29T14:03:35Z"), 1, null, null, Map.of()));
-        sink.close();
+        Path first = sink.write(new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, "primary",
+            Instant.parse("2026-08-29T14:03:35Z"), 2, null, null, Map.of()),
+            List.of(profile("a1"), profile("a2")));
+        Path second = sink.write(new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, "explorer",
+            Instant.parse("2026-08-29T14:04:00Z"), 1, null, null, Map.of()),
+            List.of(profile("b1")));
 
-        assertThat(metadataOf(file).values()).doesNotContain("too-late");
+        assertThat(first).isNotEqualTo(second);
+        assertThat(sink.readAll(first)).hasSize(2);
+        assertThat(sink.readAll(second)).hasSize(1);
+        assertThat(metadataOf(first)).containsEntry("sqlexplorer.sourceRef", "primary");
+        assertThat(metadataOf(second)).containsEntry("sqlexplorer.sourceRef", "explorer");
+    }
+
+    /**
+     * A capture is readable the moment its import finishes.
+     *
+     * <p>It used to seal at {@code @PreDestroy}, so a process that did not shut
+     * down cleanly lost the whole capture — Parquet buffers its row group until
+     * close, leaving a 4-byte file holding nothing.
+     */
+    @Test
+    void aCaptureIsSealedWhenTheWriteReturns() throws IOException {
+        Path configured = directory.resolve("profiles.parquet");
+        ParquetSink sink = sink(configured);
+
+        Path written = sink.write(new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, "primary",
+            Instant.parse("2026-08-29T14:03:35Z"), 1, null, null, Map.of()), List.of(profile("d1")));
+
+        // no close() call anywhere above
+        assertThat(sink.readAll(written)).hasSize(1);
+        assertThat(written.toFile().length()).isGreaterThan(4);
     }
 
     /** Rows still round-trip; provenance must not cost the payload. */
@@ -119,13 +145,11 @@ class ParquetProvenanceTest {
     void theProfilesAreStillReadable() throws IOException {
         Path file = directory.resolve("both.parquet");
         ParquetSink sink = sink(file);
-        sink.capturing(new CaptureContext(
-            CaptureContext.Origin.PARQUET_COPY, "primary",
-            Instant.parse("2026-08-29T14:03:35Z"), 2, null, null, Map.of()));
 
-        sink.write(profile("d1"));
-        sink.write(profile("d2"));
-        sink.close();
+        sink.write(new CaptureContext(
+            CaptureContext.Origin.PARQUET_COPY, "primary",
+            Instant.parse("2026-08-29T14:03:35Z"), 2, null, null, Map.of()),
+            List.of(profile("d1"), profile("d2")));
 
         assertThat(sink.readAll(written(file))).hasSize(2);
     }

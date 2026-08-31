@@ -84,7 +84,6 @@ class MergeGroupPersistenceTest {
 
         // and now the point: one row on disk, group intact
         repository.writeParquet(sink);
-        sink.close();
 
         List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
         assertThat(reloaded).hasSize(1);
@@ -112,7 +111,6 @@ class MergeGroupPersistenceTest {
         assertThat(repository.parquetRowCount()).isEqualTo(1);
 
         repository.writeParquet(sink);
-        sink.close();
         assertThat(sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()))).hasSize(1);
     }
 
@@ -128,7 +126,6 @@ class MergeGroupPersistenceTest {
         repository.addToIndex(only.completeBuild("tdb"));
 
         repository.writeParquet(sink);
-        sink.close();
 
         List<SqlProfile> reloaded = sink.readAll(ParquetSqlRepository.latestCapture(parquetFile.toString()));
         assertThat(reloaded).hasSize(1);

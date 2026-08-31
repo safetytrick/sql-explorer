@@ -108,16 +108,19 @@ expensive one:
 - **Shutdown aborts before `@PreDestroy` runs.** Observed:
   `ClassNotFoundException: org.apache.catalina.Lifecycle$SingleUse` thrown out
   of `SpringApplicationShutdownHook`, 0.46s into a stop with a 60s grace
-  period. `ParquetSink.close()` never runs, so the footer is never written and
-  the whole capture is lost — the file stays at 4 bytes, just the `PAR1` magic,
-  because Parquet buffers the row group until close. Nine such stubs
-  accumulated in `src/main/docker-local/parquet/` before this was traced.
+  period. Anything relying on an orderly shutdown simply does not happen.
 
-So "the backend only needs a restart" means *restart before you exercise it, and
-before you stop it*: any `./gradlew build` or `assemble` during the container's
-life has already broken that run, including one you ran only to gate the
-frontend. A clean cycle — start, use, stop, with the jar untouched in between —
-seals correctly (verified: 4,210,887 bytes).
+So "the backend only needs a restart" means *restart before you exercise it*:
+any `./gradlew build` or `assemble` during the container's life has already
+broken that run, including one you ran only to gate the frontend.
+
+Captures used to be the casualty of the second point — `ParquetSink` held its
+writer until `@PreDestroy`, and Parquet buffers the row group until close, so a
+shutdown that never ran left a 4-byte file holding nothing. Nine such stubs
+accumulated before this was traced. `sqlx-fx2` changed the sink to open, write
+and close per import, so a capture is sealed the moment its import finishes and
+survives however the process ends. Stubs in `src/main/docker-local/parquet/`
+predate that change.
 
 This trap looks exactly like a code bug, so when behaviour disagrees with the
 source, compare the served bundle against the local one before believing

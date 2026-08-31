@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
-import jakarta.annotation.PreDestroy;
 import org.apache.avro.Schema;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -33,48 +32,73 @@ public class ParquetSink {
 
     private final ParquetConfig config;
 
-    /**
-     * Built on first write, not in the constructor.
-     *
-     * <p>Parquet's file-level metadata is fixed when the writer is created,
-     * and the capture context is not known until the import has run — this is
-     * a {@code @Service}, constructed at startup. Deferring construction is
-     * what lets a file state where it came from (sqlx-sy5).
-     */
-    private ParquetWriter<Object> objectWriter;
-
-    /** Set before the first write, or the file carries no provenance. */
-    private CaptureContext capture;
-
     public ParquetSink(ParquetConfig config) {
         this.config = config;
     }
 
     /**
-     * Declare what the next file records. Must be called before the first
-     * {@link #write}: the metadata is sealed into the writer when it is
-     * created, and once a row has been written it is too late.
+     * Write one capture: open, write every row, close.
+     *
+     * <p>ONE WRITER PER CALL, and that is the whole fix for sqlx-fx2. This used
+     * to hold a single lazily-built writer for the life of the process, so the
+     * first import owned the file and every later one was appended to it —
+     * across sources and across environments. Proven on a running instance:
+     * loading a second environment put 4,366 rows in one capture, 4,244 from
+     * {@code primary} and 122 from {@code explorer}, under a footer claiming
+     * {@code sourceRef=primary, rowCount=4244}.
+     *
+     * <p>Closing here rather than at {@code @PreDestroy} fixes a second problem
+     * the old shape had. Parquet buffers its row group until close, so a
+     * process that did not shut down cleanly left a 4-byte file holding nothing
+     * — the whole capture lost. Nine such stubs accumulated during development.
+     * A capture is now readable the moment its import finishes.
+     *
+     * @return where it was written, or null when nothing was
      */
-    public synchronized void capturing(CaptureContext context) {
-        if (objectWriter != null) {
-            log.warn("capture context set after writing began; it will not reach the file");
-            return;
+    public Path write(CaptureContext capture, Iterable<SqlProfile> profiles) {
+        Path file = fileFor(config.getFilename(), capture);
+        try (ParquetWriter<Object> writer = writerFor(file, capture)) {
+            for (SqlProfile profile : profiles) {
+                try {
+                    writer.write(profile);
+                } catch (IOException | RuntimeException e) {
+                    log.info("failed to write individual sql: {}", profile.getId());
+                }
+            }
+        } catch (IOException e) {
+            log.warn("could not write capture to {}: {}", file, e.getMessage());
+            return null;
         }
-        this.capture = context;
+        return file;
+    }
+
+    private static ParquetWriter<Object> writerFor(Path file, CaptureContext capture) throws IOException {
+        return AvroParquetWriter.builder(new LocalOutputFile(file))
+            .withSchema(SqlProfile.getClassSchema())
+            .withDictionaryEncoding(true)
+            .withConf(new Configuration(false))
+            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
+            // absent rather than empty when nothing is known: a reader must be
+            // able to tell "no provenance recorded" from "recorded as nothing",
+            // which is the distinction sqlx-sy5 turns on
+            .withExtraMetaData(capture == null ? Map.of() : capture.asMetadata())
+            .build();
     }
 
     /**
-     * Where a capture is written: the configured path with the capture instant
-     * folded into the stem.
+     * Where a capture is written: the configured path with the source and the
+     * capture instant folded into the stem.
      *
-     * <p>One file per capture, not one file overwritten. Performance Schema is
-     * cleared when the server restarts, so an overwritten file destroyed the
-     * only record that a previous window was ever observed — and with it any
-     * chance of noticing the gap between them (sqlx-sy5).
+     * <p>THE SOURCE IS IN THE NAME because it is the unit a capture describes.
+     * An environment can read several servers, and two servers' statements
+     * belong together no more than two environments' do — sqlx-sy5 already
+     * argues gap detection is per datasource for exactly this reason, and
+     * mixing them in one file puts the interleaving below the level the archive
+     * reader can see.
      *
      * <p>The stamp is ordered lexicographically as well as chronologically, so
-     * the newest capture is the last name in a sorted listing and finding it
-     * costs no parsing.
+     * within a source the newest capture is the last name in a sorted listing
+     * and finding it costs no parsing.
      *
      * <p>Falls back to the plain configured name when there is no capture
      * instant, which keeps a context-less write working and readable.
@@ -92,43 +116,34 @@ public class ParquetSink {
         String extension = dot < 0 ? "" : name.substring(dot);
         String stamp = STAMP.format(context.capturedAt());
         Path parent = base.getParent();
-        Path stamped = Path.of(stem + "-" + stamp + extension);
+        Path stamped = Path.of(stem + "-" + fileToken(context.sourceRef()) + stamp + extension);
         return parent == null ? stamped : parent.resolve(stamped);
+    }
+
+    /**
+     * A source ref, made safe for a file name, or empty when there is none.
+     *
+     * <p>Two different refs must never produce the same token — that would
+     * re-merge their captures and recreate the bug this exists to fix. Refs are
+     * usually already safe ({@code primary}, {@code explorer}) and pass through
+     * unchanged; anything that had to be rewritten carries a short digest of
+     * the original so it stays distinct. {@link com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSqlSource}
+     * uses a file path as its ref, which is why this is not merely defensive.
+     */
+    static String fileToken(String sourceRef) {
+        if (sourceRef == null || sourceRef.isBlank()) {
+            return "";
+        }
+        String safe = sourceRef.replaceAll("[^A-Za-z0-9_]", "-");
+        if (!safe.equals(sourceRef) || safe.length() > 40) {
+            safe = safe.substring(0, Math.min(safe.length(), 32))
+                + "-" + Integer.toHexString(sourceRef.hashCode() & 0xffffff);
+        }
+        return safe + "-";
     }
 
     private static final DateTimeFormatter STAMP =
         DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC);
-
-    private ParquetWriter<Object> writer() throws IOException {
-        if (objectWriter == null) {
-            AvroParquetWriter.Builder<Object> parquetWriter =
-                AvroParquetWriter.builder(new LocalOutputFile(fileFor(config.getFilename(), capture)));
-            objectWriter = parquetWriter.withSchema(SqlProfile.getClassSchema())
-                .withDictionaryEncoding(true)
-                .withConf(new Configuration(false))
-                .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
-                // absent rather than empty when nothing is known: a reader must
-                // be able to tell "no provenance recorded" from "recorded as
-                // nothing", which is the distinction sqlx-sy5 turns on
-                .withExtraMetaData(capture == null ? Map.of() : capture.asMetadata())
-                .build();
-        }
-        return objectWriter;
-    }
-
-    /**
-     * Close the writer so the parquet footer is written and the file is
-     * readable. This used to read a record back *before* closing, which meant
-     * reading a file that had no footer yet — and printing the result to
-     * stdout. The read is gone; anything verifying the sink can open the file
-     * after this returns.
-     */
-    @PreDestroy
-    public synchronized void close() throws IOException {
-        if (objectWriter != null) {
-            objectWriter.close();
-        }
-    }
 
     /**
      * Any reader of a profile file needs this. The reader refuses
@@ -144,7 +159,7 @@ public class ParquetSink {
             Map.of("parquet.avro.serializable.classes", BigDecimal.class.getName()));
     }
 
-    /** Read the profiles back — the file must be {@link #close()}d first. */
+    /** Read the profiles back. A capture is sealed when {@link #write} returns. */
     public List<SqlProfile> readAll(Path parquetFile) throws IOException {
         List<SqlProfile> profiles = new ArrayList<>();
         try (ParquetReader<SqlProfile> parquetReader = AvroParquetReader.<SqlProfile>builder(
@@ -158,14 +173,6 @@ public class ParquetSink {
             }
         }
         return profiles;
-    }
-
-    public synchronized void write(SqlProfile sqlProfile) {
-        try {
-            writer().write(sqlProfile);
-        } catch (IOException|RuntimeException e) {
-            log.info("failed to write individual sql: {}", sqlProfile);
-        }
     }
 
     public void writeAvroToFile(Path file, Schema schema, Iterable<? extends SpecificRecord> records) throws IOException {

@@ -125,6 +125,51 @@ public class ParquetSqlRepository implements SqlRepository {
     }
 
     /**
+     * Every capture written by one source, oldest first.
+     *
+     * <p>Captures are per source now (sqlx-fx2), so "the newest file" and "the
+     * newest file <em>of this source</em>" are different questions and the
+     * second is almost always the one meant. Asking the first while two sources
+     * are loaded returns whichever happened to be captured last, which is the
+     * shape of the bug that made captures per-source in the first place.
+     *
+     * <p>Matched on the name rather than by opening every footer: the name
+     * carries the source token {@link ParquetSink#fileToken} put there, so this
+     * costs a listing. Captures written before the source was in the name do
+     * not match — they are legacy files, and {@link CaptureArchive} still
+     * places them by reading their footers.
+     */
+    public static List<Path> capturesOf(String configuredPath, String sourceRef) {
+        String token = ParquetSink.fileToken(sourceRef);
+        if (token.isEmpty()) {
+            return List.of();
+        }
+        Path base = Path.of(configuredPath);
+        Path fileName = base.getFileName();
+        if (fileName == null) {
+            return List.of();
+        }
+        String name = fileName.toString();
+        int dot = name.lastIndexOf('.');
+        String stem = dot < 0 ? name : name.substring(0, dot);
+        String prefix = stem + "-" + token;
+        return captures(configuredPath).stream()
+            .filter(path -> String.valueOf(path.getFileName()).startsWith(prefix))
+            .toList();
+    }
+
+    /** The newest sealed capture of one source, or null when it has none. */
+    public static Path latestCaptureOf(String configuredPath, String sourceRef) {
+        List<Path> captures = capturesOf(configuredPath, sourceRef);
+        for (int i = captures.size() - 1; i >= 0; i--) {
+            if (isSealed(captures.get(i))) {
+                return captures.get(i);
+            }
+        }
+        return null;
+    }
+
+    /**
      * The most recent capture — the corpus — not every file on disk.
      *
      * <p>Reading them all would be wrong, not merely slow. Performance Schema

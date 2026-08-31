@@ -164,12 +164,7 @@ class CaptureArchiveTest {
     private void writeCapture(Path configured, CaptureContext context) throws IOException {
         ParquetConfig config = new ParquetConfig();
         config.setFilename(configured.toString());
-        ParquetSink sink = new ParquetSink(config);
-        if (context != null) {
-            sink.capturing(context);
-        }
-        sink.write(profile("d1"));
-        sink.close();
+        new ParquetSink(config).write(context, List.of(profile("d1")));
     }
 
     /**
@@ -209,13 +204,13 @@ class CaptureArchiveTest {
         writeCapture(configured, capture("primary", "2026-08-20T00:00:00Z",
             "2026-07-01T00:00:00", "2026-08-20T00:00:00"));
         // what an import in flight leaves behind: newest name, no footer yet
-        java.nio.file.Files.createFile(directory.resolve("profiles-20260901T000000Z.parquet"));
+        java.nio.file.Files.createFile(directory.resolve("profiles-primary-20260901T000000Z.parquet"));
 
         ParquetConfig config = new ParquetConfig();
         config.setFilename(configured.toString());
         CaptureArchive.ArchiveReport report = new CaptureArchive(config).scan();
 
-        assertThat(report.inProgress()).isEqualTo("profiles-20260901T000000Z.parquet");
+        assertThat(report.inProgress()).isEqualTo("profiles-primary-20260901T000000Z.parquet");
         assertThat(report.unorderable()).isEmpty();
         assertThat(report.gaps()).isEmpty();
     }
@@ -231,7 +226,7 @@ class CaptureArchiveTest {
     @Test
     void anOlderFooterlessCaptureIsAFailedSampleNotDoubtAboutGaps() throws IOException {
         Path configured = directory.resolve("profiles.parquet");
-        java.nio.file.Files.createFile(directory.resolve("profiles-20260701T000000Z.parquet"));
+        java.nio.file.Files.createFile(directory.resolve("profiles-primary-20260701T000000Z.parquet"));
         writeCapture(configured, capture("primary", "2026-08-01T00:00:00Z",
             "2026-07-01T00:00:00", "2026-08-01T00:00:00"));
         writeCapture(configured, capture("primary", "2026-08-20T00:00:00Z",
@@ -242,7 +237,7 @@ class CaptureArchiveTest {
         CaptureArchive.ArchiveReport report = new CaptureArchive(config).scan();
 
         assertThat(report.inProgress()).isNull();
-        assertThat(report.failed()).containsExactly("profiles-20260701T000000Z.parquet");
+        assertThat(report.failed()).containsExactly("profiles-primary-20260701T000000Z.parquet");
         assertThat(report.unorderable()).isEmpty();
         // the two completed captures overlap, and that is still decidable
         assertThat(report.gaps()).isEmpty();
@@ -263,7 +258,7 @@ class CaptureArchiveTest {
 
         assertThat(ParquetSqlRepository.captures(configured.toString())).hasSize(2);
         assertThat(ParquetSqlRepository.latestCapture(configured.toString()).getFileName())
-            .hasToString("profiles-20260820T000000Z.parquet");
+            .hasToString("profiles-primary-20260820T000000Z.parquet");
 
         ParquetConfig config = new ParquetConfig();
         config.setFilename(configured.toString());

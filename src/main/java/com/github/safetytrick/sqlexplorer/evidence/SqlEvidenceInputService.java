@@ -629,13 +629,13 @@ public class SqlEvidenceInputService {
          */
         void writeParquet(ParquetSink sink) {
             synchronized (lock) {
-                // Declared before the first write: parquet seals file metadata
-                // into the writer when it is created, so a file that does not
-                // say where it came from can never be told afterwards.
-                sink.capturing(capture());
-                for (SqlProfile sqlProfile : parquetRows) {
-                    sink.write(sqlProfile);
-                }
+                // One call, one capture, one file. The context travels with the
+                // rows rather than being declared first: two sources of one
+                // environment import in parallel (loadFromSqlSources uses a
+                // parallel stream), and a sink that held "the current context"
+                // between calls would race them into each other's files
+                // (sqlx-fx2).
+                sink.write(capture(), parquetRows);
             }
         }
 
