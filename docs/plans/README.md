@@ -14,6 +14,7 @@ reasoning is in the commit that closed it.
 | [mcp-server.md](mcp-server.md)           | MCP server — shipped; **awaiting Michael's testing** before the item closes                             | —                 |
 | [query-examples.md](query-examples.md)   | Capture example queries with their parameters (`sqlx-hlu`) — design done, scope question open           | S–M / M–L         |
 | [grafana-integration.md](grafana-integration.md) | Links from sql-explorer to Grafana (`sqlx-cec`) — spike done, **deferred**; two routes framed, choice open | M                 |
+| [environments.md](environments.md)       | Environment management (`sqlx-v91`) — spike done, four steps ordered, decision open                       | S → L             |
 
 [normalization-versioning.md](normalization-versioning.md) is **partly done**
 (`sqlx-2oq`, 2026-08-28): `QueryNormalizer.VERSION` exists, digests are
