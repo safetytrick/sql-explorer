@@ -32,4 +32,20 @@ public class EnvironmentDefinition {
      * that forgets to mention this cannot accidentally enable it.
      */
     private boolean explainEnabled;
+
+    /**
+     * A Spring cron expression to pull this environment's sources on, or null
+     * to pull only at startup and on request ({@code pullCron: "0 0 * * * *"}).
+     *
+     * <p>OFF UNLESS ASKED, like {@code explainEnabled} above and for a related
+     * reason: a pull writes a capture file, and a deployment that never asked
+     * for a schedule should not quietly start filling a disk.
+     *
+     * <p>PER ENVIRONMENT RATHER THAN ONE GLOBAL CADENCE, because environments
+     * differ in the two things that decide how often a capture is worth taking:
+     * how fast the digest table fills, and how often the server restarts and
+     * clears it. A busy production server and a dev instance want different
+     * answers (sqlx-ijz).
+     */
+    private String pullCron;
 }

@@ -42,4 +42,11 @@ sql-explorer:
   # of a 512 MB heap. A deployment with fewer environments than this never
   # evicts anything.
   resident-environments: 3
+  # Delete captures another capture already contains. Off by default: it removes
+  # files, and the rule is only safe because it is structural — within a run of
+  # captures the newest contains the others, across a Performance Schema reset it
+  # contains nothing of them, so the capture before a reset is never pruned. A
+  # count- or age-based policy would eventually delete exactly that one, which is
+  # the only record of which queries ran before the reset.
+  prune-redundant-captures: false
 

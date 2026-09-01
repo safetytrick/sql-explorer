@@ -33,6 +33,15 @@ export interface EnvironmentSummary {
   sources: SourcesSummary;
 }
 
+export interface PullResult {
+  environment: string;
+  profiles: number;
+  window: {from: string; to: string; days: number} | null;
+  /** Redundant captures removed, or that would be if pruning were enabled. */
+  prunedCaptures: number;
+  pruningEnabled: boolean;
+}
+
 export interface EnvironmentList {
   defaultEnvironment: string;
   environments: EnvironmentSummary[];
@@ -55,6 +64,17 @@ export class EnvironmentService {
   /** Drop the environment's cached schema so it reloads from its servers on next use. */
   refreshSchema(name: string): Observable<void> {
     return this.http.post<void>(endpoint + 'environments/' + encodeURIComponent(name) + '/refresh-schema', null);
+  }
+
+  /**
+   * Read the environment's sources now and answer what the capture holds.
+   *
+   * <p>Not the same as reloading: the useful answer to "pull now" is whether
+   * the capture is worth having — how many profiles, over what period — and a
+   * pull that merely succeeded says nothing about that (sqlx-ijz).
+   */
+  pull(name: string): Observable<PullResult> {
+    return this.http.post<PullResult>(endpoint + 'environments/' + encodeURIComponent(name) + '/pull', null);
   }
 
   getCurrent(): string | null {

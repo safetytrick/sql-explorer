@@ -3,6 +3,10 @@ package com.github.safetytrick.sqlexplorer.environment;
 import java.time.Instant;
 import java.util.List;
 
+import com.github.safetytrick.sqlexplorer.coverage.Coverage;
+import com.github.safetytrick.sqlexplorer.coverage.CoverageService;
+import com.github.safetytrick.sqlexplorer.evidence.CaptureRetention;
+import com.github.safetytrick.sqlexplorer.evidence.EnvironmentLoader;
 import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,10 +24,18 @@ class EnvironmentResource {
 
     private final EnvironmentRegistry registry;
     private final SqlRepositoryManager sqlRepositoryManager;
+    private final EnvironmentLoader environmentLoader;
+    private final CoverageService coverageService;
+    private final CaptureRetention retention;
 
-    EnvironmentResource(EnvironmentRegistry registry, SqlRepositoryManager sqlRepositoryManager) {
+    EnvironmentResource(EnvironmentRegistry registry, SqlRepositoryManager sqlRepositoryManager,
+                        EnvironmentLoader environmentLoader, CoverageService coverageService,
+                        CaptureRetention retention) {
         this.registry = registry;
         this.sqlRepositoryManager = sqlRepositoryManager;
+        this.environmentLoader = environmentLoader;
+        this.coverageService = coverageService;
+        this.retention = retention;
     }
 
     @GetMapping("/environments")
@@ -45,6 +57,39 @@ class EnvironmentResource {
                 state.resident());
         return new EnvironmentSummary(environment.getName(), servers, sources);
     }
+
+    /**
+     * Pull this environment's sources now, and say what the pull captured.
+     *
+     * <p>Distinct from {@code POST /environments/{name}/load}, which answers
+     * import statistics: this answers what a person asked, which is whether the
+     * capture is worth having — how many profiles, and what period they cover.
+     * A pull that succeeded silently tells you nothing about whether the server
+     * had anything new to say (sqlx-ijz).
+     */
+    @PostMapping("/environments/{name}/pull")
+    public PullResult pull(@PathVariable String name) {
+        Environment environment = registry.get(name);
+        if (environment == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown environment: " + name);
+        }
+        SqlImportStats stats = environmentLoader.loadConfiguredSources(environment.getName());
+        Coverage.Report coverage = coverageService.report(environment.getName());
+        Coverage.ObservedWindow window = coverage.sources().stream()
+            .map(Coverage.SourceCoverage::window)
+            .filter(java.util.Objects::nonNull)
+            .findFirst().orElse(null);
+        CaptureRetention.Pruned pruned = retention.prune();
+        return new PullResult(environment.getName(), stats.count(), window,
+            pruned.deleted().size(), retention.isEnabled());
+    }
+
+    /**
+     * @param prunedCaptures how many redundant captures went with it, or would
+     *                       have — see {@code pruningEnabled}
+     */
+    record PullResult(String environment, int profiles, Coverage.ObservedWindow window,
+                      int prunedCaptures, boolean pruningEnabled) { }
 
     /** Drop the environment's cached schema so it reloads from its servers on next use. */
     @PostMapping("/environments/{name}/refresh-schema")

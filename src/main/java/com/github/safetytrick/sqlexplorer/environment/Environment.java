@@ -15,13 +15,19 @@ public final class Environment implements AutoCloseable {
     private final List<DatabaseServer> servers;
 
     private final boolean explainEnabled;
+    private final String pullCron;
 
     public Environment(String name, List<DatabaseServer> servers) {
-        this(name, servers, false);
+        this(name, servers, false, null);
     }
 
     public Environment(String name, List<DatabaseServer> servers, boolean explainEnabled) {
+        this(name, servers, explainEnabled, null);
+    }
+
+    public Environment(String name, List<DatabaseServer> servers, boolean explainEnabled, String pullCron) {
         this.explainEnabled = explainEnabled;
+        this.pullCron = pullCron;
         this.name = name;
         this.servers = List.copyOf(servers);
     }
@@ -29,6 +35,11 @@ public final class Environment implements AutoCloseable {
     /** Whether EXPLAIN may be run against this environment's servers. Off by default. */
     public boolean isExplainEnabled() {
         return explainEnabled;
+    }
+
+    /** Cron expression to pull this environment's sources on, or null for none. */
+    public String getPullCron() {
+        return pullCron;
     }
 
     public String getName() {

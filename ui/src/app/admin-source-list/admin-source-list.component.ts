@@ -1,6 +1,6 @@
 import {Component, OnInit} from '@angular/core';
 import {SourceService} from '../source.service';
-import {EnvironmentService, EnvironmentSummary} from '../environment.service';
+import {PullResult, EnvironmentService, EnvironmentSummary} from '../environment.service';
 import {DatePipe} from '@angular/common';
 import {ImportedSqlSource, PersistedSource} from '../api-types';
 
@@ -75,6 +75,29 @@ export class AdminSourceListComponent implements OnInit {
   cancelChange() {
     this.resetSelection();
     console.log('Options Reset');
+  }
+
+  /** What the last manual pull captured, so the button reports rather than just succeeding. */
+  pullResult: PullResult | null = null;
+  pulling = false;
+  pullFailed = false;
+
+  pullNow() {
+    if (!this.currentEnvironment || this.pulling) {
+      return;
+    }
+    this.pulling = true;
+    this.pullResult = null;
+    this.pullFailed = false;
+    this.environmentService.pull(this.currentEnvironment).subscribe({
+      next: result => {
+        this.pulling = false;
+        this.pullResult = result;
+        this.refresh();
+      },
+      // a pull that failed must not read as one that captured nothing
+      error: () => { this.pulling = false; this.pullFailed = true; }
+    });
   }
 
   refreshSchema() {

@@ -22,7 +22,7 @@ class EnvironmentResourceTest {
 
     private final EnvironmentRegistry registry = mock(EnvironmentRegistry.class);
     private final SqlRepositoryManager sqlRepositoryManager = mock(SqlRepositoryManager.class);
-    private final EnvironmentResource resource = new EnvironmentResource(registry, sqlRepositoryManager);
+    private final EnvironmentResource resource = new EnvironmentResource(registry, sqlRepositoryManager, mock(com.github.safetytrick.sqlexplorer.evidence.EnvironmentLoader.class), mock(com.github.safetytrick.sqlexplorer.coverage.CoverageService.class), mock(com.github.safetytrick.sqlexplorer.evidence.CaptureRetention.class));
 
     private final SchemaRepositoryFactory schemaRepositoryFactory = mock(SchemaRepositoryFactory.class);
     private final DatabaseServer server = new DatabaseServer("db-master",

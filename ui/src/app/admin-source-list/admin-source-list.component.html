@@ -19,9 +19,29 @@
     } @else {
       <p class="state-unloaded">No sources loaded</p>
     }
+    <button class="btn primary" [disabled]="pulling" (click)="pullNow()"
+      title="Read the servers' performance_schema now and write a capture."> {{pulling ? 'Pulling…' : 'Pull now'}} </button>
     <button class="btn" (click)="refreshSchema()"
       title="Drops the cached schema so it reloads from the servers on next use. Re-apply sources afterwards to re-analyze queries against the refreshed schema."> Refresh Schema </button>
     <p class="refresh-hint">Picks up DDL changes from the servers. Already-loaded sources keep their old analysis until re-applied.</p>
+
+    <!-- A pull that merely succeeded says nothing about whether the capture is
+         worth having, so it reports what it got (sqlx-ijz). -->
+    @if (pullResult) {
+      <p class="pull-result">
+        Captured <strong>{{pullResult.profiles}}</strong> statements@if (pullResult.window) {,
+        covering <strong>{{pullResult.window.days}}</strong> days}.
+        @if (pullResult.prunedCaptures) {
+          <span class="pull-note">
+            {{pullResult.pruningEnabled ? 'Pruned' : 'Could prune'}} {{pullResult.prunedCaptures}}
+            redundant capture(s) — older reads of the same uninterrupted period.
+          </span>
+        }
+      </p>
+    }
+    @if (pullFailed) {
+      <p class="pull-failed">The pull did not complete, so nothing was captured.</p>
+    }
   </div>
 } @else if (currentEnvironment) {
   <p>Managing sources for environment: <strong>{{currentEnvironment}}</strong></p>

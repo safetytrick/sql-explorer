@@ -74,7 +74,7 @@ public class EnvironmentRegistry {
             ConnectionInfo connectionInfo = new ConnectionInfo(server.getJdbcUrl(), server.getUsername(), server.getPassword());
             servers.add(new DatabaseServer(serverEntry.getKey(), connectionInfo, server.getSources(), schemaRepositoryFactory));
         }
-        return new Environment(name, servers, definition.isExplainEnabled());
+        return new Environment(name, servers, definition.isExplainEnabled(), definition.getPullCron());
     }
 
     public Environment getDefault() {
