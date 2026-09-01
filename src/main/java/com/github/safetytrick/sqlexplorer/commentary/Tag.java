@@ -1,10 +1,7 @@
 package com.github.safetytrick.sqlexplorer.commentary;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.auth.User;
 import jakarta.persistence.Entity;
@@ -23,7 +20,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Table(name="tags")
 @EntityListeners(AuditingEntityListener.class)
 public class Tag {
-    private static final Pattern PATH_ELEMENTS = Pattern.compile("/(?<key>[^/]+)/(?<value>[^/]+)");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,13 +43,17 @@ public class Tag {
     @CreatedDate
     private Instant createdOn;
 
+    /**
+     * The path's named parts — {@code schema}, {@code table} or {@code query}.
+     *
+     * <p>Empty when the stored path is not one of the three shapes, rather than
+     * a best guess at its segments. A guess is what produced the defect this
+     * replaced: a table named {@code a/b} yielded a type of {@code a} and a
+     * table of {@code a}, and the tag became unreachable (sqlx-0lj).
+     */
     public Map<String,String> getPathElements() {
-        Map<String,String> result = new HashMap<>();
-        Matcher matcher = PATH_ELEMENTS.matcher(this.path);
-        while (matcher.find()) {
-            result.put(matcher.group("key"), matcher.group("value"));
-        }
-        return result;
+        TagPath parsed = TagPath.parse(this.path);
+        return parsed == null ? Map.of() : parsed.elements();
     }
 
 }

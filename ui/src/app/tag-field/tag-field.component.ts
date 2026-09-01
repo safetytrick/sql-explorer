@@ -145,18 +145,35 @@ export class TagFieldComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * The tag name whose attachment was refused, or null.
+   *
+   * <p>Cleared on the next attempt rather than on a timer: the message should
+   * stay until it has been acted on, and a row in a 300-row table is not
+   * somewhere a person is looking when a toast would fire.
+   */
+  failed: string | null = null;
+
   attach(name: string) {
     const value = name.trim();
     this.close();
     if (!value || (this.tags ?? []).some(tag => tag.name.toLowerCase() === value.toLowerCase())) {
       return;
     }
-    this.subscriptions.add(this.sqlService.addTag(value, this.path).subscribe(tag => {
-      this.tags = [...(this.tags ?? []), tag];
-      if (!this.candidates.some(candidate => candidate.toLowerCase() === value.toLowerCase())) {
-        this.candidates = [...this.candidates, value];
-      }
-      this.changed.emit(this.tags);
+    this.failed = null;
+    this.subscriptions.add(this.sqlService.addTag(value, this.path).subscribe({
+      next: tag => {
+        this.tags = [...(this.tags ?? []), tag];
+        if (!this.candidates.some(candidate => candidate.toLowerCase() === value.toLowerCase())) {
+          this.candidates = [...this.candidates, value];
+        }
+        this.changed.emit(this.tags);
+      },
+      // Without this the chip simply never appears. The backend rejects a name
+      // that is not word-ish and a path it cannot address — a table whose name
+      // contains a '/' is the real case (sqlx-0lj) — and a silent no-op leaves
+      // someone clicking + repeatedly with nothing to read.
+      error: () => this.failed = value
     }));
   }
 

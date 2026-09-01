@@ -131,3 +131,13 @@
   font-size: 11px;
   color: var(--text3);
 }
+
+// A refused attach. Without it the chip just never appears, and the only
+// signal is its absence — which reads as a dead button (sqlx-0lj).
+.tag-failed {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--red, #a33);
+  margin-left: 6px;
+  white-space: nowrap;
+}

@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.auth.UserService;
+import org.springframework.http.HttpStatus;
 import lombok.Data;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @io.swagger.v3.oas.annotations.tags.Tag(name="Tags")
 @RestController
@@ -25,7 +26,6 @@ class TagsResource {
     private final BulkTagService bulkTagService;
     private final CommentaryEnvironment environment;
     private final Pattern tagPattern = Pattern.compile("[\\w-]+");
-    private final Pattern pathTypePattern = Pattern.compile("([^/]+)/[^/]+$");
 
     public TagsResource(TagRepository tagRepository, UserService userService, BulkTagService bulkTagService,
                         CommentaryEnvironment environment) {
@@ -64,10 +64,25 @@ class TagsResource {
         Objects.requireNonNull(createTag.name, "name is required");
         Objects.requireNonNull(createTag.path, "path is required");
 
+        // Both checks below reach the caller as a 400. A plain
+        // IllegalArgumentException is a 500 here, which sends someone with a
+        // fixable request to logs they cannot read — the same defect already
+        // corrected on the bulk path (sqlx-agl) and the upload path (sqlx-djj);
+        // this was the third instance.
         if (!tagPattern.matcher(createTag.name).matches()) {
-            throw new IllegalArgumentException("name must only container letters, numbers, underscores and hyphens");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "name must only contain letters, numbers, underscores and hyphens");
         }
 
+        // Validated before anything is looked up or written: the path is
+        // client-supplied, and a path that cannot be parsed produces a row no
+        // lens or filter can ever find (sqlx-0lj).
+        TagPath path;
+        try {
+            path = TagPath.require(createTag.path);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
 
         Optional<Tag> existingTag = tagRepository
             .findByNameAndPathAndEnvironmentName(createTag.name, createTag.path, environment.name());
@@ -81,15 +96,7 @@ class TagsResource {
         tag.setPath(createTag.path);
         tag.setEnvironmentName(environment.name());
 
-        if (createTag.getType() == null) {
-            Matcher pathTypeMatcher = pathTypePattern.matcher(createTag.getPath());
-            if (!pathTypeMatcher.find()) {
-                throw new IllegalArgumentException("could not derive type and no type was specified");
-            }
-            tag.setType(pathTypeMatcher.group(1));
-        } else {
-            tag.setType(createTag.getType());
-        }
+        tag.setType(createTag.getType() == null ? path.type() : createTag.getType());
 
         tag = tagRepository.save(tag);
 

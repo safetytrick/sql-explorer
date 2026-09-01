@@ -3,7 +3,6 @@ package com.github.safetytrick.sqlexplorer.commentary;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.auth.UserService;
@@ -44,9 +43,6 @@ public class BulkTagService {
 
     /** Tag names are used in URLs and filenames; keep them boring. */
     private static final Pattern TAG_NAME = Pattern.compile("[\\w-]+");
-
-    /** The path segment before the last one names what kind of thing is tagged. */
-    private static final Pattern PATH_TYPE = Pattern.compile("([^/]+)/[^/]+$");
 
     private final TagRepository tagRepository;
     private final UserService userService;
@@ -140,10 +136,10 @@ public class BulkTagService {
 
     /** The kind of thing a path names, derived the same way a single tag does. */
     static String typeOf(String path) {
-        Matcher matcher = PATH_TYPE.matcher(path);
-        if (!matcher.find()) {
+        TagPath parsed = TagPath.parse(path);
+        if (parsed == null) {
             throw new BulkTagRequestException("could not derive type from path and none was given: " + path);
         }
-        return matcher.group(1);
+        return parsed.type();
     }
 }
