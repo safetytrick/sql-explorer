@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.auth.UserService;
+import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import lombok.Data;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -134,9 +135,27 @@ class TagsResource {
         return bulkTagService.detach(request.getName(), request.getPaths());
     }
 
+    /**
+     * Detach one association from the selected environment.
+     *
+     * <p>SCOPED, like every other read and write in this package. Association
+     * ids are globally unique, so an unscoped delete could not remove the wrong
+     * row by accident — but it would let an id belonging to one environment be
+     * deleted while another was selected, and it was the last destructive path
+     * that did not ask which corpus it was working in (sqlx-8p0).
+     *
+     * <p>A 404 rather than a silent no-op. The chip is removed optimistically by
+     * the client, so an id this environment does not have has to come back as
+     * something the client can react to; quietly reporting success would leave
+     * the tag on screen until the next load and then bring it back.
+     */
     @DeleteMapping("/tag/{id}")
+    @Transactional
     public void deleteTag(@PathVariable int id) {
-        tagRepository.deleteById(id);
+        if (tagRepository.deleteByIdAndEnvironmentName(id, environment.name()) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                "no tag " + id + " in " + environment.name());
+        }
     }
 
     private static String nullToEmpty(String value) {

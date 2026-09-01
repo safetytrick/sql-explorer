@@ -54,6 +54,14 @@ interface TagRepository extends CrudRepository<Tag,Integer> {
     void deleteAllByNameAndEnvironmentName(String name, String environmentName);
 
     /**
+     * Detach one association, but only from the environment asking.
+     *
+     * <p>Returns how many rows went, so the caller can tell "deleted" from "not
+     * yours" — {@code deleteById} cannot, and reported both as success.
+     */
+    long deleteByIdAndEnvironmentName(Integer id, String environmentName);
+
+    /**
      * Detach one tag from exactly these paths.
      *
      * <p>Deliberately not {@link #deleteAllByName}, which would strip the tag

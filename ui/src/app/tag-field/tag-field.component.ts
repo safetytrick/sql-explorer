@@ -146,7 +146,7 @@ export class TagFieldComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * The tag name whose attachment was refused, or null.
+   * The tag name whose attach or detach was refused, or null.
    *
    * <p>Cleared on the next attempt rather than on a timer: the message should
    * stay until it has been acted on, and a row in a 300-row table is not
@@ -180,9 +180,23 @@ export class TagFieldComponent implements OnInit, OnDestroy {
   detach(tag: Tag, event: Event) {
     event.stopPropagation();
     event.preventDefault();
-    this.subscriptions.add(this.sqlService.removeTag(tag.id).subscribe());
-    this.tags = (this.tags ?? []).filter(existing => existing.id !== tag.id);
+    this.failed = null;
+    const before = this.tags ?? [];
+    // Removed optimistically, because the common case succeeds and a chip that
+    // lingers while a request is in flight reads as a dead click.
+    this.tags = before.filter(existing => existing.id !== tag.id);
     this.changed.emit(this.tags);
+    this.subscriptions.add(this.sqlService.removeTag(tag.id).subscribe({
+      // ...but put back what the server would not remove. The delete is scoped
+      // to the selected environment now (sqlx-8p0), so a refusal means the tag
+      // is still there — and leaving the row looking untagged until the next
+      // load would be showing something untrue.
+      error: () => {
+        this.tags = before;
+        this.failed = tag.name;
+        this.changed.emit(this.tags);
+      }
+    }));
   }
 
   @HostListener('document:click', ['$event'])
