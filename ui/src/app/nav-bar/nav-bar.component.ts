@@ -1,8 +1,8 @@
 import { Component, HostListener, OnInit } from '@angular/core';
 import {ExplainService} from '../explain.service';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
-import { withEnv } from '../environment-url';
+import { EnvironmentUrlSync } from '../environment-url-sync';
 import { ThemeService, THEMES, ThemeOption } from '../theme.service';
 
 @Component({
@@ -33,7 +33,7 @@ export class NavBarComponent implements OnInit {
   constructor(private explainService: ExplainService,
               private environmentService: EnvironmentService,
               private themeService: ThemeService,
-              private router: Router) { }
+              private environmentUrl: EnvironmentUrlSync) { }
 
   toggleAdmin(event: Event) {
     event.preventDefault();
@@ -69,19 +69,10 @@ export class NavBarComponent implements OnInit {
   }
 
   onEnvChange(name: string) {
-    this.environmentService.setCurrent(name);
     this.current = name;
-    // Stay on the current route, but re-instantiate it so its data reloads for
-    // the newly selected environment. The interceptor scopes every request to
-    // EnvironmentService.getCurrent(), so re-fetching pulls the new env's data.
-    //
-    // The address gains the new environment in the same navigation rather than
-    // being stamped afterwards: the URL to return to is captured before any
-    // later stamp could land, so stamping second would navigate back to the old
-    // environment's address and only then correct it.
-    const target = withEnv(this.router.url, name);
-    this.router.navigateByUrl('/', { skipLocationChange: true })
-      .then(() => this.router.navigateByUrl(target));
+    // Requests, address and data all move together; EnvironmentUrlSync owns
+    // that because the reload and the address change have to be one sequence.
+    this.environmentUrl.switchTo(name);
   }
 
   onThemeChange(id: string) {

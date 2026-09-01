@@ -1,7 +1,7 @@
 import {Injectable, inject} from '@angular/core';
 import {NavigationEnd, Router} from '@angular/router';
 import {filter} from 'rxjs';
-import {ENV_PARAM, envFromSearch} from './environment-url';
+import {ENV_PARAM, envFromSearch, withEnv} from './environment-url';
 import {EnvironmentService} from './environment.service';
 
 /**
@@ -31,6 +31,7 @@ export class EnvironmentUrlSync {
   private readonly environments = inject(EnvironmentService);
   private started = false;
 
+
   /** Called once, from the root component. */
   start(): void {
     if (this.started) {
@@ -46,11 +47,33 @@ export class EnvironmentUrlSync {
   }
 
   /**
-   * Put the selected environment on the URL, if it is not already right.
+   * Select an environment, by loading the same view against it.
    *
-   * <p>Public because picking an environment must correct the address
-   * immediately, rather than waiting for whatever navigation happens next.
+   * <p>A FULL DOCUMENT LOAD, deliberately, and this is the piece that putting
+   * `env` in the URL bought: the address already describes the whole view, so
+   * re-requesting it reconstructs exactly what the user was looking at, against
+   * the new corpus, with no component able to keep a stale row.
+   *
+   * <p>WHAT THIS REPLACES, AND WHY. Switching used to navigate to `/` with
+   * `skipLocationChange` and back, to force Angular to re-instantiate the route
+   * and re-fetch. Five of the ten routed pages subscribe to `current$` and
+   * reload themselves; the rest depended entirely on that bounce. But `/`
+   * redirects to `/tables`, so on the tables page — the landing page, and the
+   * one most likely to be looked at — the bounce never left the route, Angular
+   * reused the component, and the data simply did not reload. Verified against
+   * the commit before `env` existed: it never worked there either.
+   *
+   * <p>An environment switch replaces every number on the page, so paying a
+   * document load for it is the honest trade. It also cannot be subtly wrong,
+   * which the bounce demonstrably could.
    */
+  switchTo(name: string): void {
+    // Persisted first: a full load re-reads this, and the URL, on the way up.
+    this.environments.setCurrent(name);
+    location.assign(withEnv(location.pathname + location.search, name));
+  }
+
+  /** Put the selected environment on the URL, if it is not already right. */
   stamp(): void {
     const current = this.environments.getCurrent();
     if (!current) {

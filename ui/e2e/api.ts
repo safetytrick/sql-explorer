@@ -26,6 +26,16 @@ function metrics(digest: string, executed: number, avgMs: number) {
   };
 }
 
+/** A row of `/schemas`. */
+function schemaRollup(name: string) {
+  return {name, numberOfQueries: 3, totalQueryTime: 1000, numberOfTables: 2, tags: []};
+}
+
+/** A row of `/tables`, the list the tables page renders. */
+function tableRollup(name: string, schema: string) {
+  return {name, schema, numberOfQueries: 3, totalQueryTime: 1000, tags: [], view: false};
+}
+
 function profile(name: string, schema: string, perfDigest: string, executed = 100) {
   return {
     id: `primary@2026-08-30T00:00:00Z-${name}`,
@@ -132,6 +142,26 @@ export async function stubApi(page: Page) {
       }}
     ]
   })));
-  await page.route(`${BASE}/tables`, route => route.fulfill(json([])));
+  // Answers PER ENVIRONMENT, keyed off the header the interceptor stamps. That
+  // is what lets a test assert an environment switch changed the DATA and not
+  // just the address — the distinction a regression turned on (sqlx-29f).
+  // `/schemas` answers per environment too, and it matters more than /tables
+  // does: the root redirects to /tables, so the switch's re-instantiation
+  // bounce through `/` never leaves that route. /schemas is a page where the
+  // bounce genuinely changes component, which is what makes it the probe for
+  // whether switching reloads at all (sqlx-29f).
+  await page.route(`${BASE}/schemas`, route => {
+    const environment = route.request().headers()['x-sql-explorer-environment'];
+    return route.fulfill(json(environment === 'staging'
+      ? [schemaRollup('staging_only')]
+      : [schemaRollup('app'), schemaRollup('ops')]));
+  });
+  await page.route(`${BASE}/tables`, route => {
+    const environment = route.request().headers()['x-sql-explorer-environment'];
+    const rows = environment === 'staging'
+      ? [tableRollup('staging_only', 'ops')]
+      : [tableRollup('orders', 'app'), tableRollup('events', 'app')];
+    return route.fulfill(json(rows));
+  });
   await page.route(`${BASE}/graph/v2/**`, route => route.fulfill(json({nodes: [], edges: []})));
 }
