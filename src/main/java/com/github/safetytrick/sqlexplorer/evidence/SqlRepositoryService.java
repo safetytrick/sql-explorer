@@ -241,7 +241,7 @@ public class SqlRepositoryService {
     }
 
     public Stream<TableRollup> getTablesForSchemaWithRollup(String schema) {
-        TagLoader tagLoader = tagsService.getBulkTagLoaderByTypeAndPathPrefix("table", "/schema/" + schema + "/");
+        TagLoader tagLoader = tagsService.getTableTagLoaderForSchema(schema);
 
         return repository().getAllTableReferences()
             .filter(table -> table.getNormalizedSchemaName() != null && table.getNormalizedSchemaName().equalsIgnoreCase(schema)).map(

@@ -81,9 +81,8 @@ public class BulkTagService {
             Tag tag = new Tag();
             tag.setAuthor(userService.currentUser());
             tag.setName(name);
-            tag.setPath(path);
             tag.setEnvironmentName(environment.name());
-            tag.setType(type == null ? typeOf(path) : type);
+            tag.target(targetOf(path, type));
             tagRepository.save(tag);
             attached++;
         }
@@ -136,10 +135,26 @@ public class BulkTagService {
 
     /** The kind of thing a path names, derived the same way a single tag does. */
     static String typeOf(String path) {
+        return targetOf(path, null).type();
+    }
+
+    /**
+     * What a path addresses, refusing one this format cannot represent.
+     *
+     * <p>An explicit type that disagrees with the address is refused rather than
+     * preferred: it means the caller believes something untrue about what it is
+     * tagging, and silently going with either answer files the tag somewhere
+     * nobody will look for it.
+     */
+    static TagPath targetOf(String path, String type) {
         TagPath parsed = TagPath.parse(path);
         if (parsed == null) {
             throw new BulkTagRequestException("could not derive type from path and none was given: " + path);
         }
-        return parsed.type();
+        if (type != null && !type.equals(parsed.type())) {
+            throw new BulkTagRequestException("type " + type + " does not match " + path
+                + ", which addresses a " + parsed.type());
+        }
+        return parsed;
     }
 }

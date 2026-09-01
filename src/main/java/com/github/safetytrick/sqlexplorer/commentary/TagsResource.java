@@ -84,8 +84,19 @@ class TagsResource {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
 
+        if (createTag.getType() != null && !createTag.getType().equals(path.type())) {
+            // Refused rather than silently preferred either way: a type that
+            // disagrees with the address means the caller believes something
+            // untrue about what it is tagging.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "type " + createTag.getType() + " does not match " + createTag.path
+                    + ", which addresses a " + path.type());
+        }
+
         Optional<Tag> existingTag = tagRepository
-            .findByNameAndPathAndEnvironmentName(createTag.name, createTag.path, environment.name());
+            .findByNameAndEnvironmentNameAndTypeAndSchemaNameAndTableNameAndQueryDigest(
+                createTag.name, environment.name(), path.type(),
+                nullToEmpty(path.schema()), nullToEmpty(path.table()), nullToEmpty(path.digest()));
         if (existingTag.isPresent()) {
             return existingTag.get();
         }
@@ -93,10 +104,10 @@ class TagsResource {
         Tag tag = new Tag();
         tag.setAuthor(userService.currentUser());
         tag.setName(createTag.name);
-        tag.setPath(createTag.path);
         tag.setEnvironmentName(environment.name());
-
-        tag.setType(createTag.getType() == null ? path.type() : createTag.getType());
+        // Type and target together, from the one parsed address: the path is no
+        // longer stored, it is generated back from these (sqlx-11v).
+        tag.target(path);
 
         tag = tagRepository.save(tag);
 
@@ -126,6 +137,10 @@ class TagsResource {
     @DeleteMapping("/tag/{id}")
     public void deleteTag(@PathVariable int id) {
         tagRepository.deleteById(id);
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     @Data

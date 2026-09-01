@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -49,7 +50,7 @@ class BulkTagServiceTest {
     private static Tag tag(String name, String path) {
         Tag tag = new Tag();
         tag.setName(name);
-        tag.setPath(path);
+        tag.target(TagPath.require(path));
         return tag;
     }
 
@@ -68,8 +69,12 @@ class BulkTagServiceTest {
 
         assertThat(result.changed()).isEqualTo(2);
         assertThat(result.unchanged()).isZero();
-        assertThat(saved()).extracting(Tag::getPath)
-            .containsExactly("/schema/mysql", "/schema/sys");
+        // Asserted on the TYPED target, not on getPath(): the path is a stored
+        // generated column now, so it exists only once a row has been written
+        // and is null on an entity a mocked repository never persisted
+        // (sqlx-11v).
+        assertThat(saved()).extracting(Tag::getType, Tag::getSchemaName, Tag::getTableName)
+            .containsExactly(tuple("schema", "mysql", ""), tuple("schema", "sys", ""));
     }
 
     /**
@@ -87,7 +92,7 @@ class BulkTagServiceTest {
 
         assertThat(result.changed()).isEqualTo(1);
         assertThat(result.unchanged()).isEqualTo(1);
-        assertThat(saved()).extracting(Tag::getPath).containsExactly("/schema/sys");
+        assertThat(saved()).extracting(Tag::getSchemaName).containsExactly("sys");
     }
 
     /** A different tag on the same path is not the same association. */

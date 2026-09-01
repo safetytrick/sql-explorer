@@ -24,7 +24,16 @@ interface TagRepository extends CrudRepository<Tag,Integer> {
             .collect(Collectors.groupingBy(Tag::getPath));
     }
 
-    Optional<Tag> findByNameAndPathAndEnvironmentName(String name, String path, String environmentName);
+    /**
+     * One association, addressed by its typed target rather than its path.
+     *
+     * <p>The typed columns are the unique key, so this is the exact lookup the
+     * key enforces — a path-based one asked a differently-shaped question than
+     * the constraint answered.
+     */
+    Optional<Tag> findByNameAndEnvironmentNameAndTypeAndSchemaNameAndTableNameAndQueryDigest(
+        String name, String environmentName, String type,
+        String schemaName, String tableName, String queryDigest);
 
     @Query("SELECT DISTINCT t.name FROM Tag t WHERE t.type = :type AND t.environmentName = :environmentName")
     List<String> findTagNamesByType(@Param("type") String type,
@@ -34,7 +43,9 @@ interface TagRepository extends CrudRepository<Tag,Integer> {
 
     List<Tag> findAllByTypeAndEnvironmentName(String type, String environmentName);
 
-    List<Tag> findAllByTypeAndPathStartsWithAndEnvironmentName(String type, String path, String environmentName);
+    /** Every tag of a kind within one schema — replaces a path-prefix LIKE. */
+    List<Tag> findAllByTypeAndSchemaNameAndEnvironmentName(String type, String schemaName,
+                                                           String environmentName);
 
     @Query("SELECT t.name AS name, t.type AS type, COUNT(t) AS uses, MAX(t.createdOn) AS lastUsed "
         + "FROM Tag t WHERE t.environmentName = :environmentName GROUP BY t.name, t.type")

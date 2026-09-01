@@ -326,4 +326,126 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		A tag addresses a typed target, not a string.
+
+		tags.path packed the target type, schema, table and digest into one
+		string that was parsed back out in four places. Michael questioned the
+		design after asking whether a 191-character unique-key prefix was enough
+		(sqlx-11v). The prefix WAS enough — MySQL caps identifiers at 64, so the
+		longest path the application can build is 143 — but the reasoning only
+		held while paths stayed unencoded, and the columns below remove the
+		question rather than answer it again later.
+
+		THE INAPPLICABLE COLUMNS ARE '' AND NOT NULL, and that is load-bearing:
+		MySQL treats NULLs as DISTINCT in a unique index, so a nullable
+		table_name would let the same schema tag be inserted twice. This reads
+		like pedantry until someone "tidies" it to nullable.
+
+		EVERY CHANGESET BELOW IS A SINGLE STATEMENT. MySQL DDL is not
+		transactional, and a two-statement changeset already left this table with
+		no unique key at all when its second statement failed — and then would
+		have been marked as run, because its precondition described the state the
+		first statement had already changed. One statement cannot partially
+		succeed, so its precondition still describes reality on a retry.
+	-->
+	<changeSet id="tags-typed-target-columns" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><columnExists tableName="tags" columnName="schema_name"/></not>
+		</preConditions>
+		<sql>
+			alter table tags
+				add column schema_name  varchar(64) not null default '',
+				add column table_name   varchar(64) not null default '',
+				add column query_digest varchar(72) not null default '';
+		</sql>
+	</changeSet>
+
+	<!--
+		Backfilled from the paths themselves, which are all well-formed: `/schema/`
+		is 8 characters and `/query/` is 7, hence the offsets. Idempotent, so a
+		retry after a failure produces the same rows.
+	-->
+	<changeSet id="tags-backfill-typed-target" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<columnExists tableName="tags" columnName="path"/>
+		</preConditions>
+		<sql>
+			update tags set
+				schema_name = case when type in ('schema','table')
+					then substring_index(substring(path, 9), '/table/', 1) else '' end,
+				table_name = case when type = 'table'
+					then substring_index(path, '/table/', -1) else '' end,
+				query_digest = case when type = 'query'
+					then substring(path, 8) else '' end;
+		</sql>
+	</changeSet>
+
+	<!--
+		`type` holds 'schema', 'table' or 'query' — at most six characters — and
+		has to shrink for the new key to fit: at varchar(255) the six columns
+		would be 3860 bytes of utf8mb4 against InnoDB's 3072 limit, and at
+		varchar(16) they are 2904.
+	-->
+	<changeSet id="tags-narrow-type" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<sqlCheck expectedResult="255">
+				select character_maximum_length from information_schema.columns
+				where table_schema = database() and table_name = 'tags' and column_name = 'type'
+			</sqlCheck>
+		</preConditions>
+		<sql>
+			alter table tags modify column type varchar(16) not null;
+		</sql>
+	</changeSet>
+
+	<!--
+		The key moves onto the typed columns, in one statement so the table is
+		never left without one. No prefix now, which is the point: the question
+		of whether 191 characters is enough stops existing.
+	-->
+	<changeSet id="tags-unique-on-typed-target" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<indexExists tableName="tags" indexName="tags_env_path_name"/>
+		</preConditions>
+		<sql>
+			alter table tags
+				drop index tags_env_path_name,
+				add unique key tags_target_name
+					(environment_name, type, schema_name, table_name, query_digest, name);
+		</sql>
+	</changeSet>
+
+	<!--
+		`path` becomes a STORED GENERATED column: derived by the database from the
+		typed columns, so it cannot drift from them, and still indexed so the
+		batched lookup the list pages make — `where path in (...)` with a few
+		hundred paths — stays one query rather than a tuple match or an
+		over-fetch.
+
+		Dropped and re-added in ONE statement. Done as two, a failure between them
+		would leave the table with no `path` at all, which breaks every read
+		rather than merely a constraint.
+	-->
+	<changeSet id="tags-path-becomes-generated" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<sqlCheck expectedResult="0">
+				select count(*) from information_schema.columns
+				where table_schema = database() and table_name = 'tags'
+				  and column_name = 'path' and extra like '%GENERATED%'
+			</sqlCheck>
+		</preConditions>
+		<sql>
+			alter table tags
+				drop column path,
+				add column path varchar(220) generated always as (
+					case type
+						when 'schema' then concat('/schema/', schema_name)
+						when 'table'  then concat('/schema/', schema_name, '/table/', table_name)
+						when 'query'  then concat('/query/', query_digest)
+					end) stored,
+				add key tags_path (path);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

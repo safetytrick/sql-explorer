@@ -47,9 +47,15 @@ public class TagsService implements TagLoader {
         return tagsByPath::get;
     }
 
-    public TagLoader getBulkTagLoaderByTypeAndPathPrefix(String type, String path) {
+    /**
+     * Every table tag in one schema, keyed by address.
+     *
+     * <p>Was a path-prefix LIKE. Now a predicate on the column that actually
+     * holds the schema, which is both faster and says what it means (sqlx-11v).
+     */
+    public TagLoader getTableTagLoaderForSchema(String schema) {
         List<Tag> allByType = tagRepository
-            .findAllByTypeAndPathStartsWithAndEnvironmentName(type, path, environment.name());
+            .findAllByTypeAndSchemaNameAndEnvironmentName("table", schema, environment.name());
         Map<String,List<Tag>> tagsByPath = allByType.stream()
             .collect(Collectors.groupingBy(Tag::getPath));
 

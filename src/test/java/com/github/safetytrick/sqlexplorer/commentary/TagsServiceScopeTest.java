@@ -36,7 +36,7 @@ class TagsServiceScopeTest {
         CommentaryEnvironment environment = mock(CommentaryEnvironment.class);
         when(environment.name()).thenReturn(ENV);
         when(tagRepository.findAllByTypeAndEnvironmentName(anyString(), anyString())).thenReturn(List.of());
-        when(tagRepository.findAllByTypeAndPathStartsWithAndEnvironmentName(anyString(), anyString(), anyString()))
+        when(tagRepository.findAllByTypeAndSchemaNameAndEnvironmentName(anyString(), anyString(), anyString()))
             .thenReturn(List.of());
         service = new TagsService(tagRepository, environment);
     }
@@ -72,8 +72,9 @@ class TagsServiceScopeTest {
         service.getBulkTagLoaderByType("table");
         verify(tagRepository).findAllByTypeAndEnvironmentName("table", ENV);
 
-        service.getBulkTagLoaderByTypeAndPathPrefix("table", "/schema/app_main");
-        verify(tagRepository)
-            .findAllByTypeAndPathStartsWithAndEnvironmentName("table", "/schema/app_main", ENV);
+        // Was a path-prefix LIKE; now a predicate on the column that holds the
+        // schema (sqlx-11v).
+        service.getTableTagLoaderForSchema("app_main");
+        verify(tagRepository).findAllByTypeAndSchemaNameAndEnvironmentName("table", "app_main", ENV);
     }
 }

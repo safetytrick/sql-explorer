@@ -96,24 +96,32 @@ class TagPathTest {
     }
 
     /**
-     * Read back through the entity, which is how every consumer reaches this —
-     * and which must degrade to nothing rather than guess at a stored path it
-     * cannot read.
+     * Read back through the entity, which is how every consumer reaches this.
+     * The parts come from the typed columns now, not from re-parsing a string
+     * (sqlx-11v) — an untargeted tag simply has none.
      */
     @Test
-    void anUnreadableStoredPathHasNoElements() {
-        Tag tag = new Tag();
-        tag.setPath("/schema/probe/table/a/b");
-
-        assertThat(tag.getPathElements()).isEmpty();
+    void anUntargetedTagHasNoElements() {
+        assertThat(new Tag().getPathElements()).isEmpty();
     }
 
     @Test
-    void aReadableStoredPathHasItsElements() {
+    void aTargetedTagHasItsElements() {
         Tag tag = new Tag();
-        tag.setPath("/schema/app_main/table/orders");
+        tag.target(TagPath.require("/schema/app_main/table/orders"));
 
-        assertThat(tag.getPathElements()).containsEntry("table", "orders");
+        assertThat(tag.getPathElements())
+            .containsEntry("schema", "app_main")
+            .containsEntry("table", "orders");
+        assertThat(tag.getType()).isEqualTo("table");
+    }
+
+    @Test
+    void aQueryTagCarriesItsDigestAndNothingElse() {
+        Tag tag = new Tag();
+        tag.target(TagPath.require("/query/v3:abc"));
+
+        assertThat(tag.getPathElements()).containsExactlyEntriesOf(Map.of("query", "v3:abc"));
     }
 
     /** Bulk tagging derives the type the same way, so it refuses the same paths. */

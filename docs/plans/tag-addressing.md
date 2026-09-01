@@ -144,11 +144,27 @@ output.
 
 ## Recommendation
 
-1. **Fix the type derivation and validate the path on write** (S). Do this
-   regardless of the decision below — it closes a reproduced, live defect and
-   does not depend on the model. Filed as `sqlx-0lj`.
-2. **Then move to typed columns** (S–M), with `path` kept as a derived value so
-   the UI and every construct site stay as they are. Filed as `sqlx-11v`.
+1. ~~**Fix the type derivation and validate the path on write** (S).~~ **Done** —
+   `sqlx-0lj`. `TagPath` is the single strict parser; malformed paths are refused
+   with a 400 rather than stored as a row nobody can find.
+2. ~~**Then move to typed columns** (S–M).~~ **Done** — `sqlx-11v`. `type`,
+   `schema_name`, `table_name` and `query_digest` are the stored target; the
+   unique key is `(environment_name, type, schema_name, table_name,
+   query_digest, name)` at 2904 bytes with **no prefix**, so the question that
+   started this is gone. `path` survives as a **STORED GENERATED** column,
+   derived by the database so it cannot drift, and still indexed — which is what
+   keeps the list pages' batched `path in (…)` lookup a single query instead of a
+   tuple match or an over-fetch.
+3. **Accept a typed target on the API** (M) — `sqlx-3ai`, open. The wire format
+   is still a path string, so `TagPath` remains the boundary codec and a table
+   named `a/b` is still un-taggable. This is the remaining half of the original
+   question, and it is the half that needs UI changes.
+
+**What step 2 did not deliver**, stated plainly because the bead's original
+acceptance criterion promised it: a table whose name contains a slash still
+cannot be tagged. Typed *storage* does not change that — `POST /tags` still
+takes a path, and `TagPath.require` still refuses `/schema/x/table/a/b`. The
+criterion was amended and the work filed as step 3.
 
 Do **not** reopen `sqlx-rad`. It is closed and correct: the environment scoping
 is right under either model, and the prefix it introduced is provably safe for

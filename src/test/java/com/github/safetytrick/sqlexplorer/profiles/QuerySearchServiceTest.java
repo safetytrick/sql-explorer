@@ -227,7 +227,7 @@ class QuerySearchServiceTest {
     @Test
     void tagFiltersMatchAnyAllAndUntagged() {
         when(tagsService.findAllByType("query")).thenReturn(List.of(
-            tag("audit", "/query/a-norm"), tag("slow", "/query/a-digest"), tag("audit", "/query/b-norm")));
+            tag("audit", "a-norm"), tag("slow", "a-digest"), tag("audit", "b-norm")));
         repositoryReturns(
             profile("a", metrics().build()),
             profile("b", metrics().build()),
@@ -550,11 +550,16 @@ class QuerySearchServiceTest {
         return profile;
     }
 
-    private static Tag tag(String name, String path) {
+    /**
+     * A query tag, addressed by digest rather than by a path string — the tag
+     * model is typed now, so the fixture is built the way production stores it
+     * (sqlx-11v).
+     */
+    private static Tag tag(String name, String digest) {
         Tag tag = new Tag();
         tag.setName(name);
-        tag.setPath(path);
         tag.setType("query");
+        tag.setQueryDigest(digest);
         return tag;
     }
 
