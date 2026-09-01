@@ -60,6 +60,26 @@ covers checks the latter does not. The standalone `tsc --noEmit` also catches
 things `ng build` does not, and must be run from `ui/` (the project path is
 relative).
 
+### Capturing profiles
+
+A source is read at startup, on a schedule if its environment declares one, and
+on demand:
+
+```bash
+curl -X POST localhost:18180/api/sql-explorer/environments/regression/pull
+```
+
+`pullCron` on an environment (a Spring cron expression) schedules it; absent, it
+is not scheduled, and nothing is scheduled by default. `sql-explorer.prune-
+redundant-captures` deletes captures another capture already contains — off by
+default, and when off it logs what it would remove.
+
+The pruning rule is structural, not count- or age-based, and the difference
+matters: within a run of captures the newest contains the others, but across a
+Performance Schema reset it contains nothing of them. The capture before a reset
+is the only record of which queries ran in that period, so it is never pruned —
+"keep the last N" would eventually delete exactly that one (sqlx-ijz).
+
 ### Docker (local dev)
 
 Start services in order — MySQL must be up before the backend:
