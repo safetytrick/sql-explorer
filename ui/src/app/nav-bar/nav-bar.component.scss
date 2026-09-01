@@ -102,3 +102,23 @@ nav.navbar {
     }
   }
 }
+
+// A link asked for an environment that does not exist. Loud on purpose: the
+// failure it marks is silent by nature — every number on the page is a real
+// answer to a question the reader did not ask (sqlx-29f).
+.env-unknown {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9px;
+  background: var(--red, #a33);
+  color: #fff;
+  white-space: nowrap;
+}
+
+// The picker is showing a name that does not resolve; the badge beside it says
+// so, and this keeps the two from looking like an ordinary selection.
+.nav-environment-select.unknown {
+  border-color: var(--red, #a33);
+  color: var(--red, #a33);
+}

@@ -121,9 +121,16 @@ export async function stubApi(page: Page) {
   await page.route(`${BASE}/tags/type/*`, route => route.fulfill(json(['system'])));
   await page.route(`${BASE}/environments`, route => route.fulfill(json({
     defaultEnvironment: 'regression',
-    environments: [{name: 'regression', servers: [], sources: {
-      loaded: true, sourceCount: 1, loadedOn: '2026-08-30T12:00:00Z', importStats: null, resident: true
-    }}]
+    // Two, so a test can tell "the environment travelled" apart from "there
+    // was only ever one" (sqlx-29f).
+    environments: [
+      {name: 'regression', servers: [], sources: {
+        loaded: true, sourceCount: 1, loadedOn: '2026-08-30T12:00:00Z', importStats: null, resident: true
+      }},
+      {name: 'staging', servers: [], sources: {
+        loaded: true, sourceCount: 1, loadedOn: '2026-08-30T12:00:00Z', importStats: null, resident: true
+      }}
+    ]
   })));
   await page.route(`${BASE}/tables`, route => route.fulfill(json([])));
   await page.route(`${BASE}/graph/v2/**`, route => route.fulfill(json({nodes: [], edges: []})));

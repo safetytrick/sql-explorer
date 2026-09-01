@@ -2,6 +2,7 @@ import { Component, HostListener, OnInit } from '@angular/core';
 import {ExplainService} from '../explain.service';
 import { Router, RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
+import { withEnv } from '../environment-url';
 import { ThemeService, THEMES, ThemeOption } from '../theme.service';
 
 @Component({
@@ -17,6 +18,15 @@ export class NavBarComponent implements OnInit {
 
   environments: EnvironmentSummary[] = [];
   current: string | null = null;
+
+  /**
+   * An environment a link asked for that does not exist.
+   *
+   * <p>Shown rather than silently corrected: the backend falls back to its
+   * default for an unknown name, so without this the recipient of a stale link
+   * would be reading another corpus's numbers with nothing to say so.
+   */
+  unknownEnvironment: string | null = null;
   themes: ThemeOption[] = THEMES;
   currentTheme = '';
 
@@ -55,6 +65,7 @@ export class NavBarComponent implements OnInit {
         this.current = list.defaultEnvironment;
       }
     });
+    this.environmentService.unknown$.subscribe(name => this.unknownEnvironment = name);
   }
 
   onEnvChange(name: string) {
@@ -63,9 +74,14 @@ export class NavBarComponent implements OnInit {
     // Stay on the current route, but re-instantiate it so its data reloads for
     // the newly selected environment. The interceptor scopes every request to
     // EnvironmentService.getCurrent(), so re-fetching pulls the new env's data.
-    const url = this.router.url;
+    //
+    // The address gains the new environment in the same navigation rather than
+    // being stamped afterwards: the URL to return to is captured before any
+    // later stamp could land, so stamping second would navigate back to the old
+    // environment's address and only then correct it.
+    const target = withEnv(this.router.url, name);
     this.router.navigateByUrl('/', { skipLocationChange: true })
-      .then(() => this.router.navigateByUrl(url));
+      .then(() => this.router.navigateByUrl(target));
   }
 
   onThemeChange(id: string) {

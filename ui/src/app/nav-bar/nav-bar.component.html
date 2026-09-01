@@ -36,11 +36,28 @@
     @if (environments.length > 0) {
       <li class="nav-item">
         <select class="nav-environment-select" title="Environment"
+                [class.unknown]="unknownEnvironment"
                 (change)="onEnvChange($any($event.target).value)">
+          @if (unknownEnvironment) {
+            <!-- Named by the URL and not real. Listed so the picker agrees with
+                 the address; without it the browser falls back to showing some
+                 other environment's name over data it did not produce. -->
+            <option [value]="unknownEnvironment" selected disabled>{{unknownEnvironment}}</option>
+          }
           @for (env of environments; track env.name) {
-            <option [value]="env.name" [selected]="env.name === current">{{env.name}}</option>
+            <option [value]="env.name" [selected]="!unknownEnvironment && env.name === current">{{env.name}}</option>
           }
         </select>
+      </li>
+    }
+    @if (unknownEnvironment) {
+      <!-- A link named an environment this deployment does not have. The
+           backend silently falls back to its default, so without saying this
+           the reader would be given another corpus's numbers with nothing to
+           mark them as answers to a different question. -->
+      <li class="nav-item">
+        <span class="env-unknown" [title]="'No environment named ' + unknownEnvironment
+              + ' — showing the default instead'">no such environment: {{unknownEnvironment}}</span>
       </li>
     }
     <li class="nav-item">

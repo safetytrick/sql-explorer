@@ -1,6 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { INITIAL_SEARCH, envFromSearch } from './environment-url';
 
 const endpoint = '/api/sql-explorer/';
 const STORAGE_KEY = 'sql-explorer.environment';
@@ -52,13 +53,60 @@ export interface EnvironmentList {
 })
 export class EnvironmentService {
 
-  /** Currently selected environment name (null = use the backend default). */
-  readonly current$ = new BehaviorSubject<string | null>(localStorage.getItem(STORAGE_KEY));
+  /**
+   * Currently selected environment name (null = use the backend default).
+   *
+   * <p>PRECEDENCE: the URL, then localStorage, then the backend default. A
+   * link that names an environment shows that environment, whatever the
+   * recipient last picked — which is the whole point of putting it in the URL.
+   *
+   * <p>Read from `location.search` rather than the router because the
+   * interceptor stamps this onto requests a component constructor can issue,
+   * which happens before any router subscription fires.
+   */
+  private readonly initialSearch = inject(INITIAL_SEARCH);
 
-  constructor(private http: HttpClient) { }
+  readonly current$ = new BehaviorSubject<string | null>(
+    envFromSearch(this.initialSearch) ?? localStorage.getItem(STORAGE_KEY));
+
+  /**
+   * An environment name that was asked for and does not exist, or null.
+   *
+   * <p>Reported rather than silently replaced. The backend's
+   * `EnvironmentContext.getOrDefault` falls back to the default for an unknown
+   * name, which is right for a stale header and wrong for a link a colleague
+   * just sent: it would show them a different corpus without a word, and every
+   * number on the page would be a confident answer to a question they did not
+   * ask.
+   */
+  readonly unknown$ = new BehaviorSubject<string | null>(null);
+
+  constructor(private http: HttpClient) {
+    // A link's environment sticks for this browser: following it is a
+    // deliberate act, and the alternative — reverting on the next navigation
+    // that omits the parameter — would be harder to explain than it is worth.
+    const fromUrl = envFromSearch(this.initialSearch);
+    if (fromUrl) {
+      localStorage.setItem(STORAGE_KEY, fromUrl);
+    }
+  }
 
   getEnvironments(): Observable<EnvironmentList> {
-    return this.http.get<EnvironmentList>(endpoint + 'environments');
+    return this.http.get<EnvironmentList>(endpoint + 'environments').pipe(
+      tap(list => this.checkKnown(list)));
+  }
+
+  /**
+   * Whether the selected environment is one the backend actually has.
+   *
+   * <p>Deliberately does not correct the selection. Switching the user to the
+   * default silently is the behaviour this exists to prevent; the UI shows
+   * what was asked for and what happened instead.
+   */
+  private checkKnown(list: EnvironmentList): void {
+    const current = this.current$.value;
+    const known = !current || list.environments.some(e => e.name === current);
+    this.unknown$.next(known ? null : current);
   }
 
   /** Drop the environment's cached schema so it reloads from its servers on next use. */
