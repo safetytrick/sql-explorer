@@ -3,7 +3,7 @@
   <span class="view-sub">described by the schema, touched by no analyzed query</span>
 
   @if (!loading && !failed) {
-    <span class="view-sub tally">{{counts.tables}} tables<span class="sep">·</span>{{counts.views}} views<span class="sep">·</span>{{counts.schemas}} schemas</span>
+    <span class="view-sub tally">{{counts.tables}} tables<span class="sep">·</span>{{counts.views}} views<span class="sep">·</span>{{counts.schemas}} schemas@if (counts.dormant) {<span class="sep">·</span><span class="dormant-tally">{{counts.dormant}} dormant</span>}</span>
     @if (excludedCount) {
       <span class="type-scope">
         <span class="scope-label">out of scope</span>
@@ -39,6 +39,23 @@
 } @else if (!visible.length) {
   <div class="lens-card"><div class="card-empty">Every table the schema describes is touched by at least one query.</div></div>
 } @else {
+  @if (counts.dormant) {
+    <!-- The counterpart to the silent-schema note: that one says a schema's
+         quiet may be the capture's fault, this one says a table's quiet
+         demonstrably is. A reset clears Performance Schema, so a table used by
+         a monthly job is absent from a corpus captured since — and would
+         otherwise be listed here as a deletion candidate (sqlx-qwn). -->
+    <div class="lens-card note-card">
+      <strong>{{counts.dormant}} tables are dormant rather than unqueried.</strong>
+      Nothing has touched them in the period this corpus covers, but a capture
+      taken before the source was reset saw them in use, and they are listed
+      separately below with the date. They are not deletion candidates: a table
+      queried by something that runs monthly looks exactly like a dead one on a
+      corpus a week old.
+      <a class="coverage-link" routerLink="/coverage">what was captured</a>
+    </div>
+  }
+
   @if (counts.silent) {
     <div class="lens-card note-card">
       <strong>{{counts.silent}} of these schemas have no queries at all.</strong>
@@ -72,23 +89,44 @@
         </span>
         @if (usage.silent) { <span class="silent-chip">no traffic</span> }
         @if (usage.system) { <span class="sys-chip">MySQL</span> }
-        <span class="card-head-note">{{usage.unqueried.length}} of {{usage.described}} unqueried</span>
+        <span class="card-head-note">{{usage.unqueried.length}} of {{usage.described}} unqueried@if (usage.dormant.length) {, {{usage.dormant.length}} dormant}</span>
       </div>
-      <div class="table-scroll">
-        <table class="data-table ledger">
-          <tbody>
-            @for (table of usage.unqueried; track table.name) {
-              <tr>
-                <td class="name-col">
-                  <a class="tbl-name" [routerLink]="['/table', usage.schema, table.name]">{{table.name}}</a>
-                  @if (table.view) { <span class="view-flag" title="a view">v</span> }
-                </td>
-                <td class="num">{{table.columnCount ?? '—'}}<span class="unit">c</span></td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+      @if (usage.unqueried.length) {
+        <div class="table-scroll">
+          <table class="data-table ledger">
+            <tbody>
+              @for (table of usage.unqueried; track table.name) {
+                <tr>
+                  <td class="name-col">
+                    <a class="tbl-name" [routerLink]="['/table', usage.schema, table.name]">{{table.name}}</a>
+                    @if (table.view) { <span class="view-flag" title="a view">v</span> }
+                  </td>
+                  <td class="num">{{table.columnCount ?? '—'}}<span class="unit">c</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      @if (usage.dormant.length) {
+        <div class="dormant-head">used before the source was reset</div>
+        <div class="table-scroll">
+          <table class="data-table ledger dormant">
+            <tbody>
+              @for (table of usage.dormant; track table.name) {
+                <tr>
+                  <td class="name-col">
+                    <a class="tbl-name" [routerLink]="['/table', usage.schema, table.name]">{{table.name}}</a>
+                    @if (table.view) { <span class="view-flag" title="a view">v</span> }
+                  </td>
+                  <td class="last-seen" title="last touched by a query, per an archived capture">{{table.lastSeen | date: SEEN_FORMAT}}</td>
+                  <td class="num">{{table.columnCount ?? '—'}}<span class="unit">c</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </div>
   }
 }

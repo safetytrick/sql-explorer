@@ -30,3 +30,9 @@ datasources:
 
 parquet-sink:
   filename: /parquet/sql-repository.parquet
+
+sql-explorer:
+  # Michael, 2026-09-01. Captures accumulate one per pull; this deletes the ones
+  # a newer capture already contains. Never the capture before a reset — see
+  # CaptureRetention.
+  prune-redundant-captures: true

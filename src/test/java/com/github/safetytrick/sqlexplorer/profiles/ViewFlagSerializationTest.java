@@ -21,7 +21,7 @@ class ViewFlagSerializationTest {
     @Test
     void schemaTreeTableNodeSerializesTheViewFlag() {
         String json = mapper.writeValueAsString(
-            new SchemaTree.TableNode("active_users", 3, 1, false, true, true));
+            new SchemaTree.TableNode("active_users", 3, 1, false, true, true, null));
 
         assertThat(json)
             .contains("\"view\":true")

@@ -11,6 +11,7 @@ import java.util.TreeMap;
 import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.evidence.ArchivedActivity;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.profiles.SchemaTree.SchemaNode;
 import com.github.safetytrick.sqlexplorer.profiles.SchemaTree.TableNode;
@@ -30,13 +31,16 @@ public class SchemaTreeService {
     private final SqlRepositoryService sqlRepositoryService;
     private final SqlSchemaService sqlSchemaService;
     private final IgnoredSchemas ignoredSchemas;
+    private final ArchivedActivity archivedActivity;
 
     public SchemaTreeService(SqlRepositoryService sqlRepositoryService,
                              SqlSchemaService sqlSchemaService,
-                             IgnoredSchemas ignoredSchemas) {
+                             IgnoredSchemas ignoredSchemas,
+                             ArchivedActivity archivedActivity) {
         this.sqlRepositoryService = sqlRepositoryService;
         this.sqlSchemaService = sqlSchemaService;
         this.ignoredSchemas = ignoredSchemas;
+        this.archivedActivity = archivedActivity;
     }
 
     public SchemaTree getTree() {
@@ -75,6 +79,11 @@ public class SchemaTreeService {
             tableStats.inSchema = true;
         }
 
+        // What earlier captures remember, for the tables this corpus cannot
+        // speak for. Empty until a reset has actually happened, so the common
+        // case costs one map lookup per node and no I/O at all.
+        Map<String, java.time.LocalDateTime> archived = archivedActivity.lastTouchedBeforeThisRun();
+
         List<SchemaNode> schemas = stats.entrySet().stream()
             .map(schema -> new SchemaNode(schema.getKey(), schema.getValue().entrySet().stream()
                 .map(table -> new TableNode(table.getKey(),
@@ -82,7 +91,11 @@ public class SchemaTreeService {
                     table.getValue().queryCount,
                     table.getValue().warn,
                     table.getValue().view,
-                    table.getValue().inSchema))
+                    table.getValue().inSchema,
+                    // only where it changes the answer: a table with queries in
+                    // the current run is not in question
+                    table.getValue().queryCount > 0 ? null
+                        : archived.get((schema.getKey() + "." + table.getKey()).toLowerCase(Locale.ROOT))))
                 .toList()))
             .sorted(Comparator
                         .comparing((SchemaNode node) -> ignoredSchemas.contains(node.name()))

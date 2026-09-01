@@ -21,6 +21,16 @@ export interface TableNode {
    * column list did not load.
    */
   inSchema: boolean;
+  /**
+   * When a query last touched this table in a period the loaded corpus no
+   * longer covers, from an archived capture taken before a reset.
+   *
+   * <p>Set only for a table with no queries in the current run — the only case
+   * where it changes the answer. Null is the ordinary value and means the
+   * archive knows nothing extra, NOT that the table was never used: before any
+   * reset there is no earlier run to consult (sqlx-qwn).
+   */
+  archivedLastSeen?: string | null;
 }
 
 export interface SchemaNode {

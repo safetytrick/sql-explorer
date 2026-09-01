@@ -18,6 +18,7 @@ describe('UnqueriedTablesComponent scope', () => {
     unqueried: Array.from({length: unqueried}, (_, i) => ({
       name: 'table' + i, view: false, columnCount: 3
     })),
+    dormant: [],
     silent: false
   });
 

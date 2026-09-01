@@ -52,3 +52,33 @@
   font-size: 11px;
   white-space: nowrap;
 }
+
+// Dormant tables sit under the unqueried ones in the same card, because they
+// answer the same question about the same schema — but they are not the same
+// finding, and a shared table would read as one list of candidates. The heading
+// and the muted rows are what keep the two apart at a glance (sqlx-qwn).
+.dormant-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text3);
+  padding: 8px 12px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.data-table.dormant {
+  .tbl-name { color: var(--text2); }
+}
+
+// A date, so it lines up down the column rather than ragging against the name.
+.last-seen {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dormant-tally { color: var(--text3); }

@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -21,7 +22,14 @@ public record SchemaTree(List<SchemaNode> schemas) {
      *                 table introspection cannot see. Distinct from a null
      *                 {@code columnCount}, which a real table also gets when
      *                 its column list did not load.
+     * @param archivedLastSeen when a query last touched this table in a period
+     *                 the loaded corpus no longer covers — set only for a table
+     *                 with no queries in the current run, because that is the
+     *                 only case where it changes the answer. Null is the
+     *                 ordinary value and means "the archive knows nothing
+     *                 extra", NOT "never used": before any reset there is no
+     *                 earlier run to consult (sqlx-qwn).
      */
     public record TableNode(String name, Integer columnCount, int queryCount, boolean warn, boolean view,
-                            boolean inSchema) { }
+                            boolean inSchema, LocalDateTime archivedLastSeen) { }
 }

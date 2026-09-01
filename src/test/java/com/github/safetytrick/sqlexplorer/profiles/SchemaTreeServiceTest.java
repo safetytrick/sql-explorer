@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
+import com.github.safetytrick.sqlexplorer.evidence.ArchivedActivity;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -33,7 +34,10 @@ class SchemaTreeServiceTest {
     void setUp() {
         sqlRepositoryService = mock(SqlRepositoryService.class);
         sqlSchemaService = mock(SqlSchemaService.class);
-        service = new SchemaTreeService(sqlRepositoryService, sqlSchemaService, new IgnoredSchemas());
+        // Nothing archived: the ordinary case, before any reset has happened.
+        ArchivedActivity archived = org.mockito.Mockito.mock(ArchivedActivity.class);
+        org.mockito.Mockito.when(archived.lastTouchedBeforeThisRun()).thenReturn(java.util.Map.of());
+        service = new SchemaTreeService(sqlRepositoryService, sqlSchemaService, new IgnoredSchemas(), archived);
         when(sqlRepositoryService.getAllAnalyzedSql()).thenReturn(Stream.of());
         when(sqlSchemaService.getTables()).thenReturn(List.of());
     }

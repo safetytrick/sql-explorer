@@ -21,15 +21,40 @@ export interface UnqueriedTable {
   columnCount: number | null;
 }
 
+/**
+ * A table nothing queries now, that something queried before a reset.
+ *
+ * <p>Performance Schema is cleared on reset, so a table used only by a
+ * quarterly job is absent from a corpus captured a week after a restart —
+ * indistinguishable, in the corpus alone, from one nothing has ever touched.
+ * Listing it as a deletion candidate would be presenting an artifact of the
+ * capture as a fact about the schema. An earlier capture can say otherwise,
+ * and when it does the table belongs in its own list with the date (sqlx-qwn).
+ */
+export interface DormantTable extends UnqueriedTable {
+  /** When a query last touched it, from a capture the corpus no longer covers. */
+  lastSeen: string;
+}
+
 export interface SchemaUsage {
   schema: string;
   system: boolean;
-  /** Tables the schema describes that no analyzed query touches. */
+  /**
+   * Tables the schema describes that no analyzed query touches, and that no
+   * archived capture remembers either. These are the deletion candidates.
+   */
   unqueried: UnqueriedTable[];
+  /**
+   * Tables nothing queries now, but that an earlier capture saw in use. Kept
+   * out of `unqueried` deliberately: they are evidence of a slow cadence, not
+   * of disuse, and counting them as candidates is the mistake this exists to
+   * prevent.
+   */
+  dormant: DormantTable[];
   /** How many tables the schema describes in total. */
   described: number;
   /**
-   * Every table in the schema is unqueried.
+   * Every table in the schema is unqueried and none is dormant.
    *
    * <p>The distinction the whole report turns on. A schema where *some* tables
    * are unqueried has candidates for deletion in it. A schema where *all* of
@@ -37,6 +62,9 @@ export interface SchemaUsage {
    * uses that schema, or the capture never saw its traffic. Presenting the two
    * as one list of "unused tables" would invite deleting a schema that is
    * simply not instrumented.
+   *
+   * <p>A schema whose quiet tables were used before a reset is NOT silent —
+   * the archive has just shown the traffic that made it look that way.
    */
   silent: boolean;
 }
@@ -59,23 +87,29 @@ export function unqueriedBySchema(tree: SchemaTree | null): SchemaUsage[] {
   return tree.schemas
     .map(schema => {
       const described = schema.tables.filter(table => table.inSchema);
-      const unqueried = described
-        .filter(table => !table.queryCount)
-        .map(table => ({
-          name: table.name,
-          view: !!table.view,
-          columnCount: table.columnCount ?? null
-        }))
+      const quiet = described.filter(table => !table.queryCount);
+      const shape = (table: typeof quiet[number]) => ({
+        name: table.name,
+        view: !!table.view,
+        columnCount: table.columnCount ?? null
+      });
+      const unqueried = quiet.filter(table => !table.archivedLastSeen)
+        .map(shape)
         .sort((a, b) => a.name.localeCompare(b.name));
+      const dormant = quiet.filter(table => !!table.archivedLastSeen)
+        .map(table => ({...shape(table), lastSeen: table.archivedLastSeen!}))
+        // most recently used first: the ones likeliest to run again
+        .sort((a, b) => b.lastSeen.localeCompare(a.lastSeen) || a.name.localeCompare(b.name));
       return {
         schema: schema.name,
         system: SYSTEM_SCHEMAS.has(schema.name.toLowerCase()),
         unqueried,
+        dormant,
         described: described.length,
         silent: described.length > 0 && unqueried.length === described.length
       };
     })
-    .filter(usage => usage.unqueried.length > 0)
+    .filter(usage => usage.unqueried.length > 0 || usage.dormant.length > 0)
     // most unqueried first; a schema with one dead table is a smaller finding
     // than one with thirty, and the ordering should say so
     .sort((a, b) => b.unqueried.length - a.unqueried.length
@@ -88,6 +122,7 @@ export function totals(rows: SchemaUsage[]) {
     schemas: rows.length,
     tables: rows.reduce((n, r) => n + r.unqueried.filter(t => !t.view).length, 0),
     views: rows.reduce((n, r) => n + r.unqueried.filter(t => t.view).length, 0),
+    dormant: rows.reduce((n, r) => n + r.dormant.length, 0),
     silent: rows.filter(r => r.silent).length
   };
 }
