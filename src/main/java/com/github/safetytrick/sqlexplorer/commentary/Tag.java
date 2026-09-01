@@ -33,6 +33,14 @@ public class Tag {
     private String path;
     private String type;
 
+    /**
+     * Which environment this association belongs to.
+     *
+     * <p>Not nullable, and there is deliberately no "everywhere" value: a tag
+     * is about an object in one corpus. See {@link CommentaryEnvironment}.
+     */
+    private String environmentName;
+
     @ManyToOne
     private User author;
 

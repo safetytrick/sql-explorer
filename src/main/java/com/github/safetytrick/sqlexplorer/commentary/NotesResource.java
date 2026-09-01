@@ -16,15 +16,18 @@ class NotesResource {
 
     private final NoteRepository noteRepository;
     private final UserService userService;
+    private final CommentaryEnvironment environment;
 
-    public NotesResource(NoteRepository noteRepository, UserService userService) {
+    public NotesResource(NoteRepository noteRepository, UserService userService,
+                         CommentaryEnvironment environment) {
         this.noteRepository = noteRepository;
         this.userService = userService;
+        this.environment = environment;
     }
 
     @GetMapping("/notes/path")
     public List<Note> notesForPath(@RequestParam String path) {
-        return noteRepository.findAllByPath(path);
+        return noteRepository.findAllByPathAndEnvironmentName(path, environment.name());
     }
 
     @GetMapping("/note/{id}")
@@ -41,6 +44,7 @@ class NotesResource {
         note.setAuthor(userService.currentUser());
         note.setText(text);
         note.setPath(path);
+        note.setEnvironmentName(environment.name());
 
         note = noteRepository.save(note);
 

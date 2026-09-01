@@ -13,6 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.atLeast;
@@ -26,6 +28,9 @@ import static org.mockito.Mockito.when;
  */
 class BulkTagServiceTest {
 
+    /** The environment every write in these tests belongs to. */
+    private static final String ENV = "regression";
+
     private TagRepository tagRepository;
     private BulkTagService service;
 
@@ -34,9 +39,11 @@ class BulkTagServiceTest {
         tagRepository = mock(TagRepository.class);
         UserService userService = mock(UserService.class);
         when(userService.currentUser()).thenReturn(mock(User.class));
-        when(tagRepository.findAllByPathInGroupedByPath(anyList())).thenReturn(Map.of());
+        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(Map.of());
         when(tagRepository.save(any(Tag.class))).thenAnswer(call -> call.getArgument(0));
-        service = new BulkTagService(tagRepository, userService);
+        CommentaryEnvironment environment = mock(CommentaryEnvironment.class);
+        when(environment.name()).thenReturn(ENV);
+        service = new BulkTagService(tagRepository, userService, environment);
     }
 
     private static Tag tag(String name, String path) {
@@ -72,7 +79,7 @@ class BulkTagServiceTest {
      */
     @Test
     void aPathThatAlreadyCarriesTheTagIsLeftAlone() {
-        when(tagRepository.findAllByPathInGroupedByPath(anyList())).thenReturn(
+        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(
             Map.of("/schema/mysql", List.of(tag("system", "/schema/mysql"))));
 
         BulkTagService.BulkResult result = service.attach("system",
@@ -86,7 +93,7 @@ class BulkTagServiceTest {
     /** A different tag on the same path is not the same association. */
     @Test
     void anotherTagOnThePathDoesNotCountAsAlreadyTagged() {
-        when(tagRepository.findAllByPathInGroupedByPath(anyList())).thenReturn(
+        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(
             Map.of("/schema/mysql", List.of(tag("audit", "/schema/mysql"))));
 
         assertThat(service.attach("system", List.of("/schema/mysql"), null).changed()).isEqualTo(1);
@@ -122,13 +129,14 @@ class BulkTagServiceTest {
      */
     @Test
     void detachIsScopedToTheGivenPathsAndNotTheWholeTag() {
-        when(tagRepository.findAllByPathInGroupedByPath(anyList())).thenReturn(
+        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(
             Map.of("/schema/mysql", List.of(tag("system", "/schema/mysql"))));
 
         BulkTagService.BulkResult result = service.detach("system", List.of("/schema/mysql", "/schema/sys"));
 
-        verify(tagRepository).deleteAllByNameAndPathIn("system", List.of("/schema/mysql", "/schema/sys"));
-        verify(tagRepository, never()).deleteAllByName(any());
+        verify(tagRepository).deleteAllByNameAndPathInAndEnvironmentName(
+            "system", List.of("/schema/mysql", "/schema/sys"), ENV);
+        verify(tagRepository, never()).deleteAllByNameAndEnvironmentName(any(), any());
         assertThat(result.changed()).isEqualTo(1);
         assertThat(result.unchanged()).isEqualTo(1);
     }

@@ -50,10 +50,13 @@ public class BulkTagService {
 
     private final TagRepository tagRepository;
     private final UserService userService;
+    private final CommentaryEnvironment environment;
 
-    public BulkTagService(TagRepository tagRepository, UserService userService) {
+    public BulkTagService(TagRepository tagRepository, UserService userService,
+                   CommentaryEnvironment environment) {
         this.tagRepository = tagRepository;
         this.userService = userService;
+        this.environment = environment;
     }
 
     /**
@@ -69,7 +72,8 @@ public class BulkTagService {
     @Transactional
     public BulkResult attach(String name, List<String> paths, String type) {
         List<String> distinct = validated(name, paths);
-        Map<String, List<Tag>> existing = tagRepository.findAllByPathInGroupedByPath(distinct);
+        Map<String, List<Tag>> existing =
+            tagRepository.findAllByPathInGroupedByPath(distinct, environment.name());
 
         int attached = 0;
         for (String path : distinct) {
@@ -82,6 +86,7 @@ public class BulkTagService {
             tag.setAuthor(userService.currentUser());
             tag.setName(name);
             tag.setPath(path);
+            tag.setEnvironmentName(environment.name());
             tag.setType(type == null ? typeOf(path) : type);
             tagRepository.save(tag);
             attached++;
@@ -99,12 +104,13 @@ public class BulkTagService {
     @Transactional
     public BulkResult detach(String name, List<String> paths) {
         List<String> distinct = validated(name, paths);
-        int carrying = (int) tagRepository.findAllByPathInGroupedByPath(distinct).values().stream()
+        int carrying = (int) tagRepository.findAllByPathInGroupedByPath(distinct, environment.name())
+            .values().stream()
             .flatMap(List::stream)
             .filter(tag -> tag.getName().equals(name))
             .count();
 
-        tagRepository.deleteAllByNameAndPathIn(name, distinct);
+        tagRepository.deleteAllByNameAndPathInAndEnvironmentName(name, distinct, environment.name());
         return new BulkResult(name, distinct.size(), carrying, distinct.size() - carrying);
     }
 

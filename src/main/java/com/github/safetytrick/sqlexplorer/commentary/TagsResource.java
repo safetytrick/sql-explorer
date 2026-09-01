@@ -23,10 +23,13 @@ class TagsResource {
     private final TagRepository tagRepository;
     private final UserService userService;
     private final BulkTagService bulkTagService;
+    private final CommentaryEnvironment environment;
     private final Pattern tagPattern = Pattern.compile("[\\w-]+");
     private final Pattern pathTypePattern = Pattern.compile("([^/]+)/[^/]+$");
 
-    public TagsResource(TagRepository tagRepository, UserService userService, BulkTagService bulkTagService) {
+    public TagsResource(TagRepository tagRepository, UserService userService, BulkTagService bulkTagService,
+                        CommentaryEnvironment environment) {
+        this.environment = environment;
         this.tagRepository = tagRepository;
         this.userService = userService;
         this.bulkTagService = bulkTagService;
@@ -38,22 +41,22 @@ class TagsResource {
             .replaceAll("_", "\\_")
             .replaceAll("%", "\\%");
 
-        return tagRepository.findTagNamesStartingWith(escapedValue);
+        return tagRepository.findTagNamesStartingWith(escapedValue, environment.name());
     }
 
     @GetMapping("/tags/type/{type}")
     public List<String> tagsByType(@PathVariable String type) {
-        return tagRepository.findTagNamesByType(type);
+        return tagRepository.findTagNamesByType(type, environment.name());
     }
 
     @GetMapping("/tags/path")
     public List<Tag> tagsForPath(@RequestParam String path) {
-        return tagRepository.findAllByPath(path);
+        return tagRepository.findAllByPathAndEnvironmentName(path, environment.name());
     }
 
     @PostMapping("/tags/path")
     public Map<String, List<Tag>> tagsForPaths(@RequestBody List<String> paths) {
-        return tagRepository.findAllByPathInGroupedByPath(paths);
+        return tagRepository.findAllByPathInGroupedByPath(paths, environment.name());
     }
 
     @PostMapping("/tags")
@@ -66,7 +69,8 @@ class TagsResource {
         }
 
 
-        Optional<Tag> existingTag = tagRepository.findByNameAndPath(createTag.name, createTag.path);
+        Optional<Tag> existingTag = tagRepository
+            .findByNameAndPathAndEnvironmentName(createTag.name, createTag.path, environment.name());
         if (existingTag.isPresent()) {
             return existingTag.get();
         }
@@ -75,6 +79,7 @@ class TagsResource {
         tag.setAuthor(userService.currentUser());
         tag.setName(createTag.name);
         tag.setPath(createTag.path);
+        tag.setEnvironmentName(environment.name());
 
         if (createTag.getType() == null) {
             Matcher pathTypeMatcher = pathTypePattern.matcher(createTag.getPath());

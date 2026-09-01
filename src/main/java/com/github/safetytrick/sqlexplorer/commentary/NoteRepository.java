@@ -5,6 +5,6 @@ import java.util.List;
 import org.springframework.data.repository.CrudRepository;
 
 interface NoteRepository extends CrudRepository<Note,Integer> {
-    List<Note> findAllByPath(String path);
-    List<Note> findAllByPathIn(List<String> paths);
+    List<Note> findAllByPathAndEnvironmentName(String path, String environmentName);
+    List<Note> findAllByPathInAndEnvironmentName(List<String> paths, String environmentName);
 }

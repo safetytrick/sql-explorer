@@ -154,7 +154,15 @@ only once the nullable column proves that "all" and "one" are too coarse. Do not
 build it first — it is a schema, a config vocabulary, a UI, and a migration, in
 service of a need that has not yet been demonstrated.
 
-**Effort: M for the nullable column, L for the grouping.**
+**Effort: M for the column, L for the grouping.**
+
+> **Decided 2026-08-31, and built as `sqlx-rad`.** Michael chose the strict
+> form over the nullable one: `environment_name` is NOT NULL, existing rows were
+> backfilled to `regression`, and there is no everywhere-tag. The unique key on
+> `tags` moved from `(path, name)` to `(environment_name, path(191), name)` —
+> prefixed because the three columns at their declared widths are 4088 bytes of
+> utf8mb4 against InnoDB's 3072-byte limit, and 191 is far beyond the longest
+> path the application produces (74, a query digest).
 
 ## One behaviour nobody has decided
 
@@ -176,13 +184,21 @@ than inherited from which environment happens to be default.
 
 In order:
 
-1. **`env` in the URL** (S). Closes a real ambiguity, needs no auth and no
-   schema change, and is the piece the other two do not depend on.
-2. **Decide the load-on-restart rule** (S). Small, and currently silent.
-3. **Nullable `environment` on commentary** (M). Only after 1, because the UI
-   for "this tag is global / this one is not" wants an unambiguous notion of
-   which environment you are looking at.
-4. **A dev-test-prod grouping** (L). Only if 3 proves "all or one" too coarse.
+1. ~~**`env` in the URL** (S).~~ **Done** — `sqlx-29f`.
+2. **Decide the load-on-restart rule** (S). Small, and currently silent. Still
+   open, and still the thing most likely to be met by surprise: a non-default
+   environment reads as an empty corpus after every restart.
+3. ~~**An `environment_name` on commentary** (M).~~ **Done** — `sqlx-rad`.
+   Michael's decision on 2026-08-31 went against the nullable form proposed
+   above: the column is NOT NULL, every existing row was backfilled to
+   `regression`, and there is deliberately no "everywhere" tag. The reasoning
+   was that an everywhere-tag makes every reader ask which kind of tag they are
+   looking at, in exchange for a convenience nobody had asked for. `tag_def`
+   stayed global, so a tag's name and colour still mean one thing across the
+   deployment while its associations do not.
+4. **A dev-test-prod grouping** (L). Only if 3 proves "all or one" too coarse —
+   and note that 3 as built is stricter than 3 as proposed, so the question is
+   now whether per-environment alone is too coarse.
 
 And explicitly **not** session-scoped environments, which need auth this project
 does not have and would make links less shareable rather than more.

@@ -14,6 +14,8 @@ import static org.mockito.Mockito.when;
 
 class TagManagerServiceTest {
 
+    private static final String ENV = "regression";
+
     private static final Instant RECENT = Instant.parse("2026-07-10T00:00:00Z");
     private static final Instant OLD = Instant.parse("2026-06-01T00:00:00Z");
 
@@ -25,7 +27,7 @@ class TagManagerServiceTest {
     void setUp() {
         tagRepository = mock(TagRepository.class);
         tagDefinitionRepository = mock(TagDefinitionRepository.class);
-        service = new TagManagerService(tagRepository, tagDefinitionRepository);
+        service = new TagManagerService(tagRepository, tagDefinitionRepository, environment());
     }
 
     @Test
@@ -33,7 +35,7 @@ class TagManagerServiceTest {
         when(tagDefinitionRepository.findAll()).thenReturn(List.of(
             definition("audit", "#4a9eff"),
             definition("unused", "#f5a623")));
-        when(tagRepository.aggregateUsage()).thenReturn(List.of(
+        when(tagRepository.aggregateUsage(ENV)).thenReturn(List.of(
             usage("audit", "query", 4, OLD),
             usage("audit", "table", 2, RECENT),
             usage("audit", "schema", 1, OLD),
@@ -55,7 +57,7 @@ class TagManagerServiceTest {
         service.delete("audit");
 
         verify(tagDefinitionRepository).deleteById("audit");
-        verify(tagRepository).deleteAllByName("audit");
+        verify(tagRepository).deleteAllByNameAndEnvironmentName("audit", ENV);
     }
 
     private static TagDefinition definition(String name, String color) {
@@ -72,5 +74,11 @@ class TagManagerServiceTest {
             @Override public long getUses() { return uses; }
             @Override public Instant getLastUsed() { return lastUsed; }
         };
+    }
+
+    private static CommentaryEnvironment environment() {
+        CommentaryEnvironment environment = org.mockito.Mockito.mock(CommentaryEnvironment.class);
+        org.mockito.Mockito.when(environment.name()).thenReturn(ENV);
+        return environment;
     }
 }

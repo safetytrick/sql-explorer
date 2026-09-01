@@ -13,23 +13,32 @@ import org.springframework.stereotype.Service;
  * Tag definitions merged with their usage: a summary per tag name, whether it
  * comes from a stored definition (possibly unused) or only from assignments
  * (legacy tags with no definition yet).
+ *
+ * <p>DEFINITIONS ARE GLOBAL, USAGE IS NOT. A definition holds a tag's name and
+ * colour, which mean the same thing in every environment — `system` should not
+ * be blue in one corpus and orange in another. Only the associations are
+ * environment-scoped, so the counts here describe the selected environment
+ * while the names and colours describe the deployment (sqlx-rad).
  */
 @Service
 public class TagManagerService {
 
     private final TagRepository tagRepository;
     private final TagDefinitionRepository tagDefinitionRepository;
+    private final CommentaryEnvironment environment;
 
-    public TagManagerService(TagRepository tagRepository, TagDefinitionRepository tagDefinitionRepository) {
+    public TagManagerService(TagRepository tagRepository, TagDefinitionRepository tagDefinitionRepository,
+                             CommentaryEnvironment environment) {
         this.tagRepository = tagRepository;
         this.tagDefinitionRepository = tagDefinitionRepository;
+        this.environment = environment;
     }
 
     public List<TagSummary> getSummaries() {
         Map<String, Builder> byName = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         tagDefinitionRepository.findAll().forEach(definition ->
             byName.computeIfAbsent(definition.getName(), Builder::new).color = definition.getColor());
-        for (TagRepository.TagUsage usage : tagRepository.aggregateUsage()) {
+        for (TagRepository.TagUsage usage : tagRepository.aggregateUsage(environment.name())) {
             Builder builder = byName.computeIfAbsent(usage.getName(), Builder::new);
             if ("query".equalsIgnoreCase(usage.getType())) {
                 builder.queries += usage.getUses();
@@ -66,7 +75,7 @@ public class TagManagerService {
     @Transactional
     public void delete(String name) {
         tagDefinitionRepository.deleteById(name);
-        tagRepository.deleteAllByName(name);
+        tagRepository.deleteAllByNameAndEnvironmentName(name, environment.name());
     }
 
     public record TagSummary(String name, String color, long queries, long tables, long schemas, long other, Instant lastUsed) { }

@@ -241,4 +241,89 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		Commentary is scoped to an environment.
+
+		tags.path and notes.path were keyed by path alone, so a tag applied while
+		looking at one environment attached to every environment having a schema
+		of that name. That is not theoretical: regression and local share four
+		schema names (information_schema, mysql, performance_schema, sys), and
+		those are exactly the schemas the unqueried page tells you to tag.
+
+		The alternative considered and REJECTED was a nullable column where null
+		means "everywhere". It preserves existing rows without a backfill and
+		makes `system` a single tag across environments — but it makes every
+		reader ask which kind of tag it is looking at, for a concept nobody
+		asked for. Michael's call (2026-08-31): no everywhere-tag.
+
+		The backfill is a literal 'regression' rather than anything derived.
+		Nothing in a row says where it was created, and every row that exists
+		was created against that environment (sqlx-rad).
+	-->
+	<changeSet id="tags-environment_name" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><columnExists tableName="tags" columnName="environment_name"/></not>
+		</preConditions>
+		<sql>
+			alter table tags add column environment_name varchar(255) null;
+			update tags set environment_name = 'regression';
+			alter table tags modify environment_name varchar(255) not null;
+		</sql>
+	</changeSet>
+
+	<!--
+		The unique key moves from (path, name) to (environment_name, path, name):
+		the same tag name on the same path in two environments is two distinct
+		associations, and the old key would have made the second one fail to save.
+
+		DROP AND CREATE ARE SEPARATE CHANGESETS, each conditioned on its own end
+		state. A single one conditioned on the OLD index existing is the trap:
+		MySQL DDL is not transactional, so a failure between the two statements
+		leaves the index dropped and the changeset unrecorded — and on the next
+		start its precondition is false, so onFail="MARK_RAN" marks it done and
+		the table keeps no unique key at all. That is not hypothetical; it is
+		what happened here, because (environment_name, path, name) at the
+		declared widths is 4088 bytes of utf8mb4 against InnoDB's 3072 limit.
+	-->
+	<changeSet id="tags-drop-legacy-unique" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<indexExists tableName="tags" indexName="path"/>
+		</preConditions>
+		<sql>
+			alter table tags drop index path;
+		</sql>
+	</changeSet>
+
+	<!--
+		`path` is indexed by prefix because the full three columns do not fit:
+		(255 + 512 + 255) * 4 bytes exceeds InnoDB's 3072-byte key limit, and the
+		old two-column key fit only by 4 bytes.
+
+		191 is chosen against the data rather than pulled from the air. The
+		longest path shape the application produces is a query digest —
+		`/query/v3:` plus 64 hex characters, 74 — and the longest path in the
+		corpus today is 52. So for every path this application creates, the
+		prefix IS the whole path and the key is exactly as strict as it reads.
+	-->
+	<changeSet id="tags-unique-includes-environment" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><indexExists tableName="tags" indexName="tags_env_path_name"/></not>
+		</preConditions>
+		<sql>
+			alter table tags add unique key tags_env_path_name (environment_name, path(191), name);
+		</sql>
+	</changeSet>
+
+	<changeSet id="notes-environment_name" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><columnExists tableName="notes" columnName="environment_name"/></not>
+		</preConditions>
+		<sql>
+			alter table notes add column environment_name varchar(255) null;
+			update notes set environment_name = 'regression';
+			alter table notes modify environment_name varchar(255) not null;
+			create index notes_env_path on notes (environment_name, path);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>
