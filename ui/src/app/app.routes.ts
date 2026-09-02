@@ -25,6 +25,7 @@ import {TagManagerComponent} from './tag-manager/tag-manager.component';
 import {NotFoundComponent} from './not-found/not-found.component';
 import {UnqueriedTablesComponent} from './unqueried-tables/unqueried-tables.component';
 import {CoverageLensComponent} from './coverage-lens/coverage-lens.component';
+import {UnusedIndexesComponent} from './unused-indexes/unused-indexes.component';
 import {carryScope} from './scope-url';
 
 /**
@@ -103,6 +104,11 @@ const routes: Routes = [
     path: 'coverage',
     component: CoverageLensComponent,
     data: { title: 'What was captured' }
+  },
+  {
+    path: 'unused-indexes',
+    component: UnusedIndexesComponent,
+    data: { title: 'Unused indexes' }
   },
   {
     path: 'graph',

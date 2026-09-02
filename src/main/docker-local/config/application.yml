@@ -21,6 +21,23 @@ environments:
     servers:
       explorer:
         jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
+        # Stated explicitly. Left off, the pool sends no user at all and the
+        # driver falls back to mysql_native_password, which MySQL 8.4 removed —
+        # so the connection fails with a message about a missing plugin rather
+        # than about missing credentials. Not a secret: this is the disposable
+        # compose container, and the same password is in docker-compose.yml.
+        username: root
+        password: password
+        sources:
+          - type: x-statement-analysis
+      # A SECOND CONNECTION, pointing at the same container under another name.
+      # Not redundancy — it is the only two-connection environment there is, and
+      # the unused-index report's whole rule is "read on no connection", which a
+      # single-server environment cannot exercise at all (sqlx-vjr).
+      replica:
+        jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
+        username: root
+        password: password
         sources:
           - type: x-statement-analysis
 

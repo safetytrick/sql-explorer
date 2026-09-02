@@ -1,0 +1,28 @@
+// The qualification card sits above the list and is louder when the report is
+// incomplete — an incomplete one is not a statement about the environment, and
+// acting on it as though it were is the mistake this page has to prevent.
+.note-card {
+  &.incomplete {
+    border-left: 3px solid var(--red, #a33);
+  }
+}
+
+.name-col { width: 40%; }
+.idx { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+.detail { font-size: 11px; color: var(--text3); }
+.unit { color: var(--text3); margin-left: 1px; font-size: 10px; }
+
+.verdict {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg3);
+  color: var(--text3);
+
+  &.v-OK { color: var(--green, #4a7); }
+  &.v-IMPAIRED { color: var(--yellow, #b83); }
+  &.v-UNKNOWN { color: var(--red, #a33); }
+}

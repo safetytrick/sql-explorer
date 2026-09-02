@@ -1,0 +1,77 @@
+<div class="view-header wrap">
+  <span class="view-title">Unused indexes</span>
+  <span class="view-sub">read by no connection in this environment</span>
+  @if (report && !loading && !failed) {
+    <span class="view-sub tally">{{report.unused.length}} indexes<span class="sep">·</span>{{connectionsRead}} of {{report.connections.length}} connections read</span>
+  }
+</div>
+
+@if (loading) {
+  <div class="view-note">reading each connection…</div>
+} @else if (failed || !report) {
+  <div class="view-note">the connections could not be read, so this list is unknown rather than empty.</div>
+} @else {
+  <!-- Above the list, not below it. This is the one page whose finding is
+       acted on by deleting something, so what the finding rests on has to be
+       read first (sqlx-vjr). -->
+  <div class="lens-card note-card" [class.incomplete]="!report.complete">
+    <strong>Before dropping anything.</strong>
+    {{report.basis}}
+  </div>
+
+  <div class="lens-card">
+    <div class="card-head">
+      <span class="card-head-title">connections</span>
+      <span class="card-head-note">an index is listed below only if NO connection has read it</span>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table ledger">
+        <tbody>
+          @for (connection of report.connections; track connection.connection) {
+            <tr>
+              <td class="name-col">{{connection.connection}}</td>
+              <td><span class="verdict" [class]="'v-' + connection.verdict">{{connection.verdict}}</span></td>
+              <td class="num">
+                @if (daysUp(connection) !== null) {
+                  ≤{{daysUp(connection)}}<span class="unit">d</span>
+                } @else { — }
+              </td>
+              <td class="detail">
+                @if (connection.problem) {
+                  {{connection.problem}}
+                } @else {
+                  {{connection.unusedHere}} unused here, {{connection.readHere}} read here
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  @if (!report.unused.length) {
+    <div class="lens-card"><div class="card-empty">Every index has been read on at least one connection.</div></div>
+  } @else {
+    <div class="lens-card">
+      <div class="card-head">
+        <span class="card-head-title">no recorded reads</span>
+        <span class="card-head-note">primary and unique keys are excluded by the server</span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table ledger">
+          <tbody>
+            @for (index of report.unused; track index.schema + index.table + index.name) {
+              <tr>
+                <td class="name-col">
+                  <a [routerLink]="['/table', index.schema, index.table]">{{index.schema}}.{{index.table}}</a>
+                </td>
+                <td class="idx">{{index.name}}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+}
