@@ -1,5 +1,12 @@
 # Purge sensitive content from git history
 
+> **Status 2026-09-01: a cleaned copy exists at `~/mine/cleaned`.** Michael
+> chose to produce a new repository rather than rewrite in place, which drops
+> steps 4 and 5 below — no force-push, no coordination, no re-cloning. **The
+> original repo and both remotes are unchanged and still carry everything
+> described here**, so this plan stays until that is resolved one way or the
+> other.
+
 Second half of "Clean all history so queries look anonymous". Prerequisite:
 [secret-scrub.md](secret-scrub.md) — the tip must be clean before rewriting,
 or the rewrite has to be redone.
@@ -19,6 +26,40 @@ or the rewrite has to be redone.
   touch each sensitive string (verified with `git log -S`).
 - **Both remotes carry the history**: `origin` (GitHub `safetytrick/sql-explorer`)
   and `work` (GitLab `michael.nielson.go/sql-explorer`).
+
+## What was actually done
+
+`git-filter-repo` is not installed and there is no network to fetch it (see
+`sqlx-dec`), so the rewrite used `git filter-branch --index-filter` — no
+checkout per commit, which keeps 391 commits over 14 branches quick.
+
+Two departures from the steps below, both deliberate:
+
+- **The dump blob was replaced, not dropped.** Every version of
+  `schemas/schema-dump.sql` becomes the one-newline placeholder the tip already
+  carries. Dropping the path with `--invert-paths` would also have removed it
+  from the tip and changed the current tree; replacing leaves the tip
+  **byte-identical to the original** — verified by extracting both and diffing.
+- **Three literal hosts, no wildcards.** A first pass used a wider pattern and
+  rewrote `your.user@your-bastion-host` in `.env.example` — a placeholder, not a
+  secret — which showed up immediately as a tip that no longer matched. The
+  lesson is worth keeping: verify the tip is unchanged, because that is what
+  catches an over-broad rule.
+
+Classifying the candidates needed care. `bastion.<staging>.<company>.com` reads
+like a placeholder because the line around it is `SSH_URL=your.user@…` — the
+*username* is a placeholder and the *host* is real. Meanwhile `ssh-…` matched an
+npm tarball name in a lockfile. Neither could be settled by pattern alone.
+
+### Verified on the cleaned copy
+
+- All three hosts: 0 occurrences in `git log --all -p`, 0 in any reachable tree,
+  and 0 across all 2,672 text-sized blobs read with `git cat-file --batch`.
+- Largest `schemas/schema-dump.sql` blob anywhere: **1 byte** (was 427,880).
+- `8382c9d` no longer resolves; `git fsck` clean; 391 commits and 14 branches
+  preserved; `.git` 53M → 6.5M.
+- No remote configured, deliberately — where this gets pushed is a decision to
+  make, not one to inherit.
 
 ## Steps (in order)
 
