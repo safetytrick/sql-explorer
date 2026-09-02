@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
 import { TagFieldComponent } from '../tag-field/tag-field.component';
 import { SchemaRollup, Tag } from '../api-types';
+import {schemaTarget} from '../tag-path';
 
 @Component({
     selector: 'app-schema-list-table',
@@ -11,6 +12,7 @@ import { SchemaRollup, Tag } from '../api-types';
     imports: [RouterLink, PicoViewComponent, TagFieldComponent]
 })
 export class SchemaListTableComponent {
+  protected readonly schemaTarget = schemaTarget;
 
   /**
    * Raised when a row's tags are edited in place. TagField reassigns its own

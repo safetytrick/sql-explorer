@@ -30,7 +30,7 @@ describe('BulkTagBarComponent', () => {
   describe('enumerated mode', () => {
 
     beforeEach(() => {
-      component.paths = ['/schema/mysql', '/schema/sys'];
+      component.targets = [schemaTarget('mysql'), schemaTarget('sys')];
       component.count = 2;
       component.setLabel = '2 of 29 schemas';
     });
@@ -43,12 +43,13 @@ describe('BulkTagBarComponent', () => {
       http.expectNone('/api/sql-explorer/tags/bulk');
     });
 
-    it('writes the chosen paths on confirm', () => {
+    it('writes the chosen targets on confirm', () => {
       component.pick('system', false);
       component.confirm();
 
       const request = http.expectOne('/api/sql-explorer/tags/bulk');
-      expect(request.request.body).toEqual({name: 'system', paths: ['/schema/mysql', '/schema/sys']});
+      expect(request.request.body)
+        .toEqual({name: 'system', targets: [schemaTarget('mysql'), schemaTarget('sys')]});
       request.flush(result(2, 0));
       http.expectOne('/api/sql-explorer/tags').flush([]);
       expect(component.resultText).toBe('2 of 2');
@@ -145,7 +146,7 @@ describe('BulkTagBarComponent', () => {
 
   /** The server's message names what to fix; showing our own would lose it. */
   it('surfaces the server message on failure', () => {
-    component.paths = ['/schema/mysql'];
+    component.targets = [schemaTarget('mysql')];
     component.count = 1;
     component.pick('system', false);
     component.confirm();
@@ -160,6 +161,7 @@ describe('BulkTagBarComponent', () => {
 
 import {TagPickerComponent} from './tag-picker.component';
 import {TagColorsService} from '../tag-colors.service';
+import {schemaTarget} from '../tag-path';
 
 /**
  * The picker's job is to offer the right names. Both failures found here were

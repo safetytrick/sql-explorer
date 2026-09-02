@@ -2,6 +2,7 @@ import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import type {QuerySearchRequest} from '../query-search.service';
+import type {TagTarget} from '../tag-path';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -43,12 +44,20 @@ export class BulkTagService {
   constructor(private http: HttpClient) {
   }
 
-  tagPaths(name: string, paths: string[]): Observable<BulkTagResult> {
-    return this.http.post<BulkTagResult>(endpoint + 'tags/bulk', {name, paths});
+  /**
+   * Attach one tag across a set of targets.
+   *
+   * <p>Targets, not paths. A path cannot express a name containing `/`, so one
+   * such row on a page would have failed the whole batch — every row the user
+   * selected staying untagged because of one odd name among hundreds
+   * (sqlx-3ai).
+   */
+  tagTargets(name: string, targets: TagTarget[]): Observable<BulkTagResult> {
+    return this.http.post<BulkTagResult>(endpoint + 'tags/bulk', {name, targets});
   }
 
-  untagPaths(name: string, paths: string[]): Observable<BulkTagResult> {
-    return this.http.post<BulkTagResult>(endpoint + 'tags/bulk/remove', {name, paths});
+  untagTargets(name: string, targets: TagTarget[]): Observable<BulkTagResult> {
+    return this.http.post<BulkTagResult>(endpoint + 'tags/bulk/remove', {name, targets});
   }
 
   /**

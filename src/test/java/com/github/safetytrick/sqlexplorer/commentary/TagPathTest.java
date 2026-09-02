@@ -108,7 +108,7 @@ class TagPathTest {
     @Test
     void aTargetedTagHasItsElements() {
         Tag tag = new Tag();
-        tag.target(TagPath.require("/schema/app_main/table/orders"));
+        tag.target(TagPath.require("/schema/app_main/table/orders").toTarget());
 
         assertThat(tag.getPathElements())
             .containsEntry("schema", "app_main")
@@ -119,7 +119,7 @@ class TagPathTest {
     @Test
     void aQueryTagCarriesItsDigestAndNothingElse() {
         Tag tag = new Tag();
-        tag.target(TagPath.require("/query/v3:abc"));
+        tag.target(TagPath.require("/query/v3:abc").toTarget());
 
         assertThat(tag.getPathElements()).containsExactlyEntriesOf(Map.of("query", "v3:abc"));
     }

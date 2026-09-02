@@ -261,8 +261,10 @@ describe('GraphLensComponent — scope legibility', () => {
       const http = TestBed.inject(HttpTestingController);
       http.match(req => req.url.endsWith('schema-tree'))
         .forEach(req => req.flush({schemas: [{name: 'app'}, {name: 'mysql'}]}));
-      http.match(req => req.url.endsWith('tags/path'))
-        .forEach(req => req.flush({'/schema/app': [], '/schema/mysql': [{name: 'system'}]}));
+      // Positional, in the order the schemas were sent: app then mysql
+      // (sqlx-3ai).
+      http.match(req => req.url.endsWith('tags/targets'))
+        .forEach(req => req.flush([[], [{name: 'system'}]]));
       // tables carrying an excluded tag; none here, the schema tag is enough
       http.match(req => req.url.includes('table/by-tag') || req.url.includes('tables/tag'))
         .forEach(req => req.flush([]));

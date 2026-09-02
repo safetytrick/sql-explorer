@@ -10,7 +10,7 @@ import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, graph
 import {SchemaTagScope, tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
-import {schemaPath} from '../tag-path';
+import {schemaTarget} from '../tag-path';
 
 const NW = 130;
 const NH = 44;
@@ -332,13 +332,14 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       : of(new Map<string, string[]>());
     return this.schemaLensService.getSchemaTree().pipe(switchMap(tree => {
       const names = tree.schemas.map(schema => schema.name.toLowerCase());
-      const paths = tree.schemas.map(schema => schemaPath(schema.name));
+      const targets = tree.schemas.map(schema => schemaTarget(schema.name));
       return forkJoin({
-        byPath: this.analyzedSqlService.getTagsForPaths(paths),
+        byPath: this.analyzedSqlService.getTagsForTargets(targets),
         tablesByTag: tablesByTag$
       }).pipe(map(({ byPath, tablesByTag }) => {
-        const tagsBySchema = new Map<string, string[]>(tree.schemas.map(schema =>
-          [schema.name.toLowerCase(), (byPath[schemaPath(schema.name)] ?? []).map(tag => tag.name)]));
+        // Zipped by index: the batched answer is positional (sqlx-3ai).
+        const tagsBySchema = new Map<string, string[]>(tree.schemas.map((schema, index) =>
+          [schema.name.toLowerCase(), (byPath[index] ?? []).map(tag => tag.name)]));
         return resolveSchemaTagScope(names, tagsBySchema, filter, tablesByTag);
       }));
     }));

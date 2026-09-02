@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.commentary.BulkTagService;
+import com.github.safetytrick.sqlexplorer.commentary.TagTarget;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,33 +58,33 @@ class QueryBulkTagResource {
 
     @PostMapping("/tags/search/preview")
     public SearchTagPreview preview(@RequestBody(required = false) QuerySearchRequest request) {
-        int count = paths(request).size();
+        int count = targets(request).size();
         return new SearchTagPreview(count, BulkTagService.MAX_PATHS, count > BulkTagService.MAX_PATHS);
     }
 
     /** Attach or detach one tag across every query the search matched. */
     @PostMapping("/tags/search")
     public BulkTagService.BulkResult tagSearch(@RequestBody SearchTag request) {
-        List<String> paths = paths(request.getSearch());
+        List<TagTarget> targets = targets(request.getSearch());
         return request.isRemove()
-            ? bulkTagService.detach(request.getName(), paths)
-            : bulkTagService.attach(request.getName(), paths, QUERY_TYPE);
+            ? bulkTagService.detach(request.getName(), targets)
+            : bulkTagService.attach(request.getName(), targets, QUERY_TYPE);
     }
 
     /**
      * The tag path for every matching query.
      *
-     * <p>Keyed on the digest, which is what {@code /query/{digest}} means
-     * everywhere else in the tagging API. A profile with no digest is skipped:
-     * there is no path that would address it, and inventing one would attach a
-     * tag nothing could ever find or remove.
+     * <p>Keyed on the digest, which is what a query target means everywhere else
+     * in the tagging API. A profile with no digest is skipped: nothing would
+     * address it, and inventing a target would attach a tag nothing could ever
+     * find or remove.
      */
-    private List<String> paths(QuerySearchRequest request) {
+    private List<TagTarget> targets(QuerySearchRequest request) {
         return querySearchService.matchingProfiles(request).stream()
             .map(SqlProfile::getDigest)
             .filter(digest -> digest != null && !digest.isBlank())
             .distinct()
-            .map(digest -> "/query/" + digest)
+            .map(TagTarget::ofQuery)
             .toList();
     }
 

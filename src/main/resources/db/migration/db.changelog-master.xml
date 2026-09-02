@@ -448,4 +448,44 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		`path` is null for a target it cannot represent.
+
+		Once a tag can address a table whose name contains '/' (sqlx-3ai), the
+		old expression produced strings like `/schema/x/table/a/b` — which
+		TagPath refuses to parse, and which is ambiguous with a table `b` in a
+		schema named `x/table/a`. Uniqueness was never at risk (it is on the
+		typed columns), but the value would have been one no caller could round-
+		trip, silently.
+
+		Null instead, and the API says so: "this target has no path form". That
+		makes the ambiguity unreachable rather than latent, and it is why the
+		batched lookup moved off `path in (…)` and onto the typed columns in the
+		same change — a path-keyed lookup cannot find these rows at all.
+	-->
+	<changeSet id="tags-path-null-when-unrepresentable" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<sqlCheck expectedResult="0">
+				select count(*) from information_schema.columns
+				where table_schema = database() and table_name = 'tags'
+				  and column_name = 'path' and generation_expression like '%like%'
+			</sqlCheck>
+		</preConditions>
+		<sql>
+			alter table tags
+				drop key tags_path,
+				drop column path,
+				add column path varchar(220) generated always as (
+					case
+						when type = 'schema' and schema_name not like '%/%'
+							then concat('/schema/', schema_name)
+						when type = 'table' and schema_name not like '%/%' and table_name not like '%/%'
+							then concat('/schema/', schema_name, '/table/', table_name)
+						when type = 'query' and query_digest not like '%/%'
+							then concat('/query/', query_digest)
+					end) stored,
+				add key tags_path (path);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

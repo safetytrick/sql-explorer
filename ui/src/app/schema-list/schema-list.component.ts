@@ -6,7 +6,7 @@ import { TagFilterStripComponent } from '../tag-filter/tag-filter-strip.componen
 import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
 import { SchemaRollup } from '../api-types';
 import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
-import { schemaPath } from '../tag-path';
+import { schemaTarget, targetKey, type TagTarget } from '../tag-path';
 
 @Component({
     selector: 'app-schema-list',
@@ -59,9 +59,9 @@ export class SchemaListComponent implements OnInit {
       matchesTagFilter((schema.tags ?? []).map(tag => tag.name), this.filter));
   }
 
-  /** The tag path of every schema on screen — nothing narrows further here. */
-  get bulkPaths(): string[] {
-    return this.visible.map(schema => schemaPath(schema.name));
+  /** The tag target of every schema on screen — nothing narrows further here. */
+  get bulkTargets(): TagTarget[] {
+    return this.visible.map(schema => schemaTarget(schema.name));
   }
 
   get bulkLabel(): string {
@@ -74,12 +74,13 @@ export class SchemaListComponent implements OnInit {
 
   /** Re-read tags for the rows just written, without re-fetching the page. */
   onBulkChanged() {
-    const paths = this.bulkPaths;
-    const written = new Set(paths);
-    this.sqlService.getTagsForPaths(paths).subscribe(byPath => {
+    const targets = this.bulkTargets;
+    // A Set of keys, not a scan: this runs inside a map over every loaded row.
+    const written = new Map(targets.map((target, index) => [targetKey(target), index]));
+    this.sqlService.getTagsForTargets(targets).subscribe(byIndex => {
       this.schemas = this.schemas.map(schema => {
-        const path = schemaPath(schema.name);
-        return written.has(path) ? {...schema, tags: byPath[path] ?? []} : schema;
+        const at = written.get(targetKey(schemaTarget(schema.name)));
+        return at === undefined ? schema : {...schema, tags: byIndex[at] ?? []};
       });
       this.applyFilter();
     });

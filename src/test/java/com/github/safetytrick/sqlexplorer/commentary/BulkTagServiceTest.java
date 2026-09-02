@@ -33,6 +33,7 @@ class BulkTagServiceTest {
     private static final String ENV = "regression";
 
     private TagRepository tagRepository;
+    private TagTargetLookup targetLookup;
     private BulkTagService service;
 
     @BeforeEach
@@ -40,19 +41,32 @@ class BulkTagServiceTest {
         tagRepository = mock(TagRepository.class);
         UserService userService = mock(UserService.class);
         when(userService.currentUser()).thenReturn(mock(User.class));
-        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(Map.of());
         when(tagRepository.save(any(Tag.class))).thenAnswer(call -> call.getArgument(0));
         CommentaryEnvironment environment = mock(CommentaryEnvironment.class);
         when(environment.name()).thenReturn(ENV);
-        service = new BulkTagService(tagRepository, userService, environment);
+        targetLookup = mock(TagTargetLookup.class);
+        // Nothing already tagged unless a test says so; answered positionally.
+        when(targetLookup.tagsFor(anyList())).thenAnswer(call ->
+            ((List<?>) call.getArgument(0)).stream().map(target -> List.<Tag>of()).toList());
+        service = new BulkTagService(tagRepository, userService, environment, targetLookup);
     }
 
-    private static Tag tag(String name, String path) {
+    private static Tag tag(String name, TagTarget target) {
         Tag tag = new Tag();
+        tag.setId(name.hashCode());
         tag.setName(name);
-        tag.target(TagPath.require(path));
+        tag.target(target);
         return tag;
     }
+
+    /** What the lookup answers for a batch, position by position. */
+    @SafeVarargs
+    private void lookupAnswers(List<Tag>... answers) {
+        when(targetLookup.tagsFor(anyList())).thenReturn(List.of(answers));
+    }
+
+    private static final TagTarget MYSQL = TagTarget.ofSchema("mysql");
+    private static final TagTarget SYS = TagTarget.ofSchema("sys");
 
     private List<Tag> saved() {
         ArgumentCaptor<Tag> captor = ArgumentCaptor.forClass(Tag.class);
@@ -64,8 +78,7 @@ class BulkTagServiceTest {
 
     @Test
     void attachesTheTagToEveryPath() {
-        BulkTagService.BulkResult result = service.attach("system",
-            List.of("/schema/mysql", "/schema/sys"), null);
+        BulkTagService.BulkResult result = service.attach("system", List.of(MYSQL, SYS), null);
 
         assertThat(result.changed()).isEqualTo(2);
         assertThat(result.unchanged()).isZero();
@@ -84,11 +97,9 @@ class BulkTagServiceTest {
      */
     @Test
     void aPathThatAlreadyCarriesTheTagIsLeftAlone() {
-        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(
-            Map.of("/schema/mysql", List.of(tag("system", "/schema/mysql"))));
+        lookupAnswers(List.of(tag("system", MYSQL)), List.of());
 
-        BulkTagService.BulkResult result = service.attach("system",
-            List.of("/schema/mysql", "/schema/sys"), null);
+        BulkTagService.BulkResult result = service.attach("system", List.of(MYSQL, SYS), null);
 
         assertThat(result.changed()).isEqualTo(1);
         assertThat(result.unchanged()).isEqualTo(1);
@@ -98,18 +109,33 @@ class BulkTagServiceTest {
     /** A different tag on the same path is not the same association. */
     @Test
     void anotherTagOnThePathDoesNotCountAsAlreadyTagged() {
-        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(
-            Map.of("/schema/mysql", List.of(tag("audit", "/schema/mysql"))));
+        lookupAnswers(List.of(tag("audit", MYSQL)));
 
-        assertThat(service.attach("system", List.of("/schema/mysql"), null).changed()).isEqualTo(1);
+        assertThat(service.attach("system", List.of(MYSQL), null).changed()).isEqualTo(1);
     }
 
-    /** The kind is derived per path, as a single tag does. */
+    /** Each target carries its own kind, and kinds mix freely in one batch. */
     @Test
-    void theTypeIsDerivedFromEachPath() {
-        service.attach("system", List.of("/schema/mysql", "/schema/mysql/table/user", "/query/abc123"), null);
+    void theTypeComesFromEachTarget() {
+        service.attach("system", List.of(MYSQL,
+            TagTarget.ofTable("mysql", "user"), TagTarget.ofQuery("abc123")), null);
 
         assertThat(saved()).extracting(Tag::getType).containsExactly("schema", "table", "query");
+    }
+
+    /**
+     * THE REASON TARGETS REPLACED PATHS HERE. A table whose name contains '/'
+     * has no path form, so one such row on a page would have failed the whole
+     * batch — every row the user selected staying untagged because of one odd
+     * name among hundreds (sqlx-3ai).
+     */
+    @Test
+    void aTableNameContainingASeparatorDoesNotFailTheBatch() {
+        BulkTagService.BulkResult result = service.attach("system",
+            List.of(TagTarget.ofTable("probe", "a/b"), MYSQL), null);
+
+        assertThat(result.changed()).isEqualTo(2);
+        assertThat(saved()).extracting(Tag::getTableName).containsExactly("a/b", "");
     }
 
     /**
@@ -118,8 +144,7 @@ class BulkTagServiceTest {
      */
     @Test
     void repeatedPathsAreCountedOnce() {
-        BulkTagService.BulkResult result = service.attach("system",
-            List.of("/schema/mysql", "/schema/sys", "/schema/mysql"), null);
+        BulkTagService.BulkResult result = service.attach("system", List.of(MYSQL, SYS, MYSQL), null);
 
         assertThat(result.requested()).isEqualTo(2);
         assertThat(result.changed()).isEqualTo(2);
@@ -134,13 +159,14 @@ class BulkTagServiceTest {
      */
     @Test
     void detachIsScopedToTheGivenPathsAndNotTheWholeTag() {
-        when(tagRepository.findAllByPathInGroupedByPath(anyList(), anyString())).thenReturn(
-            Map.of("/schema/mysql", List.of(tag("system", "/schema/mysql"))));
+        Tag attached = tag("system", MYSQL);
+        lookupAnswers(List.of(attached), List.of());
 
-        BulkTagService.BulkResult result = service.detach("system", List.of("/schema/mysql", "/schema/sys"));
+        BulkTagService.BulkResult result = service.detach("system", List.of(MYSQL, SYS));
 
-        verify(tagRepository).deleteAllByNameAndPathInAndEnvironmentName(
-            "system", List.of("/schema/mysql", "/schema/sys"), ENV);
+        // By the ids the targets resolved to — so nothing carrying the same name
+        // outside this set can be touched.
+        verify(tagRepository).deleteAllByIdInAndEnvironmentName(List.of(attached.getId()), ENV);
         verify(tagRepository, never()).deleteAllByNameAndEnvironmentName(any(), any());
         assertThat(result.changed()).isEqualTo(1);
         assertThat(result.unchanged()).isEqualTo(1);
@@ -149,7 +175,7 @@ class BulkTagServiceTest {
     /** Detaching a tag nothing in the set carries is a no-op, not an error. */
     @Test
     void detachingWhatIsNotThereChangesNothing() {
-        BulkTagService.BulkResult result = service.detach("system", List.of("/schema/mysql"));
+        BulkTagService.BulkResult result = service.detach("system", List.of(MYSQL));
 
         assertThat(result.changed()).isZero();
         assertThat(result.unchanged()).isEqualTo(1);
@@ -164,8 +190,8 @@ class BulkTagServiceTest {
      */
     @Test
     void aSetOverTheCapIsRefusedWithTheLimitNamed() {
-        List<String> tooMany = java.util.stream.IntStream.rangeClosed(0, BulkTagService.MAX_PATHS)
-            .mapToObj(i -> "/schema/s" + i).toList();
+        List<TagTarget> tooMany = java.util.stream.IntStream.rangeClosed(0, BulkTagService.MAX_PATHS)
+            .mapToObj(i -> TagTarget.ofSchema("s" + i)).toList();
 
         assertThatThrownBy(() -> service.attach("system", tooMany, null))
             .isInstanceOf(BulkTagRequestException.class)
@@ -177,7 +203,7 @@ class BulkTagServiceTest {
 
     @Test
     void aMalformedTagNameIsRefusedBeforeAnythingIsWritten() {
-        assertThatThrownBy(() -> service.attach("not a tag", List.of("/schema/mysql"), null))
+        assertThatThrownBy(() -> service.attach("not a tag", List.of(MYSQL), null))
             .isInstanceOf(BulkTagRequestException.class);
         verify(tagRepository, never()).save(any(Tag.class));
     }
@@ -190,10 +216,21 @@ class BulkTagServiceTest {
             .isInstanceOf(BulkTagRequestException.class);
     }
 
-    /** A path with no derivable kind cannot be tagged blind. */
+    /** A target that addresses nothing cannot be tagged blind. */
     @Test
-    void aPathWithNoDerivableTypeIsRefused() {
-        assertThatThrownBy(() -> service.attach("system", List.of("nonsense"), null))
+    void aTargetThatAddressesNothingIsRefused() {
+        assertThatThrownBy(() ->
+            service.attach("system", List.of(new TagTarget("column", "app_main", "orders", "")), null))
+            .isInstanceOf(BulkTagRequestException.class);
+        assertThatThrownBy(() ->
+            service.attach("system", List.of(new TagTarget("table", "app_main", "", "")), null))
+            .isInstanceOf(BulkTagRequestException.class);
+    }
+
+    /** A stated type that disagrees with the targets is a caller confusion. */
+    @Test
+    void aTypeThatDisagreesWithTheTargetsIsRefused() {
+        assertThatThrownBy(() -> service.attach("system", List.of(MYSQL), "table"))
             .isInstanceOf(BulkTagRequestException.class);
     }
 }

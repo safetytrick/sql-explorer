@@ -5,6 +5,7 @@ import {TagFieldComponent} from './tag-field.component';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {TagColorsService} from '../tag-colors.service';
 import {Tag} from '../api-types';
+import {queryTarget, schemaTarget, tableTarget} from '../tag-path';
 
 function tag(id: number, name: string): Tag {
   return {id, name, path: '/schema/app_other', type: 'schema', author: null, createdOn: null};
@@ -17,8 +18,9 @@ describe('TagFieldComponent', () => {
   let sqlService: jasmine.SpyObj<AnalyzedSqlService>;
 
   beforeEach(async () => {
-    sqlService = jasmine.createSpyObj('AnalyzedSqlService', ['getTags', 'addTag', 'removeTag']);
-    sqlService.getTags.and.returnValue(of([]));
+    sqlService = jasmine.createSpyObj('AnalyzedSqlService',
+      ['getTagsForTargets', 'addTag', 'removeTag']);
+    sqlService.getTagsForTargets.and.returnValue(of([[]]));
     sqlService.removeTag.and.returnValue(of(undefined));
 
     await TestBed.configureTestingModule({
@@ -41,7 +43,7 @@ describe('TagFieldComponent', () => {
 
     fixture = TestBed.createComponent(TagFieldComponent);
     component = fixture.componentInstance;
-    component.path = '/schema/app_other';
+    component.target = schemaTarget('app_other');
   });
 
   it('removes by association id, which is the only signal the delete worked', () => {
@@ -80,7 +82,7 @@ describe('TagFieldComponent', () => {
 
     component.attach('gdpr');
 
-    expect(sqlService.addTag).toHaveBeenCalledWith('gdpr', '/schema/app_other');
+    expect(sqlService.addTag).toHaveBeenCalledWith('gdpr', schemaTarget('app_other'));
     expect(component.tags!.map(t => t.name)).toEqual(['gdpr']);
   });
 
@@ -97,6 +99,6 @@ describe('TagFieldComponent', () => {
     component.tags = null;
     fixture.detectChanges();
 
-    expect(sqlService.getTags).toHaveBeenCalledWith('/schema/app_other');
+    expect(sqlService.getTagsForTargets).toHaveBeenCalledWith([schemaTarget('app_other')]);
   });
 });

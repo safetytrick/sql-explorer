@@ -21,6 +21,11 @@ import java.util.Map;
  * appeared in the tag manager's list. The path is client-supplied, so any
  * client could produce that row (sqlx-0lj).
  *
+ * <p>THE LEGACY WIRE FORMAT. Targets are stated typed now ({@link TagTarget}),
+ * so this exists to read the path form the API still accepts and the links that
+ * still carry one. A name containing {@code /} has no path form at all, which is
+ * exactly why the typed form had to replace it (sqlx-3ai).
+ *
  * <p>PARSING IS STRICT, AND REJECTS RATHER THAN GUESSES. A segment may not
  * contain {@code /}, so {@code /schema/probe/table/a/b} is refused instead of
  * being read as some other table. That makes a table named {@code a/b}
@@ -107,6 +112,11 @@ record TagPath(Target target, String schema, String table, String digest) {
     /** The value stored in {@code tags.type}. */
     String type() {
         return target.type();
+    }
+
+    /** This address as a typed target. */
+    TagTarget toTarget() {
+        return new TagTarget(target.type(), schema, table, digest).normalized();
     }
 
     /**

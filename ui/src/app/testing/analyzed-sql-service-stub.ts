@@ -26,6 +26,7 @@ export function analyzedSqlServiceStub(overrides: object = {}): AnalyzedSqlServi
     normalizeQuery: () => of(null),
     getTags: () => of([]),
     getTagsForPaths: () => of({}),
+    getTagsForTargets: () => of([]),
     autoCompleteTags: () => of([]),
     addTag: () => of(null),
     removeTag: () => of(undefined),

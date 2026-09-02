@@ -1,4 +1,5 @@
 import {SchemaRollup, SqlProfile, Tag, TableRollup} from '../api-types';
+import {queryTarget, type TagTarget} from '../tag-path';
 
 /**
  * A single thing carrying a tag, flattened across the three member types so
@@ -49,27 +50,25 @@ export function tableMembers(tables: TableRollup[], tagName: string): TagMember[
 
 /**
  * Queries are the awkward case: `SqlProfile` carries no `tags`, so the
- * association id has to be looked up separately by path. `byPath` is the
- * response of `getTagsForPaths`, whose keys come back exactly as sent.
+ * association id has to be looked up separately. `byIndex` is the response of
+ * `getTagsForTargets`, which answers one entry per target in the order sent —
+ * so it is zipped against `queries` positionally (sqlx-3ai).
  */
 export function queryMembers(queries: SqlProfile[], tagName: string,
-                             byPath: Record<string, Tag[]>): TagMember[] {
-  return queries.map(query => {
-    const path = queryPath(query);
-    return {
+                             byIndex: Tag[][]): TagMember[] {
+  return queries.map((query, index) => ({
       kind: 'query' as const,
       label: query.digest,
       link: ['/analyzed-sql', query.digest],
-      assocId: assocOf(byPath[path], tagName),
+      assocId: assocOf(byIndex[index], tagName),
       numberOfQueries: query.runtimeMetrics ? query.runtimeMetrics.executed : null,
       totalQueryTime: query.runtimeMetrics ? query.runtimeMetrics.totalTime : null
-    };
-  });
+  }));
 }
 
-/** The tag path for a query, matching what the SQL view tags against. */
-export function queryPath(query: SqlProfile): string {
-  return '/query/' + query.digest;
+/** What the SQL view tags a query against. */
+export function queryTargetOf(query: SqlProfile): TagTarget {
+  return queryTarget(query.digest);
 }
 
 /** Schemas first, then tables, then queries; heaviest first inside each. */

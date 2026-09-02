@@ -15,6 +15,7 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
 import com.github.safetytrick.sqlexplorer.commentary.TagLoader;
+import com.github.safetytrick.sqlexplorer.commentary.TagTarget;
 import com.github.safetytrick.sqlexplorer.commentary.TagsService;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
@@ -211,7 +212,7 @@ public class SqlRepositoryService {
         );
 
         return result.values().stream().map(builder-> {
-            List<Tag> schemaTags = tagsService.findAllByPath("/schema/" + builder.getName());
+            List<Tag> schemaTags = tagsService.findAllByTarget(TagTarget.ofSchema(builder.getName()));
             return builder.tags(schemaTags).build();
         }).sorted(SchemaRollup.comparator(ignoredSchemas));
     }
@@ -227,7 +228,7 @@ public class SqlRepositoryService {
                     .sum();
                 builder.addQueries(sqlList.size(), totalQueryTime);
             });
-        List<Tag> schemaTags = tagsService.findAllByPath("/schema/" + schemaName);
+        List<Tag> schemaTags = tagsService.findAllByTarget(TagTarget.ofSchema(schemaName));
         return builder.tags(schemaTags).build();
     }
 
@@ -262,7 +263,8 @@ public class SqlRepositoryService {
         return TableRollup.builder()
             .name(reference.getNormalizedTableName())
             .schema(reference.getNormalizedSchemaName())
-            .tags(tagLoader.findAllByPath("/schema/" + reference.getNormalizedSchemaName() + "/table/" + reference.getNormalizedTableName()))
+            .tags(tagLoader.findAllByTarget(TagTarget.ofTable(
+                reference.getNormalizedSchemaName(), reference.getNormalizedTableName())))
             .numberOfQueries(sqlList.size())
             .totalQueryTime(totalQueryTime)
             .view(structure != null && "VIEW".equalsIgnoreCase(structure.type()))

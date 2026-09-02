@@ -26,11 +26,13 @@ class TagsResource {
     private final UserService userService;
     private final BulkTagService bulkTagService;
     private final CommentaryEnvironment environment;
+    private final TagTargetLookup targetLookup;
     private final Pattern tagPattern = Pattern.compile("[\\w-]+");
 
     public TagsResource(TagRepository tagRepository, UserService userService, BulkTagService bulkTagService,
-                        CommentaryEnvironment environment) {
+                        CommentaryEnvironment environment, TagTargetLookup targetLookup) {
         this.environment = environment;
+        this.targetLookup = targetLookup;
         this.tagRepository = tagRepository;
         this.userService = userService;
         this.bulkTagService = bulkTagService;
@@ -60,10 +62,30 @@ class TagsResource {
         return tagRepository.findAllByPathInGroupedByPath(paths, environment.name());
     }
 
+    /**
+     * The tags on each of these targets, in the order asked.
+     *
+     * <p>Replaces keying a batch by path string, which could neither ask about
+     * nor return a tag on a table whose name contains {@code /} — the storage
+     * could hold one from sqlx-11v, but the API could not address it (sqlx-3ai).
+     *
+     * <p>Positional, so the caller zips it against its own rows. A duplicate
+     * target is legitimate and gets the same answer at both positions.
+     */
+    @PostMapping("/tags/targets")
+    public List<List<Tag>> tagsForTargets(@RequestBody List<TagTarget> targets) {
+        try {
+            return targetLookup.tagsFor(targets.stream().map(TagTarget::validated).toList());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
     @PostMapping("/tags")
     public Tag createTag(@RequestBody CreateTag createTag) {
+        // Not `path` specifically: a request may state its target either way,
+        // and targetOf() below reports which forms are accepted (sqlx-3ai).
         Objects.requireNonNull(createTag.name, "name is required");
-        Objects.requireNonNull(createTag.path, "path is required");
 
         // Both checks below reach the caller as a 400. A plain
         // IllegalArgumentException is a 500 here, which sends someone with a
@@ -75,12 +97,12 @@ class TagsResource {
                 "name must only contain letters, numbers, underscores and hyphens");
         }
 
-        // Validated before anything is looked up or written: the path is
-        // client-supplied, and a path that cannot be parsed produces a row no
-        // lens or filter can ever find (sqlx-0lj).
-        TagPath path;
+        // Validated before anything is looked up or written: the target is
+        // client-supplied, and one that addresses nothing produces a row no lens
+        // or filter can ever find (sqlx-0lj).
+        TagTarget path;
         try {
-            path = TagPath.require(createTag.path);
+            path = targetOf(createTag);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
@@ -90,14 +112,14 @@ class TagsResource {
             // disagrees with the address means the caller believes something
             // untrue about what it is tagging.
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "type " + createTag.getType() + " does not match " + createTag.path
-                    + ", which addresses a " + path.type());
+                "type " + createTag.getType() + " does not match the target, "
+                    + "which addresses a " + path.type());
         }
 
         Optional<Tag> existingTag = tagRepository
             .findByNameAndEnvironmentNameAndTypeAndSchemaNameAndTableNameAndQueryDigest(
                 createTag.name, environment.name(), path.type(),
-                nullToEmpty(path.schema()), nullToEmpty(path.table()), nullToEmpty(path.digest()));
+                path.schema(), path.table(), path.digest());
         if (existingTag.isPresent()) {
             return existingTag.get();
         }
@@ -126,13 +148,13 @@ class TagsResource {
      */
     @PostMapping("/tags/bulk")
     public BulkTagService.BulkResult bulkTag(@RequestBody BulkTag request) {
-        return bulkTagService.attach(request.getName(), request.getPaths(), request.getType());
+        return bulkTagService.attach(request.getName(), targetsOf(request), request.getType());
     }
 
     /** Remove one tag from every path given, and from nowhere else. */
     @PostMapping("/tags/bulk/remove")
     public BulkTagService.BulkResult bulkUntag(@RequestBody BulkTag request) {
-        return bulkTagService.detach(request.getName(), request.getPaths());
+        return bulkTagService.detach(request.getName(), targetsOf(request));
     }
 
     /**
@@ -158,22 +180,71 @@ class TagsResource {
         }
     }
 
-    private static String nullToEmpty(String value) {
-        return value == null ? "" : value;
+    /**
+     * The target a request states, in either form.
+     *
+     * <p>The typed form wins when both are present; the path form stays
+     * accepted because links and older clients still carry one, and because it
+     * is what {@code /tags/bulk} sends until its own callers move over.
+     */
+    /** The targets a bulk request states, in either form. */
+    static List<TagTarget> targetsOf(BulkTag request) {
+        if (request.getTargets() != null && !request.getTargets().isEmpty()) {
+            return request.getTargets();
+        }
+        if (request.getPaths() == null) {
+            return List.of();
+        }
+        return request.getPaths().stream()
+            .map(path -> TagPath.require(path).toTarget())
+            .toList();
+    }
+
+    static TagTarget targetOf(CreateTag createTag) {
+        if (createTag.getTarget() != null) {
+            return createTag.getTarget().validated();
+        }
+        if (createTag.getPath() == null) {
+            throw new IllegalArgumentException("a tag needs a target or a path");
+        }
+        return TagPath.require(createTag.getPath()).toTarget().validated();
     }
 
     @Data
     public static class BulkTag {
         private String name;
+
+        /**
+         * What to tag, stated typed.
+         *
+         * <p>Preferred over {@link #paths}. A path cannot express a name
+         * containing {@code /}, and one such row on a page would have made the
+         * whole batch fail rather than just that row (sqlx-3ai).
+         */
+        private List<TagTarget> targets;
+
+        /** The legacy addresses. Still accepted; cannot express every target. */
         private List<String> paths;
-        /** Derived from each path when absent, as a single tag does. */
+
+        /** Derived from each target when absent, as a single tag does. */
         private String type;
     }
 
     @Data
     public static class CreateTag {
         private String name;
+
+        /**
+         * What to tag, stated typed.
+         *
+         * <p>Preferred over {@link #path}, and the only form that can address a
+         * name containing {@code /} (sqlx-3ai).
+         */
+        private TagTarget target;
+
+        /** The legacy address. Still accepted; cannot express every target. */
         private String path;
+
         private String type;
     }
 }

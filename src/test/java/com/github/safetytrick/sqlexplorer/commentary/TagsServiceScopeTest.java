@@ -42,10 +42,10 @@ class TagsServiceScopeTest {
     }
 
     @Test
-    void readingByPathIsScoped() {
-        service.findAllByPath("/schema/mysql");
+    void readingByTargetIsScoped() {
+        service.findAllByTarget(TagTarget.ofSchema("mysql"));
 
-        verify(tagRepository).findAllByPathAndEnvironmentName("/schema/mysql", ENV);
+        verify(tagRepository).findAllByTypeAndSchemaNameAndEnvironmentName("schema", "mysql", ENV);
     }
 
     @Test

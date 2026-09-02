@@ -35,16 +35,23 @@ public class TagsService implements TagLoader {
     }
 
     @Override
-    public List<Tag> findAllByPath(String path) {
-        return this.tagRepository.findAllByPathAndEnvironmentName(path, environment.name());
+    public List<Tag> findAllByTarget(TagTarget target) {
+        TagTarget wanted = target.normalized();
+        return this.tagRepository.findAllByTypeAndSchemaNameAndEnvironmentName(
+                wanted.type(), wanted.schema(), environment.name()).stream()
+            .filter(tag -> tag.getTarget().equals(wanted))
+            .toList();
     }
 
     public TagLoader getBulkTagLoaderByType(String type) {
         List<Tag> allByType = tagRepository.findAllByTypeAndEnvironmentName(type, environment.name());
-        Map<String,List<Tag>> tagsByPath = allByType.stream()
-            .collect(Collectors.groupingBy(Tag::getPath));
+        // Grouped by TARGET: a path is null for a name containing '/', and
+        // groupingBy refuses a null key — so this threw on the first such row
+        // and took every rollup in its schema with it (sqlx-3ai).
+        Map<TagTarget,List<Tag>> tagsByTarget = allByType.stream()
+            .collect(Collectors.groupingBy(Tag::getTarget));
 
-        return tagsByPath::get;
+        return target -> tagsByTarget.get(target.normalized());
     }
 
     /**
@@ -56,9 +63,9 @@ public class TagsService implements TagLoader {
     public TagLoader getTableTagLoaderForSchema(String schema) {
         List<Tag> allByType = tagRepository
             .findAllByTypeAndSchemaNameAndEnvironmentName("table", schema, environment.name());
-        Map<String,List<Tag>> tagsByPath = allByType.stream()
-            .collect(Collectors.groupingBy(Tag::getPath));
+        Map<TagTarget,List<Tag>> tagsByTarget = allByType.stream()
+            .collect(Collectors.groupingBy(Tag::getTarget));
 
-        return tagsByPath::get;
+        return target -> tagsByTarget.get(target.normalized());
     }
 }

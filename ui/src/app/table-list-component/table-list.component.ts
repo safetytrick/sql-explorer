@@ -4,6 +4,7 @@ import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {Tag, TableRollup} from '../api-types';
 import {matchesTypeFilter, TypeFilter} from '../schema-tree/tree-filter';
+import {tableTarget} from '../tag-path';
 
 @Component({
     selector: 'app-table-list-component',
@@ -12,6 +13,7 @@ import {matchesTypeFilter, TypeFilter} from '../schema-tree/tree-filter';
     imports: [RouterLink, PicoViewComponent, TagFieldComponent]
 })
 export class TableListComponent {
+  protected readonly tableTarget = tableTarget;
 
   private rows: TableRollup[] = [];
   private heaviest = 1;

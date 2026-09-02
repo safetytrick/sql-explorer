@@ -3,6 +3,7 @@ import {RouterLink} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
+import type {TagTarget} from '../tag-path';
 import {Tag} from '../api-types';
 
 /**
@@ -30,8 +31,14 @@ import {Tag} from '../api-types';
 })
 export class TagFieldComponent implements OnInit, OnDestroy {
 
-  /** Tag association path, e.g. `/schema/app_other` or `/schema/app_other/table/users`. */
-  @Input() path!: string;
+  /**
+   * What this field tags, stated typed.
+   *
+   * <p>Was a path string. A path cannot express a name containing `/`, so the
+   * component could not tag such a row at all — the storage could hold the tag
+   * from sqlx-11v, but nothing could address it (sqlx-3ai).
+   */
+  @Input() target!: TagTarget;
 
   /** Pre-loaded tags. When null the component fetches its own for `path`. */
   @Input() tags: Tag[] | null = null;
@@ -62,7 +69,8 @@ export class TagFieldComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     if (this.tags === null) {
-      this.subscriptions.add(this.sqlService.getTags(this.path).subscribe(data => this.tags = data));
+      this.subscriptions.add(this.sqlService.getTagsForTargets([this.target])
+        .subscribe(answer => this.tags = answer[0] ?? []));
     }
     // Subscribing is what populates the color map the chips read; without a
     // subscriber every chip would render in the fallback grey and stay there.
@@ -161,7 +169,7 @@ export class TagFieldComponent implements OnInit, OnDestroy {
       return;
     }
     this.failed = null;
-    this.subscriptions.add(this.sqlService.addTag(value, this.path).subscribe({
+    this.subscriptions.add(this.sqlService.addTag(value, this.target).subscribe({
       next: tag => {
         this.tags = [...(this.tags ?? []), tag];
         if (!this.candidates.some(candidate => candidate.toLowerCase() === value.toLowerCase())) {

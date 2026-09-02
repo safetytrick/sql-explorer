@@ -27,7 +27,7 @@
   <app-tag-filter-strip [rows]="stripRows" (filterChange)="onFilter($event)"></app-tag-filter-strip>
 
   <!-- Beside the filters, because the filters are what define the set. -->
-  <app-bulk-tag-bar [paths]="bulkPaths" [count]="displayed.length" [setLabel]="bulkLabel"
+  <app-bulk-tag-bar [targets]="bulkTargets" [count]="displayed.length" [setLabel]="bulkLabel"
                     (changed)="onBulkChanged()"></app-bulk-tag-bar>
 </div>
 

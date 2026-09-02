@@ -10,7 +10,7 @@ import {filterSchemaTree, TypeFilter, inertTags} from './tree-filter';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 import {resolveSchemaTagScope} from '../search-url';
-import {schemaPath} from '../tag-path';
+import {schemaTarget} from '../tag-path';
 
 @Component({
   selector: 'app-schema-tree',
@@ -148,14 +148,15 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
       this.publishTagScope();
       return;
     }
-    const paths = schemas.map(schema => schemaPath(schema.name));
-    this.analyzedSqlService.getTagsForPaths(paths).subscribe({
-      next: byPath => {
+    const targets = schemas.map(schema => schemaTarget(schema.name));
+    this.analyzedSqlService.getTagsForTargets(targets).subscribe({
+      next: byIndex => {
+        // Zipped by index: the batched answer is positional (sqlx-3ai).
         const map = new Map<string, string[]>();
-        for (const schema of schemas) {
-          const tags = byPath[schemaPath(schema.name)] ?? [];
+        schemas.forEach((schema, index) => {
+          const tags = byIndex[index] ?? [];
           map.set(schema.name.toLowerCase(), tags.map(tag => tag.name));
-        }
+        });
         this.tagsBySchema = map;
         this.publishTagScope();
       },

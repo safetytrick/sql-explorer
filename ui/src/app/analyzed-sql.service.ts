@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
+import type {TagTarget} from './tag-path';
 import {
   CleanedSql,
   ExplainResult,
@@ -63,13 +64,25 @@ export class AnalyzedSqlService {
     return this.http.post<Record<string, Tag[]>>(endpoint + 'tags/path', paths);
   }
 
+  /**
+   * The tags on each target, answered POSITIONALLY — one entry per target, in
+   * the order sent.
+   *
+   * <p>Replaces keying a batch by path string, which could neither ask about nor
+   * return a tag on a table whose name contains `/` (sqlx-3ai). Callers zip the
+   * answer against the rows they sent.
+   */
+  getTagsForTargets(targets: TagTarget[]): Observable<Tag[][]> {
+    return this.http.post<Tag[][]>(endpoint + 'tags/targets', targets);
+  }
+
   autoCompleteTags(text: string): Observable<string[]> {
     const params: HttpParams = new HttpParams().set('value', String(text));
     return this.http.get<string[]>(endpoint + 'tags/names', {params: params});
   }
 
-  addTag(name: string, path: string): Observable<Tag> {
-    return this.http.post<Tag>(endpoint + 'tags', {name: name, path: path});
+  addTag(name: string, target: TagTarget): Observable<Tag> {
+    return this.http.post<Tag>(endpoint + 'tags', {name, target});
   }
 
   removeTag(id: number): Observable<void> {

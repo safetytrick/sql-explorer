@@ -19,7 +19,7 @@
     @if (query.isMultiSchema) { <span class="badge b-idx" title="references more than one schema">multi-schema</span> }
     @if (query.analysisSkipped) { <span class="badge" title="analysis was skipped for this statement">not analyzed</span> }
     <div class="view-actions">
-      <app-tag-field [path]="'/query/' + query.digest"></app-tag-field>
+      <app-tag-field [target]="queryTarget(query.digest)"></app-tag-field>
     </div>
   </div>
 

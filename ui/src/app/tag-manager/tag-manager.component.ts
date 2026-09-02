@@ -7,16 +7,16 @@ import { switchMap } from 'rxjs/operators';
 import { TagColorsService, TagSummary } from '../tag-colors.service';
 import { AnalyzedSqlService } from '../analyzed-sql.service';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
-import { SchemaRollup, TableRollup } from '../api-types';
-import { orderMembers, queryMembers, queryPath, schemaMembers, TagMember, tableMembers } from './tag-members';
-import {schemaPath} from '../tag-path';
+import { SchemaRollup, Tag, TableRollup } from '../api-types';
+import { orderMembers, queryMembers, queryTargetOf, schemaMembers, TagMember, tableMembers } from './tag-members';
+import {schemaTarget, tableTarget, type TagTarget} from '../tag-path';
 
 const TAG_COLORS = ['#f5a623', '#2dd4bf', '#a78bfa', '#4a9eff', '#f56565', '#3dd68c', '#8b93a8'];
 
 /** A thing that could be tagged, offered by the add-member picker. */
 interface Target {
   label: string;
-  path: string;
+  target: TagTarget;
 }
 
 @Component({
@@ -113,13 +113,14 @@ export class TagManagerComponent implements OnInit {
       tables: this.sqlService.getTablesByTag(name),
       queries: this.sqlService.getSqlByTag(name)
     }).pipe(
-      // A SqlProfile carries no tags, so the association ids the detach
-      // button needs have to be fetched by path. One batched call, not one
-      // per query, and skipped entirely when the tag has no queries.
+      // A SqlProfile carries no tags, so the association ids the detach button
+      // needs have to be fetched separately. One batched call, not one per
+      // query, skipped entirely when the tag has no queries — and answered
+      // positionally, so it is zipped against `queries` by index (sqlx-3ai).
       switchMap(loaded => loaded.queries.length
-        ? this.sqlService.getTagsForPaths(loaded.queries.map(queryPath))
-            .pipe(switchMap(byPath => of({...loaded, byPath})))
-        : of({...loaded, byPath: {}}))
+        ? this.sqlService.getTagsForTargets(loaded.queries.map(queryTargetOf))
+            .pipe(switchMap(byIndex => of({...loaded, byIndex})))
+        : of({...loaded, byIndex: [] as Tag[][]}))
     ).subscribe(loaded => {
       if (this.selected !== name) {
         return; // a different tag was picked while this was in flight
@@ -127,7 +128,7 @@ export class TagManagerComponent implements OnInit {
       this.members = orderMembers([
         ...schemaMembers(loaded.schemas, name),
         ...tableMembers(loaded.tables, name),
-        ...queryMembers(loaded.queries, name, loaded.byPath)
+        ...queryMembers(loaded.queries, name, loaded.byIndex)
       ]);
       this.loadingMembers = false;
     });
@@ -155,10 +156,11 @@ export class TagManagerComponent implements OnInit {
         schemas: this.sqlService.getSchemas(),
         tables: this.sqlService.getTables()
       }).subscribe(loaded => this.targets = [
-        ...loaded.schemas.map((schema: SchemaRollup) => ({label: schema.name, path: schemaPath(schema.name)})),
+        ...loaded.schemas.map((schema: SchemaRollup) =>
+          ({label: schema.name, target: schemaTarget(schema.name)})),
         ...loaded.tables.map((table: TableRollup) => ({
           label: `${table.schema}.${table.name}`,
-          path: `/schema/${table.schema}/table/${table.name}`
+          target: tableTarget(table.schema, table.name)
         }))
       ]);
     }
@@ -182,7 +184,7 @@ export class TagManagerComponent implements OnInit {
     }
     this.addOpen = false;
     this.addFilter = '';
-    this.sqlService.addTag(this.selected, target.path).subscribe(() => this.reload());
+    this.sqlService.addTag(this.selected, target.target).subscribe(() => this.reload());
   }
 
   // ── definition editing (unchanged) ──────────────────────────────────────

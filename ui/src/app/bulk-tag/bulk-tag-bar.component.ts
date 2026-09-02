@@ -3,6 +3,7 @@ import {BulkTagResult, BulkTagService} from './bulk-tag.service';
 import {TagPickerComponent} from './tag-picker.component';
 import {TagColorsService} from '../tag-colors.service';
 import type {QuerySearchRequest} from '../query-search.service';
+import type {TagTarget} from '../tag-path';
 
 /** What the pending action would do, held until the user confirms it. */
 interface Pending {
@@ -17,7 +18,7 @@ interface Pending {
  * Apply or remove one tag across everything the current view matched.
  *
  * <p>Sits beside the filter controls, because those are what define the set.
- * The set itself is supplied by the page in one of two ways: `paths` when the
+ * The set itself is supplied by the page in one of two ways: `targets` when the
  * page has already loaded every row it shows, or `search` when the server has
  * to resolve it — the workbench filters server-side over thousands of rows.
  *
@@ -39,7 +40,7 @@ interface Pending {
 export class BulkTagBarComponent {
 
   /** Enumerated mode: every path the current view matched. */
-  @Input() paths: string[] | null = null;
+  @Input() targets: TagTarget[] | null = null;
 
   /** Search mode: the server resolves the set from this request. */
   @Input() search: QuerySearchRequest | null = null;
@@ -92,7 +93,7 @@ export class BulkTagBarComponent {
       });
       return;
     }
-    this.pending = {name, remove, count: this.paths?.length ?? 0, overCap: null};
+    this.pending = {name, remove, count: this.targets?.length ?? 0, overCap: null};
   }
 
   cancel() {
@@ -109,8 +110,8 @@ export class BulkTagBarComponent {
     const request = this.search
       ? this.bulkTags.tagSearch(pending.name, this.search, pending.remove)
       : pending.remove
-        ? this.bulkTags.untagPaths(pending.name, this.paths ?? [])
-        : this.bulkTags.tagPaths(pending.name, this.paths ?? []);
+        ? this.bulkTags.untagTargets(pending.name, this.targets ?? [])
+        : this.bulkTags.tagTargets(pending.name, this.targets ?? []);
 
     request.subscribe({
       next: result => {

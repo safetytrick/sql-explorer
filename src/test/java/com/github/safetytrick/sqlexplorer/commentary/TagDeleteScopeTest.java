@@ -32,7 +32,7 @@ class TagDeleteScopeTest {
         CommentaryEnvironment environment = mock(CommentaryEnvironment.class);
         when(environment.name()).thenReturn(ENV);
         resource = new TagsResource(tagRepository, mock(UserService.class),
-            mock(BulkTagService.class), environment);
+            mock(BulkTagService.class), environment, mock(TagTargetLookup.class));
     }
 
     @Test

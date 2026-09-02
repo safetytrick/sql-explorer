@@ -47,12 +47,14 @@ public class BulkTagService {
     private final TagRepository tagRepository;
     private final UserService userService;
     private final CommentaryEnvironment environment;
+    private final TagTargetLookup targetLookup;
 
     public BulkTagService(TagRepository tagRepository, UserService userService,
-                   CommentaryEnvironment environment) {
+                   CommentaryEnvironment environment, TagTargetLookup targetLookup) {
         this.tagRepository = tagRepository;
         this.userService = userService;
         this.environment = environment;
+        this.targetLookup = targetLookup;
     }
 
     /**
@@ -64,16 +66,22 @@ public class BulkTagService {
      */
     public record BulkResult(String name, int requested, int changed, int unchanged) { }
 
-    /** Attach {@code name} to every path that does not already carry it. */
+    /**
+     * Attach {@code name} to every target that does not already carry it.
+     *
+     * <p>Takes targets rather than paths since sqlx-3ai. A path could not
+     * express a name containing {@code /}, so one such row on a page would have
+     * made the whole batch fail — the rows the user selected would stay
+     * untagged and the reason would be one odd name among hundreds.
+     */
     @Transactional
-    public BulkResult attach(String name, List<String> paths, String type) {
-        List<String> distinct = validated(name, paths);
-        Map<String, List<Tag>> existing =
-            tagRepository.findAllByPathInGroupedByPath(distinct, environment.name());
+    public BulkResult attach(String name, List<TagTarget> targets, String type) {
+        List<TagTarget> distinct = validatedTargets(name, targets, type);
+        List<List<Tag>> existing = targetLookup.tagsFor(distinct);
 
         int attached = 0;
-        for (String path : distinct) {
-            boolean alreadyTagged = existing.getOrDefault(path, List.of()).stream()
+        for (int index = 0; index < distinct.size(); index++) {
+            boolean alreadyTagged = existing.get(index).stream()
                 .anyMatch(tag -> tag.getName().equals(name));
             if (alreadyTagged) {
                 continue;
@@ -82,7 +90,7 @@ public class BulkTagService {
             tag.setAuthor(userService.currentUser());
             tag.setName(name);
             tag.setEnvironmentName(environment.name());
-            tag.target(targetOf(path, type));
+            tag.target(distinct.get(index));
             tagRepository.save(tag);
             attached++;
         }
@@ -97,16 +105,19 @@ public class BulkTagService {
      * has no way to make.
      */
     @Transactional
-    public BulkResult detach(String name, List<String> paths) {
-        List<String> distinct = validated(name, paths);
-        int carrying = (int) tagRepository.findAllByPathInGroupedByPath(distinct, environment.name())
-            .values().stream()
+    public BulkResult detach(String name, List<TagTarget> targets) {
+        List<TagTarget> distinct = validatedTargets(name, targets, null);
+        List<Integer> ids = targetLookup.tagsFor(distinct).stream()
             .flatMap(List::stream)
             .filter(tag -> tag.getName().equals(name))
-            .count();
+            .map(Tag::getId)
+            .toList();
 
-        tagRepository.deleteAllByNameAndPathInAndEnvironmentName(name, distinct, environment.name());
-        return new BulkResult(name, distinct.size(), carrying, distinct.size() - carrying);
+        // By id, resolved from the targets asked about — so nothing carrying the
+        // same name outside this set can be touched, which is the property the
+        // path-scoped delete existed to guarantee (sqlx-agl).
+        tagRepository.deleteAllByIdInAndEnvironmentName(ids, environment.name());
+        return new BulkResult(name, distinct.size(), ids.size(), distinct.size() - ids.size());
     }
 
     /**
@@ -116,17 +127,30 @@ public class BulkTagService {
      * twice — a query matching under two ids, a table listed once per schema —
      * and the counts reported back have to mean "objects", not "list entries".
      */
-    private static List<String> validated(String name, List<String> paths) {
+    private static List<TagTarget> validatedTargets(String name, List<TagTarget> targets, String type) {
         if (name == null || !TAG_NAME.matcher(name).matches()) {
             throw new BulkTagRequestException(
                 "name must only contain letters, numbers, underscores and hyphens");
         }
-        if (paths == null || paths.isEmpty()) {
-            throw new BulkTagRequestException("at least one path is required");
+        if (targets == null || targets.isEmpty()) {
+            throw new BulkTagRequestException("at least one target is required");
         }
-        List<String> distinct = List.copyOf(new LinkedHashSet<>(paths));
+        List<TagTarget> checked = new java.util.ArrayList<>(targets.size());
+        for (TagTarget target : targets) {
+            try {
+                TagTarget valid = target.validated();
+                if (type != null && !type.equals(valid.type())) {
+                    throw new BulkTagRequestException("type " + type
+                        + " does not match a target addressing a " + valid.type());
+                }
+                checked.add(valid);
+            } catch (IllegalArgumentException e) {
+                throw new BulkTagRequestException(e.getMessage());
+            }
+        }
+        List<TagTarget> distinct = List.copyOf(new LinkedHashSet<>(checked));
         if (distinct.size() > MAX_PATHS) {
-            throw new BulkTagRequestException("too many paths: " + distinct.size()
+            throw new BulkTagRequestException("too many targets: " + distinct.size()
                 + " exceeds the limit of " + MAX_PATHS
                 + ". Nothing was changed — narrow the set and try again.");
         }
@@ -146,7 +170,7 @@ public class BulkTagService {
      * tagging, and silently going with either answer files the tag somewhere
      * nobody will look for it.
      */
-    static TagPath targetOf(String path, String type) {
+    static TagTarget targetOf(String path, String type) {
         TagPath parsed = TagPath.parse(path);
         if (parsed == null) {
             throw new BulkTagRequestException("could not derive type from path and none was given: " + path);
@@ -155,6 +179,6 @@ public class BulkTagService {
             throw new BulkTagRequestException("type " + type + " does not match " + path
                 + ", which addresses a " + parsed.type());
         }
-        return parsed;
+        return parsed.toTarget();
     }
 }

@@ -380,7 +380,7 @@
       <div class="lens-card">
         <div class="card-head"><span class="card-head-title">Tags</span></div>
         <div class="tags-body">
-          <app-tag-field [path]="'/schema/' + schema + '/table/' + table"></app-tag-field>
+          <app-tag-field [target]="tableTarget(schema, table)"></app-tag-field>
         </div>
       </div>
     </div>

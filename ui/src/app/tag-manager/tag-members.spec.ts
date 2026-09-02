@@ -1,4 +1,4 @@
-import {orderMembers, queryMembers, queryPath, schemaMembers, tableMembers} from './tag-members';
+import {orderMembers, queryMembers, queryTargetOf, schemaMembers, tableMembers} from './tag-members';
 import {SchemaRollup, SqlProfile, Tag, TableRollup} from '../api-types';
 
 function tag(id: number, name: string, path: string): Tag {
@@ -31,10 +31,10 @@ describe('tag members', () => {
 
   it('resolves a query detach through the by-path lookup, since profiles carry no tags', () => {
     const query = {digest: 'abc123', runtimeMetrics: null} as SqlProfile;
-    const byPath = {'/query/abc123': [tag(42, 'clickhouse', '/query/abc123')]};
+    const byPath = [[tag(42, 'clickhouse', '/query/abc123')]];
 
     const [member] = queryMembers([query], 'clickhouse', byPath);
-    expect(queryPath(query)).toBe('/query/abc123');
+    expect(queryTargetOf(query)).toEqual({type: 'query', schema: '', table: '', digest: 'abc123'});
     expect(member.assocId).toBe(42);
     expect(member.link).toEqual(['/analyzed-sql', 'abc123']);
   });
@@ -42,7 +42,7 @@ describe('tag members', () => {
   it('marks a member undetachable rather than guessing when no association is found', () => {
     const query = {digest: 'nope', runtimeMetrics: null} as SqlProfile;
 
-    expect(queryMembers([query], 'clickhouse', {})[0].assocId).toBeNull();
+    expect(queryMembers([query], 'clickhouse', [])[0].assocId).toBeNull();
   });
 
   it('groups by kind, heaviest first inside each group', () => {

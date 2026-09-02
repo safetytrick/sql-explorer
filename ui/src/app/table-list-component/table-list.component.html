@@ -25,7 +25,7 @@
           <span class="type-badge" title="this is a view, not a base table">view</span>
         }</td>
         <td class="table-tags">
-          <app-tag-field [path]="'/schema/' + table.schema + '/table/' + table.name"
+          <app-tag-field [target]="tableTarget(table.schema, table.name)"
                          [tags]="table.tags"
                          [dense]="true"
                          linkPrefix="/tables/by-tag/"

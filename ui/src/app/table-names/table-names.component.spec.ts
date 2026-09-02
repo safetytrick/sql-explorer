@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { TableNamesComponent } from './table-names.component';
 import { emptyTagFilter } from '../tag-filter/tag-filter-url';
+import {tableTarget} from '../tag-path';
 
 describe('TableNamesComponent', () => {
   let component: TableNamesComponent;
@@ -50,10 +51,10 @@ describe('TableNamesComponent', () => {
       component.typeFilter = 'all';
       component.onFilter(emptyTagFilter());
 
-      expect(component.bulkPaths).toEqual([
-        '/schema/app/table/users',
-        '/schema/app/table/user_summary',
-        '/schema/app/table/orders'
+      expect(component.bulkTargets).toEqual([
+        tableTarget('app', 'users'),
+        tableTarget('app', 'user_summary'),
+        tableTarget('app', 'orders')
       ]);
       expect(component.bulkLabel).toBe('all 3 tables');
     });
@@ -62,7 +63,7 @@ describe('TableNamesComponent', () => {
       component.typeFilter = 'views';
       component.onFilter(emptyTagFilter());
 
-      expect(component.bulkPaths).toEqual(['/schema/app/table/user_summary']);
+      expect(component.bulkTargets).toEqual([tableTarget('app', 'user_summary')]);
       expect(component.bulkLabel).toBe('1 of 3 tables');
     });
 
@@ -70,9 +71,9 @@ describe('TableNamesComponent', () => {
       component.typeFilter = 'tables';
       component.onFilter(emptyTagFilter());
 
-      expect(component.bulkPaths).toEqual([
-        '/schema/app/table/users',
-        '/schema/app/table/orders'
+      expect(component.bulkTargets).toEqual([
+        tableTarget('app', 'users'),
+        tableTarget('app', 'orders')
       ]);
       expect(component.bulkLabel).toBe('2 of 3 tables');
     });
@@ -83,7 +84,7 @@ describe('TableNamesComponent', () => {
       component.tables = [];
       component.onFilter(emptyTagFilter());
 
-      expect(component.bulkPaths).toEqual([]);
+      expect(component.bulkTargets).toEqual([]);
       expect(component.displayed.length).toBe(0);
     });
   });

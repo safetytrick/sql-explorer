@@ -9,7 +9,7 @@ import { TableRollup } from '../api-types';
 import { TypeFilter } from '../schema-tree/tree-filter';
 import { readTypeFilter, TYPE_PARAM } from './type-filter-url';
 import { matchesTypeFilter } from '../schema-tree/tree-filter';
-import {schemaPath, tablePath} from '../tag-path';
+import {schemaTarget, tableTarget, targetKey, type TagTarget} from '../tag-path';
 import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
 
 @Component({
@@ -118,10 +118,10 @@ export class TableNamesComponent implements OnInit {
   private loadSchemaTags(tables: TableRollup[]) {
     const names = [...new Set(tables.map(table => table.schema).filter(Boolean))];
     if (!names.length) { return; }
-    this.sqlService.getTagsForPaths(names.map(schemaPath)).subscribe({
-      next: byPath => {
-        this.schemaTags = new Map(names.map(name =>
-          [name.toLowerCase(), (byPath[schemaPath(name)] ?? []).map(tag => tag.name)]));
+    this.sqlService.getTagsForTargets(names.map(schemaTarget)).subscribe({
+      next: byIndex => {
+        this.schemaTags = new Map(names.map((name, index) =>
+          [name.toLowerCase(), (byIndex[index] ?? []).map(tag => tag.name)]));
         this.applyFilter();
       },
       // a missing tag map narrows exclusion to the row's own tags rather than
@@ -162,9 +162,9 @@ export class TableNamesComponent implements OnInit {
     this.displayed = this.visible.filter(table => matchesTypeFilter(this.typeFilter, table.view));
   }
 
-  /** The tag path of every row on screen. */
-  get bulkPaths(): string[] {
-    return this.displayed.map(table => tablePath(table.schema, table.name));
+  /** The tag target of every row on screen. */
+  get bulkTargets(): TagTarget[] {
+    return this.displayed.map(table => tableTarget(table.schema, table.name));
   }
 
   /**
@@ -183,14 +183,14 @@ export class TableNamesComponent implements OnInit {
 
   /** Re-read tags for the rows just written, without re-fetching the page. */
   onBulkChanged() {
-    const paths = this.bulkPaths;
-    // A Set, not `paths.includes`: this runs inside a map over every loaded
+    const targets = this.bulkTargets;
+    // A Map of keys, not a scan: this runs inside a map over every loaded
     // table, and the written set is usually most of them.
-    const written = new Set(paths);
-    this.sqlService.getTagsForPaths(paths).subscribe(byPath => {
+    const written = new Map(targets.map((target, index) => [targetKey(target), index]));
+    this.sqlService.getTagsForTargets(targets).subscribe(byIndex => {
       this.tables = this.tables.map(table => {
-        const path = tablePath(table.schema, table.name);
-        return written.has(path) ? {...table, tags: byPath[path] ?? []} : table;
+        const at = written.get(targetKey(tableTarget(table.schema, table.name)));
+        return at === undefined ? table : {...table, tags: byIndex[at] ?? []};
       });
       this.applyFilter();
     });

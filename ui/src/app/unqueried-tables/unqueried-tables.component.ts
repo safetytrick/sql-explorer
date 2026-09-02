@@ -11,7 +11,7 @@ import {SEEN_FORMAT} from '../seen-format';
 import type {CoverageVerdict, ObservedWindow} from '../api-types';
 import {SchemaUsage, totals, unqueriedBySchema} from './unqueried-tables';
 import {matchesScopeTags, NO_SCOPE_TAGS, ScopeTags, decodeScopeTags, isUnscoped} from '../scope-tags';
-import {schemaPath} from '../tag-path';
+import {schemaTarget} from '../tag-path';
 
 /**
  * Also show the schemas the scope excluded. Off by default.
@@ -154,10 +154,10 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
   private loadSchemaTags() {
     const names = this.all.map(usage => usage.schema).filter(Boolean);
     if (!names.length) { return; }
-    this.sqlService.getTagsForPaths(names.map(schemaPath)).subscribe({
-      next: byPath => {
-        this.schemaTags = new Map(names.map(name =>
-          [name.toLowerCase(), (byPath[schemaPath(name)] ?? []).map(tag => tag.name)]));
+    this.sqlService.getTagsForTargets(names.map(schemaTarget)).subscribe({
+      next: byIndex => {
+        this.schemaTags = new Map(names.map((name, index) =>
+          [name.toLowerCase(), (byIndex[index] ?? []).map(tag => tag.name)]));
         this.applyScope();
       },
       // Without the tags nothing is excluded, so the page shows everything —

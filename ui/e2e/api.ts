@@ -75,9 +75,9 @@ const SCHEMA_TREE = {
   ]
 };
 
-/** `mysql` carries `system`; the others carry nothing. */
+/** `mysql` carries `system`; the others carry nothing. Keyed by schema name. */
 const SCHEMA_TAGS: Record<string, {id: number; name: string; path: string; type: string}[]> = {
-  '/schema/mysql': [{id: 1, name: 'system', path: '/schema/mysql', type: 'schema'}]
+  mysql: [{id: 1, name: 'system', path: '/schema/mysql', type: 'schema'}]
 };
 
 const COVERAGE = {
@@ -121,11 +121,13 @@ export async function stubApi(page: Page) {
     route.fulfill(json(search(JSON.parse(route.request().postData() || '{}')))));
   await page.route(`${BASE}/schema-tree`, route => route.fulfill(json(SCHEMA_TREE)));
   await page.route(`${BASE}/coverage`, route => route.fulfill(json(COVERAGE)));
-  await page.route(`${BASE}/tags/path`, async route => {
-    const paths: string[] = JSON.parse(route.request().postData() || '[]');
-    const byPath: Record<string, unknown[]> = {};
-    for (const path of paths) { if (SCHEMA_TAGS[path]) { byPath[path] = SCHEMA_TAGS[path]; } }
-    return route.fulfill(json(byPath));
+  // Answers POSITIONALLY — one entry per target, in the order sent — which is
+  // the contract the client zips against (sqlx-3ai).
+  await page.route(`${BASE}/tags/targets`, async route => {
+    const targets: {type: string; schema: string; table: string}[] =
+      JSON.parse(route.request().postData() || '[]');
+    return route.fulfill(json(targets.map(target =>
+      target.type === 'schema' ? SCHEMA_TAGS[target.schema] ?? [] : [])));
   });
   await page.route(`${BASE}/tags`, route => route.fulfill(json([{name: 'system', color: '#f5a623'}])));
   await page.route(`${BASE}/tags/type/*`, route => route.fulfill(json(['system'])));

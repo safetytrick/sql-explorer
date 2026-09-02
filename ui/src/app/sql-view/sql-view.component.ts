@@ -14,6 +14,7 @@ import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} 
 import {buildIndexPanels, TableIndexPanel} from './index-relevance';
 import {SEEN_FORMAT} from '../seen-format';
 import {QueryExamplesComponent} from '../query-examples/query-examples.component';
+import {queryTarget} from '../tag-path';
 
 @Component({
   selector: 'app-sql-view',
@@ -24,6 +25,7 @@ import {QueryExamplesComponent} from '../query-examples/query-examples.component
     QueryExamplesComponent, DatePipe]
 })
 export class SqlViewComponent implements OnInit {
+  protected readonly queryTarget = queryTarget;
 
   /** @see SEEN_FORMAT */
   readonly SEEN_FORMAT = SEEN_FORMAT;

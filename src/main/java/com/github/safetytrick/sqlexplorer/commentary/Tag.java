@@ -93,12 +93,18 @@ public class Tag {
         return elements;
     }
 
-    /** Point this tag at what a parsed address names. */
-    void target(TagPath target) {
-        this.type = target.type();
-        this.schemaName = target.schema() == null ? "" : target.schema();
-        this.tableName = target.table() == null ? "" : target.table();
-        this.queryDigest = target.digest() == null ? "" : target.digest();
+    /** Point this tag at a target. */
+    public void target(TagTarget target) {
+        TagTarget normalized = target.normalized();
+        this.type = normalized.type();
+        this.schemaName = normalized.schema();
+        this.tableName = normalized.table();
+        this.queryDigest = normalized.digest();
+    }
+
+    /** What this tag points at. */
+    public TagTarget getTarget() {
+        return new TagTarget(type, schemaName, tableName, queryDigest).normalized();
     }
 
 }

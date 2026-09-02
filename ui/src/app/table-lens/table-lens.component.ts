@@ -19,6 +19,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {SqlSummaryComponent} from '../sql-summary/sql-summary.component';
+import {tableTarget} from '../tag-path';
 
 /** Queries fetched per page for the table's query list. */
 const QUERY_PAGE_SIZE = 25;
@@ -30,6 +31,7 @@ const QUERY_PAGE_SIZE = 25;
   imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight, SqlSummaryComponent]
 })
 export class TableLensComponent implements OnInit {
+  protected readonly tableTarget = tableTarget;
 
   schema = '';
   table = '';
