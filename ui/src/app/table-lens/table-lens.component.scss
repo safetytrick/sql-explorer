@@ -360,3 +360,15 @@ tr.drillable {
   padding: 8px 16px;
   .sql-display { margin: 0; max-height: 320px; overflow: auto; font-size: 11px; }
 }
+
+// The schema's own comment on a column. Muted and set under the name so it
+// reads as annotation rather than data, and distinct from a tag chip — a DDL
+// comment is the schema owner's statement, not something written here
+// (sqlx-gw5).
+.col-comment {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+  max-width: 42ch;
+  line-height: 1.35;
+}

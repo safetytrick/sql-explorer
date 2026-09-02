@@ -182,7 +182,7 @@ describe('TableLensComponent unknown table', () => {
   };
 
   const STRUCTURE: TableMeta = {
-    indices: [], type: 'TABLE', remarks: null, underlyingTables: null, viewColumns: null
+    indices: [], type: 'TABLE', remarks: null, columns: null, underlyingTables: null, viewColumns: null
   };
 
   beforeEach(() => {
@@ -326,5 +326,65 @@ describe('TableLensComponent unknown table', () => {
 
     expect(element.textContent).toContain('no queries match this filter');
     expect(element.textContent).not.toContain('no queries reference this table');
+  });
+});
+
+/**
+ * The schema's own comments on a table's columns.
+ *
+ * <p>The lens's column table is built from `ColumnUsage`, which carries no
+ * comment; the comment arrives on the metadata payload the lens already fetches
+ * for the table comment, so the two are joined by name (sqlx-gw5).
+ */
+describe('TableLensComponent — column comments', () => {
+
+  const usage = (name: string) => ({
+    name, type: 'int', size: 11, nullable: false, autoIncrement: false,
+    primaryKey: false, foreignKey: false, characterSet: null, collation: null,
+    roles: [], queries: 0
+  });
+
+  function lensWith(columns: {columnName: string; remarks: string | null}[]) {
+    const component = Object.create(TableLensComponent.prototype) as TableLensComponent;
+    // The same assignment the metadata subscribe performs.
+    (component as unknown as {columnComments: Map<string, string>}).columnComments =
+      new Map(columns
+        .filter(column => (column.remarks || '').trim())
+        .map(column => [column.columnName.toLowerCase(), column.remarks!.trim()]));
+    return component;
+  }
+
+  it('shows the comment the schema carries for a column', () => {
+    const lens = lensWith([{columnName: 'id', remarks: 'surrogate key'}]);
+
+    expect(lens.commentFor(usage('id'))).toBe('surrogate key');
+  });
+
+  /**
+   * MySQL returns the EMPTY STRING for "no comment", not null, and it reaches
+   * the client unchanged — so without this every uncommented column would get
+   * a blank line under its name.
+   */
+  it('treats an empty comment as absent', () => {
+    const lens = lensWith([{columnName: 'total', remarks: ''},
+                           {columnName: 'name', remarks: '   '},
+                           {columnName: 'note', remarks: null}]);
+
+    expect(lens.commentFor(usage('total'))).toBeNull();
+    expect(lens.commentFor(usage('name'))).toBeNull();
+    expect(lens.commentFor(usage('note'))).toBeNull();
+  });
+
+  /** Joined by name, and MySQL identifiers differ in case across sources. */
+  it('matches a column whatever case the metadata used', () => {
+    const lens = lensWith([{columnName: 'Created_On', remarks: 'when the row appeared'}]);
+
+    expect(lens.commentFor(usage('created_on'))).toBe('when the row appeared');
+  });
+
+  it('has nothing to say about a column the schema did not comment', () => {
+    const lens = lensWith([{columnName: 'id', remarks: 'surrogate key'}]);
+
+    expect(lens.commentFor(usage('member_id'))).toBeNull();
   });
 });

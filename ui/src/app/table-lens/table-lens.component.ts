@@ -83,6 +83,9 @@ export class TableLensComponent implements OnInit {
 
   // ── parity with the legacy table view ──
   remarks: string | null = null;
+
+  /** Column name (lower-cased) to its DDL comment, empties already dropped. */
+  private columnComments = new Map<string, string>();
   showCreate = false;
   createStatement: string | null = null;
   createLoading = false;
@@ -240,6 +243,14 @@ export class TableLensComponent implements OnInit {
             .map(ref => parseTableRef(ref))
             .filter((ref): ref is { schema: string; table: string } => !!ref.schema && !!ref.table);
           this.remarks = structure?.remarks?.trim() || null;
+          // Joined by name, because the column table is built from ColumnUsage
+          // and the comment lives on the metadata payload. Empty strings are
+          // dropped here rather than at render: MySQL returns '' for "no
+          // comment", and every column without one would otherwise get a blank
+          // line (sqlx-gw5).
+          this.columnComments = new Map((structure?.columns || [])
+            .filter(column => (column.remarks || '').trim())
+            .map(column => [column.columnName.toLowerCase(), column.remarks!.trim()]));
           this.viewLineage = new Map((structure?.viewColumns || [])
             .map(column => [column.name.toLowerCase(), column]));
         },
@@ -302,6 +313,18 @@ export class TableLensComponent implements OnInit {
 
   lineageFor(columnName: string): ViewColumnMeta | null {
     return this.viewLineage.get(columnName.toLowerCase()) ?? null;
+  }
+
+  /**
+   * The schema's own comment for a column, or null.
+   *
+   * <p>Deliberately not merged with tags or notes. A DDL comment is written by
+   * whoever owns the schema and is a statement about the object; a tag is
+   * written here by a colleague. Showing them as one thing would erase which
+   * is authoritative (sqlx-gw5).
+   */
+  commentFor(column: ColumnUsage): string | null {
+    return this.columnComments.get(column.name.toLowerCase()) ?? null;
   }
 
   visibleColumns(): ColumnUsage[] {

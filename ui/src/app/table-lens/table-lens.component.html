@@ -233,7 +233,16 @@
                     [class.on]="drillColumn === schema + '.' + table + '.' + column.name"
                     (click)="drillIntoColumn(column)"
                     [title]="isDrillable(column) ? 'queries joining on or filtering by this column' : ''">
-                  <td><span class="mono">{{column.name}}</span></td>
+                  <td>
+                    <span class="mono">{{column.name}}</span>
+                    @if (commentFor(column); as comment) {
+                      <!-- The schema's own words, under the name rather than in a
+                           tooltip: a comment nobody can see they could hover for
+                           is a comment nobody reads. Kept visually distinct from
+                           tags and notes, which are written here (sqlx-gw5). -->
+                      <div class="col-comment" title="comment from the schema">{{comment}}</div>
+                    }
+                  </td>
                   @if (isView) {
                     <td class="lineage">
                       @if (lineageFor(column.name); as lineage) {

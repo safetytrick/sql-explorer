@@ -113,12 +113,29 @@ export interface ViewColumnMeta {
   computed: boolean;
 }
 
+/**
+ * Just enough of a metadata column to carry its comment.
+ *
+ * <p>The lens's column table is built from `ColumnUsage`, which is about how
+ * queries use a column and carries no comment. The comment lives here, on the
+ * metadata payload the lens already fetches for the table comment — so the two
+ * are joined by name rather than by adding a field to the usage shape
+ * (sqlx-gw5).
+ */
+export interface TableMetaColumn {
+  columnName: string;
+  /** MySQL returns '' for no comment, not null. */
+  remarks: string | null;
+}
+
 /** Subset of the metadata TableStructure the lens reads. */
 export interface TableMeta {
   indices: TableIndex[];
   type: string | null;
   /** Table comment, when the schema carries one. */
   remarks: string | null;
+  /** Per-column comments; the usage shape has none. */
+  columns: TableMetaColumn[] | null;
   underlyingTables: TableRef[] | null;
   viewColumns: ViewColumnMeta[] | null;
 }
