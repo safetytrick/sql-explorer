@@ -164,30 +164,43 @@ service of a need that has not yet been demonstrated.
 > utf8mb4 against InnoDB's 3072-byte limit, and 191 is far beyond the longest
 > path the application produces (74, a query digest).
 
-## One behaviour nobody has decided
+## One behaviour nobody had decided — now decided
 
-Observed on 2026-08-31 while working on `sqlx-qwn`: after a backend restart,
-`regression` is loaded and `local` is not — `local` reports
-`loaded=false, sourceCount=0` until something pulls it explicitly, at which
-point its whole corpus and archive view come back.
+Observed on 2026-08-31 while working on `sqlx-qwn`, and met twice more the same
+day: after a backend restart, `regression` was loaded and `local` was not. It
+reported `loaded=false, sourceCount=0` until something pulled it, and in the
+meantime its pages read as an empty corpus rather than as an unloaded one —
+"0 analyzed", and an unqueried report claiming every table was untouched.
 
-Nothing chose this. It follows from `regression` being the default environment,
-and it means a non-default environment silently shows an empty corpus after
-every restart rather than saying it has not been loaded. That is an environment
-management decision waiting to be made — load all, load lazily on first access,
-or say plainly that it is unloaded — and it should be made deliberately rather
-than inherited from which environment happens to be default.
+Nothing chose that. It followed from `regression` being the default.
 
-**Effort: S once decided.**
+**Decided 2026-09-01: load all.** Every configured environment loads at startup,
+default first — the order matters because the resident cap
+(`sql-explorer.resident-environments`, 3) evicts least-recently-used once
+exceeded, so it decides what is still in heap when startup finishes. An evicted
+environment is not lost; it rehydrates from the capture that load just wrote.
+
+Two consequences worth knowing. Startup grew from 21s to 40s for two
+environments on the local stack, and scales with the number configured. And no
+environment's failure stops startup any more, which is a change: a load throws
+when its server is unreachable, and that used to take the whole application down
+from `@PostConstruct`. Booting and naming the environment that could not be read
+is strictly more useful, and loading every environment makes an unreachable one
+likelier.
 
 ## Recommendation
 
 In order:
 
 1. ~~**`env` in the URL** (S).~~ **Done** — `sqlx-29f`.
-2. **Decide the load-on-restart rule** (S). Small, and currently silent. Still
-   open, and still the thing most likely to be met by surprise: a non-default
-   environment reads as an empty corpus after every restart.
+2. ~~**Decide the load-on-restart rule** (S).~~ **Done** — Michael's decision on
+   2026-09-01 was *load all*. Every configured environment loads at startup,
+   default first, and no environment's failure stops the others — previously a
+   single unreachable server inside `@PostConstruct` took the whole application
+   down, which only gets likelier once every environment is loaded. Measured
+   cost on the local stack: startup went from 21s to 40s for two environments,
+   so it scales with the number configured. Loading also *captures*, so a
+   restart is now a sampling point for every environment rather than one.
 3. ~~**An `environment_name` on commentary** (M).~~ **Done** — `sqlx-rad`.
    Michael's decision on 2026-08-31 went against the nullable form proposed
    above: the column is NOT NULL, every existing row was backfilled to

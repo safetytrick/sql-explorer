@@ -47,9 +47,54 @@ public class EnvironmentLoader {
         this.analysisFailureRecorder = analysisFailureRecorder;
     }
 
+    /**
+     * Load every configured environment, default first.
+     *
+     * <p>WHY ALL OF THEM. Only the default used to load, so a non-default
+     * environment read as an EMPTY CORPUS after every restart — not as
+     * unloaded. Its pages rendered "0 analyzed" and its unqueried report
+     * claimed every table was untouched, which is the shape of wrong answer
+     * this codebase spends most of its effort avoiding. Nothing chose that; it
+     * fell out of which environment happened to be default (sqlx-v91).
+     *
+     * <p>Loading also CAPTURES: each source is read live and its capture
+     * written, so loading every environment makes a restart a sampling point
+     * for all of them rather than for one. That matters because Performance
+     * Schema is cumulative and cleared on reset — an environment nobody loads
+     * is an environment whose history is never recorded.
+     *
+     * <p>DEFAULT FIRST, because it is the one someone is most likely to open,
+     * and because the resident cap ({@code sql-explorer.resident-environments},
+     * 3) evicts least-recently-used environments once it is exceeded — so the
+     * order here decides what is still in heap when startup finishes. An
+     * evicted environment is not lost: it rehydrates from the capture this load
+     * just wrote.
+     *
+     * <p>NO ENVIRONMENT'S FAILURE STOPS STARTUP, and that is a change. A load
+     * throws when its server is unreachable, and this used to run for one
+     * environment inside {@code @PostConstruct}, so that single failure took the
+     * whole application down. With every environment loading, the chance that
+     * one is unreachable is only higher — and an application that boots and
+     * reports which environment it could not read is strictly more useful than
+     * one that does not boot at all.
+     */
     @PostConstruct
     void loadConfiguredSourcesAtStartup() {
-        loadConfiguredSources(environmentRegistry.getDefaultName());
+        List<String> names = new ArrayList<>();
+        names.add(environmentRegistry.getDefaultName());
+        environmentRegistry.list().stream()
+            .map(Environment::getName)
+            .filter(name -> !names.contains(name))
+            .forEach(names::add);
+
+        for (String name : names) {
+            try {
+                loadConfiguredSources(name);
+            } catch (RuntimeException e) {
+                log.warn("Could not load environment {} at startup; it will be empty until "
+                    + "something pulls it: {}", name, e.toString());
+            }
+        }
     }
 
     /** Build every configured source for the named environment and load them together. */
