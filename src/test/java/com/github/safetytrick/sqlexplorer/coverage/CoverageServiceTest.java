@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
 import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepository;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
@@ -59,7 +60,7 @@ class CoverageServiceTest {
         when(manager.getRepositories("env")).thenReturn(List.of(repositories));
         ParquetConfig config = new ParquetConfig();
         config.setFilename(directory.resolve("none.parquet").toString());
-        return new CoverageService(manager, new CaptureArchive(config));
+        return new CoverageService(manager, new CaptureArchive(config), mock(EnvironmentRegistry.class));
     }
 
     private static SqlRepository repository(CaptureContext capture, SqlImportStats stats) {
@@ -373,7 +374,7 @@ class CoverageServiceTest {
         when(manager.getRepositories("env")).thenReturn(
             List.of(repository(capture(HEALTHY_SERVER), stats(1, 0))));
 
-        return new CoverageService(manager, new CaptureArchive(config)).report("env")
+        return new CoverageService(manager, new CaptureArchive(config), mock(EnvironmentRegistry.class)).report("env")
             .sources().getFirst().findings().stream()
             .filter(f -> f.signal() == Coverage.Signal.ARCHIVED_HISTORY).findFirst().orElseThrow();
     }
@@ -389,7 +390,7 @@ class CoverageServiceTest {
         ParquetConfig config = new ParquetConfig();
         config.setFilename(directory.resolve("none.parquet").toString());
 
-        Coverage.Report report = new CoverageService(manager, new CaptureArchive(config)).report("env");
+        Coverage.Report report = new CoverageService(manager, new CaptureArchive(config), mock(EnvironmentRegistry.class)).report("env");
 
         assertThat(report.loaded()).isFalse();
         assertThat(report.sources()).isEmpty();

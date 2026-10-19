@@ -19,32 +19,46 @@
     whether an absence means "nothing uses this" or "nothing recorded it".
   </div>
 
-  @for (source of report!.sources; track source.sourceRef) {
-    <div class="lens-card">
-      <div class="card-head">
-        <span class="card-head-title">{{source.sourceRef ?? 'unnamed source'}}</span>
-        @if (source.origin) { <span class="origin-chip">{{source.origin.toLowerCase().replace('_', ' ')}}</span> }
-        <span class="card-head-note">
-          {{source.profiles}} queries@if (source.window) {, {{source.window.days}} days}
-          @if (source.capturedAt) {, captured {{source.capturedAt | date: SEEN_FORMAT}}}
-        </span>
-      </div>
-
-      <div class="findings">
-        @for (finding of source.findings; track finding.signal) {
-          <div class="finding" [class.impaired]="finding.verdict === 'IMPAIRED'"
-               [class.unknown]="finding.verdict === 'UNKNOWN'">
-            <div class="finding-head">
-              <span class="finding-title">{{label(finding.signal).title}}</span>
-              <span class="verdict-chip">{{verdictText(finding.verdict)}}</span>
-              <span class="finding-measure">{{finding.measurement}}</span>
-            </div>
-            <div class="finding-question">{{label(finding.signal).question}}</div>
-            <p class="finding-why">{{finding.explanation}}</p>
-            <div class="finding-basis">judged against {{finding.basis}}</div>
-          </div>
+  @for (group of groups(); track group.cluster?.cluster ?? '') {
+    @if (showsClusterHeading(group.cluster)) {
+      <div class="cluster-head" [class.impaired]="group.cluster!.fallback || group.cluster!.failure">
+        <span class="cluster-name">{{group.cluster!.cluster}}</span>
+        <span class="cluster-servers">{{group.cluster!.servers.length}} servers</span>
+        @if (group.cluster!.failure) {
+          <span class="cluster-schema">schema could not be read from any of its servers: {{group.cluster!.failure}}</span>
+        } @else {
+          <span class="cluster-schema">schema from {{group.cluster!.schemaServer}}@if (group.cluster!.fallback) {
+            — a fallback; passed over {{group.cluster!.passedOver.join('; ')}}}</span>
         }
       </div>
-    </div>
+    }
+    @for (source of group.sources; track source.sourceRef) {
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">{{source.sourceRef ?? 'unnamed source'}}</span>
+          @if (source.origin) { <span class="origin-chip">{{source.origin.toLowerCase().replace('_', ' ')}}</span> }
+          <span class="card-head-note">
+            {{source.profiles}} queries@if (source.window) {, {{source.window.days}} days}
+            @if (source.capturedAt) {, captured {{source.capturedAt | date: SEEN_FORMAT}}}
+          </span>
+        </div>
+
+        <div class="findings">
+          @for (finding of source.findings; track finding.signal) {
+            <div class="finding" [class.impaired]="finding.verdict === 'IMPAIRED'"
+                 [class.unknown]="finding.verdict === 'UNKNOWN'">
+              <div class="finding-head">
+                <span class="finding-title">{{label(finding.signal).title}}</span>
+                <span class="verdict-chip">{{verdictText(finding.verdict)}}</span>
+                <span class="finding-measure">{{finding.measurement}}</span>
+              </div>
+              <div class="finding-question">{{label(finding.signal).question}}</div>
+              <p class="finding-why">{{finding.explanation}}</p>
+              <div class="finding-basis">judged against {{finding.basis}}</div>
+            </div>
+          }
+        </div>
+      </div>
+    }
   }
 }

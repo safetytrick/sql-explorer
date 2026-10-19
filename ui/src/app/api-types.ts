@@ -363,4 +363,21 @@ export interface CoverageReport {
   originTable: string;
   /** Never merged: two sources may have read different servers. */
   sources: SourceCoverage[];
+  /** Where each cluster's schema was read from. A source belongs to the cluster listing its server. */
+  clusters: ClusterSchemaStatus[];
+}
+
+/** A primary and its replicas, and which of them supplied the schema (sqlx-sqy.2). */
+export interface ClusterSchemaStatus {
+  cluster: string;
+  /** Every server in the cluster, each also a source's sourceRef. */
+  servers: string[];
+  /** The server that supplied the schema; null when none could. */
+  schemaServer: string | null;
+  /** True when that server was not the cluster's first choice. */
+  fallback: boolean;
+  /** Servers tried before it, as "name: why". */
+  passedOver: string[];
+  /** Why no server could supply it; null when one did. */
+  failure: string | null;
 }

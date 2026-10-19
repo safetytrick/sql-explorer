@@ -91,6 +91,9 @@ const COVERAGE = {
       basis: 'Performance_schema_digest_lost on the source server',
       explanation: 'The source server reports that it never ran out of room for a digest.'
     }]
+  }],
+  clusters: [{
+    cluster: 'primary', servers: ['primary'], schemaServer: 'primary', fallback: false, passedOver: [], failure: null
   }]
 };
 

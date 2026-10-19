@@ -105,8 +105,12 @@ public final class Coverage {
      * @param originTable the table every corpus ultimately comes from, stated
      *                    once so a consumer need not hard-code it
      * @param sources     one entry per source, never merged
+     * @param clusters    where each cluster's schema was read from — its first
+     *                    choice, a fallback, or nowhere (sqlx-sqy.2). A
+     *                    source's cluster is the one listing its server.
      */
     public record Report(String environment, boolean loaded, Instant loadedOn, String originTable,
-                         List<SourceCoverage> sources) {
+                         List<SourceCoverage> sources,
+                         List<com.github.safetytrick.sqlexplorer.environment.Environment.ClusterSchemaStatus> clusters) {
     }
 }

@@ -9,6 +9,8 @@ import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepository;
+import com.github.safetytrick.sqlexplorer.environment.Environment;
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureArchive;
 import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
@@ -43,10 +45,13 @@ public class CoverageService {
     static final int RECOMMENDED_MAX_DIGEST_LENGTH = 4096;
 
     private final SqlRepositoryManager repositories;
+    private final EnvironmentRegistry environments;
     private final CaptureArchive archive;
 
-    public CoverageService(SqlRepositoryManager repositories, CaptureArchive archive) {
+    public CoverageService(SqlRepositoryManager repositories, CaptureArchive archive,
+                           EnvironmentRegistry environments) {
         this.repositories = repositories;
+        this.environments = environments;
         this.archive = archive;
     }
 
@@ -54,7 +59,8 @@ public class CoverageService {
         SqlRepositoryManager.LoadState state = repositories.getLoadState(environmentName);
         List<SqlRepository> loaded = repositories.getRepositories(environmentName);
         if (state == null || loaded.isEmpty()) {
-            return new Coverage.Report(environmentName, false, null, CaptureContext.ORIGIN_TABLE, List.of());
+            return new Coverage.Report(environmentName, false, null, CaptureContext.ORIGIN_TABLE, List.of(),
+                List.of());
         }
 
         // Read once for the whole report: the archive is a footer seek per
@@ -67,8 +73,9 @@ public class CoverageService {
         repositories.getFailedSources(environmentName).stream()
             .map(CoverageService::unreachable)
             .forEach(sources::add);
+        Environment environment = environments.get(environmentName);
         return new Coverage.Report(environmentName, true, state.loadedOn(), CaptureContext.ORIGIN_TABLE,
-            List.copyOf(sources));
+            List.copyOf(sources), environment == null ? List.of() : environment.schemaStatus());
     }
 
     /**

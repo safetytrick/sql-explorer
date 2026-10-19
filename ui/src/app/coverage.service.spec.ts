@@ -1,5 +1,5 @@
-import {findings, sharedWindow, worstVerdict} from './coverage.service';
-import type {CoverageFinding, CoverageReport, SourceCoverage} from './api-types';
+import {findings, groupByCluster, sharedWindow, showsClusterHeading, worstVerdict} from './coverage.service';
+import type {ClusterSchemaStatus, CoverageFinding, CoverageReport, SourceCoverage} from './api-types';
 
 /**
  * The two places a coverage number can be quietly turned into a lie: folding
@@ -20,7 +20,8 @@ describe('coverage helpers', () => {
   });
 
   const report = (...sources: SourceCoverage[]): CoverageReport =>
-    ({environment: 'env', loaded: true, loadedOn: null, originTable: 'sys.x$statement_analysis', sources});
+    ({environment: 'env', loaded: true, loadedOn: null, originTable: 'sys.x$statement_analysis', sources,
+      clusters: []});
 
   describe('sharedWindow', () => {
 
@@ -88,6 +89,32 @@ describe('coverage helpers', () => {
       expect(findings(report(source('2026-05-04T00:00:00'), partial), 'DIGEST_CAPACITY').length).toBe(1);
     });
   });
+
+  describe('groupByCluster (sqlx-sqy.2)', () => {
+    const named = (sourceRef: string): SourceCoverage => ({...source(null), sourceRef});
+    const cluster = (name: string, servers: string[], extra: Partial<ClusterSchemaStatus> = {}): ClusterSchemaStatus =>
+      ({cluster: name, servers, schemaServer: servers[0], fallback: false, passedOver: [], failure: null, ...extra});
+
+    it('puts each source under the cluster holding its server, in cluster order, with the rest last', () => {
+      const groups = groupByCluster({
+        ...report(named('upload.csv'), named('shard2'), named('shard1-replica-a'), named('shard1')),
+        clusters: [cluster('shard1', ['shard1', 'shard1-replica-a']), cluster('shard2', ['shard2'])]
+      });
+
+      expect(groups.map(group => [group.cluster?.cluster ?? null, group.sources.map(s => s.sourceRef)])).toEqual([
+        ['shard1', ['shard1-replica-a', 'shard1']],
+        ['shard2', ['shard2']],
+        [null, ['upload.csv']]
+      ]);
+    });
+
+    it('heads a cluster of several servers, or one whose schema was not its first choice', () => {
+      expect(showsClusterHeading(cluster('shard1', ['shard1', 'shard1-replica-a']))).toBeTrue();
+      expect(showsClusterHeading(cluster('regression', ['regression']))).toBeFalse();
+      expect(showsClusterHeading(cluster('global', ['global'], {failure: 'Access denied'}))).toBeTrue();
+      expect(showsClusterHeading(null)).toBeFalse();
+    });
+  });
 });
 
 import {TestBed} from '@angular/core/testing';
@@ -121,7 +148,7 @@ describe('CoverageService caching', () => {
 
   const body = {
     environment: 'env', loaded: true, loadedOn: null,
-    originTable: 'sys.x$statement_analysis', sources: []
+    originTable: 'sys.x$statement_analysis', sources: [], clusters: []
   };
 
   it('asks once for several readers on the same page', () => {

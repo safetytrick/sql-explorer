@@ -2,7 +2,7 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {DatePipe} from '@angular/common';
 import {Title} from '@angular/platform-browser';
-import {CoverageService} from '../coverage.service';
+import {CoverageService, groupByCluster, showsClusterHeading} from '../coverage.service';
 import {EnvironmentService} from '../environment.service';
 import {SEEN_FORMAT} from '../seen-format';
 import type {CoverageReport, CoverageSignal} from '../api-types';
@@ -91,6 +91,13 @@ export class CoverageLensComponent implements OnInit, OnDestroy {
       error: () => { this.failed = true; this.loading = false; }
     });
   }
+
+  /** Sources grouped under their cluster, so a shard's primary and replicas read as one. */
+  groups() {
+    return groupByCluster(this.report);
+  }
+
+  protected readonly showsClusterHeading = showsClusterHeading;
 
   /**
    * Falls back to the signal's own name. The server adds signals before this

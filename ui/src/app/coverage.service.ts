@@ -2,7 +2,9 @@ import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable, shareReplay} from 'rxjs';
 import {EnvironmentService} from './environment.service';
-import type {CoverageFinding, CoverageReport, CoverageSignal, ObservedWindow} from './api-types';
+import type {
+  ClusterSchemaStatus, CoverageFinding, CoverageReport, CoverageSignal, ObservedWindow, SourceCoverage
+} from './api-types';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -77,4 +79,34 @@ export function worstVerdict(found: CoverageFinding[]): 'OK' | 'IMPAIRED' | 'UNK
     return 'IMPAIRED';
   }
   return found.some(f => f.verdict === 'UNKNOWN') ? 'UNKNOWN' : 'OK';
+}
+
+/** Sources under the cluster that holds their server; `cluster` is null for sources outside every cluster. */
+export interface SourceGroup {
+  cluster: ClusterSchemaStatus | null;
+  sources: SourceCoverage[];
+}
+
+/**
+ * The report's sources grouped by cluster, in cluster order, with anything no
+ * cluster claims — an upload, a file — last.
+ *
+ * <p>A source's sourceRef is its server's name, and names are unique across an
+ * environment, so membership is a lookup rather than a guess.
+ */
+export function groupByCluster(report: CoverageReport | null): SourceGroup[] {
+  const sources = report?.sources ?? [];
+  const claimed = new Set<SourceCoverage>();
+  const groups: SourceGroup[] = (report?.clusters ?? []).map(cluster => {
+    const members = sources.filter(source => source.sourceRef !== null && cluster.servers.includes(source.sourceRef));
+    members.forEach(member => claimed.add(member));
+    return {cluster, sources: members};
+  });
+  const rest = sources.filter(source => !claimed.has(source));
+  return rest.length ? [...groups, {cluster: null, sources: rest}] : groups;
+}
+
+/** Whether a cluster earns a heading: more than one server, or a schema that did not come from its first choice. */
+export function showsClusterHeading(cluster: ClusterSchemaStatus | null): boolean {
+  return !!cluster && (cluster.servers.length > 1 || cluster.fallback || cluster.failure !== null);
 }

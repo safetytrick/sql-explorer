@@ -71,23 +71,26 @@ public final class Environment implements AutoCloseable {
     }
 
     /**
-     * The schema of every server that can be read.
+     * The schema of every cluster that can be read, each from the first of its
+     * {@code schemaFrom} servers able to supply it.
      *
-     * <p>A server whose schema cannot be read is left out rather than failing
-     * the environment: one unreachable member of a seventeen-server
-     * environment — a replica missing the reading user, an instance mid-rebuild
-     * — used to take the other sixteen down with it, at startup and on every
-     * pull (sqlx-jdf). Its absence is reported through its source, which
-     * fails the same way and is listed on {@code /coverage}. Only when no
-     * server can be read is there nothing to return, and then the first
+     * <p>Per cluster, not per server: a primary's replicas carry its schema, so
+     * reading each of them again was work whose result was discarded — only
+     * the first copy of a table was ever used (sqlx-sqy.2). Servers outside
+     * {@code schemaFrom} are never read for schema at all.
+     *
+     * <p>A cluster whose schema cannot be read from any of its servers is left
+     * out rather than failing the environment (sqlx-jdf); its absence is
+     * reported by {@link #schemaStatus()} and by its sources. Only when no
+     * cluster can be read is there nothing to return, and then the first
      * failure is the answer.
      */
     public SqlSchemaRepository schemaRepository() {
-        List<SqlSchemaRepository> readable = new ArrayList<>(servers.size());
+        List<SqlSchemaRepository> readable = new ArrayList<>(clusters.size());
         RuntimeException firstFailure = null;
-        for (DatabaseServer server : servers) {
+        for (Cluster cluster : clusters) {
             try {
-                readable.add(server.getSchemaRepository());
+                readable.add(cluster.readSchema().schema());
             } catch (RuntimeException e) {
                 if (firstFailure == null) {
                     firstFailure = e;
@@ -99,6 +102,32 @@ public final class Environment implements AutoCloseable {
         }
         return readable.size() == 1 ? readable.getFirst() : new CompositeSchemaRepository(readable);
     }
+
+    /** Where each cluster's schema came from, or why it could not be read. */
+    public List<ClusterSchemaStatus> schemaStatus() {
+        List<ClusterSchemaStatus> status = new ArrayList<>(clusters.size());
+        for (Cluster cluster : clusters) {
+            List<String> servers = cluster.servers().stream().map(DatabaseServer::getName).toList();
+            try {
+                Cluster.SchemaSource source = cluster.readSchema();
+                status.add(new ClusterSchemaStatus(cluster.name(), servers, source.server(), source.fallback(),
+                    source.passedOver(), null));
+            } catch (RuntimeException e) {
+                status.add(new ClusterSchemaStatus(cluster.name(), servers, null, false, List.of(),
+                    e.getMessage()));
+            }
+        }
+        return List.copyOf(status);
+    }
+
+    /**
+     * @param schemaServer the server that supplied the schema; null when none could
+     * @param fallback     whether that server was not the cluster's first choice
+     * @param passedOver   the servers tried before it, each with why it was passed over
+     * @param failure      why no server could supply it; null when one did
+     */
+    public record ClusterSchemaStatus(String cluster, List<String> servers, String schemaServer, boolean fallback,
+                                      List<String> passedOver, String failure) { }
 
     /** Let every server whose schema failed to load be tried again on next use. */
     public void forgetSchemaFailures() {

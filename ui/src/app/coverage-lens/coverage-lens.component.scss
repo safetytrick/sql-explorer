@@ -96,3 +96,36 @@
   font-size: 10px;
   color: var(--text3);
 }
+
+// A cluster heading groups a primary's and its replicas' sources, and says
+// where the cluster's schema came from. Amber when that was not the first
+// choice or nowhere — the same stripe a finding uses for "incomplete".
+.cluster-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--border2);
+  border-left: 2px solid transparent;
+
+  &.impaired { border-left-color: var(--amber); padding-left: 8px; }
+}
+
+.cluster-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cluster-servers {
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.cluster-schema {
+  font-size: 12px;
+  color: var(--text2);
+}
