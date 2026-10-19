@@ -16,6 +16,7 @@ reasoning is in the commit that closed it.
 | [grafana-integration.md](grafana-integration.md) | Links from sql-explorer to Grafana (`sqlx-cec`) — spike done, **deferred**; two routes framed, choice open | M                 |
 | [environments.md](environments.md)       | Environment management (`sqlx-v91`) — spike done, four steps ordered, decision open                       | S → L             |
 | [tag-addressing.md](tag-addressing.md)   | What a tag points at (`sqlx-0lj`, `sqlx-11v`) — length concern answered, parsing defect reproduced        | S then S–M        |
+| [cluster-schema-snapshots.md](cluster-schema-snapshots.md) | Clusters and persisted schema snapshots (`sqlx-sqy`) — decided 2026-10-19, analyser version included | L |
 
 [normalization-versioning.md](normalization-versioning.md) is **partly done**
 (`sqlx-2oq`, 2026-08-28): `QueryNormalizer.VERSION` exists, digests are
