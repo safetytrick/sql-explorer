@@ -8,14 +8,21 @@ import lombok.Setter;
 
 /**
  * Config for one environment (under {@code environments.<name>}): its database
- * servers keyed by server name, and whether it is the default environment
+ * servers keyed by server name, standalone or grouped into clusters, and whether it is the default environment
  * ({@code default: true} — declaration order is not reliable once several
  * config files contribute environments).
  */
 @Getter
 @Setter
 public class EnvironmentDefinition {
+    /** Servers that stand alone: each is its own cluster and its own schema source. */
     private Map<String, ServerDefinition> servers = new LinkedHashMap<>();
+    /**
+     * Servers grouped with the replicas that carry the same schema, read for
+     * schema only through each cluster's {@code schemaFrom}. May be combined
+     * with {@link #servers}; server names must be unique across both.
+     */
+    private Map<String, ClusterDefinition> clusters = new LinkedHashMap<>();
     /** Lombok names the accessors isDefault()/setDefault(), binding the {@code default} key. */
     private boolean isDefault;
 

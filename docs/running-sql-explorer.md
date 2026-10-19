@@ -163,6 +163,30 @@ The database user must exist on every instance, set up for IAM
 Every environment is read at startup, so with this overlay each backend start
 pulls from every server it lists.
 
+#### Clusters
+
+A primary and its replicas carry one schema, so reading it from each of them
+is wasted work. Group them into a **cluster**: every server is still captured
+from, but schema is read only from the cluster's `schemaFrom` servers, first
+reachable wins. List the primary first, then replicas, and leave out anything
+that may lag or differ, such as an ETL replica:
+
+```yaml
+environments:
+  production:
+    clusters:
+      shard1:
+        schemaFrom: [shard1, shard1-replica-a, shard1-replica-b]
+        servers:
+          shard1: { jdbcUrl: …, sources: [ { type: x-statement-analysis } ] }
+          shard1-replica-a: …
+          shard1-etl: …
+```
+
+Server names must be unique across the whole environment, not just within a
+cluster, because captures are keyed by server name. A flat `servers:` block
+still works: each server there is a cluster of one.
+
 ---
 
 ## Sources: the three shapes

@@ -13,6 +13,7 @@ import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 public final class Environment implements AutoCloseable {
 
     private final String name;
+    private final List<Cluster> clusters;
     private final List<DatabaseServer> servers;
 
     private final boolean explainEnabled;
@@ -26,11 +27,24 @@ public final class Environment implements AutoCloseable {
         this(name, servers, explainEnabled, null);
     }
 
+    /** Each server its own cluster — the shape of a flat {@code servers:} block. */
     public Environment(String name, List<DatabaseServer> servers, boolean explainEnabled, String pullCron) {
+        this(servers.stream().map(Cluster::of).toList(), name, explainEnabled, pullCron);
+    }
+
+    /** An environment of clusters: replicas grouped with the primary whose schema they carry. */
+    public static Environment ofClusters(String name, List<Cluster> clusters, boolean explainEnabled,
+                                         String pullCron) {
+        return new Environment(clusters, name, explainEnabled, pullCron);
+    }
+
+    // clusters first only so its erasure differs from the public server-list constructor
+    private Environment(List<Cluster> clusters, String name, boolean explainEnabled, String pullCron) {
         this.explainEnabled = explainEnabled;
         this.pullCron = pullCron;
         this.name = name;
-        this.servers = List.copyOf(servers);
+        this.clusters = List.copyOf(clusters);
+        this.servers = this.clusters.stream().flatMap(cluster -> cluster.servers().stream()).toList();
     }
 
     /** Whether EXPLAIN may be run against this environment's servers. Off by default. */
@@ -47,8 +61,13 @@ public final class Environment implements AutoCloseable {
         return name;
     }
 
+    /** Every server of every cluster, in declaration order. */
     public List<DatabaseServer> getServers() {
         return servers;
+    }
+
+    public List<Cluster> getClusters() {
+        return clusters;
     }
 
     /**

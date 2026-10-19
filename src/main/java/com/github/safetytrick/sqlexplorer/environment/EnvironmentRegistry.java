@@ -2,9 +2,11 @@ package com.github.safetytrick.sqlexplorer.environment;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import jakarta.annotation.PreDestroy;
@@ -68,13 +70,50 @@ public class EnvironmentRegistry {
 
     private static Environment toEnvironment(String name, EnvironmentDefinition definition,
                                              SchemaRepositoryFactory schemaRepositoryFactory) {
-        List<DatabaseServer> servers = new ArrayList<>();
+        List<Cluster> clusters = new ArrayList<>();
+        // Captures are keyed by server name, so two servers sharing one would
+        // write into each other's history — a cluster is not a namespace.
+        Set<String> serverNames = new HashSet<>();
         for (Map.Entry<String, ServerDefinition> serverEntry : definition.getServers().entrySet()) {
-            ServerDefinition server = serverEntry.getValue();
-            ConnectionInfo connectionInfo = new ConnectionInfo(server.getJdbcUrl(), server.getUsername(), server.getPassword());
-            servers.add(new DatabaseServer(serverEntry.getKey(), connectionInfo, server.getSources(), schemaRepositoryFactory));
+            claim(name, serverNames, serverEntry.getKey());
+            clusters.add(Cluster.of(server(serverEntry.getKey(), serverEntry.getValue(), schemaRepositoryFactory)));
         }
-        return new Environment(name, servers, definition.isExplainEnabled(), definition.getPullCron());
+        for (Map.Entry<String, ClusterDefinition> clusterEntry : definition.getClusters().entrySet()) {
+            String clusterName = clusterEntry.getKey();
+            ClusterDefinition cluster = clusterEntry.getValue();
+            Map<String, DatabaseServer> servers = new LinkedHashMap<>();
+            for (Map.Entry<String, ServerDefinition> serverEntry : cluster.getServers().entrySet()) {
+                claim(name, serverNames, serverEntry.getKey());
+                servers.put(serverEntry.getKey(),
+                    server(serverEntry.getKey(), serverEntry.getValue(), schemaRepositoryFactory));
+            }
+            List<DatabaseServer> schemaFrom = new ArrayList<>();
+            for (String serverName : cluster.getSchemaFrom()) {
+                DatabaseServer server = servers.get(serverName);
+                if (server == null) {
+                    throw new IllegalArgumentException("Environment " + name + ", cluster " + clusterName
+                        + ": schemaFrom names " + serverName + ", which is not one of its servers "
+                        + servers.keySet());
+                }
+                schemaFrom.add(server);
+            }
+            clusters.add(new Cluster(clusterName, List.copyOf(servers.values()), schemaFrom));
+        }
+        return Environment.ofClusters(name, clusters, definition.isExplainEnabled(), definition.getPullCron());
+    }
+
+    private static void claim(String environment, Set<String> serverNames, String serverName) {
+        if (!serverNames.add(serverName)) {
+            throw new IllegalArgumentException("Environment " + environment + " declares server "
+                + serverName + " more than once; server names must be unique across its clusters");
+        }
+    }
+
+    private static DatabaseServer server(String name, ServerDefinition definition,
+                                         SchemaRepositoryFactory schemaRepositoryFactory) {
+        ConnectionInfo connectionInfo = new ConnectionInfo(definition.getJdbcUrl(), definition.getUsername(),
+            definition.getPassword());
+        return new DatabaseServer(name, connectionInfo, definition.getSources(), schemaRepositoryFactory);
     }
 
     public Environment getDefault() {
