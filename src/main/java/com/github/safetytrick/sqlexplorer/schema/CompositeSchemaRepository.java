@@ -1,14 +1,18 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 
 /**
- * Combines the schemas of an environment's servers. Lookups return the first
- * match; same-named schemas on two servers in one environment are unsupported
- * (see docs/DATA_ENVIRONMENTS.md, open questions).
+ * Combines the schemas of an environment's servers. Lookups and listings both
+ * answer with the first server's definition of a table; a schema whose tables
+ * genuinely differ between two servers in one environment is unsupported (see
+ * docs/DATA_ENVIRONMENTS.md, open questions).
  */
 public class CompositeSchemaRepository implements SqlSchemaRepository {
 
@@ -27,18 +31,30 @@ public class CompositeSchemaRepository implements SqlSchemaRepository {
             .orElse(null);
     }
 
+    /**
+     * Every table once, as the first server to define it did — the same answer
+     * {@link #getTable} gives. An environment's servers are usually a primary
+     * and its replicas carrying one schema, and listing a table per server put
+     * seventeen copies of it into every caller on production (sqlx-3js).
+     */
     @Override
     public List<TableStructure> getTables() {
-        return schemas.stream()
-            .flatMap(schema -> schema.getTables().stream())
-            .toList();
+        return firstOfEach(schemas.stream().flatMap(schema -> schema.getTables().stream()));
     }
 
+    /**
+     * The same name in two schemas is still two answers — schema inference
+     * reads that ambiguity — but the same table on two servers is one.
+     */
     @Override
     public List<TableStructure> getTablesByName(TableReference table) {
-        return schemas.stream()
-            .flatMap(schema -> schema.getTablesByName(table).stream())
-            .toList();
+        return firstOfEach(schemas.stream().flatMap(schema -> schema.getTablesByName(table).stream()));
+    }
+
+    private static List<TableStructure> firstOfEach(Stream<TableStructure> tables) {
+        Map<TableReference, TableStructure> first = new LinkedHashMap<>();
+        tables.forEach(structure -> first.putIfAbsent(structure.tableReference().normalized(), structure));
+        return List.copyOf(first.values());
     }
 
     @Override

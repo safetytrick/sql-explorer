@@ -2,10 +2,12 @@ package com.github.safetytrick.sqlexplorer.schema;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
@@ -31,12 +33,15 @@ public class ForeignKeyDetailService {
         // column lookups cached for this call only — schemas are per-environment and refreshable
         Map<String, Map<String, TableColumn>> columnsByTable = new HashMap<>();
         List<ForeignKeyDetail> details = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
 
         TableStructure structure = sqlSchemaService.getTable(table);
         if (structure != null) {
             for (ForeignKey fk : structure.foreignKeys()) {
-                TableReference other = fk.to().getFirst().getTable();
-                details.add(detail("out", fk, other, columnsByTable));
+                if (seen.add(constraintKey("out", table, fk))) {
+                    TableReference other = fk.to().getFirst().getTable();
+                    details.add(detail("out", fk, other, columnsByTable));
+                }
             }
         }
         // incoming: scan every table's constraints for references to this table
@@ -44,12 +49,30 @@ public class ForeignKeyDetailService {
             for (ForeignKey fk : owner.foreignKeys()) {
                 TableReference target = fk.to().getFirst().getTable();
                 if (target != null && target.equalsNormalized(table)
-                    && !owner.tableReference().equalsNormalized(table)) {
+                    && !owner.tableReference().equalsNormalized(table)
+                    && seen.add(constraintKey("in", owner.tableReference(), fk))) {
                     details.add(detail("in", fk, owner.tableReference(), columnsByTable));
                 }
             }
         }
         return details;
+    }
+
+    /**
+     * Identifies a constraint across the servers of one environment, so it is
+     * listed once — as the first server to define it did. getTables() holds
+     * every server's copy of a table, and fifteen servers carrying the same
+     * schema listed each referencing constraint fifteen times.
+     *
+     * <p>Keyed on the owning table as well as the name: MySQL constraint names
+     * are unique per schema, so the same name on two tables is two
+     * constraints. A constraint without a name cannot be matched to anything
+     * and is never folded.
+     */
+    private static String constraintKey(String direction, TableReference owner, ForeignKey fk) {
+        String name = fk.constraintName() == null ? "#" + System.identityHashCode(fk) : fk.constraintName();
+        return (direction + "|" + owner.getNormalizedSchemaName() + "." + owner.getNormalizedTableName()
+            + "|" + name).toLowerCase(Locale.ROOT);
     }
 
     private ForeignKeyDetail detail(String direction, ForeignKey fk, TableReference other,

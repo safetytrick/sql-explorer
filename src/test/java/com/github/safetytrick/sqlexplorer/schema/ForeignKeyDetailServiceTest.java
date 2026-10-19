@@ -71,6 +71,55 @@ class ForeignKeyDetailServiceTest {
         assertThat(matched.typeMismatch()).isFalse();
     }
 
+    /**
+     * In a many-server environment every server's copy of a table is in
+     * getTables(), so the incoming scan met each referencing constraint once
+     * per server — fifteen copies of each on production. One per constraint,
+     * and the first server's definition is the one shown.
+     */
+    @Test
+    void aConstraintSeenOnSeveralServersIsListedOnceAsTheFirstServerDefinedIt() {
+        TableStructure sessions = sqlSchemaService.getTable(SESSIONS);
+        TableStructure users = sqlSchemaService.getTable(USERS);
+        TableStructure events = sqlSchemaService.getTable(EVENTS);
+        // the second server's events defines the same constraint with other rules
+        TableStructure eventsOnSecondServer = structure(EVENTS,
+            List.of(new ForeignKey.Builder()
+                .constraintName("fk_events_session")
+                .rules("NO ACTION", "SET NULL")
+                .addFromAndTo(ColumnReference.newColumnReference(EVENTS, "session_id"),
+                    ColumnReference.newColumnReference(SESSIONS, "id"))
+                .build()),
+            column("session_id", "BIGINT", 19, null));
+        when(sqlSchemaService.getTables()).thenReturn(
+            List.of(sessions, users, events, sessions, users, eventsOnSecondServer));
+
+        List<ForeignKeyDetail> details = service.getForeignKeys(SESSIONS);
+
+        assertThat(details)
+            .extracting(ForeignKeyDetail::direction, ForeignKeyDetail::constraintName, ForeignKeyDetail::onUpdate)
+            .containsExactly(
+                tuple("out", "fk_sessions_user", "CASCADE"),
+                tuple("in", "fk_events_session", "CASCADE"));
+    }
+
+    /** Constraint names are unique per schema, not per server: the same name on two tables is two constraints. */
+    @Test
+    void theSameConstraintNameOnTwoDifferentTablesIsKeptTwice() {
+        TableReference audits = TableReference.newTableReference("app", "audits");
+        TableStructure auditsTable = structure(audits,
+            List.of(fk("fk_events_session", audits, "session_id", SESSIONS, "id")),
+            column("session_id", "BIGINT", 19, null));
+        TableStructure sessions = sqlSchemaService.getTable(SESSIONS);
+        TableStructure events = sqlSchemaService.getTable(EVENTS);
+        when(sqlSchemaService.getTables()).thenReturn(List.of(sessions, events, auditsTable));
+
+        assertThat(service.getForeignKeys(SESSIONS))
+            .filteredOn(detail -> detail.direction().equals("in"))
+            .extracting(ForeignKeyDetail::otherTable)
+            .containsExactly("events", "audits");
+    }
+
     private static TableStructure structure(TableReference table, List<ForeignKey> fks, TableColumn... columns) {
         return new TableStructure(table.getSchemaName(), table.getTableName(), "TABLE", null,
             fks, List.of(), List.of(columns), null, null);
