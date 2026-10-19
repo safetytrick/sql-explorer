@@ -7,6 +7,8 @@ build/
 hs_err_pid*
 
 src/main/docker-local/config/application-override.yml
+# RDS servers for the `rds` profile: your database user and real hostnames
+src/main/docker-local/config/application-rds.yml
 .~lock.*
 
 !gradle-wrapper.jar
@@ -34,3 +36,4 @@ mcp/node_modules/
 # so neither it nor its sources belong in the repo. Findings that matter get
 # written up in docs/plans/ instead.
 .design/
+scripts/

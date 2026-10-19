@@ -98,6 +98,19 @@ dependencies {
 
     runtimeOnly 'com.mysql:mysql-connector-j'
 
+    // RDS IAM database authentication for analyzed servers: a server whose
+    // jdbcUrl is `jdbc:aws-wrapper:mysql://…?wrapperPlugins=iam&awsProfile=…`
+    // gets a freshly signed token on every new connection. A token is only
+    // valid for 15 minutes, so writing one into config as a password would go
+    // stale for every connection opened after that (sqlx-otn). The wrapper's
+    // AWS SDK dependencies are all optional; these are the ones the iam plugin
+    // needs, plus sso/ssooidc so an `aws sso login` profile resolves.
+    runtimeOnly 'software.amazon.jdbc:aws-advanced-jdbc-wrapper:4.4.0'
+    runtimeOnly platform('software.amazon.awssdk:bom:2.46.10')
+    runtimeOnly 'software.amazon.awssdk:rds'
+    runtimeOnly 'software.amazon.awssdk:sso'
+    runtimeOnly 'software.amazon.awssdk:ssooidc'
+
     testImplementation "org.junit.jupiter:junit-jupiter"
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation('org.assertj:assertj-core:3.27.7')

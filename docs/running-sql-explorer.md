@@ -110,6 +110,59 @@ One flag is worth knowing about:
 `EXPLAIN` is **off unless an environment opts in**, because planning a statement
 runs it against a real server. Leave it off for anything you do not own.
 
+### RDS servers with IAM authentication
+
+An Amazon RDS server that authenticates an AWS IAM identity instead of a
+password is configured like any other, with two differences: its `jdbcUrl`
+goes through the [AWS JDBC wrapper](https://github.com/aws/aws-advanced-jdbc-wrapper)'s
+`iam` plugin, and the backend runs with the `docker-compose.rds.yml` overlay so
+the container can use your AWS session.
+
+```yaml
+environments:
+  production:
+    servers:
+      primary:
+        jdbcUrl: "jdbc:aws-wrapper:mysql://<instance-endpoint>:3306/?wrapperPlugins=iam&iamRegion=<region>&awsProfile=<profile>&sslMode=REQUIRED"
+        username: "<iam-database-user>"
+        sources:
+          - type: x-statement-analysis
+```
+
+```bash
+aws sso login --profile <profile>
+docker compose -f docker-compose.yml -f docker-compose.rds.yml up -d sql-explorer
+```
+
+Put it in `src/main/docker-local/config/application-rds.yml`, which is
+git-ignored and loaded as the `rds` profile that the overlay turns on. A real
+fleet is easier to generate than to write by hand, from
+`aws rds describe-db-instances`. Such a script is specific to one site's hosts
+and naming, so keep it in `scripts/`, which is git-ignored for that reason.
+
+Four things matter, whoever writes the file:
+
+- **No token is written anywhere.** An IAM token is valid for 15 minutes and
+  sql-explorer opens connections for hours, so a token pasted in as a password
+  would break every connection after the first quarter hour. The wrapper signs
+  a fresh token for every new connection instead. When your SSO session lapses,
+  connections start failing; `aws sso login` on the host fixes it with no
+  restart, because the overlay mounts `~/.aws` (read-only) into the container.
+- **Use the instance endpoint, not a friendly CNAME.** IAM tokens are signed
+  for the hostname they are presented to.
+- **List every replica as its own server.** Each keeps its own digest table. A
+  weighted DNS name for "the replicas" reaches one of them at a time.
+- **Name servers by role, not by instance identifier.** Identifiers often carry
+  a rebuild date, and captures are keyed by server name, so a dated name would
+  split one server's history in two at the next rebuild.
+
+The database user must exist on every instance, set up for IAM
+(`AWSAuthenticationPlugin`), with the read grants in
+[configuring MySQL](mysql-performance-schema.md#grants-for-the-reading-account).
+
+Every environment is read at startup, so with this overlay each backend start
+pulls from every server it lists.
+
 ---
 
 ## Sources: the three shapes
