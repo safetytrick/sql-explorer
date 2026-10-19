@@ -1,9 +1,14 @@
 package com.github.safetytrick.sqlexplorer.environment;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import com.github.safetytrick.sqlexplorer.schema.CompositeSchemaRepository;
+import com.github.safetytrick.sqlexplorer.schema.SchemaFingerprint;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 
 /**
@@ -125,6 +130,77 @@ public final class Environment implements AutoCloseable {
         }
         return true;
     }
+
+    /**
+     * Tables defined differently by clusters that carry the same schema —
+     * every shard of a sharded application carries the same schema (sqlx-sqy.7).
+     *
+     * <p>Lookups still take the first cluster's definition (sqlx-3js); this is
+     * what that choice hides. A migration applied to some shards and not others
+     * shows up here as a table with more than one variant, instead of being
+     * masked by whichever shard happened to be listed first.
+     *
+     * <p>Compared by fingerprint, so only clusters whose schema came with one
+     * take part, and only schemas at least two of them carry. A table one
+     * cluster lacks is a variant of its own.
+     */
+    public List<TableDrift> schemaDrift() {
+        Map<String, SchemaFingerprint> byCluster = new LinkedHashMap<>();
+        for (Cluster cluster : clusters) {
+            try {
+                SchemaFingerprint fingerprint = cluster.readSchema().fingerprint();
+                if (fingerprint != null) {
+                    byCluster.put(cluster.name(), fingerprint);
+                }
+            } catch (RuntimeException e) {
+                // unreadable: reported by schemaStatus(), and has nothing to compare
+            }
+        }
+        Set<String> schemaNames = new TreeSet<>();
+        byCluster.values().forEach(fingerprint -> fingerprint.tables().keySet()
+            .forEach(table -> schemaNames.add(table.substring(0, table.indexOf('.')))));
+
+        List<TableDrift> drift = new ArrayList<>();
+        for (String schemaName : schemaNames) {
+            Map<String, SchemaFingerprint> carrying = new LinkedHashMap<>();
+            byCluster.forEach((cluster, fingerprint) -> {
+                SchemaFingerprint only = fingerprint.onlySchema(schemaName);
+                if (!only.tables().isEmpty()) {
+                    carrying.put(cluster, only);
+                }
+            });
+            if (carrying.size() < 2) {
+                continue;
+            }
+            Set<String> tables = new TreeSet<>();
+            carrying.values().forEach(fingerprint -> tables.addAll(fingerprint.tables().keySet()));
+            for (String table : tables) {
+                // clusters grouped by the definition they have, in cluster order; null = absent
+                Map<String, List<String>> variants = new LinkedHashMap<>();
+                carrying.forEach((cluster, fingerprint) -> variants
+                    .computeIfAbsent(String.valueOf(fingerprint.tables().get(table)), hash -> new ArrayList<>())
+                    .add(cluster));
+                if (variants.size() > 1) {
+                    drift.add(new TableDrift(table, variants.entrySet().stream()
+                        .map(variant -> new Variant(List.copyOf(variant.getValue()), !"null".equals(variant.getKey())))
+                        .toList()));
+                }
+            }
+        }
+        return List.copyOf(drift);
+    }
+
+    /**
+     * One table that clusters carrying its schema do not agree on.
+     *
+     * @param table    {@code schema.table}, lowercase
+     * @param variants the clusters sharing each definition, in cluster order —
+     *                 lookups use the first variant that is present
+     */
+    public record TableDrift(String table, List<Variant> variants) { }
+
+    /** @param present false for the clusters that do not have the table at all */
+    public record Variant(List<String> clusters, boolean present) { }
 
     /** Where each cluster's schema came from, or why it could not be read. */
     public List<ClusterSchemaStatus> schemaStatus() {

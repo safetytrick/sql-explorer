@@ -2,7 +2,7 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {DatePipe} from '@angular/common';
 import {Title} from '@angular/platform-browser';
-import {CoverageService, groupByCluster, showsClusterHeading} from '../coverage.service';
+import {CoverageService, groupByCluster, showsClusterHeading, usedVariant} from '../coverage.service';
 import {EnvironmentService} from '../environment.service';
 import {SEEN_FORMAT} from '../seen-format';
 import type {CoverageReport, CoverageSignal} from '../api-types';
@@ -102,6 +102,7 @@ export class CoverageLensComponent implements OnInit, OnDestroy {
   }
 
   protected readonly showsClusterHeading = showsClusterHeading;
+  protected readonly usedVariant = usedVariant;
 
   /**
    * Falls back to the signal's own name. The server adds signals before this

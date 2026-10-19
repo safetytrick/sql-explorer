@@ -365,6 +365,14 @@ export interface CoverageReport {
   sources: SourceCoverage[];
   /** Where each cluster's schema was read from. A source belongs to the cluster listing its server. */
   clusters: ClusterSchemaStatus[];
+  /** Tables that clusters carrying the same schema define differently (sqlx-sqy.7). */
+  drift: TableDrift[];
+}
+
+/** One table clusters disagree on; variants in cluster order, lookups using the first present one. */
+export interface TableDrift {
+  table: string;
+  variants: {clusters: string[]; present: boolean}[];
 }
 
 /** A primary and its replicas, and which of them supplied the schema (sqlx-sqy.2). */

@@ -3,7 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {Observable, shareReplay} from 'rxjs';
 import {EnvironmentService} from './environment.service';
 import type {
-  ClusterSchemaStatus, CoverageFinding, CoverageReport, CoverageSignal, ObservedWindow, SourceCoverage
+  ClusterSchemaStatus, CoverageFinding, CoverageReport, CoverageSignal, ObservedWindow, SourceCoverage, TableDrift
 } from './api-types';
 
 const endpoint = '/api/sql-explorer/';
@@ -109,4 +109,13 @@ export function groupByCluster(report: CoverageReport | null): SourceGroup[] {
 /** Whether a cluster earns a heading: more than one server, or a schema that did not come from its first choice. */
 export function showsClusterHeading(cluster: ClusterSchemaStatus | null): boolean {
   return !!cluster && (cluster.servers.length > 1 || cluster.fallback || cluster.failure !== null || !cluster.current);
+}
+
+/**
+ * The definition lookups use for a drifted table: the first variant, in
+ * cluster order, whose clusters have the table — not simply the first, which
+ * may be the clusters that lack it.
+ */
+export function usedVariant(drift: TableDrift): TableDrift['variants'][number] | undefined {
+  return drift.variants.find(variant => variant.present);
 }

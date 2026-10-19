@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.github.safetytrick.sqlexplorer.schema.SchemaFingerprint;
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 
@@ -56,7 +57,7 @@ public record Cluster(String name, List<DatabaseServer> servers, List<DatabaseSe
             try {
                 SchemaRepositoryFactory.SchemaLoad load = server.getSchemaLoad();
                 return new SchemaSource(load.schema(), server.getName(), server != schemaFrom.getFirst(),
-                    List.copyOf(failures), load.current(), load.fromSnapshot(), load.readAt());
+                    List.copyOf(failures), load.current(), load.fromSnapshot(), load.readAt(), load.fingerprint());
             } catch (RuntimeException e) {
                 failures.add(server.getName() + ": " + e.getMessage());
                 if (first == null) {
@@ -68,7 +69,7 @@ public record Cluster(String name, List<DatabaseServer> servers, List<DatabaseSe
         if (lastKnown.isPresent()) {
             SchemaRepositoryFactory.SchemaLoad load = lastKnown.get();
             return new SchemaSource(load.schema(), load.readFrom(), true, List.copyOf(failures), false, true,
-                load.readAt());
+                load.readAt(), load.fingerprint());
         }
         throw first;
     }
@@ -86,7 +87,10 @@ public record Cluster(String name, List<DatabaseServer> servers, List<DatabaseSe
      *                     nothing new is analysed against it
      * @param fromSnapshot read from the cluster's snapshot rather than the server
      * @param readAt       when the schema was read from a server
+     * @param fingerprint  its fingerprint, per table; null when snapshots are
+     *                     off. What drift between clusters compares (sqlx-sqy.7)
      */
     public record SchemaSource(SqlSchemaRepository schema, String server, boolean fallback,
-                               List<String> passedOver, boolean current, boolean fromSnapshot, Instant readAt) { }
+                               List<String> passedOver, boolean current, boolean fromSnapshot, Instant readAt,
+                               SchemaFingerprint fingerprint) { }
 }

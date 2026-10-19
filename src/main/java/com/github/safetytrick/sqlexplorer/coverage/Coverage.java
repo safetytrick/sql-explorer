@@ -110,9 +110,12 @@ public final class Coverage {
      * @param clusters    where each cluster's schema was read from — its first
      *                    choice, a fallback, or nowhere (sqlx-sqy.2). A
      *                    source's cluster is the one listing its server.
+     * @param drift       tables that clusters carrying the same schema define
+     *                    differently; lookups use the first cluster's (sqlx-sqy.7)
      */
     public record Report(String environment, boolean loaded, Instant loadedOn, String originTable,
                          List<SourceCoverage> sources,
-                         List<com.github.safetytrick.sqlexplorer.environment.Environment.ClusterSchemaStatus> clusters) {
+                         List<com.github.safetytrick.sqlexplorer.environment.Environment.ClusterSchemaStatus> clusters,
+                         List<com.github.safetytrick.sqlexplorer.environment.Environment.TableDrift> drift) {
     }
 }

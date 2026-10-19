@@ -1,4 +1,4 @@
-import {findings, groupByCluster, sharedWindow, showsClusterHeading, worstVerdict} from './coverage.service';
+import {findings, groupByCluster, sharedWindow, showsClusterHeading, usedVariant, worstVerdict} from './coverage.service';
 import type {ClusterSchemaStatus, CoverageFinding, CoverageReport, SourceCoverage} from './api-types';
 
 /**
@@ -21,7 +21,7 @@ describe('coverage helpers', () => {
 
   const report = (...sources: SourceCoverage[]): CoverageReport =>
     ({environment: 'env', loaded: true, loadedOn: null, originTable: 'sys.x$statement_analysis', sources,
-      clusters: []});
+      clusters: [], drift: []});
 
   describe('sharedWindow', () => {
 
@@ -116,6 +116,12 @@ describe('coverage helpers', () => {
       expect(showsClusterHeading(cluster('regression', ['regression'], {current: false}))).toBeTrue();
       expect(showsClusterHeading(null)).toBeFalse();
     });
+
+    it('marks as used the first variant that has the table, not the first variant (sqlx-sqy.7)', () => {
+      const absent = {clusters: ['shard1', 'shard2'], present: false};
+      const global = {clusters: ['global'], present: true};
+      expect(usedVariant({table: 'app_admin.partners', variants: [absent, global]})).toBe(global);
+    });
   });
 });
 
@@ -150,7 +156,7 @@ describe('CoverageService caching', () => {
 
   const body = {
     environment: 'env', loaded: true, loadedOn: null,
-    originTable: 'sys.x$statement_analysis', sources: [], clusters: []
+    originTable: 'sys.x$statement_analysis', sources: [], clusters: [], drift: []
   };
 
   it('asks once for several readers on the same page', () => {

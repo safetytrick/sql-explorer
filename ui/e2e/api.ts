@@ -95,7 +95,8 @@ const COVERAGE = {
   clusters: [{
     cluster: 'primary', servers: ['primary'], schemaServer: 'primary', fallback: false, passedOver: [], failure: null,
     current: true, fromSnapshot: false, readAt: '2026-08-30T12:00:00Z'
-  }]
+  }],
+  drift: []
 };
 
 /** Matches a search request the way the server does, for the filters we exercise. */

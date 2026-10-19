@@ -129,3 +129,30 @@
   font-size: 12px;
   color: var(--text2);
 }
+
+// Drift is a finding about the schema, not a source, so it sits above the
+// sources; amber like any other incomplete answer.
+.drift-card { border-left: 2px solid var(--amber); }
+
+.drift-why {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text2);
+}
+
+.drift-table {
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.drift-variant {
+  display: inline-block;
+  margin-right: 12px;
+  font-size: 12px;
+  color: var(--text);
+
+  &.absent { color: var(--text3); }
+}

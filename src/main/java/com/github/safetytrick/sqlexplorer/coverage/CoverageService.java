@@ -60,7 +60,7 @@ public class CoverageService {
         List<SqlRepository> loaded = repositories.getRepositories(environmentName);
         if (state == null || loaded.isEmpty()) {
             return new Coverage.Report(environmentName, false, null, CaptureContext.ORIGIN_TABLE, List.of(),
-                List.of());
+                List.of(), List.of());
         }
 
         // Read once for the whole report: the archive is a footer seek per
@@ -75,7 +75,8 @@ public class CoverageService {
             .forEach(sources::add);
         Environment environment = environments.get(environmentName);
         return new Coverage.Report(environmentName, true, state.loadedOn(), CaptureContext.ORIGIN_TABLE,
-            List.copyOf(sources), environment == null ? List.of() : environment.schemaStatus());
+            List.copyOf(sources), environment == null ? List.of() : environment.schemaStatus(),
+            environment == null ? List.of() : environment.schemaDrift());
     }
 
     /**
