@@ -176,33 +176,111 @@ empty however long the server runs.
 
 ## Grants for the reading account
 
-sql-explorer reads; it never writes to the server it analyzes. The account it
-connects with needs three things, and the third is the one that is easy to
-miss.
+sql-explorer reads; it never writes to the server it analyzes. There are two
+grant profiles, and they differ in one thing: whether the account can read
+rows from your application's tables.
+
+**Metadata only** — the account can see every table's structure but cannot
+read a single row. Live `EXPLAIN` does not work.
 
 ```sql
 CREATE USER 'sql_explorer'@'%' IDENTIFIED BY '…';
 GRANT SELECT ON sys.* TO 'sql_explorer'@'%';
 GRANT SELECT ON performance_schema.* TO 'sql_explorer'@'%';
 -- one line per schema you want analyzed
-GRANT SELECT ON your_app_schema.* TO 'sql_explorer'@'%';
+GRANT REFERENCES, SHOW VIEW ON your_app_schema.* TO 'sql_explorer'@'%';
 ```
+
+**Metadata + `EXPLAIN`** — for an environment with `explainEnabled`. The
+account can read rows, which is what planning a statement needs.
+
+```sql
+CREATE USER 'sql_explorer'@'%' IDENTIFIED BY '…';
+GRANT SELECT ON sys.* TO 'sql_explorer'@'%';
+GRANT SELECT ON performance_schema.* TO 'sql_explorer'@'%';
+GRANT SELECT, SHOW VIEW ON *.* TO 'sql_explorer'@'%';
+```
+
+What each grant is for:
 
 - **`sys.*`** — for `sys.x$statement_analysis` itself.
 - **`performance_schema.*`** — the view reads through to it.
-- **`SELECT` on each analyzed schema** — for the *metadata*, not the data.
-  `information_schema` only shows an account the objects it holds some privilege
-  on, so without this the tables, columns and foreign keys come back **empty
-  rather than failing**. A schema that appears to have no foreign keys is
-  usually a missing grant rather than a missing constraint.
+- **Something on each analyzed schema** — for the *metadata*.
+  `information_schema` only shows an account the objects and columns it holds
+  a privilege on, so without it the tables, columns and foreign keys come back
+  **empty rather than failing**. A schema that appears to have no foreign keys
+  is usually a missing grant rather than a missing constraint. `REFERENCES` is
+  the narrowest privilege that works: it is a column-level privilege, so it
+  exposes columns and foreign keys, and it grants no access to rows.
+- **`SHOW VIEW`** — `SHOW CREATE` on a view is refused without it, and a plan
+  that reads through a view needs it too.
 
 `SHOW VARIABLES` and `SHOW GLOBAL STATUS`, which sql-explorer reads alongside
 the rows to record what the server was configured like at capture time, need no
 additional privilege. **`PROCESS` is not required** — the digest table is
 aggregate, not per-session.
 
-Verified by creating exactly this account on a stock 8.4.4 and running
-sql-explorer's own queries as it.
+### What was measured
+
+On a stock 8.4.4, sql-explorer's own schema loader, capture read and `EXPLAIN`
+statement were run as accounts holding each combination
+(`GrantProfilesProbeTest`, sqlx-84o). The fixture was two tables joined by a
+foreign key, a view over both, and table and column comments.
+
+| On the analyzed schema | Columns, FKs, comments | Indexes | `SHOW CREATE` table / view | View lineage | Reads rows | `EXPLAIN` |
+|---|---|---|---|---|---|---|
+| `SELECT` | yes | yes | yes / **refused** | **empty** | yes | tables only |
+| `SELECT, SHOW VIEW` | yes | yes | yes / yes | yes | yes | yes |
+| `REFERENCES` | yes | yes | yes / **refused** | **empty** | no | no |
+| `REFERENCES, SHOW VIEW` | yes | yes | yes / yes | **empty** | no | no |
+| `SHOW VIEW` | **none** | yes | yes / yes | **empty** | no | no |
+| `SHOW VIEW` on `*.*` | **none** | yes | yes / yes | **empty** | no | no |
+
+The capture itself (`sys.x$statement_analysis` plus the server settings) worked
+for every account; it needs only the first two grants.
+
+Three things in that table are worth knowing:
+
+- **`SHOW VIEW` alone is not a metadata grant.** It is sometimes recommended as
+  the standard "schema without data" privilege, and it does expose tables,
+  indexes and `SHOW CREATE`. But it is a table-level privilege, and
+  `information_schema.COLUMNS` and `KEY_COLUMN_USAGE` only show columns the
+  account holds a *column-level* privilege on. The result is every table with
+  **zero columns and zero foreign keys**, and no error. On `*.*` it is the same,
+  and additionally lists the tables of every other schema on the server.
+- **The previously documented profile, `SELECT` alone, was missing `SHOW
+  VIEW`.** Without it, `SHOW CREATE` on a view is refused (the view's DDL fails to
+  load), and view lineage is empty.
+- **View lineage needs `SELECT`.** sql-explorer reads each view's definition from
+  `information_schema.VIEWS`, and MySQL leaves `VIEW_DEFINITION` blank unless the
+  account holds both `SHOW VIEW` and `SELECT` (or defined the view) — even
+  though `SHOW CREATE VIEW` works with `REFERENCES, SHOW VIEW`. So under the
+  metadata-only profile, views load with their columns but without the base
+  tables they read from. `ViewDefinitionService` treats that as "no underlying
+  tables" rather than failing, so nothing says so. Reading the definition from
+  `SHOW CREATE VIEW` instead would close this gap (sqlx-d4o).
+
+### `EXPLAIN` needs `SELECT`
+
+Live `EXPLAIN` is turned on by configuration (`explainEnabled`, see
+[running sql-explorer](running-sql-explorer.md)), but it also needs a
+privilege. `EXPLAIN` of a `SELECT` needs `SELECT` on every table it touches,
+and `SHOW VIEW` as well for a view. That is the whole difference between the
+two profiles above.
+
+`EXPLAIN` of an `UPDATE`, `DELETE` or `INSERT` needs the privilege to *run*
+that statement. On either account above those fail with a privilege error,
+which is a useful backstop — keep the account read-only rather than granting
+write privileges to make them plan.
+
+### Not the same account as the Explorer's own database
+
+sql-explorer also keeps its own MySQL database (`spring.datasource`), which
+Liquibase migrates at startup. That account needs DDL and DML on that one
+schema — `CREATE`, `ALTER`, `DROP`, `INDEX`, `REFERENCES`, `SELECT`, `INSERT`,
+`UPDATE`, `DELETE` — and nothing on the analyzed servers. Keep the two apart:
+the reading account should never be able to write, and the Explorer account
+has no reason to see production.
 
 ---
 
