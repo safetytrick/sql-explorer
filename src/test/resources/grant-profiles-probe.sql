@@ -1,4 +1,5 @@
--- Fixture for GrantProfilesProbeTest (sqlx-84o): a schema with the shapes the
+-- Fixture for GrantProfilesProbeTest (sqlx-84o) and SchemaFingerprintProbeTest
+-- (sqlx-sqy.3, which alters it — load a fresh one per run): a schema with the shapes the
 -- schema loader reads — a foreign key, indexes, table and column comments, a
 -- view — a second schema to show what a *.* grant exposes, and one account per
 -- grant combination under test. Load it into a disposable MySQL as root:
