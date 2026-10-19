@@ -178,6 +178,9 @@ public class RegexTableExtractor {
      * and have since been dropped. Those are true references to absent tables,
      * which is a fact about the schema rather than a bug in this extractor.
      *
+     * <p>A name with no schema — unqualified, in a statement with no default
+     * database — is never reported: there is nothing to look it up in.
+     *
      * <p>Returns empty when there is no schema to check against, which is the
      * honest answer rather than "everything is unknown" — analysis runs
      * without a schema in tests and on the no-schema convenience path.
@@ -191,6 +194,13 @@ public class RegexTableExtractor {
 
         Set<TableReference> unknown = new LinkedHashSet<>();
         for (TableReference table : guessed) {
+            // An unqualified name in a statement run with no default database
+            // has no schema to look it up in: unverifiable, not unknown.
+            // Reporting it would mark the statement failed for naming tables
+            // that may well exist (sqlx-4wm).
+            if (table.getSchemaName() == null) {
+                continue;
+            }
             if (schema.getTable(table) == null) {
                 unknown.add(table);
             }

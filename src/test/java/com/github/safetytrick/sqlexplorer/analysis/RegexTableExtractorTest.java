@@ -325,6 +325,33 @@ class RegexTableExtractorTest {
         assertThat(extractor.unknownTables("tdb", " SELECT * FROM `not_a_table` ", null)).isEmpty();
     }
 
+    /**
+     * A statement run with no default database names its unqualified tables
+     * with no schema, and a name with no schema cannot be looked up — it is
+     * unverifiable, not unknown. It used to throw instead, from the lookup's
+     * normalization, and the row was dropped from the corpus (sqlx-4wm).
+     */
+    @Test
+    void anUnqualifiedNameWithNoDefaultDatabaseIsNotReported() throws JSQLParserException {
+        assertThat(extractor.unknownTables(null, " SELECT a FROM orders ", schema())).isEmpty();
+        assertThat(extractor.unknownTables(null, " SHOW FULL TABLES FROM `app_production` ", schema())).isEmpty();
+    }
+
+    /** The statement that showed it in production: sql-explorer's own capture query, run with no database. */
+    @Test
+    void theCaptureQueryWithNoDefaultDatabaseIsAnalysedNotThrown() throws JSQLParserException {
+        assertThat(extractor.unknownTables(null,
+            " SELECT QUERY , `db` , `digest` FROM `sys` . `x$statement_analysis` ", schema())).isEmpty();
+    }
+
+    /** Qualified names are still checked when there is no default database. */
+    @Test
+    void aQualifiedNameIsStillCheckedWithNoDefaultDatabase() throws JSQLParserException {
+        assertThat(extractor.unknownTables(null, " SELECT * FROM `tdb` . `not_a_table` ", schema()))
+            .extracting(TableReference::getNormalizedTableName)
+            .containsExactly("not_a_table");
+    }
+
     /** One entry per name, in encounter order, however often it is referenced. */
     @Test
     void repeatedUnknownNamesAreReportedOnce() throws JSQLParserException {
@@ -332,5 +359,15 @@ class RegexTableExtractorTest {
             " SELECT * FROM `ghost` JOIN `ghost` ON ? JOIN `folders` ON ? JOIN `spectre` ON ? ", schema()))
             .extracting(TableReference::getNormalizedTableName)
             .containsExactly("ghost", "spectre");
+    }
+
+    /** schemaName is nullable in the Avro schema, so normalizing a reference without one must not throw (sqlx-4wm). */
+    @Test
+    void aReferenceWithoutASchemaNormalizes() {
+        TableReference unqualified = TableReference.newTableReference(null, "Orders");
+
+        assertThat(unqualified.normalized().getNormalizedTableName()).isEqualTo("orders");
+        assertThat(unqualified.normalized().getSchemaName()).isNull();
+        assertThat(TableReference.newTableReference(null, "orders").isNormalized()).isTrue();
     }
 }
