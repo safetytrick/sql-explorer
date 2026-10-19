@@ -60,7 +60,9 @@ public final class Coverage {
         /** Does the archive hold periods the loaded corpus does not cover? */
         ARCHIVED_HISTORY,
         /** Could the source be read at all? Only ever reported for one that could not (sqlx-jdf). */
-        UNREACHABLE
+        UNREACHABLE,
+        /** Was every statement analysed, or left waiting for a schema confirmed current (sqlx-sqy.5)? */
+        PENDING_ANALYSIS
     }
 
     /**

@@ -328,6 +328,16 @@ against the omit-defaults rule — the workbench defaults to ANY, so a bare
 5. Frontend fetches from REST endpoints and renders profile/graph views
 6. Users tag and annotate queries; tags are loaded via the `shared-tags` subproject
 
+**Analysis is reused across loads, so bump `AnalyzerVersion.ANALYZERS` when
+you change what analysis produces.** A load reuses an earlier profile's
+analysis for the same MySQL digest and default schema without parsing again,
+taking it from the resident corpus or the latest capture (`AnalysisReuse`,
+sqlx-sqy.5). Reuse is keyed on
+`AnalyzerVersion.CURRENT`, which folds in `QueryNormalizer.VERSION`. Any change
+to parsing, the analyzers, table extraction or a profile's derived fields that
+would make the same statement analyse differently must bump `ANALYZERS`.
+Forgetting fails silently: the old analysis just keeps being served.
+
 ### Subprojects
 
 - **`models/`** — Avro schema definitions, compiled to Java via the Avro Gradle plugin

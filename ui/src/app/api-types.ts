@@ -327,7 +327,7 @@ export type CoverageVerdict = 'OK' | 'IMPAIRED' | 'UNKNOWN';
 
 export type CoverageSignal =
   'DIGEST_CAPACITY' | 'DIGEST_TRUNCATION' | 'OBSERVATION_WINDOW' | 'PROVENANCE' | 'SAMPLING_GAPS'
-  | 'ARCHIVED_HISTORY' | 'UNREACHABLE';
+  | 'ARCHIVED_HISTORY' | 'UNREACHABLE' | 'PENDING_ANALYSIS';
 
 export interface CoverageFinding {
   signal: CoverageSignal;

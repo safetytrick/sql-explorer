@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.environment.Environment;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
@@ -183,13 +184,22 @@ public class SqlRepositoryManager {
      * load, if any, stays in place.
      */
     public SqlImportStats loadFromSqlSources(String environmentName, Stream<? extends SqlSource> sources) {
-        SqlSchemaRepository schema = environmentRegistry.get(environmentName).schemaRepository();
+        Environment environment = environmentRegistry.get(environmentName);
+        SqlSchemaRepository schema = environment.schemaRepository();
+        List<? extends SqlSource> sourceList = sources.toList();
 
-        List<SourceResult> results = sources.parallel().map(source -> {
+        AnalysisReuse index = reuseFor(environmentName, sourceList.stream().map(SqlSource::getSourceRef).toList());
+
+        List<SourceResult> results = sourceList.parallelStream().map(source -> {
             log.info("Loading source into environment {}: {}", environmentName, source);
             try {
-                return SourceResult.loaded(
-                    sqlEvidenceInputService.fromPerformanceSchema(source, source.getSql(), schema));
+                boolean schemaCurrent = environment.isSchemaCurrentFor(source.getSourceRef());
+                if (!schemaCurrent) {
+                    log.warn("Schema for source {} could not be confirmed current; statements not analysed "
+                        + "before will wait for a load that can confirm it", source.getSourceRef());
+                }
+                return SourceResult.loaded(sqlEvidenceInputService.fromPerformanceSchema(source, source.getSql(),
+                    schema, new SqlEvidenceInputService.AnalysisContext(index, schemaCurrent)));
             } catch (RuntimeException e) {
                 log.warn("Source {} could not be read into environment {}; it is left out of this load: {}",
                     source.getSourceRef(), environmentName, e.toString());
@@ -260,6 +270,42 @@ public class SqlRepositoryManager {
         evictDownTo(environmentName);
         log.info("Rehydrated environment {} from {} capture(s)", environmentName, repositories.size());
         return true;
+    }
+
+    /**
+     * The earlier analysis a load of these sources may reuse (sqlx-sqy.5).
+     *
+     * <p>From the environment's resident corpus first, and only from captures
+     * for sources it does not hold. Not merely to save the read: reuse copies
+     * an analysis's lists by reference, so a profile reused from a resident one
+     * <em>shares</em> its tables and columns with it. Indexed from captures
+     * instead, the load held three corpora at its peak — the one being served,
+     * the index, and the one being built — which was enough to exhaust a 1 GB
+     * heap on production's 180,000 profiles.
+     */
+    private AnalysisReuse reuseFor(String environmentName, List<String> sourceRefs) {
+        AnalysisReuse.Builder index = new AnalysisReuse.Builder();
+        java.util.Set<String> held = new java.util.HashSet<>();
+        EnvironmentRepositories resident = byEnvironment.get(environmentName);
+        if (resident != null) {
+            for (SqlRepository repository : resident.repositories()) {
+                if (repository.getSource() != null) {
+                    held.add(repository.getSource().getSourceRef());
+                }
+                index.addAll(repository.getAllAnalyzedSql()
+                    .flatMap(profile -> profile instanceof com.github.safetytrick.sqlexplorer.model.MergedSqlProfile merged
+                        ? merged.members().stream() : java.util.stream.Stream.of(profile))
+                    .toList());
+            }
+        }
+        List<String> fromCaptures = sourceRefs.stream().filter(ref -> !held.contains(ref)).toList();
+        if (captureRehydrator != null && !fromCaptures.isEmpty()) {
+            AnalysisReuse captured = captureRehydrator.reuseFor(fromCaptures);
+            if (captured != null) {
+                index.addAll(captured);
+            }
+        }
+        return index.build();
     }
 
     /**

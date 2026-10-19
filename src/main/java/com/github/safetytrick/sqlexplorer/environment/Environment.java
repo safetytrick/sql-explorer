@@ -103,6 +103,29 @@ public final class Environment implements AutoCloseable {
         return readable.size() == 1 ? readable.getFirst() : new CompositeSchemaRepository(readable);
     }
 
+    /**
+     * Whether the schema a source's rows would be analysed against was
+     * confirmed current — the gate for analysing anything new (sqlx-sqy.5).
+     *
+     * <p>A source belongs to the cluster listing its server; that cluster's
+     * schema must have come from a server that vouched for it, not from a
+     * snapshot no reachable server confirmed. A source outside every cluster —
+     * an upload, a file — has no cluster to wait on and is analysed against
+     * whatever schema is loaded, as it always was.
+     */
+    public boolean isSchemaCurrentFor(String sourceRef) {
+        for (Cluster cluster : clusters) {
+            if (cluster.servers().stream().anyMatch(server -> server.getName().equals(sourceRef))) {
+                try {
+                    return cluster.readSchema().current();
+                } catch (RuntimeException e) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /** Where each cluster's schema came from, or why it could not be read. */
     public List<ClusterSchemaStatus> schemaStatus() {
         List<ClusterSchemaStatus> status = new ArrayList<>(clusters.size());

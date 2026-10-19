@@ -18,6 +18,7 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.safetytrick.sqlexplorer.analysis.AnalyzerVersion;
 import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.analysis.RegexTableExtractor;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
@@ -145,7 +146,27 @@ public class SqlEvidenceInputService {
      * @return a completely initialized SqlRepository
      */
     @Timed("performance_schema_import")
+    /** Every row analysed, nothing reused — the behaviour before analysis reuse existed. */
     public SqlRepository fromPerformanceSchema(SqlSource source, Stream<SqlInput> inputStream, SqlSchemaRepository schema) {
+        return fromPerformanceSchema(source, inputStream, schema, AnalysisContext.ANALYSE_EVERYTHING);
+    }
+
+    /**
+     * What a load knows about analysing a source's rows (sqlx-sqy.5).
+     *
+     * @param reuse         earlier analysis, reused for any row whose digest and
+     *                      default schema it holds, with no parsing
+     * @param schemaCurrent whether the source's cluster schema was confirmed
+     *                      current. When it was not, a row with no earlier
+     *                      analysis is left out and counted pending: nothing is
+     *                      analysed against a schema that may have changed
+     */
+    public record AnalysisContext(AnalysisReuse reuse, boolean schemaCurrent) {
+        public static final AnalysisContext ANALYSE_EVERYTHING = new AnalysisContext(AnalysisReuse.NONE, true);
+    }
+
+    public SqlRepository fromPerformanceSchema(SqlSource source, Stream<SqlInput> inputStream, SqlSchemaRepository schema,
+                                               AnalysisContext context) {
         SqlRepositoryBuilder repository = new SqlRepositoryBuilder(source);
         // inputStream may be a parallel stream (e.g. XStatementAnalysisSqlSource),
         // so collect the submitted futures rather than adding to a shared
@@ -156,7 +177,7 @@ public class SqlEvidenceInputService {
                     String rowName = getRowName(sqlInput);
                     try {
                         currentlyProcessing.put(rowName, true);
-                        processRow(repository, sqlInput, schema);
+                        processRow(repository, sqlInput, schema, context);
                     } catch (Exception e) {
                         if (e instanceof AvroMissingFieldException) {
                             missingFieldExceptions.add(e.toString());
@@ -231,7 +252,8 @@ public class SqlEvidenceInputService {
         return row.source().getSourceRef() + "#" + row.rank();
     }
 
-    private void processRow(SqlRepositoryBuilder repository, SqlInput toProcess, SqlSchemaRepository schema) {
+    private void processRow(SqlRepositoryBuilder repository, SqlInput toProcess, SqlSchemaRepository schema,
+                            AnalysisContext context) {
         MeteredSql row = toProcess.row();
         if (row.getQuery() == null) {
             // a few entries in the mysql export are null
@@ -293,6 +315,26 @@ public class SqlEvidenceInputService {
             //if the query always fails we might not be able to parse it and don't really care about it anyway
             return;
         }
+
+        // Analysed before, by this version of the analysis: take that, and
+        // only the row's own facts — its metrics, its place in this source —
+        // are new. No parsing, and no need for a current schema (sqlx-sqy.5).
+        SqlProfile prior = context.reuse().find(row.getDigest(), row.getSchemaName());
+        if (prior != null) {
+            copyAnalysis(prior, builder);
+            repository.reused();
+            if (prior.getNormalizedDigest() != null && repository.attemptMerge(prior.getNormalizedDigest(), builder)) {
+                return;
+            }
+            repository.addToIndex(builder.completeBuild(row.getSchemaName()));
+            return;
+        }
+        if (!context.schemaCurrent()) {
+            repository.pending();
+            return;
+        }
+        builder.setAnalyzerVersion(AnalyzerVersion.CURRENT)
+            .setSessionSchema(row.getSchemaName());
 
         List<TableReference> tables = tableExtractor.extractTables(row.getSchemaName(), query);
         // The regex is the only reader of anything in `ignoredFirstTokens`, so
@@ -397,6 +439,36 @@ public class SqlEvidenceInputService {
         SqlProfile sqlProfile = builder.completeBuild(row.getSchemaName());
 
         repository.addToIndex(sqlProfile);
+    }
+
+    /**
+     * Everything an analysis decided about a statement, from an earlier
+     * profile of it. Not the row's own facts — id, line, source file, runtime
+     * metrics, activity, isDml — which the caller has already set from the
+     * row, nor merge membership, which this load decides.
+     */
+    static void copyAnalysis(SqlProfile prior, SqlProfile.Builder builder) {
+        builder.setQuery(prior.getQuery())
+            .setTables(prior.getTables())
+            .setType(prior.getType())
+            .setJoinColumns(prior.getJoinColumns())
+            .setCriteriaColumns(prior.getCriteriaColumns())
+            .setSelectColumns(prior.getSelectColumns())
+            .setGroupByColumns(prior.getGroupByColumns())
+            .setGeneratedSource(prior.getGeneratedSource())
+            .setTruncated(prior.getTruncated())
+            .setAnalysisFailed(prior.getAnalysisFailed())
+            .setAnalysisSkipped(prior.getAnalysisSkipped())
+            .setNormalizedDigest(prior.getNormalizedDigest())
+            .setSchemaName(prior.getSchemaName())
+            .setSchemas(prior.getSchemas())
+            .setMismatchedJoins(prior.getMismatchedJoins())
+            .setAnalysisFailureReason(prior.getAnalysisFailureReason())
+            .setModifiedForAnalysis(prior.getModifiedForAnalysis())
+            .setIsMultiSchema(prior.getIsMultiSchema())
+            .setRepeatedBlocks(prior.getRepeatedBlocks())
+            .setAnalyzerVersion(prior.getAnalyzerVersion())
+            .setSessionSchema(prior.getSessionSchema());
     }
 
     /**
@@ -519,6 +591,14 @@ public class SqlEvidenceInputService {
          * with its own counter, which is precisely what merging sums.
          */
         private final List<SqlProfile> parquetRows = new ArrayList<>();
+
+        void reused() {
+            statsBuilder.reused();
+        }
+
+        void pending() {
+            statsBuilder.pending();
+        }
 
         public SqlRepositoryBuilder(SqlSource source) {
             this.source = source;

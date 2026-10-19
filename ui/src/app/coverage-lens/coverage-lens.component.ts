@@ -36,6 +36,10 @@ const SIGNAL_LABELS: Record<CoverageSignal, {title: string; question: string}> =
   UNREACHABLE: {
     title: 'Not read',
     question: 'Could sql-explorer read this server at all?'
+  },
+  PENDING_ANALYSIS: {
+    title: 'Analysed',
+    question: 'Is any statement waiting for a schema that could be confirmed current?'
   }
 };
 

@@ -19,6 +19,10 @@ export interface SqlImportStats {
   analysisSkipped: number;
   truncated: number;
   dml: number;
+  /** Rows whose earlier analysis was reused, with no parsing. */
+  reused: number;
+  /** New rows left unanalysed because their cluster's schema could not be confirmed current. */
+  pending: number;
 }
 
 export interface SourcesSummary {

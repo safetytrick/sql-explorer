@@ -90,6 +90,16 @@ public class MergedSqlProfile extends SqlProfile {
         return sourceList.getFirst();
     }
 
+    /**
+     * The profiles folded into this one, each with its own digest and session
+     * schema — what analysis reuse indexes (sqlx-sqy.5). Deliberately not a
+     * bean getter, so serializing a merged profile does not inline every
+     * member.
+     */
+    public List<SqlProfile> members() {
+        return List.copyOf(sourceList);
+    }
+
     @Override
     public String getId() {
         return first().getDigest();
@@ -335,5 +345,25 @@ public class MergedSqlProfile extends SqlProfile {
     public List<String> getPerfDigests() {
         return sourceList.stream().flatMap(analyzedSql -> analyzedSql.getPerfDigests().stream())
                 .distinct().collect(Collectors.toList());
+    }
+
+    /**
+     * The representative's. A merge group is one normalized statement, and
+     * every member's analysis is the representative's; the version describes
+     * that analysis (sqlx-sqy.5).
+     */
+    @Override
+    public String getAnalyzerVersion() {
+        return first().getAnalyzerVersion();
+    }
+
+    /**
+     * The representative's. Members may differ — the normalized digest is
+     * scoped by session schema, so they rarely do — and reuse reads each
+     * member's own from the capture rows, never this merged view.
+     */
+    @Override
+    public String getSessionSchema() {
+        return first().getSessionSchema();
     }
 }

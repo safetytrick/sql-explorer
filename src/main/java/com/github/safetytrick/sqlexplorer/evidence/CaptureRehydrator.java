@@ -86,6 +86,34 @@ public class CaptureRehydrator {
     }
 
     /**
+     * Earlier analysis from the latest capture of each source, for a load to
+     * reuse (sqlx-sqy.5). Read one capture at a time into the index, never all
+     * at once. A source with no readable capture contributes nothing; its rows
+     * are analysed as new.
+     */
+    public AnalysisReuse reuseFor(List<String> sourceRefs) {
+        long start = System.nanoTime();
+        AnalysisReuse.Builder index = new AnalysisReuse.Builder();
+        int captures = 0;
+        for (String sourceRef : sourceRefs) {
+            Path capture = sourceRef == null ? null : ParquetSqlRepository.latestCaptureOf(config.getFilename(), sourceRef);
+            if (capture == null) {
+                continue;
+            }
+            try {
+                index.addAll(sink.readAll(capture));
+                captures++;
+            } catch (Exception e) {
+                log.warn("could not read capture {} for analysis reuse: {}", capture.getFileName(), e.getMessage());
+            }
+        }
+        AnalysisReuse reuse = index.build();
+        log.info("Analysis reuse: {} statements from {} capture(s) in {}", reuse.size(), captures,
+            java.time.Duration.ofNanos(System.nanoTime() - start));
+        return reuse;
+    }
+
+    /**
      * Whether this source could be rebuilt without touching its server.
      *
      * <p>What eviction has to ask before dropping anything. Evicting a source

@@ -33,6 +33,20 @@ protocol SqlExplorer {
 		array<RepeatedBlock> repeatedBlocks = [];
 		/** Profiles folded into this one by normalized-digest merging. */
 		array<MergedChild> mergedChildren = [];
+		/**
+		 * Which version of the analysis produced this profile — the analyzers'
+		 * version and the normalizer's together (AnalyzerVersion). A later load
+		 * reuses this profile's analysis for the same digest and session schema
+		 * only while this matches (sqlx-sqy.5). Null on profiles analysed before
+		 * versions were recorded, which are therefore never reused.
+		 */
+		string? analyzerVersion = null;
+		/**
+		 * The row's own default schema as Performance Schema reported it, before
+		 * any inference. Part of the reuse key: the same unqualified statement
+		 * under two default schemas shares a MySQL digest but not its tables.
+		 */
+		string? sessionSchema = null;
 	}
 
 	/**

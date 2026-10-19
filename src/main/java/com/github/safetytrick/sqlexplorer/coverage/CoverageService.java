@@ -79,6 +79,32 @@ public class CoverageService {
     }
 
     /**
+     * Statements that were captured but not analysed, because the schema they
+     * would be analysed against could not be confirmed current. They are not
+     * in the corpus at all until a load can confirm it — so an absence here
+     * may be one of them (sqlx-sqy.5).
+     */
+    private static Finding pendingAnalysis(SqlImportStats stats) {
+        if (stats == null) {
+            return new Finding(Signal.PENDING_ANALYSIS, Verdict.UNKNOWN, "not recorded",
+                "import statistics, which this source does not carry",
+                "Whether any statement from this source is waiting to be analysed is not known.");
+        }
+        String measurement = stats.pending() + " waiting, " + stats.reused() + " reused";
+        String basis = "whether the source's cluster schema was confirmed current when it was loaded";
+        if (stats.pending() > 0) {
+            return new Finding(Signal.PENDING_ANALYSIS, Verdict.IMPAIRED, measurement, basis,
+                stats.pending() + " statement(s) seen for the first time were not analysed, because no server of "
+                    + "this source's cluster could confirm its schema is current, and nothing is analysed against "
+                    + "a schema that may have changed. They are missing from this corpus until a load can confirm "
+                    + "it. Statements analysed before were reused as usual.");
+        }
+        return new Finding(Signal.PENDING_ANALYSIS, Verdict.OK, measurement, basis,
+            "Every statement from this source is in the corpus: analysed now, or reused from an earlier "
+                + "analysis by the same version of sql-explorer.");
+    }
+
+    /**
      * A source the load had to leave out. Listed rather than omitted, because
      * an environment missing one of its servers otherwise reads as complete:
      * every query that only ran there is simply absent (sqlx-jdf).
@@ -109,6 +135,7 @@ public class CoverageService {
         findings.add(provenance(capture, source));
         findings.add(samplingGaps(sourceRef, gaps));
         findings.add(archivedHistory(sourceRef, window, gaps));
+        findings.add(pendingAnalysis(stats));
 
         return new SourceCoverage(sourceRef,
             capture == null || capture.origin() == null ? null : capture.origin().name(),

@@ -120,7 +120,7 @@ public class ParquetSqlRepository implements SqlRepository {
     @Override
     public SqlImportStats getImportStats() {
         // todo, implement me
-        return new SqlImportStats(0,0,0,0,0,0,0);
+        return new SqlImportStats(0,0,0,0,0,0,0,0,0);
     }
 
     /**

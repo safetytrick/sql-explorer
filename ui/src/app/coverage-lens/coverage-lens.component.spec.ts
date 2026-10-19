@@ -19,7 +19,7 @@ describe('CoverageLensComponent', () => {
   // template's label(...).title threw for every loaded source (sqlx-jdf).
   it('labels every signal the server sends', () => {
     const signals: CoverageSignal[] = ['DIGEST_CAPACITY', 'DIGEST_TRUNCATION', 'OBSERVATION_WINDOW',
-      'PROVENANCE', 'SAMPLING_GAPS', 'ARCHIVED_HISTORY', 'UNREACHABLE'];
+      'PROVENANCE', 'SAMPLING_GAPS', 'ARCHIVED_HISTORY', 'UNREACHABLE', 'PENDING_ANALYSIS'];
     for (const signal of signals) {
       expect(component.label(signal).title).withContext(signal).not.toEqual(signal);
     }

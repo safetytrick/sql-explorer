@@ -9,7 +9,15 @@ public record SqlImportStats(
     int analysisFailed,
     int analysisSkipped,
     int truncated,
-    int dml
+    int dml,
+    /** Rows whose earlier analysis was reused, with no parsing (sqlx-sqy.5). */
+    int reused,
+    /**
+     * Rows never analysed before that were left out because their cluster's
+     * schema could not be confirmed current — they are analysed by the first
+     * load that can confirm it, and nothing is analysed against a stale one.
+     */
+    int pending
 ) {
 
     public SqlImportStats mergedWith(SqlImportStats other) {
@@ -19,7 +27,9 @@ public record SqlImportStats(
             analysisFailed + other.analysisFailed,
             analysisSkipped + other.analysisSkipped,
             truncated + other.truncated,
-            dml + other.dml);
+            dml + other.dml,
+            reused + other.reused,
+            pending + other.pending);
     }
 
     @Override
@@ -32,6 +42,8 @@ public record SqlImportStats(
             ", analysisSkipped=" + analysisSkipped +
             ", truncated=" + truncated +
             ", dml=" + dml +
+            ", reused=" + reused +
+            ", pending=" + pending +
             '}';
     }
 
@@ -47,6 +59,18 @@ public record SqlImportStats(
         private final AtomicInteger truncated = new AtomicInteger();
         private final AtomicInteger dml = new AtomicInteger();
         private final AtomicInteger count = new AtomicInteger();
+        private final AtomicInteger reused = new AtomicInteger();
+        private final AtomicInteger pending = new AtomicInteger();
+
+        public Builder reused() {
+            reused.incrementAndGet();
+            return this;
+        }
+
+        public Builder pending() {
+            pending.incrementAndGet();
+            return this;
+        }
 
         public Builder merged() {
             merged.incrementAndGet();
@@ -85,7 +109,9 @@ public record SqlImportStats(
                 analysisFailed.get(),
                 analysisSkipped.get(),
                 truncated.get(),
-                dml.get());
+                dml.get(),
+                reused.get(),
+                pending.get());
         }
 
         public Builder analysisSkipped() {

@@ -84,7 +84,8 @@ class EnvironmentEvictionTest {
     void setUp() {
         SqlEvidenceInputService input = mock(SqlEvidenceInputService.class);
         when(input.fromPerformanceSchema(org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
             .thenAnswer(call -> repositoryFor(((SqlSource) call.getArgument(0)).getSourceRef()));
 
         EnvironmentRegistry registry = mock(EnvironmentRegistry.class);
@@ -195,7 +196,8 @@ class EnvironmentEvictionTest {
             mock(EnvironmentRegistry.class), rehydrator, 0, ticking());
         SqlEvidenceInputService input = mock(SqlEvidenceInputService.class);
         when(input.fromPerformanceSchema(org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
             .thenAnswer(call -> repositoryFor(((SqlSource) call.getArgument(0)).getSourceRef()));
         EnvironmentRegistry registry = mock(EnvironmentRegistry.class);
         when(registry.get(anyString())).thenReturn(mock(com.github.safetytrick.sqlexplorer.environment.Environment.class));

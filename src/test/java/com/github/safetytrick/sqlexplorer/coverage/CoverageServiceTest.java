@@ -91,7 +91,7 @@ class CoverageServiceTest {
     }
 
     private static SqlImportStats stats(int count, int truncated) {
-        return new SqlImportStats(count, 0, 0, 0, 0, truncated, 0);
+        return new SqlImportStats(count, 0, 0, 0, 0, truncated, 0, 0, 0);
     }
 
     private static Coverage.Finding finding(Coverage.Report report, Coverage.Signal signal) {
@@ -468,5 +468,26 @@ class CoverageServiceTest {
             assertThat(finding.verdict()).isEqualTo(Coverage.Verdict.IMPAIRED);
             assertThat(finding.explanation()).contains("Access denied for user 'reader'");
         });
+    }
+
+    private Coverage.Finding pendingFinding(int reused, int pending) {
+        SqlImportStats stats = new SqlImportStats(10, 0, 0, 0, 0, 0, 0, reused, pending);
+        return service(repository(capture(HEALTHY_SERVER), stats)).report("env").sources().getFirst().findings()
+            .stream().filter(f -> f.signal() == Coverage.Signal.PENDING_ANALYSIS).findFirst().orElseThrow();
+    }
+
+    /** Statements waiting on a schema that could not be confirmed are absent from the corpus, and it says so (sqlx-sqy.5). */
+    @Test
+    void statementsWaitingOnAnUnconfirmedSchemaMakeTheSourceIncomplete() {
+        Coverage.Finding finding = pendingFinding(4000, 12);
+
+        assertThat(finding.verdict()).isEqualTo(Coverage.Verdict.IMPAIRED);
+        assertThat(finding.measurement()).isEqualTo("12 waiting, 4000 reused");
+        assertThat(finding.explanation()).contains("12 statement(s)");
+    }
+
+    @Test
+    void nothingWaitingIsFine() {
+        assertThat(pendingFinding(4000, 0).verdict()).isEqualTo(Coverage.Verdict.OK);
     }
 }

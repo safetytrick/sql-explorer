@@ -72,7 +72,7 @@ class PartialLoadTest {
         // getSql() is called by the manager before the input service sees the
         // stream, which is where a refused login surfaces in the real source.
         SqlEvidenceInputService input = mock(SqlEvidenceInputService.class);
-        when(input.fromPerformanceSchema(any(), any(), any()))
+        when(input.fromPerformanceSchema(any(), any(), any(), any()))
             .thenAnswer(call -> repositoryFor(call.getArgument(0)));
 
         EnvironmentRegistry registry = mock(EnvironmentRegistry.class);
