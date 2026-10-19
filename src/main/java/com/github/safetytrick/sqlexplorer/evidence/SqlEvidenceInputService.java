@@ -237,6 +237,15 @@ public class SqlEvidenceInputService {
             // a few entries in the mysql export are null
             return;
         }
+        if (row.getDigest() == null) {
+            // Performance Schema's overflow bucket: once the digest table is
+            // full, every statement without a row of its own is counted here,
+            // across every schema. It is not a statement, and its executions
+            // are already reported as lost under "Room to record". It normally
+            // has no text either, but has been read carrying another
+            // statement's (sqlx-ugf), so the digest is what identifies it.
+            return;
+        }
         String firstToken = firstToken(row.getQuery());
         int lineNumber = toProcess.rank();
         SqlProfile.Builder builder = SqlProfile.newBuilder();
