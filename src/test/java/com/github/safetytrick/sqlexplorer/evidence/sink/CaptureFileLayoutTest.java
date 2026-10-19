@@ -177,6 +177,33 @@ class CaptureFileLayoutTest {
         assertThat(ParquetSqlRepository.capturesOf(base(), "primary")).hasSize(1);
     }
 
+    /**
+     * A source whose name another source's extends — a cluster's primary and its
+     * replicas, shard1 and shard1-replica-a — finds only its own captures. The
+     * match was a name prefix, so shard1's latest capture was whichever of
+     * shard1 and its replicas wrote last (sqlx-8ec).
+     */
+    @Test
+    void aSourceDoesNotFindTheCapturesOfASourceWhoseNameExtendsIt() throws IOException {
+        ParquetConfig config = new ParquetConfig();
+        config.setFilename(base());
+        ParquetSink sink = new ParquetSink(config);
+        for (String[] capture : new String[][] {
+            {"shard1", "2026-10-19T16:55:33Z"},
+            {"shard1-replica-a", "2026-10-19T19:52:18Z"},
+            {"shard1-etl", "2026-10-19T19:54:30Z"}}) {
+            sink.write(new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, capture[0],
+                Instant.parse(capture[1]), 1, null, null, Map.of()), List.of(profile()));
+        }
+
+        assertThat(ParquetSqlRepository.capturesOf(base(), "shard1")).singleElement()
+            .satisfies(path -> assertThat(path.getFileName()).hasToString("sql-repository-shard1-20261019T165533Z.parquet"));
+        assertThat(ParquetSqlRepository.latestCaptureOf(base(), "shard1").getFileName())
+            .hasToString("sql-repository-shard1-20261019T165533Z.parquet");
+        assertThat(ParquetSqlRepository.capturesOf(base(), "shard1-replica-a")).hasSize(1);
+        assertThat(ParquetSqlRepository.capturesOf(base(), "shard1-etl")).hasSize(1);
+    }
+
     /** A source that has never been captured has no capture, not someone else's. */
     @Test
     void anUncapturedSourceResolvesToNothing() throws IOException {

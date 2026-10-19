@@ -178,6 +178,9 @@ public class ParquetSqlRepository implements SqlRepository {
      * not match — they are legacy files, and {@link CaptureArchive} still
      * places them by reading their footers.
      */
+    /** What follows a source's token in its capture's name: the capture stamp, then the extension. */
+    private static final java.util.regex.Pattern STAMPED = java.util.regex.Pattern.compile("\\d{8}T\\d{6}Z(\\..*)?");
+
     public static List<Path> capturesOf(String configuredPath, String sourceRef) {
         String token = ParquetSink.fileToken(sourceRef);
         if (token.isEmpty()) {
@@ -192,8 +195,15 @@ public class ParquetSqlRepository implements SqlRepository {
         int dot = name.lastIndexOf('.');
         String stem = dot < 0 ? name : name.substring(0, dot);
         String prefix = stem + "-" + token;
+        // Exactly the stamp after the token, not merely the token as a prefix:
+        // "shard1-" is also how "shard1-replica-a-" and "shard1-etl-" begin, so
+        // a prefix match handed shard1 whichever of its replicas wrote last
+        // (sqlx-8ec).
         return captures(configuredPath).stream()
-            .filter(path -> String.valueOf(path.getFileName()).startsWith(prefix))
+            .filter(path -> {
+                String file = String.valueOf(path.getFileName());
+                return file.startsWith(prefix) && STAMPED.matcher(file.substring(prefix.length())).matches();
+            })
             .toList();
     }
 
