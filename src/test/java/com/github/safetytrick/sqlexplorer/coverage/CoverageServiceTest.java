@@ -48,8 +48,12 @@ class CoverageServiceTest {
         "Performance_schema_digest_lost", "0",
         "Uptime", "10205030");
 
+    /** Sources the next {@link #service} reports the load as having left out. */
+    private List<SqlRepositoryManager.SourceFailure> failures = List.of();
+
     private CoverageService service(SqlRepository... repositories) {
         SqlRepositoryManager manager = mock(SqlRepositoryManager.class);
+        when(manager.getFailedSources("env")).thenReturn(failures);
         when(manager.getLoadState("env")).thenReturn(
             new SqlRepositoryManager.LoadState(repositories.length, Instant.parse("2026-08-30T18:33:00Z"), null, true));
         when(manager.getRepositories("env")).thenReturn(List.of(repositories));
@@ -414,14 +418,20 @@ class CoverageServiceTest {
             .isEqualTo(Coverage.Verdict.IMPAIRED);
     }
 
-    /** Every signal is answered for every source — silence is not an answer. */
+    /**
+     * Every signal is answered for every source — silence is not an answer.
+     * Except UNREACHABLE, which belongs to a source that was never read and so
+     * has nothing else to answer with; a loaded source was, by being loaded.
+     */
     @Test
     void everySignalIsAnsweredEvenWhenNothingWasRecorded() {
         Coverage.Report report = service(repository(null, stats(10, 0))).report("env");
 
         assertThat(report.sources().get(0).findings())
             .extracting(Coverage.Finding::signal)
-            .containsExactlyInAnyOrder(Coverage.Signal.values());
+            .containsExactlyInAnyOrder(java.util.Arrays.stream(Coverage.Signal.values())
+                .filter(signal -> signal != Coverage.Signal.UNREACHABLE)
+                .toArray(Coverage.Signal[]::new));
     }
 
     /** Nothing is reported without the sentence that says what it means. */
@@ -433,6 +443,29 @@ class CoverageServiceTest {
             assertThat(f.explanation()).isNotBlank();
             assertThat(f.measurement()).isNotBlank();
             assertThat(f.basis()).isNotBlank();
+        });
+    }
+
+    /**
+     * A server the load could not read is listed, not omitted. Omitted, the
+     * environment would read as complete while missing every query that ran
+     * only there (sqlx-jdf).
+     */
+    @Test
+    void aSourceTheLoadCouldNotReadIsListedAsImpaired() {
+        failures = List.of(new SqlRepositoryManager.SourceFailure("sharing",
+            "Access denied for user 'reader'@'10.0.0.1' (using password: YES)"));
+
+        Coverage.Report report = service(repository(capture(HEALTHY_SERVER), stats(4243, 0))).report("env");
+
+        assertThat(report.sources()).extracting(Coverage.SourceCoverage::sourceRef)
+            .containsExactly("primary", "sharing");
+        Coverage.SourceCoverage sharing = report.sources().get(1);
+        assertThat(sharing.profiles()).isZero();
+        assertThat(sharing.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.signal()).isEqualTo(Coverage.Signal.UNREACHABLE);
+            assertThat(finding.verdict()).isEqualTo(Coverage.Verdict.IMPAIRED);
+            assertThat(finding.explanation()).contains("Access denied for user 'reader'");
         });
     }
 }

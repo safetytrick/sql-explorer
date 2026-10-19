@@ -326,7 +326,8 @@ export interface ExplainResult {
 export type CoverageVerdict = 'OK' | 'IMPAIRED' | 'UNKNOWN';
 
 export type CoverageSignal =
-  'DIGEST_CAPACITY' | 'DIGEST_TRUNCATION' | 'OBSERVATION_WINDOW' | 'PROVENANCE' | 'SAMPLING_GAPS';
+  'DIGEST_CAPACITY' | 'DIGEST_TRUNCATION' | 'OBSERVATION_WINDOW' | 'PROVENANCE' | 'SAMPLING_GAPS'
+  | 'ARCHIVED_HISTORY' | 'UNREACHABLE';
 
 export interface CoverageFinding {
   signal: CoverageSignal;

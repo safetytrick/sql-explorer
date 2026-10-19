@@ -58,7 +58,9 @@ public final class Coverage {
         /** Was the digest table reset between two captures of this source? */
         SAMPLING_GAPS,
         /** Does the archive hold periods the loaded corpus does not cover? */
-        ARCHIVED_HISTORY
+        ARCHIVED_HISTORY,
+        /** Could the source be read at all? Only ever reported for one that could not (sqlx-jdf). */
+        UNREACHABLE
     }
 
     /**

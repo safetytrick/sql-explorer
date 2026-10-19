@@ -61,10 +61,29 @@ public class CoverageService {
         // file, and every source would otherwise re-scan the same directory.
         CaptureArchive.ArchiveReport gaps = archive.scan();
 
-        List<SourceCoverage> sources = loaded.stream()
+        List<SourceCoverage> sources = new ArrayList<>(loaded.stream()
             .map(repository -> describe(repository, gaps))
-            .toList();
-        return new Coverage.Report(environmentName, true, state.loadedOn(), CaptureContext.ORIGIN_TABLE, sources);
+            .toList());
+        repositories.getFailedSources(environmentName).stream()
+            .map(CoverageService::unreachable)
+            .forEach(sources::add);
+        return new Coverage.Report(environmentName, true, state.loadedOn(), CaptureContext.ORIGIN_TABLE,
+            List.copyOf(sources));
+    }
+
+    /**
+     * A source the load had to leave out. Listed rather than omitted, because
+     * an environment missing one of its servers otherwise reads as complete:
+     * every query that only ran there is simply absent (sqlx-jdf).
+     */
+    private static SourceCoverage unreachable(SqlRepositoryManager.SourceFailure failure) {
+        Finding finding = new Finding(Signal.UNREACHABLE, Verdict.IMPAIRED,
+            "not read",
+            "the latest load of this environment",
+            "This source could not be read, so nothing it recorded is in this corpus — any query that "
+                + "ran only on this server is missing, and absences here say nothing about it. "
+                + "Reading it failed with: " + failure.reason());
+        return new SourceCoverage(failure.sourceRef(), null, null, 0, null, List.of(finding));
     }
 
     private SourceCoverage describe(SqlRepository repository, CaptureArchive.ArchiveReport gaps) {

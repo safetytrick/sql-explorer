@@ -52,6 +52,13 @@ public class SqlRepositoryManager {
     private final Map<String, Instant> lastAccess = new ConcurrentHashMap<>();
 
     /**
+     * The sources the latest load of each environment had to leave out. Kept
+     * apart from the resident repositories so it survives eviction: a
+     * rehydrated environment is still missing whatever its load missed.
+     */
+    private final Map<String, List<SourceFailure>> failedSources = new ConcurrentHashMap<>();
+
+    /**
      * What an evicted environment was made of, so it can be rebuilt.
      *
      * <p>An entry here means "loaded, but not resident" — which is a different
@@ -163,14 +170,46 @@ public class SqlRepositoryManager {
         return loadFromSqlSources(environmentRegistry.getDefaultName(), sources);
     }
 
+    /**
+     * Load the given sources as the environment's corpus.
+     *
+     * <p>A source that cannot be read — its server refuses the login, or is
+     * unreachable — is left out and recorded, rather than failing the load:
+     * one bad member of a many-server environment used to cost every other
+     * server its capture (sqlx-jdf). What was left out is reported by
+     * {@link #getFailedSources}, which {@code /coverage} lists, so a corpus
+     * missing a server says so. Only when every source fails is there no
+     * corpus to keep, and then the first failure is thrown and the previous
+     * load, if any, stays in place.
+     */
     public SqlImportStats loadFromSqlSources(String environmentName, Stream<? extends SqlSource> sources) {
         SqlSchemaRepository schema = environmentRegistry.get(environmentName).schemaRepository();
 
-        List<SqlRepository> repositories = sources.parallel().map(source -> {
+        List<SourceResult> results = sources.parallel().map(source -> {
             log.info("Loading source into environment {}: {}", environmentName, source);
-
-            return sqlEvidenceInputService.fromPerformanceSchema(source, source.getSql(), schema);
+            try {
+                return SourceResult.loaded(
+                    sqlEvidenceInputService.fromPerformanceSchema(source, source.getSql(), schema));
+            } catch (RuntimeException e) {
+                log.warn("Source {} could not be read into environment {}; it is left out of this load: {}",
+                    source.getSourceRef(), environmentName, e.toString());
+                return SourceResult.failed(source.getSourceRef(), e);
+            }
         }).toList();
+
+        List<SqlRepository> repositories = results.stream()
+            .map(SourceResult::repository)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+        List<SourceFailure> failures = results.stream()
+            .map(SourceResult::failure)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+        if (repositories.isEmpty() && !failures.isEmpty()) {
+            throw results.stream().map(SourceResult::cause).filter(java.util.Objects::nonNull)
+                .findFirst().orElseThrow();
+        }
+        failedSources.put(environmentName, failures);
 
         byEnvironment.put(environmentName, new EnvironmentRepositories(List.copyOf(repositories),
             new CompositeSqlRepository(repositories), clock.instant()));
@@ -300,6 +339,33 @@ public class SqlRepositoryManager {
             .filter(java.util.Objects::nonNull)
             .distinct()
             .toList();
+    }
+
+    /** The sources the environment's latest load left out because they could not be read. */
+    public List<SourceFailure> getFailedSources(String environmentName) {
+        return environmentName == null ? List.of() : failedSources.getOrDefault(environmentName, List.of());
+    }
+
+    /** A source a load had to leave out, and why — the failure's own message. */
+    public record SourceFailure(String sourceRef, String reason) { }
+
+    private record SourceResult(SqlRepository repository, SourceFailure failure, RuntimeException cause) {
+        static SourceResult loaded(SqlRepository repository) {
+            return new SourceResult(repository, null, null);
+        }
+
+        static SourceResult failed(String sourceRef, RuntimeException cause) {
+            return new SourceResult(null, new SourceFailure(sourceRef, rootMessage(cause)), cause);
+        }
+
+        /** The innermost message: "Access denied for user …", not the pool's wrapper around it. */
+        private static String rootMessage(Throwable e) {
+            Throwable root = e;
+            while (root.getCause() != null && root.getCause() != root) {
+                root = root.getCause();
+            }
+            return root.getMessage() != null ? root.getMessage() : root.toString();
+        }
     }
 
     /**

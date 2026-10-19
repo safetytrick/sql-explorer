@@ -28,6 +28,14 @@ const SIGNAL_LABELS: Record<CoverageSignal, {title: string; question: string}> =
   SAMPLING_GAPS: {
     title: 'Continuity',
     question: 'Was anything happening while nothing was watching?'
+  },
+  ARCHIVED_HISTORY: {
+    title: 'Earlier history',
+    question: 'Are older captures on file that this corpus leaves out?'
+  },
+  UNREACHABLE: {
+    title: 'Not read',
+    question: 'Could sql-explorer read this server at all?'
   }
 };
 
@@ -84,8 +92,13 @@ export class CoverageLensComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Falls back to the signal's own name. The server adds signals before this
+   * table learns them — ARCHIVED_HISTORY shipped without a label and broke
+   * the page for every loaded source — and a raw name is better than nothing.
+   */
   label(signal: CoverageSignal) {
-    return SIGNAL_LABELS[signal];
+    return SIGNAL_LABELS[signal] ?? {title: signal, question: ''};
   }
 
   /** Lowercase so it reads as a word in the chip rather than a shout. */

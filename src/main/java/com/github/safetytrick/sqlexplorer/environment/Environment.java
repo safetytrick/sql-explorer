@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.environment;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.schema.CompositeSchemaRepository;
@@ -50,13 +51,39 @@ public final class Environment implements AutoCloseable {
         return servers;
     }
 
+    /**
+     * The schema of every server that can be read.
+     *
+     * <p>A server whose schema cannot be read is left out rather than failing
+     * the environment: one unreachable member of a seventeen-server
+     * environment — a replica missing the reading user, an instance mid-rebuild
+     * — used to take the other sixteen down with it, at startup and on every
+     * pull (sqlx-jdf). Its absence is reported through its source, which
+     * fails the same way and is listed on {@code /coverage}. Only when no
+     * server can be read is there nothing to return, and then the first
+     * failure is the answer.
+     */
     public SqlSchemaRepository schemaRepository() {
-        if (servers.size() == 1) {
-            return servers.getFirst().getSchemaRepository();
+        List<SqlSchemaRepository> readable = new ArrayList<>(servers.size());
+        RuntimeException firstFailure = null;
+        for (DatabaseServer server : servers) {
+            try {
+                readable.add(server.getSchemaRepository());
+            } catch (RuntimeException e) {
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+            }
         }
-        return new CompositeSchemaRepository(servers.stream()
-            .map(DatabaseServer::getSchemaRepository)
-            .toList());
+        if (readable.isEmpty() && firstFailure != null) {
+            throw firstFailure;
+        }
+        return readable.size() == 1 ? readable.getFirst() : new CompositeSchemaRepository(readable);
+    }
+
+    /** Let every server whose schema failed to load be tried again on next use. */
+    public void forgetSchemaFailures() {
+        servers.forEach(DatabaseServer::forgetSchemaFailure);
     }
 
     /** Drop each server's cached schema so the next access reloads it. */

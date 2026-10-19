@@ -113,6 +113,12 @@ public class EnvironmentLoader {
         // exists. Dropping it here keeps the captures and the profiles
         // describing the same import.
         analysisFailureRecorder.clear();
+        // A load is a fresh attempt at every server, including one whose schema
+        // could not be read last time: it may have been fixed since (sqlx-jdf).
+        Environment environment = environmentRegistry.get(environmentName);
+        if (environment != null) {
+            environment.forgetSchemaFailures();
+        }
         List<SqlSource> sources = buildConfiguredSources(environmentName);
         List<SqlSource> all = Stream.concat(sources.stream(), extraSources).toList();
 
