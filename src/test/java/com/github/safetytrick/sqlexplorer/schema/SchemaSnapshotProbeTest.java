@@ -1,0 +1,49 @@
+package com.github.safetytrick.sqlexplorer.schema;
+
+import java.nio.file.Path;
+
+import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * A snapshot of a schema the real loader read from a real server reads back
+ * as the same structures (sqlx-sqy.4) — the defaults, collations, nulls and
+ * view lineage JDBC actually produces, not hand-built ones.
+ *
+ * <p>Not a CI test: runs against the fixture in
+ * {@code src/test/resources/grant-profiles-probe.sql} when {@code GRANTS_PROBE_URL} is set.
+ */
+@EnabledIfEnvironmentVariable(named = "GRANTS_PROBE_URL", matches = ".+")
+class SchemaSnapshotProbeTest {
+
+    @TempDir
+    Path directory;
+
+    @Test
+    void aRealSchemaSurvivesItsSnapshot() {
+        DriverManagerDataSource reader = new DriverManagerDataSource(System.getenv("GRANTS_PROBE_URL"),
+            "p_select_showview", "pw");
+        SchemaRepositoryFactory factory = new SchemaRepositoryFactory(
+            new TableColumnService(new ColumnEncodingService()), new IndexLoadingService(),
+            new ForeignKeyLoadingService(), new CreateStatementService(new IgnoredSchemas()),
+            new ViewDefinitionService(), new SchemaFingerprintService(), new SchemaSnapshotStore(directory));
+        SchemaSnapshot.Key key = new SchemaSnapshot.Key("probe", "fixture");
+
+        SchemaRepositoryFactory.SchemaLoad read = factory.loadCurrent(reader, key, "fixture");
+        SchemaRepositoryFactory.SchemaLoad snapshotted = factory.loadCurrent(reader, key, "fixture");
+
+        assertThat(read.fromSnapshot()).isFalse();
+        assertThat(snapshotted.fromSnapshot()).isTrue();
+        assertThat(snapshotted.schema().getTables()).hasSameSizeAs(read.schema().getTables())
+            .containsExactlyInAnyOrderElementsOf(read.schema().getTables());
+        // and SHOW CREATE still works through a snapshot, on the live connection
+        TableStructure customer = snapshotted.schema().getTable(
+            com.github.safetytrick.sqlexplorer.avro.TableReference.newTableReference("app", "customer"));
+        assertThat(snapshotted.schema().getCreateStatement(customer)).containsIgnoringCase("create table");
+    }
+}

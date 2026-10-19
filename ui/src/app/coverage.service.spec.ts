@@ -93,7 +93,8 @@ describe('coverage helpers', () => {
   describe('groupByCluster (sqlx-sqy.2)', () => {
     const named = (sourceRef: string): SourceCoverage => ({...source(null), sourceRef});
     const cluster = (name: string, servers: string[], extra: Partial<ClusterSchemaStatus> = {}): ClusterSchemaStatus =>
-      ({cluster: name, servers, schemaServer: servers[0], fallback: false, passedOver: [], failure: null, ...extra});
+      ({cluster: name, servers, schemaServer: servers[0], fallback: false, passedOver: [], failure: null,
+        current: true, fromSnapshot: false, readAt: null, ...extra});
 
     it('puts each source under the cluster holding its server, in cluster order, with the rest last', () => {
       const groups = groupByCluster({
@@ -112,6 +113,7 @@ describe('coverage helpers', () => {
       expect(showsClusterHeading(cluster('shard1', ['shard1', 'shard1-replica-a']))).toBeTrue();
       expect(showsClusterHeading(cluster('regression', ['regression']))).toBeFalse();
       expect(showsClusterHeading(cluster('global', ['global'], {failure: 'Access denied'}))).toBeTrue();
+      expect(showsClusterHeading(cluster('regression', ['regression'], {current: false}))).toBeTrue();
       expect(showsClusterHeading(null)).toBeFalse();
     });
   });

@@ -93,7 +93,8 @@ const COVERAGE = {
     }]
   }],
   clusters: [{
-    cluster: 'primary', servers: ['primary'], schemaServer: 'primary', fallback: false, passedOver: [], failure: null
+    cluster: 'primary', servers: ['primary'], schemaServer: 'primary', fallback: false, passedOver: [], failure: null,
+    current: true, fromSnapshot: false, readAt: '2026-08-30T12:00:00Z'
   }]
 };
 

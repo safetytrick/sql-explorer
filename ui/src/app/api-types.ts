@@ -380,4 +380,10 @@ export interface ClusterSchemaStatus {
   passedOver: string[];
   /** Why no server could supply it; null when one did. */
   failure: string | null;
+  /** Whether a server confirmed this is the schema it has now. False for a snapshot no reachable server vouched for. */
+  current: boolean;
+  /** Whether it came from the cluster's persisted snapshot rather than a full read. */
+  fromSnapshot: boolean;
+  /** When the schema was read from a server; null when it never was. */
+  readAt: string | null;
 }

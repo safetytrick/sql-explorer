@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
+import com.github.safetytrick.sqlexplorer.schema.SchemaSnapshot;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +77,8 @@ public class EnvironmentRegistry {
         Set<String> serverNames = new HashSet<>();
         for (Map.Entry<String, ServerDefinition> serverEntry : definition.getServers().entrySet()) {
             claim(name, serverNames, serverEntry.getKey());
-            clusters.add(Cluster.of(server(serverEntry.getKey(), serverEntry.getValue(), schemaRepositoryFactory)));
+            clusters.add(Cluster.of(server(serverEntry.getKey(), serverEntry.getValue(), schemaRepositoryFactory,
+                new SchemaSnapshot.Key(name, serverEntry.getKey()))));
         }
         for (Map.Entry<String, ClusterDefinition> clusterEntry : definition.getClusters().entrySet()) {
             String clusterName = clusterEntry.getKey();
@@ -84,8 +86,8 @@ public class EnvironmentRegistry {
             Map<String, DatabaseServer> servers = new LinkedHashMap<>();
             for (Map.Entry<String, ServerDefinition> serverEntry : cluster.getServers().entrySet()) {
                 claim(name, serverNames, serverEntry.getKey());
-                servers.put(serverEntry.getKey(),
-                    server(serverEntry.getKey(), serverEntry.getValue(), schemaRepositoryFactory));
+                servers.put(serverEntry.getKey(), server(serverEntry.getKey(), serverEntry.getValue(),
+                    schemaRepositoryFactory, new SchemaSnapshot.Key(name, clusterName)));
             }
             List<DatabaseServer> schemaFrom = new ArrayList<>();
             for (String serverName : cluster.getSchemaFrom()) {
@@ -109,11 +111,13 @@ public class EnvironmentRegistry {
         }
     }
 
+    /** @param snapshotKey the cluster the server's schema belongs to: snapshots are per cluster, not per server */
     private static DatabaseServer server(String name, ServerDefinition definition,
-                                         SchemaRepositoryFactory schemaRepositoryFactory) {
+                                         SchemaRepositoryFactory schemaRepositoryFactory,
+                                         SchemaSnapshot.Key snapshotKey) {
         ConnectionInfo connectionInfo = new ConnectionInfo(definition.getJdbcUrl(), definition.getUsername(),
             definition.getPassword());
-        return new DatabaseServer(name, connectionInfo, definition.getSources(), schemaRepositoryFactory);
+        return new DatabaseServer(name, connectionInfo, definition.getSources(), schemaRepositoryFactory, snapshotKey);
     }
 
     public Environment getDefault() {

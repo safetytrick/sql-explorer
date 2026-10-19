@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.schema.CompositeSchemaRepository;
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
-import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
+import com.github.safetytrick.sqlexplorer.schema.LoadedSchema;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,22 +19,27 @@ import static org.mockito.Mockito.when;
  */
 class UnreachableServerTest {
 
-    private static DatabaseServer readable(SqlSchemaRepository schema) {
+    private static SchemaRepositoryFactory.SchemaLoad load(LoadedSchema schema) {
+        return new SchemaRepositoryFactory.SchemaLoad(schema, null, false, true,
+            java.time.Instant.parse("2026-10-19T17:00:00Z"), null);
+    }
+
+    private static DatabaseServer readable(LoadedSchema schema) {
         DatabaseServer server = mock(DatabaseServer.class);
-        when(server.getSchemaRepository()).thenReturn(schema);
+        when(server.getSchemaLoad()).thenReturn(load(schema));
         return server;
     }
 
     private static DatabaseServer refusing() {
         DatabaseServer server = mock(DatabaseServer.class);
-        when(server.getSchemaRepository()).thenThrow(new IllegalStateException("Access denied"));
+        when(server.getSchemaLoad()).thenThrow(new IllegalStateException("Access denied"));
         return server;
     }
 
     @Test
     void theReadableServersMakeUpTheSchema() {
-        SqlSchemaRepository shard1 = mock(SqlSchemaRepository.class);
-        SqlSchemaRepository shard2 = mock(SqlSchemaRepository.class);
+        LoadedSchema shard1 = mock(LoadedSchema.class);
+        LoadedSchema shard2 = mock(LoadedSchema.class);
         Environment environment = new Environment("production",
             List.of(readable(shard1), refusing(), readable(shard2)));
 
@@ -44,7 +49,7 @@ class UnreachableServerTest {
     /** One left standing is returned as itself, as a single-server environment always was. */
     @Test
     void oneReadableServerIsTheSchema() {
-        SqlSchemaRepository shard1 = mock(SqlSchemaRepository.class);
+        LoadedSchema shard1 = mock(LoadedSchema.class);
         Environment environment = new Environment("production", List.of(readable(shard1), refusing()));
 
         assertThat(environment.schemaRepository()).isSameAs(shard1);

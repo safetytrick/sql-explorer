@@ -21,13 +21,18 @@
 
   @for (group of groups(); track group.cluster?.cluster ?? '') {
     @if (showsClusterHeading(group.cluster)) {
-      <div class="cluster-head" [class.impaired]="group.cluster!.fallback || group.cluster!.failure">
+      <div class="cluster-head"
+           [class.impaired]="group.cluster!.fallback || group.cluster!.failure || !group.cluster!.current">
         <span class="cluster-name">{{group.cluster!.cluster}}</span>
         <span class="cluster-servers">{{group.cluster!.servers.length}} servers</span>
         @if (group.cluster!.failure) {
           <span class="cluster-schema">schema could not be read from any of its servers: {{group.cluster!.failure}}</span>
+        } @else if (!group.cluster!.current) {
+          <span class="cluster-schema">no server reachable — showing the schema as read from
+            {{group.cluster!.schemaServer}} on {{group.cluster!.readAt | date: SEEN_FORMAT}}, which may have changed since</span>
         } @else {
-          <span class="cluster-schema">schema from {{group.cluster!.schemaServer}}@if (group.cluster!.fallback) {
+          <span class="cluster-schema">schema from {{group.cluster!.schemaServer}}@if (group.cluster!.fromSnapshot) {,
+            unchanged since {{group.cluster!.readAt | date: SEEN_FORMAT}}}@if (group.cluster!.fallback) {
             — a fallback; passed over {{group.cluster!.passedOver.join('; ')}}}</span>
         }
       </div>

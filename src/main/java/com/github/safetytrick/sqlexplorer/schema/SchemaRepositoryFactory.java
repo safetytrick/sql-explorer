@@ -5,13 +5,16 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ViewLineageResolver;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,17 +34,108 @@ public class SchemaRepositoryFactory {
     private final ForeignKeyLoadingService foreignKeyLoadingService;
     private final CreateStatementService createStatementService;
     private final ViewDefinitionService viewDefinitionService;
+    private final SchemaFingerprintService fingerprintService;
+    private final SchemaSnapshotStore snapshotStore;
 
+    /** Without snapshots: every load reads the server in full. */
     public SchemaRepositoryFactory(TableColumnService tableColumnService,
                                    IndexLoadingService indexLoadingService,
                                    ForeignKeyLoadingService foreignKeyLoadingService,
                                    CreateStatementService createStatementService,
                                    ViewDefinitionService viewDefinitionService) {
+        this(tableColumnService, indexLoadingService, foreignKeyLoadingService, createStatementService,
+            viewDefinitionService, null, null);
+    }
+
+    @Autowired
+    public SchemaRepositoryFactory(TableColumnService tableColumnService,
+                                   IndexLoadingService indexLoadingService,
+                                   ForeignKeyLoadingService foreignKeyLoadingService,
+                                   CreateStatementService createStatementService,
+                                   ViewDefinitionService viewDefinitionService,
+                                   SchemaFingerprintService fingerprintService,
+                                   SchemaSnapshotStore snapshotStore) {
         this.tableColumnService = tableColumnService;
         this.indexLoadingService = indexLoadingService;
         this.foreignKeyLoadingService = foreignKeyLoadingService;
         this.createStatementService = createStatementService;
         this.viewDefinitionService = viewDefinitionService;
+        this.fingerprintService = fingerprintService;
+        this.snapshotStore = snapshotStore;
+    }
+
+    /**
+     * A schema and how it was obtained.
+     *
+     * @param fingerprint  the server's fingerprint when it was loaded; null when
+     *                     snapshots are off, and then there is nothing to revalidate against
+     * @param fromSnapshot read from the cluster's snapshot rather than the server
+     * @param current      whether it is known to match the server now — false
+     *                     only for {@link #lastKnown}, which no server confirmed
+     * @param readAt       when the schema itself was read from a server
+     * @param readFrom     which server it was read from
+     */
+    public record SchemaLoad(LoadedSchema schema, SchemaFingerprint fingerprint, boolean fromSnapshot,
+                             boolean current, Instant readAt, String readFrom) { }
+
+    /**
+     * The cluster's schema as the server has it now: from the snapshot when the
+     * server's fingerprint still matches it, otherwise read in full and
+     * snapshotted (sqlx-sqy.4).
+     *
+     * <p>The fingerprint is taken before a full read, so a schema changing
+     * mid-read leaves the snapshot labelled with the older fingerprint — the
+     * next check sees the difference and reads again, rather than trusting it.
+     */
+    public SchemaLoad loadCurrent(DataSource dataSource, SchemaSnapshot.Key key, String server) {
+        if (snapshotStore == null || fingerprintService == null || key == null) {
+            return new SchemaLoad(load(dataSource), null, false, true, Instant.now(), server);
+        }
+        SchemaFingerprint fingerprint = fingerprintService.fingerprint(dataSource);
+        Optional<SchemaSnapshot> snapshot = snapshotStore.read(key);
+        if (snapshot.isPresent() && snapshot.get().fingerprint().equals(fingerprint)) {
+            log.info("Schema of {}/{} unchanged since {} (read from {}); using its snapshot",
+                key.environment(), key.cluster(), snapshot.get().readAt(), snapshot.get().server());
+            return new SchemaLoad(withCreateStatements(snapshot.get().tables(), dataSource), fingerprint, true, true,
+                snapshot.get().readAt(), snapshot.get().server());
+        }
+        log.info("Schema of {}/{} {}; reading it from {}", key.environment(), key.cluster(),
+            snapshot.isPresent() ? "changed since its snapshot" : "has no snapshot", server);
+        Instant readAt = Instant.now();
+        LoadedSchema schema = load(dataSource);
+        snapshotStore.write(new SchemaSnapshot(SchemaSnapshotStore.FORMAT, key.environment(), key.cluster(), server,
+            readAt, fingerprint, schema.getTables()));
+        return new SchemaLoad(schema, fingerprint, false, true, readAt, server);
+    }
+
+    /**
+     * The cluster's last snapshot, for when no server can be reached to confirm
+     * it. Not current — it may describe a schema since changed — so it serves
+     * what was already analysed and nothing new is analysed against it.
+     * {@code SHOW CREATE} is unavailable through it: there is no connection.
+     */
+    public Optional<SchemaLoad> lastKnown(SchemaSnapshot.Key key) {
+        if (snapshotStore == null || key == null) {
+            return Optional.empty();
+        }
+        return snapshotStore.read(key).map(snapshot -> new SchemaLoad(new LoadedSchema(snapshot.tables()),
+            snapshot.fingerprint(), true, false, snapshot.readAt(), snapshot.server()));
+    }
+
+    /** Whether the server's schema still matches the one loaded; any failure to tell is a no. */
+    public boolean stillCurrent(DataSource dataSource, SchemaFingerprint loaded) {
+        if (fingerprintService == null || loaded == null) {
+            return false;
+        }
+        try {
+            return fingerprintService.fingerprint(dataSource).equals(loaded);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private LoadedSchema withCreateStatements(List<TableStructure> tables, DataSource dataSource) {
+        return new LoadedSchema(tables, table -> createStatementService.loadCreateStatement(dataSource, table));
     }
 
     /*
@@ -89,8 +183,7 @@ public class SchemaRepositoryFactory {
 
         // The create statement is loaded lazily and cached by LoadedSchema;
         // running `show create table` per table here is slow and only needed on demand.
-        return new LoadedSchema(tableStructures,
-            table -> createStatementService.loadCreateStatement(dataSource, table));
+        return withCreateStatements(tableStructures, dataSource);
     }
 
     /**

@@ -4,6 +4,7 @@ import javax.sql.DataSource;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
+import com.github.safetytrick.sqlexplorer.schema.SchemaSnapshot;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -24,9 +25,11 @@ public final class DatabaseServer implements AutoCloseable {
     private final ConnectionInfo connectionInfo;
     private final List<SourceDefinition> sourceDefinitions;
     private final SchemaRepositoryFactory schemaRepositoryFactory;
+    /** The cluster whose schema snapshot this server reads and writes; null for no snapshots. */
+    private final SchemaSnapshot.Key snapshotKey;
 
     private HikariDataSource dataSource;
-    private SqlSchemaRepository schemaRepository;
+    private SchemaRepositoryFactory.SchemaLoad schemaLoad;
     /**
      * Why the last schema load failed, kept so the next caller gets the same
      * answer at once. Without it every request touching the environment's
@@ -38,10 +41,17 @@ public final class DatabaseServer implements AutoCloseable {
 
     public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
                           SchemaRepositoryFactory schemaRepositoryFactory) {
+        this(name, connectionInfo, sourceDefinitions, schemaRepositoryFactory, null);
+    }
+
+    /** @param snapshotKey the cluster this server belongs to, whose schema snapshot it shares */
+    public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
+                          SchemaRepositoryFactory schemaRepositoryFactory, SchemaSnapshot.Key snapshotKey) {
         this.name = name;
         this.connectionInfo = connectionInfo;
         this.sourceDefinitions = List.copyOf(sourceDefinitions);
         this.schemaRepositoryFactory = schemaRepositoryFactory;
+        this.snapshotKey = snapshotKey;
     }
 
     public String getName() {
@@ -73,12 +83,20 @@ public final class DatabaseServer implements AutoCloseable {
     }
 
     public synchronized SqlSchemaRepository getSchemaRepository() {
+        return getSchemaLoad().schema();
+    }
+
+    /**
+     * The schema and how it was obtained — from the cluster's snapshot when the
+     * server's fingerprint still matches it, or read in full (sqlx-sqy.4).
+     */
+    public synchronized SchemaRepositoryFactory.SchemaLoad getSchemaLoad() {
         if (schemaFailure != null) {
             throw schemaFailure;
         }
-        if (schemaRepository == null) {
+        if (schemaLoad == null) {
             try {
-                schemaRepository = schemaRepositoryFactory.load(getDataSource());
+                schemaLoad = schemaRepositoryFactory.loadCurrent(getDataSource(), snapshotKey, name);
             } catch (RuntimeException e) {
                 // Logged here, once, rather than by every caller that meets the
                 // remembered failure afterwards.
@@ -87,7 +105,38 @@ public final class DatabaseServer implements AutoCloseable {
                 throw e;
             }
         }
-        return schemaRepository;
+        return schemaLoad;
+    }
+
+    /**
+     * The cluster's last snapshot, with no connection to this server — for
+     * when no server of the cluster can be reached. Not current.
+     */
+    public java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnownSchema() {
+        return schemaRepositoryFactory.lastKnown(snapshotKey);
+    }
+
+    /**
+     * Before a load or pull: keep the schema in memory if the server's
+     * fingerprint still matches it, otherwise drop it so the next access reads
+     * it again — from the snapshot or the server, whichever is current. A
+     * failure remembered from last time is forgotten either way, so a server
+     * that has come back is tried.
+     */
+    public synchronized void revalidateSchema() {
+        schemaFailure = null;
+        if (schemaLoad == null) {
+            return;
+        }
+        boolean current;
+        try {
+            current = schemaRepositoryFactory.stillCurrent(getDataSource(), schemaLoad.fingerprint());
+        } catch (RuntimeException e) {
+            current = false;    // a pool that cannot start cannot vouch for anything
+        }
+        if (!current) {
+            schemaLoad = null;
+        }
     }
 
     /** Let the next schema access try this server again, after a failed load. */
@@ -97,18 +146,18 @@ public final class DatabaseServer implements AutoCloseable {
 
     /** Whether the schema has been loaded, without triggering a load. */
     public synchronized boolean isSchemaLoaded() {
-        return schemaRepository != null;
+        return schemaLoad != null;
     }
 
     /** Drop the cached schema so the next access reloads it from the server (the pool is kept). */
     public synchronized void refreshSchema() {
-        schemaRepository = null;
+        schemaLoad = null;
         schemaFailure = null;
     }
 
     @Override
     public synchronized void close() {
-        schemaRepository = null;
+        schemaLoad = null;
         schemaFailure = null;
         if (dataSource != null) {
             dataSource.close();

@@ -108,5 +108,5 @@ export function groupByCluster(report: CoverageReport | null): SourceGroup[] {
 
 /** Whether a cluster earns a heading: more than one server, or a schema that did not come from its first choice. */
 export function showsClusterHeading(cluster: ClusterSchemaStatus | null): boolean {
-  return !!cluster && (cluster.servers.length > 1 || cluster.fallback || cluster.failure !== null);
+  return !!cluster && (cluster.servers.length > 1 || cluster.fallback || cluster.failure !== null || !cluster.current);
 }

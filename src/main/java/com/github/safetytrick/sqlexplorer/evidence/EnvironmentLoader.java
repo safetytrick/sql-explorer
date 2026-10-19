@@ -115,9 +115,11 @@ public class EnvironmentLoader {
         analysisFailureRecorder.clear();
         // A load is a fresh attempt at every server, including one whose schema
         // could not be read last time: it may have been fixed since (sqlx-jdf).
+        // A schema already in memory is kept only if the server's fingerprint
+        // still matches it — a cheap check, where reloading was not (sqlx-sqy.4).
         Environment environment = environmentRegistry.get(environmentName);
         if (environment != null) {
-            environment.forgetSchemaFailures();
+            environment.revalidateSchemas();
         }
         List<SqlSource> sources = buildConfiguredSources(environmentName);
         List<SqlSource> all = Stream.concat(sources.stream(), extraSources).toList();

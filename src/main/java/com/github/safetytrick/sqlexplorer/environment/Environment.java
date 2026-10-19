@@ -111,10 +111,10 @@ public final class Environment implements AutoCloseable {
             try {
                 Cluster.SchemaSource source = cluster.readSchema();
                 status.add(new ClusterSchemaStatus(cluster.name(), servers, source.server(), source.fallback(),
-                    source.passedOver(), null));
+                    source.passedOver(), null, source.current(), source.fromSnapshot(), source.readAt()));
             } catch (RuntimeException e) {
                 status.add(new ClusterSchemaStatus(cluster.name(), servers, null, false, List.of(),
-                    e.getMessage()));
+                    e.getMessage(), false, false, null));
             }
         }
         return List.copyOf(status);
@@ -125,9 +125,18 @@ public final class Environment implements AutoCloseable {
      * @param fallback     whether that server was not the cluster's first choice
      * @param passedOver   the servers tried before it, each with why it was passed over
      * @param failure      why no server could supply it; null when one did
+     * @param current      whether a server confirmed the schema is the one it has now
+     * @param fromSnapshot whether it came from the cluster's persisted snapshot
+     * @param readAt       when the schema was read from a server; null when it never was
      */
     public record ClusterSchemaStatus(String cluster, List<String> servers, String schemaServer, boolean fallback,
-                                      List<String> passedOver, String failure) { }
+                                      List<String> passedOver, String failure, boolean current,
+                                      boolean fromSnapshot, java.time.Instant readAt) { }
+
+    /** Before a load or pull: keep each server's schema only if its fingerprint still matches (sqlx-sqy.4). */
+    public void revalidateSchemas() {
+        servers.forEach(DatabaseServer::revalidateSchema);
+    }
 
     /** Let every server whose schema failed to load be tried again on next use. */
     public void forgetSchemaFailures() {
