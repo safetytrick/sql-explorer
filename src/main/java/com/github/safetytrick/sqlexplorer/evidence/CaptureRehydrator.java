@@ -25,11 +25,14 @@ import org.springframework.stereotype.Service;
  * the capture was written by this same process from a live read, so it is
  * exactly what heap held.
  *
- * <p>It is NOT a substitute for the startup read. Performance Schema
- * accumulates until the server resets, so a live read is always at least as
- * complete as any capture taken earlier; booting from a capture would silently
- * narrow the observed window and weaken every claim {@code /coverage} makes
- * about it. Startup stays live (sqlx-4ww).
+ * <p>It is NOT a substitute for the startup read, but it now goes first.
+ * Performance Schema accumulates until the server resets, so a live read is
+ * always at least as complete as any capture taken earlier. sqlx-4ww kept
+ * startup live for that reason, at the cost of answering nothing until every
+ * server had been read — minutes, once a production environment had 19 of
+ * them. Startup now serves captures at once and runs the live read behind them
+ * (sqlx-sqy.6): the window is narrowed only until that read lands, and each
+ * source's {@code capturedAt} on {@code /coverage} says how old it is meanwhile.
  *
  * <p>ONE CAPTURE, NEVER SEVERAL. Consecutive captures of a source are
  * overlapping snapshots of cumulative counters, so reading two and merging

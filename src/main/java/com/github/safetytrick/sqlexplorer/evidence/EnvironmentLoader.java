@@ -14,6 +14,8 @@ import com.github.safetytrick.sqlexplorer.environment.SourceDefinition;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceFactory;
 import jakarta.annotation.PostConstruct;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import com.github.safetytrick.sqlexplorer.analysis.AnalysisFailureRecorder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +50,10 @@ public class EnvironmentLoader {
     }
 
     /**
-     * Load every configured environment, default first.
+     * Load every configured environment live, default first. Runs on the
+     * {@code startup-live-pull} thread once the application is answering
+     * ({@link #pullLiveOnceReady}); until it lands, pages are served from
+     * captures ({@link #serveCapturesAtStartup}, sqlx-sqy.6).
      *
      * <p>WHY ALL OF THEM. Only the default used to load, so a non-default
      * environment read as an EMPTY CORPUS after every restart — not as
@@ -78,16 +83,8 @@ public class EnvironmentLoader {
      * reports which environment it could not read is strictly more useful than
      * one that does not boot at all.
      */
-    @PostConstruct
     void loadConfiguredSourcesAtStartup() {
-        List<String> names = new ArrayList<>();
-        names.add(environmentRegistry.getDefaultName());
-        environmentRegistry.list().stream()
-            .map(Environment::getName)
-            .filter(name -> !names.contains(name))
-            .forEach(names::add);
-
-        for (String name : names) {
+        for (String name : startupOrder()) {
             try {
                 loadConfiguredSources(name);
             } catch (RuntimeException e) {
@@ -95,6 +92,58 @@ public class EnvironmentLoader {
                     + "something pulls it: {}", name, e.toString());
             }
         }
+    }
+
+    /**
+     * Before serving anything: every environment from what its sources last
+     * captured, so the first page answers at once (sqlx-sqy.6).
+     *
+     * <p>Seconds rather than minutes — a capture reads back in a fraction of a
+     * re-import, and nothing is parsed or connected to. The live read still
+     * happens, in {@link #pullLiveOnceReady}; this only stops it from holding
+     * startup hostage. A production environment whose live pull reads 19
+     * servers' schemas and digest tables took minutes before the application
+     * would answer anything, though most of what it produced was already on
+     * disk.
+     */
+    @PostConstruct
+    void serveCapturesAtStartup() {
+        for (String name : startupOrder()) {
+            try {
+                List<String> sourceRefs = buildConfiguredSources(name).stream().map(SqlSource::getSourceRef).toList();
+                if (!sourceRefs.isEmpty()) {
+                    sqlRepositoryManager.serveFromCaptures(name, sourceRefs);
+                }
+            } catch (RuntimeException e) {
+                log.warn("Could not serve environment {} from its captures; it waits for its live pull: {}",
+                    name, e.toString());
+            }
+        }
+    }
+
+    /**
+     * The live read of every environment, once the application is answering —
+     * on its own thread, so a slow or unreachable server delays fresh data,
+     * never the pages built from captures (sqlx-sqy.6). A daemon thread: an
+     * interrupted startup pull is just a pull that did not happen, and must not
+     * hold the JVM open at shutdown.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void pullLiveOnceReady() {
+        Thread pull = new Thread(this::loadConfiguredSourcesAtStartup, "startup-live-pull");
+        pull.setDaemon(true);
+        pull.start();
+    }
+
+    /** Default first: the one most likely to be opened, and load order decides what the resident cap keeps. */
+    private List<String> startupOrder() {
+        List<String> names = new ArrayList<>();
+        names.add(environmentRegistry.getDefaultName());
+        environmentRegistry.list().stream()
+            .map(Environment::getName)
+            .filter(name -> !names.contains(name))
+            .forEach(names::add);
+        return names;
     }
 
     /** Build every configured source for the named environment and load them together. */

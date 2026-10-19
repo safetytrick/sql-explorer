@@ -238,9 +238,9 @@ public class SqlRepositoryManager {
      *
      * <p>For coming back to an environment that was dropped from heap: the
      * captures were written by this process from a live read, so they are what
-     * heap held, and reading them costs a fraction of a re-import. Startup does
-     * NOT use this — Performance Schema accumulates, so a live read is always
-     * at least as complete as an earlier capture (sqlx-4ww).
+     * heap held, and reading them costs a fraction of a re-import. Startup
+     * uses {@link #serveFromCaptures} instead, which tolerates a source with no
+     * capture (sqlx-sqy.6).
      *
      * <p>All or nothing. A source whose capture is missing, unreadable, or
      * written by a different normalizer cannot be rebuilt, and a partially
@@ -306,6 +306,51 @@ public class SqlRepositoryManager {
             }
         }
         return index.build();
+    }
+
+    /**
+     * At startup, before the live read: serve an environment from whatever its
+     * sources last captured, so pages answer at once instead of after a pull
+     * that can take minutes (sqlx-sqy.6).
+     *
+     * <p>Unlike {@link #rehydrate}, not all or nothing. A production
+     * environment routinely has a source that has never been captured — a
+     * server the reading user cannot reach yet — and all-or-nothing would serve
+     * nothing at all. Each source without a usable capture is instead recorded
+     * as left out, exactly as an unreachable source is on a live load, so
+     * {@code /coverage} lists it rather than the corpus quietly missing it.
+     *
+     * <p>This narrows nothing for long: the live pull that follows replaces it
+     * with a full read. Until then each source's {@code capturedAt} on
+     * {@code /coverage} says how old what is shown is.
+     *
+     * @return how many sources were served from a capture; 0 leaves the
+     *         environment unloaded, as it was
+     */
+    public int serveFromCaptures(String environmentName, List<String> sourceRefs) {
+        List<SqlRepository> repositories = new java.util.ArrayList<>();
+        List<SourceFailure> missing = new java.util.ArrayList<>();
+        for (String sourceRef : sourceRefs) {
+            SqlRepository repository = captureRehydrator.rehydrate(sourceRef);
+            if (repository == null) {
+                missing.add(new SourceFailure(sourceRef,
+                    "no usable capture yet; it is read live by the pull that follows startup"));
+            } else {
+                repositories.add(repository);
+            }
+        }
+        if (repositories.isEmpty()) {
+            return 0;
+        }
+        byEnvironment.put(environmentName, new EnvironmentRepositories(List.copyOf(repositories),
+            new CompositeSqlRepository(repositories), clock.instant()));
+        failedSources.put(environmentName, List.copyOf(missing));
+        lastAccess.put(environmentName, clock.instant());
+        evicted.remove(environmentName);
+        evictDownTo(environmentName);
+        log.info("Serving environment {} from {} capture(s) until its live pull completes; {} without one",
+            environmentName, repositories.size(), missing.size());
+        return repositories.size();
     }
 
     /**

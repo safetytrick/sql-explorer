@@ -195,6 +195,12 @@ snapshot serves what was already analysed, marked stale on the Captured page.
 Statements never analysed before then **wait**, counted as pending, rather than
 being analysed against a schema that may have changed.
 
+**Startup serves before it reads.** Every environment is rebuilt from its
+latest captures first, which took 6s for a 17-server production environment
+against about 300s for a live read. The live pull then runs in the background
+and replaces them. Until it lands, each source's capture time on the Captured
+page says how old the data is.
+
 ---
 
 ## Sources: the three shapes
