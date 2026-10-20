@@ -17,7 +17,7 @@ import {parseColumnRef, parseTableRef} from '../refs';
 import {QueryHit, QuerySearchService} from '../query-search.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {tableKey} from '../query-scope.service';
-import {buildSearchRequest, decodeSearchParams, encodeSearchParams, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
+import {buildSearchRequest, decodeSearchParams, encodeSearchParams, SearchUrlState, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {SqlSummaryComponent} from '../sql-summary/sql-summary.component';
 import {tableTarget} from '../tag-path';
 
@@ -134,10 +134,9 @@ export class TableLensComponent implements OnInit {
   private runQuerySearch() {
     if (!this.schema || !this.table) { return; }
     const state = decodeSearchParams(this.route.snapshot.queryParamMap);
-    const tables = state.scope.tables.length ? state.scope.tables : [this.selfKey()];
     this.queriesLoading = true;
     this.querySearchService.search(buildSearchRequest(
-      { ...state, scope: { schemas: [], tables, tableMode: this.joinWith ? 'ALL' : 'ANY' } },
+      { ...state, scope: this.queryScope() },
       UNCONSTRAINED_TAG_SCOPE,
       { limit: QUERY_PAGE_SIZE, offset: 0 })).subscribe({
         next: result => {
@@ -147,6 +146,21 @@ export class TableLensComponent implements OnInit {
         },
         error: () => { this.queries = []; this.queryTotal = 0; this.queriesLoading = false; }
       });
+  }
+
+  /**
+   * The tables the Queries card searches: always this table, and with a join
+   * drill-down the other table too, both required.
+   *
+   * <p>Built from the page's own table rather than taken from `?tables=`.
+   * That param travels between pages (scope-url.ts), so it can arrive naming
+   * only some other table; searched as-is, "joined with jobs" listed every
+   * query on jobs, including ones that never touch this table.
+   */
+  private queryScope(): SearchUrlState['scope'] {
+    return this.joinWith
+      ? { schemas: [], tables: [this.selfKey(), this.joinWith], tableMode: 'ALL' }
+      : { schemas: [], tables: [this.selfKey()], tableMode: 'ANY' };
   }
 
   /** Merge a patch into the URL without a history entry (the workbench pattern). */
@@ -214,11 +228,7 @@ export class TableLensComponent implements OnInit {
    */
   workbenchParams(): Record<string, string> {
     const state = decodeSearchParams(this.route.snapshot.queryParamMap);
-    const tables = state.scope.tables.length ? state.scope.tables : [this.selfKey()];
-    return encodeSearchParams({
-      ...state,
-      scope: { schemas: [], tables, tableMode: this.joinWith ? 'ALL' : 'ANY' }
-    });
+    return encodeSearchParams({ ...state, scope: this.queryScope() });
   }
 
   /** Legacy parity: the CREATE TABLE statement, fetched on first open. */

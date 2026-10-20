@@ -55,6 +55,22 @@ describe('TableLensComponent drill-downs', () => {
     expect(component.joinWith).toBe('app_other.groups');
   });
 
+  /**
+   * `?tables=` travels between pages, so it can arrive naming only another
+   * table. The join is still this table's: the search must require both.
+   */
+  it('searches this table together with a join table the URL names alone', async () => {
+    const harness = await RouterTestingHarness.create('/table/app_other/user_profile?tables=app_other.groups');
+    const component: TableLensComponent = harness.routeDebugElement!.componentInstance;
+    const http = TestBed.inject(HttpTestingController);
+    const search = http.expectOne(request => request.url.endsWith('queries/search'));
+
+    expect(component.joinWith).toBe('app_other.groups');
+    expect(search.request.body.tables).toEqual(['app_other.user_profile', 'app_other.groups']);
+    expect(search.request.body.tableMode).toBe('ALL');
+    expect(component.workbenchParams()['tables']).toBe('app_other.user_profile,app_other.groups');
+  });
+
   it('restores expanded relationship cards from the presentation params', async () => {
     const component = await open('/table/app_other/user_profile?var-fk=1&var-co=1');
 
