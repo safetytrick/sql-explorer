@@ -41,6 +41,7 @@ export interface QuerySearchRequest {
   tableMode?: TableMode | null;
   excludeTables?: string[] | null; // normalized "schema.table" keys, dropped from results
   columns?: string[] | null;       // "schema.table.column"; kept if the column joins or filters
+  indexes?: string[] | null;       // "schema.table.index"; kept if an index hint names it
   fullScan?: Flag | null;
   tmpTable?: Flag | null;
   tmpDisk?: Flag | null;

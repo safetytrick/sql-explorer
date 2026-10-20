@@ -378,3 +378,45 @@ describe('search-url: hasExamples', () => {
       .hasExamples).toBeTrue();
   });
 });
+
+/** The index twin of the column drill-down (sqlx-yj0). */
+describe('index drill-down param', () => {
+
+  const params = (record: Record<string, string>) => ({
+    get: (name: string) => (name in record ? record[name] : null),
+    has: (name: string) => name in record
+  });
+
+  it('round-trips and reaches the request', () => {
+    const state = defaultSearchState();
+    state.indexes = ['app.orders.orders_status_idx'];
+
+    const encoded = encodeSearchParams(state);
+    expect(encoded['indexes']).toBe('app.orders.orders_status_idx');
+
+    const decoded = decodeSearchParams(params(encoded));
+    expect(decoded.indexes).toEqual(['app.orders.orders_status_idx']);
+    expect(buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).indexes)
+      .toEqual(['app.orders.orders_status_idx']);
+  });
+
+  it('is omitted when unset, so an untouched view keeps a clean URL', () => {
+    expect(encodeSearchParams(defaultSearchState())['indexes']).toBeUndefined();
+    expect(buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).indexes)
+      .toBeNull();
+  });
+
+  it('travels alongside the table scope and a column drill-down', () => {
+    const state = defaultSearchState();
+    state.indexes = ['app.orders.PRIMARY'];
+    state.columns = ['app.orders.status'];
+    state.scope = { schemas: [], tables: ['app.orders'], tableMode: 'ANY' };
+
+    const request = buildSearchRequest(decodeSearchParams(params(encodeSearchParams(state))),
+      UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 });
+
+    expect(request.tables).toEqual(['app.orders']);
+    expect(request.columns).toEqual(['app.orders.status']);
+    expect(request.indexes).toEqual(['app.orders.PRIMARY']);
+  });
+});

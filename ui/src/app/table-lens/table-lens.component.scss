@@ -161,6 +161,10 @@ td.lineage {
   &.rp-criteria { background: var(--teal-dim); color: var(--teal); }
   &.rp-select   { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
   &.rp-groupby  { background: var(--purple-dim); color: var(--purple); }
+  // index hint actions (sqlx-yj0): FORCE overrides the optimizer, so it is the loud one
+  &.rp-force    { background: var(--amber-dim); color: var(--amber); }
+  &.rp-use      { background: var(--blue-dim); color: var(--blue); }
+  &.rp-ignore   { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
 }
 
 .tri-btn {
@@ -185,6 +189,16 @@ td.lineage {
   &:last-child { border-bottom: none; }
 
   .index-head { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
+  .index-queries { margin-left: auto; font-size: 10px; color: var(--text2); }
+  .index-hints { margin-top: 3px; }
+  .warn-note { font-size: 10px; color: var(--amber); }
+
+  // same drill affordance as a column row
+  &.drillable {
+    cursor: pointer;
+    &:hover { background: var(--bg3); }
+  }
+  &.on { background: var(--bg3); box-shadow: inset 2px 0 0 var(--blue); }
 }
 
 .tags-body { padding: 8px 10px; }

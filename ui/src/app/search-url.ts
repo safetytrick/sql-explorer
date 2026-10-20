@@ -65,6 +65,12 @@ export interface SearchUrlState {
    * link opens in the workbench unchanged.
    */
   columns: ColumnRef[];
+  /**
+   * `schema.table.index` references; a query kept if its index hints name any
+   * of them, whatever the action (USE / FORCE / IGNORE). The table lens's
+   * index drill-down writes this — the index twin of `columns` (sqlx-yj0).
+   */
+  indexes: string[];
 }
 
 /** Minimal read surface of Angular's ParamMap, so specs need no router. */
@@ -90,7 +96,8 @@ export function defaultSearchState(): SearchUrlState {
     sort: 'IMPACT',
     scope: { schemas: [], tables: [], tableMode: 'ANY' },
     schemaTagFilter: { includeTags: [], excludeTags: [], tagMode: 'ANY' },
-    columns: []
+    columns: [],
+    indexes: []
   };
 }
 
@@ -136,6 +143,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
     if (value !== null) { params[key] = value; }
   }
   if (state.columns.length) { params['columns'] = state.columns.join(','); }
+  if (state.indexes.length) { params['indexes'] = state.indexes.join(','); }
   return params;
 }
 
@@ -181,7 +189,8 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
       tableMode: (params.get('tableMode') as TableMode) || 'ANY'
     },
     schemaTagFilter: decodeScopeTags(params),
-    columns: csv('columns')
+    columns: csv('columns'),
+    indexes: csv('indexes')
   };
 }
 
@@ -280,6 +289,7 @@ export function buildSearchRequest(state: SearchUrlState,
     tables: state.scope.tables.length ? state.scope.tables : null,
     tableMode: state.scope.tableMode,
     columns: state.columns.length ? state.columns : null,
+    indexes: state.indexes.length ? state.indexes : null,
     fullScan: flag(state.fullScan),
     tmpTable: flag(state.tmpTable),
     tmpDisk: flag(state.tmpDisk),

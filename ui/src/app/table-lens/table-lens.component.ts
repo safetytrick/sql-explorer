@@ -6,8 +6,8 @@ import {
   ColumnUsage,
   CoQueriedTable,
   ForeignKeyDetail,
+  IndexUsage,
   SchemaLensService,
-  TableIndex,
   TableStats,
   ViewColumnMeta
 } from '../schema-lens.service';
@@ -40,7 +40,8 @@ export class TableLensComponent implements OnInit {
   columns: ColumnUsage[] = [];
   coQueried: CoQueriedTable[] = [];
   foreignKeys: ForeignKeyDetail[] = [];
-  indexes: TableIndex[] = [];
+  /** The table's indexes, with how queries hint each, then hinted ones it lacks. */
+  indexUsage: IndexUsage[] = [];
   isView = false;
 
   // ── does this table exist? ──
@@ -70,6 +71,8 @@ export class TableLensComponent implements OnInit {
   queriesLoading = false;
   /** Drill-down: only queries this column joins on or filters by. */
   drillColumn: string | null = null;
+  /** Drill-down: only queries whose index hints name this index (`?indexes=`). */
+  drillIndex: string | null = null;
   /** Drill-down: only queries touching this table as well as the current one. */
   joinWith: string | null = null;
 
@@ -114,6 +117,7 @@ export class TableLensComponent implements OnInit {
     this.route.queryParamMap.subscribe(params => {
       const state = decodeSearchParams(params);
       this.drillColumn = state.columns[0] ?? null;
+      this.drillIndex = state.indexes[0] ?? null;
       this.joinWith = state.scope.tables.find(key => key !== this.selfKey()) ?? null;
       this.fkOpen = params.get('var-fk') === '1';
       this.coOpen = params.get('var-co') === '1';
@@ -166,6 +170,27 @@ export class TableLensComponent implements OnInit {
     this.patchUrl({ columns: this.drillColumn === reference ? null : reference });
   }
 
+  /** Only an index some query hints has queries to show. */
+  isIndexDrillable(index: IndexUsage): boolean {
+    return index.queries > 0;
+  }
+
+  indexReference(index: IndexUsage): string {
+    return `${this.selfKey()}.${index.name}`;
+  }
+
+  drillIntoIndex(index: IndexUsage) {
+    if (!this.isIndexDrillable(index)) { return; }
+    const reference = this.indexReference(index);
+    this.patchUrl({ indexes: this.drillIndex === reference ? null : reference });
+  }
+
+  /** The active index drill-down names a hinted index this table does not have. */
+  drillIndexMissing(): boolean {
+    return !!this.drillIndex && this.indexUsage.some(index =>
+      !index.exists && this.indexReference(index) === this.drillIndex);
+  }
+
   drillIntoJoin(otherSchema: string, otherTable: string) {
     const other = tableKey(otherSchema, otherTable);
     const active = this.joinWith === other;
@@ -176,7 +201,7 @@ export class TableLensComponent implements OnInit {
   }
 
   clearDrillDown() {
-    this.patchUrl({ columns: null, tables: null, tableMode: null });
+    this.patchUrl({ columns: null, indexes: null, tables: null, tableMode: null });
   }
 
   toggleFk() { this.patchUrl({ 'var-fk': this.fkOpen ? null : '1' }); }
@@ -213,7 +238,7 @@ export class TableLensComponent implements OnInit {
     this.columns = [];
     this.coQueried = [];
     this.foreignKeys = [];
-    this.indexes = [];
+    this.indexUsage = [];
     this.isView = false;
     this.underlyingTables = [];
     this.viewLineage = new Map();
@@ -228,6 +253,10 @@ export class TableLensComponent implements OnInit {
       error: () => { this.stats = null; }
     });
     this.schemaLensService.getTableColumns(this.schema, this.table).subscribe(columns => this.columns = columns);
+    this.schemaLensService.getTableIndexes(this.schema, this.table).subscribe({
+      next: indexes => this.indexUsage = indexes || [],
+      error: () => { this.indexUsage = []; }
+    });
     this.schemaLensService.getCoQueried(this.schema, this.table).subscribe(coQueried => this.coQueried = coQueried);
     this.schemaLensService.getForeignKeys(this.schema, this.table).subscribe(fks => this.foreignKeys = fks);
     this.schemaLensService.getTableStructure(this.schema, this.table)
@@ -235,7 +264,6 @@ export class TableLensComponent implements OnInit {
         next: structure => {
           this.structureResolved = true;
           this.knownToSchema = !!structure;
-          this.indexes = structure?.indices || [];
           this.isView = structure?.type?.toUpperCase() === 'VIEW';
           // refs arrive as "schema.table" strings; the old object-shaped filter
           // read undefined on both fields and dropped every one of them

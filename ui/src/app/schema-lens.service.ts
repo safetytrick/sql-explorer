@@ -64,6 +64,23 @@ export interface ColumnUsage {
   queries: number;
 }
 
+/**
+ * One index and how queries hint it (`GET /table/{s}/{t}/indexes`). `hints`
+ * holds the lower-cased actions — `force`, `ignore`, `use` — and `queries` the
+ * distinct queries naming the index in any of them. `exists: false` is an
+ * index a query hints that the table does not have: MySQL rejects such a
+ * statement (error 1176), so those queries are failing (sqlx-yj0).
+ */
+export interface IndexUsage {
+  name: string;
+  primary: boolean;
+  unique: boolean;
+  columns: string[];
+  exists: boolean;
+  hints: string[];
+  queries: number;
+}
+
 export interface CoQueriedTable {
   schema: string;
   table: string;
@@ -198,6 +215,10 @@ export class SchemaLensService {
 
   getTableColumns(schema: string, name: string): Observable<ColumnUsage[]> {
     return this.http.get<ColumnUsage[]>(`${endpoint}table/${schema}/${name}/columns`);
+  }
+
+  getTableIndexes(schema: string, name: string): Observable<IndexUsage[]> {
+    return this.http.get<IndexUsage[]>(`${endpoint}table/${schema}/${name}/indexes`);
   }
 
   getCoQueried(schema: string, name: string): Observable<CoQueriedTable[]> {

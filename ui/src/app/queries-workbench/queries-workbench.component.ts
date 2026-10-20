@@ -90,6 +90,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
    * a shared search on the first filter change.
    */
   columns: string[] = [];
+  /** Index drill-down from a table-lens link; carried for the same reason as `columns`. */
+  indexes: string[] = [];
 
   // ── results ──
   hits: QueryHit[] = [];
@@ -230,6 +232,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       failureKind: this.failureKind,
       sort: this.sort,
       columns: this.columns,
+      indexes: this.indexes,
       scope: this.queryScopeService.scope,
       schemaTagFilter: this.queryScopeService.schemaTagFilter
     };
@@ -624,6 +627,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.failureKind = state.failureKind;
     this.sort = state.sort;
     this.columns = state.columns;
+    this.indexes = state.indexes;
     this.expanded = new Set(decodeWorkbenchParams(this.route.snapshot.queryParamMap).expanded);
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically

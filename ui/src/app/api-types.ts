@@ -101,6 +101,22 @@ export interface SqlProfile {
    * the app's normalized digest.
    */
   perfDigests: string[] | null;
+  /**
+   * Indexes the statement names in index hints, one per name (sqlx-yj0).
+   * Nullable like `selectColumns`: defence, not the wire — and absent from a
+   * backend older than the field.
+   */
+  indexHints?: IndexHint[] | null;
+}
+
+/** One index named by a MySQL index hint on one table. */
+export interface IndexHint {
+  table: TableRef;
+  /** As the statement wrote it. */
+  index: string;
+  /** Unquoted and lower-cased, as MySQL compares index names. */
+  normalizedIndex: string;
+  action: 'USE' | 'FORCE' | 'IGNORE';
 }
 
 /** A block the normalizer collapsed: [start, end) in query text, seen count times. */

@@ -1,10 +1,10 @@
 import {TestBed} from '@angular/core/testing';
-import {provideRouter} from '@angular/router';
+import {provideRouter, Router} from '@angular/router';
 import {RouterTestingHarness} from '@angular/router/testing';
 import {HttpTestingController} from '@angular/common/http/testing';
 import {TableLensComponent} from './table-lens.component';
 import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
-import {ColumnUsage, TableMeta, TableStats} from '../schema-lens.service';
+import {ColumnUsage, IndexUsage, TableMeta, TableStats} from '../schema-lens.service';
 import {QueryHit} from '../query-search.service';
 
 /**
@@ -386,5 +386,121 @@ describe('TableLensComponent — column comments', () => {
     const lens = lensWith([{columnName: 'id', remarks: 'surrogate key'}]);
 
     expect(lens.commentFor(usage('member_id'))).toBeNull();
+  });
+});
+
+/**
+ * The Indexes card carries hint usage: the actions naming each index, the
+ * distinct queries doing so, a drill-down into them, and hinted indexes the
+ * table does not have — statements MySQL rejects (sqlx-yj0).
+ */
+describe('TableLensComponent — index hints', () => {
+
+  const USAGE: IndexUsage[] = [
+    { name: 'PRIMARY', primary: true, unique: true, columns: ['id'], exists: true, hints: ['ignore'], queries: 1 },
+    { name: 'orders_status_idx', primary: false, unique: false, columns: ['status', 'created_at'], exists: true,
+      hints: ['force', 'use'], queries: 4 },
+    { name: 'orders_quiet_idx', primary: false, unique: false, columns: ['note'], exists: true, hints: [], queries: 0 },
+    { name: 'orders_gone_idx', primary: false, unique: false, columns: [], exists: false, hints: ['force'], queries: 2 }
+  ];
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        ...COMMON_TEST_PROVIDERS,
+        provideRouter([{ path: 'table/:schema/:name', component: TableLensComponent }])
+      ]
+    });
+  });
+
+  async function open(url: string, usage: IndexUsage[] | 'fail' = USAGE) {
+    const harness = await RouterTestingHarness.create(url);
+    const http = TestBed.inject(HttpTestingController);
+    const request = http.expectOne(r => r.url.endsWith('/table/app/orders/indexes'));
+    if (usage === 'fail') {
+      request.flush('boom', { status: 500, statusText: 'Server Error' });
+    } else {
+      request.flush(usage);
+    }
+    harness.detectChanges();
+    return {
+      harness,
+      http,
+      component: harness.routeDebugElement!.componentInstance as TableLensComponent,
+      element: harness.routeNativeElement as HTMLElement
+    };
+  }
+
+  function rows(element: HTMLElement): HTMLElement[] {
+    return Array.from(element.querySelectorAll<HTMLElement>('.index-row'));
+  }
+
+  it('shows each index with its hint actions and query count', async () => {
+    const {element} = await open('/table/app/orders');
+
+    const status = rows(element).find(row => row.textContent!.includes('orders_status_idx'))!;
+    expect(Array.from(status.querySelectorAll('.rp')).map(pill => pill.textContent!.trim()))
+      .toEqual(['force', 'use']);
+    expect(status.querySelector('.rp-force')).not.toBeNull();
+    expect(status.querySelector('.index-queries')!.textContent!.trim()).toBe('4');
+
+    const quiet = rows(element).find(row => row.textContent!.includes('orders_quiet_idx'))!;
+    expect(quiet.querySelector('.rp')).toBeNull();
+    expect(quiet.querySelector('.index-queries')).toBeNull();
+  });
+
+  it('flags a hinted index the table does not have', async () => {
+    const {element} = await open('/table/app/orders');
+
+    const gone = rows(element).find(row => row.textContent!.includes('orders_gone_idx'))!;
+    expect(gone.classList).toContain('missing');
+    expect(gone.querySelector('.b-warn')!.textContent!.trim()).toBe('MISSING');
+    expect(gone.textContent).toContain('not on this table — statements fail');
+  });
+
+  it('drills into a hinted index through ?indexes=, and toggles it off again', async () => {
+    const {component, harness} = await open('/table/app/orders');
+    const router = TestBed.inject(Router);
+
+    component.drillIntoIndex(USAGE[1]);
+    await harness.fixture.whenStable();
+    expect(router.url).toContain('indexes=app.orders.orders_status_idx');
+    expect(component.drillIndex).toBe('app.orders.orders_status_idx');
+
+    component.drillIntoIndex(USAGE[1]);
+    await harness.fixture.whenStable();
+    expect(router.url).not.toContain('indexes=');
+    expect(component.drillIndex).toBeNull();
+  });
+
+  it('does not drill into an index no query hints', async () => {
+    const {component, harness} = await open('/table/app/orders');
+    const router = TestBed.inject(Router);
+
+    expect(component.isIndexDrillable(USAGE[2])).toBe(false);
+    component.drillIntoIndex(USAGE[2]);
+    await harness.fixture.whenStable();
+    expect(router.url).not.toContain('indexes=');
+  });
+
+  it('reads an index drill-down out of a shared link and sends it with the search', async () => {
+    const {component, http, element} = await open('/table/app/orders?indexes=app.orders.orders_gone_idx');
+
+    expect(component.drillIndex).toBe('app.orders.orders_gone_idx');
+    expect(component.drillIndexMissing()).toBe(true);
+    expect(element.querySelector('.drill-strip')!.textContent).toContain('not on this table — statements fail');
+    const searches = http.match(r => r.url.endsWith('/queries/search'));
+    expect(searches.length).toBeGreaterThan(0);
+    expect(searches[searches.length - 1].request.body.indexes).toEqual(['app.orders.orders_gone_idx']);
+  });
+
+  it('clears an index drill-down with the rest', async () => {
+    const {component, harness} = await open('/table/app/orders?indexes=app.orders.PRIMARY&columns=app.orders.id');
+    const router = TestBed.inject(Router);
+
+    component.clearDrillDown();
+    await harness.fixture.whenStable();
+    expect(router.url).not.toContain('indexes=');
+    expect(router.url).not.toContain('columns=');
   });
 });
