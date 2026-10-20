@@ -56,6 +56,7 @@ public class NullListDefaultsTest {
         assertThat(profile.getCriteriaColumns()).as("criteriaColumns").isNotNull();
         assertThat(profile.getSelectColumns()).as("selectColumns").isNotNull();
         assertThat(profile.getGroupByColumns()).as("groupByColumns").isNotNull();
+        assertThat(profile.getIndexHints()).as("indexHints").isNotNull();
         assertThat(profile.getMismatchedJoins()).as("mismatchedJoins").isNotNull();
         assertThat(profile.getSchemas()).as("schemas").isNotNull();
         assertThat(profile.getSourcedFiles()).as("sourcedFiles").isNotNull();
@@ -114,6 +115,7 @@ public class NullListDefaultsTest {
 
         assertThat(mergedProfile.getSelectColumns()).as("selectColumns").isNotNull();
         assertThat(mergedProfile.getGroupByColumns()).as("groupByColumns").isNotNull();
+        assertThat(mergedProfile.getIndexHints()).as("indexHints").isNotNull();
         assertThat(mergedProfile.getSchemas()).as("schemas").isNotNull();
 
         assertThat(mergedProfile.getSelectColumns()).isEqualTo(a.getSelectColumns());

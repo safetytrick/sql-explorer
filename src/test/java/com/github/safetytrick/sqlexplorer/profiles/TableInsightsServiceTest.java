@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
@@ -13,6 +14,7 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.profiles.TableInsightsService.ColumnUsage;
+import com.github.safetytrick.sqlexplorer.profiles.TableInsightsService.IndexUsage;
 import com.github.safetytrick.sqlexplorer.profiles.TableInsightsService.TableStats;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
@@ -74,6 +76,35 @@ class TableInsightsServiceTest {
     }
 
     @Test
+    void mergesIndexMetadataWithHintUsage() {
+        TableIndex.Builder byUser = TableIndex.builder().name("sessions_user_idx");
+        byUser.addColumn((short) 1, "user_id");
+        TableStructure structure = structure();
+        structure = new TableStructure("app", "sessions", "TABLE", null, structure.foreignKeys(),
+            List.of(structure.indices().getFirst(), byUser.build()), structure.columns(), null, null);
+        when(sqlSchemaService.getTable(SESSIONS)).thenReturn(structure);
+        SqlProfile forced = profile("q1", null, List.of(), List.of());
+        forced.setIndexHints(List.of(hint(SESSIONS, "`Sessions_User_Idx`", "FORCE"), hint(SESSIONS, "PRIMARY", "IGNORE")));
+        SqlProfile used = profile("q2", null, List.of(), List.of());
+        // the same index named twice by one query counts that query once
+        used.setIndexHints(List.of(hint(SESSIONS, "sessions_user_idx", "USE"), hint(SESSIONS, "sessions_user_idx", "FORCE"),
+            hint(SESSIONS, "sessions_gone_idx", "FORCE"), hint(USERS, "users_email_idx", "FORCE")));
+        when(sqlRepositoryService.getTableQueries(SESSIONS)).thenAnswer(inv -> Stream.of(forced, used,
+            profile("q3", null, List.of(), List.of())));
+
+        List<IndexUsage> indexes = service.getIndexes(SESSIONS);
+
+        assertThat(indexes)
+            .extracting(IndexUsage::name, IndexUsage::primary, IndexUsage::exists, IndexUsage::columns,
+                IndexUsage::hints, IndexUsage::queries)
+            .containsExactly(
+                tuple("PRIMARY", true, true, List.of("id"), List.of("ignore"), 1),
+                tuple("sessions_user_idx", false, true, List.of("user_id"), List.of("force", "use"), 2),
+                // hinted, but the table has no such index: MySQL rejects the statement
+                tuple("sessions_gone_idx", false, false, List.of(), List.of("force"), 1));
+    }
+
+    @Test
     void statsSplitReadAndWriteByExecutions() {
         when(sqlRepositoryService.getTableQueries(SESSIONS)).thenAnswer(inv -> Stream.of(
             profile("read", metrics(100, 500), List.of(), List.of()),
@@ -112,6 +143,10 @@ class TableInsightsServiceTest {
 
     private static ColumnReference criteria(TableReference table, String column) {
         return new ColumnReference(table, column, column);
+    }
+
+    private static IndexHint hint(TableReference table, String index, String action) {
+        return new IndexHint(table, index, index.replace("`", "").toLowerCase(java.util.Locale.ROOT), action);
     }
 
     private static JoinColumns join(TableReference leftTable, String leftColumn,

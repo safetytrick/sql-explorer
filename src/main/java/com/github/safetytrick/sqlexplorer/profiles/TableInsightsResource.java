@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.profiles.TableInsightsService.ColumnUsage;
+import com.github.safetytrick.sqlexplorer.profiles.TableInsightsService.IndexUsage;
 import com.github.safetytrick.sqlexplorer.profiles.TableInsightsService.TableStats;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,11 @@ class TableInsightsResource {
     @GetMapping("/table/{schema}/{name}/columns")
     public List<ColumnUsage> getColumns(@PathVariable String schema, @PathVariable String name) {
         return tableInsightsService.getColumns(TableReference.newTableReference(schema, name));
+    }
+
+    @GetMapping("/table/{schema}/{name}/indexes")
+    public List<IndexUsage> getIndexes(@PathVariable String schema, @PathVariable String name) {
+        return tableInsightsService.getIndexes(TableReference.newTableReference(schema, name));
     }
 
     @GetMapping("/table/{schema}/{name}/stats")

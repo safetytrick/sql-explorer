@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
@@ -452,6 +453,26 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void indexFilterKeepsQueriesWhoseHintsNameTheIndex() {
+        SqlProfile forced = withColumns("forced", "app.orders", List.of(), List.of(), List.of());
+        forced.setIndexHints(List.of(new IndexHint(TableReference.fromString("app.orders"),
+            "`Orders_Status_Idx`", "orders_status_idx", "FORCE")));
+        SqlProfile ignored = withColumns("ignored", "app.orders", List.of(), List.of(), List.of());
+        ignored.setIndexHints(List.of(new IndexHint(TableReference.fromString("app.orders"),
+            "PRIMARY", "primary", "IGNORE")));
+        repositoryReturns(forced, ignored, withColumns("unhinted", "app.orders", List.of(), List.of(), List.of()));
+
+        assertThat(searchIds(request().indexes(List.of("app.orders.orders_status_idx")).build()))
+            .containsExactly("forced");
+        // any action counts, and the name compares as MySQL compares it
+        assertThat(searchIds(request().indexes(List.of("app.orders.PRIMARY", "app.orders.orders_status_idx")).build()))
+            .containsExactlyInAnyOrder("forced", "ignored");
+        assertThat(searchIds(request().indexes(List.of("app.archive.primary")).build())).isEmpty();
+        assertThat(searchIds(request().indexes(List.of("nonsense")).build())).isEmpty();
+        assertThat(searchIds(request().indexes(List.of()).build())).containsExactlyInAnyOrder("forced", "ignored", "unhinted");
+    }
+
+    @Test
     void noColumnFilterLeavesTheSearchUnconstrained() {
         repositoryReturns(
             withColumns("a", "app.orders", List.of("app.orders.status"), List.of(), List.of()),
@@ -611,7 +632,7 @@ class QuerySearchServiceTest {
         private DateRange lastSeen;
         private List<String> tags;
         private TagMode tagMode;
-        private List<String> schemas, excludeSchemas, tables, excludeTables, columns;
+        private List<String> schemas, excludeSchemas, tables, excludeTables, columns, indexes;
         private TableMode tableMode;
         private Boolean untaggedOnly, analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
@@ -631,6 +652,7 @@ class QuerySearchServiceTest {
         RequestBuilder excludeSchemas(List<String> v) { this.excludeSchemas = v; return this; }
         RequestBuilder excludeTables(List<String> v) { this.excludeTables = v; return this; }
         RequestBuilder columns(List<String> v) { this.columns = v; return this; }
+        RequestBuilder indexes(List<String> v) { this.indexes = v; return this; }
         RequestBuilder tables(List<String> v) { this.tables = v; return this; }
         RequestBuilder tableMode(TableMode v) { this.tableMode = v; return this; }
         RequestBuilder untaggedOnly(Boolean v) { this.untaggedOnly = v; return this; }
@@ -650,7 +672,7 @@ class QuerySearchServiceTest {
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
-                schemas, excludeSchemas, tables, tableMode, excludeTables, columns,
+                schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
                 analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);

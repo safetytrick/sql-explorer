@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.profiles;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -9,6 +10,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -80,6 +82,43 @@ public class TableInsightsService {
             .toList();
     }
 
+    /**
+     * Indexes of the table with how queries hint them, the index counterpart
+     * of {@link #getColumns}: each hint action that names an index, and the
+     * distinct queries naming it (sqlx-yj0).
+     *
+     * <p>An index a query hints that the table does not have follows the
+     * table's own, flagged {@code exists = false}. MySQL rejects such a
+     * statement (error 1176), so those are queries that fail — whether
+     * against an index since dropped, or another server's schema.
+     */
+    public List<IndexUsage> getIndexes(TableReference table) {
+        TableStructure structure = sqlSchemaService.getTable(table);
+        if (structure == null || structure.indices() == null) {
+            return List.of();
+        }
+
+        Map<String, Usage> usage = collectHintUsage(table);
+        Map<String, IndexUsage> indexes = new LinkedHashMap<>();
+        for (TableIndex index : structure.indices()) {
+            String key = lower(index.name());
+            Usage indexUsage = usage.getOrDefault(key, Usage.NONE);
+            indexes.putIfAbsent(key, new IndexUsage(index.name(),
+                PRIMARY_INDEX.equalsIgnoreCase(index.name()),
+                index.unique(),
+                index.columns(),
+                true,
+                List.copyOf(indexUsage.roles),
+                indexUsage.queries));
+        }
+        usage.entrySet().stream()
+            .filter(entry -> !indexes.containsKey(entry.getKey()))
+            .sorted(Map.Entry.comparingByKey())
+            .forEach(entry -> indexes.put(entry.getKey(), new IndexUsage(entry.getValue().name,
+                false, false, List.of(), false, List.copyOf(entry.getValue().roles), entry.getValue().queries)));
+        return List.copyOf(indexes.values());
+    }
+
     /** The stat strip: query/execution/time totals and the read/write split. */
     public TableStats getStats(TableReference table) {
         int distinctQueries = 0;
@@ -127,6 +166,29 @@ public class TableInsightsService {
         return usage;
     }
 
+    /** Per-index hint actions and distinct query counts, in one pass over the table's queries. */
+    private Map<String, Usage> collectHintUsage(TableReference table) {
+        Map<String, Usage> usage = new HashMap<>();
+        sqlRepositoryService.getTableQueries(table).forEach(profile -> {
+            Set<String> countedThisQuery = new HashSet<>();
+            for (IndexHint hint : profile.getIndexHints() == null ? List.<IndexHint>of() : profile.getIndexHints()) {
+                if (hint.getTable() == null || !hint.getTable().equalsNormalized(table)) {
+                    continue;
+                }
+                String key = lower(hint.getNormalizedIndex());
+                Usage indexUsage = usage.computeIfAbsent(key, k -> new Usage());
+                if (indexUsage.name == null) {
+                    indexUsage.name = hint.getNormalizedIndex();
+                }
+                indexUsage.roles.add(lower(hint.getAction()));
+                if (countedThisQuery.add(key)) {
+                    indexUsage.queries++;
+                }
+            }
+        });
+        return usage;
+    }
+
     private static void addUsage(Map<String, Usage> usage, TableReference table, ColumnReference column,
                                  String role, Set<String> countedThisQuery) {
         if (column == null || column.getTable() == null || !column.getTable().equalsNormalized(table)) {
@@ -157,6 +219,14 @@ public class TableInsightsService {
                               boolean primaryKey, boolean foreignKey, String characterSet, String collation,
                               List<String> roles, int queries) { }
 
+    /**
+     * One index and how queries hint it. {@code hints} holds the actions —
+     * {@code use}, {@code force}, {@code ignore} — and {@code queries} the
+     * distinct queries naming it in any of them.
+     */
+    public record IndexUsage(String name, boolean primary, boolean unique, List<String> columns,
+                             boolean exists, List<String> hints, int queries) { }
+
     public record TableStats(int distinctQueries, long totalExecutions, double totalTimeMs,
                              long readExecutions, long writeExecutions) { }
 
@@ -164,5 +234,7 @@ public class TableInsightsService {
         static final Usage NONE = new Usage();
         private final Set<String> roles = new TreeSet<>();
         private int queries;
+        /** The first spelling seen, for an index the schema does not name. */
+        private String name;
     }
 }

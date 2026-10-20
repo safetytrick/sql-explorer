@@ -47,6 +47,24 @@ protocol SqlExplorer {
 		 * under two default schemas shares a MySQL digest but not its tables.
 		 */
 		string? sessionSchema = null;
+		/**
+		 * The indexes the statement names in index hints, one entry per name:
+		 * FROM t FORCE INDEX (a, b) is two (sqlx-yj0).
+		 */
+		array<IndexHint> indexHints = [];
+	}
+
+	/**
+	 * One index named by a MySQL index hint on one table.
+	 */
+	record IndexHint {
+		TableReference table;
+		/** As the statement wrote it. */
+		string index;
+		/** Unquoted and lower-cased, as MySQL compares index names. */
+		string normalizedIndex;
+		/** USE, FORCE or IGNORE. */
+		string action;
 	}
 
 	/**

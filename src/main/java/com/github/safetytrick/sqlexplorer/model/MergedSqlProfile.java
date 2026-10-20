@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.model;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
@@ -147,6 +148,11 @@ public class MergedSqlProfile extends SqlProfile {
     @Override
     public List<ColumnReference> getGroupByColumns() {
         return first().getGroupByColumns();
+    }
+
+    @Override
+    public List<IndexHint> getIndexHints() {
+        return first().getIndexHints();
     }
 
     @Override

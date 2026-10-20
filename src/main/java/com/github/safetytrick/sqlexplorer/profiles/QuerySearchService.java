@@ -175,6 +175,7 @@ public class QuerySearchService {
         if (!matchesTags(r, hit.tags())) return false;
 
         if (!matchesColumns(r, profile)) return false;
+        if (!matchesIndexes(r, profile)) return false;
 
         if (!matchesFlag(r.fullScan(), m == null ? null : m.getFullTableScan())) return false;
         if (!matchesFlag(r.tmpTable(), m == null ? null : m.getTempTables() > 0)) return false;
@@ -250,6 +251,27 @@ public class QuerySearchService {
                 return false;
             }
             return profile.constrainedBy(column);
+        });
+    }
+
+    /**
+     * Index references from {@link QuerySearchRequest#indexes()}: a query is
+     * kept when its hints name any of them. Shaped and parsed as column
+     * references are — the last part names the index — and, as there, an
+     * unparseable one matches nothing.
+     */
+    private static boolean matchesIndexes(QuerySearchRequest r, SqlProfile profile) {
+        if (r.indexes() == null || r.indexes().isEmpty()) {
+            return true;
+        }
+        return r.indexes().stream().anyMatch(reference -> {
+            ColumnReference index;
+            try {
+                index = ColumnReference.fromString(reference);
+            } catch (IllegalArgumentException invalid) {
+                return false;
+            }
+            return profile.hintsIndex(index.getTable(), index.getNormalizedColumn());
         });
     }
 

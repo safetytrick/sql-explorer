@@ -7,13 +7,16 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
+import com.github.safetytrick.sqlexplorer.analysis.NameNormalizer;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.google.common.hash.Hashing;
 import extensions.com.github.safetytrick.sqlexplorer.avro.ColumnReference.ColumnReferenceExtension;
 import extensions.com.github.safetytrick.sqlexplorer.avro.JoinColumns.JoinColumnsExtension;
+import extensions.com.github.safetytrick.sqlexplorer.avro.TableReference.TableReferenceExtension;
 import manifold.ext.rt.api.Extension;
 import manifold.ext.rt.api.This;
 
@@ -52,6 +55,18 @@ public class SqlProfileExtension {
         return profile.getCriteriaColumns().stream().anyMatch(
             column -> ColumnReferenceExtension.comparator.compare(column, reference) == 0
         );
+    }
+
+    /**
+     * Whether any of the profile's index hints names {@code index} on
+     * {@code table}, whatever the action. The index counterpart of
+     * {@link #constrainedBy}, matching the table the same way.
+     */
+    public static boolean hintsIndex(@This SqlProfile profile, TableReference table, String index) {
+        String normalizedIndex = NameNormalizer.normalize(index);
+        return profile.getIndexHints() != null && profile.getIndexHints().stream().anyMatch(hint ->
+            TableReferenceExtension.comparator.compare(hint.getTable(), table) == 0
+                && hint.getNormalizedIndex().equals(normalizedIndex));
     }
 
     public static List<String> getPerfDigests(@This SqlProfile thiz) {
@@ -120,6 +135,21 @@ public class SqlProfileExtension {
                 thiz.getGroupByColumns().add(column);
             } else if (thiz.getGroupByColumns().stream().noneMatch(column::equalsNormalized)) {
                 thiz.getGroupByColumns().add(column);
+            }
+            return thiz;
+        }
+
+        /** Adds a hint unless the same action already names the same index of the same table. */
+        public static SqlProfile.Builder indexHint(@This SqlProfile.Builder thiz, IndexHint hint) {
+            if (thiz.getIndexHints() == null) {
+                thiz.setIndexHints(new ArrayList<>());
+            }
+            boolean present = thiz.getIndexHints().stream().anyMatch(existing ->
+                existing.getTable().equalsNormalized(hint.getTable())
+                    && existing.getNormalizedIndex().equals(hint.getNormalizedIndex())
+                    && existing.getAction().equals(hint.getAction()));
+            if (!present) {
+                thiz.getIndexHints().add(hint);
             }
             return thiz;
         }
@@ -223,6 +253,15 @@ public class SqlProfileExtension {
                 thiz.setJoinColumns(joinColumns);
             }
 
+            if (thiz.getIndexHints() != null) {
+                List<IndexHint> indexHints = new ArrayList<>(thiz.getIndexHints().size());
+                for (IndexHint hint : thiz.getIndexHints()) {
+                    indexHints.add(IndexHint.newBuilder(hint)
+                        .setTable(hint.getTable().withDefaultSchema(defaultSchema)).build());
+                }
+                thiz.setIndexHints(indexHints);
+            }
+
             if (thiz.getTables() != null) {
                 List<TableReference> tables = new ArrayList<>(thiz.getTables().size());
                 for (TableReference table : thiz.getTables()) {
@@ -304,6 +343,7 @@ public class SqlProfileExtension {
             if (thiz.getMismatchedJoins() == null) { thiz.setMismatchedJoins(new ArrayList<>()); }
             if (thiz.getSchemas() == null) { thiz.setSchemas(new ArrayList<>()); }
             if (thiz.getSourcedFiles() == null) { thiz.setSourcedFiles(new ArrayList<>()); }
+            if (thiz.getIndexHints() == null) { thiz.setIndexHints(new ArrayList<>()); }
         }
 
         public static SqlProfile completeBuild(@This SqlProfile.Builder thiz, String defaultSchema) {

@@ -59,6 +59,13 @@ public record QuerySearchRequest(
      * the same method rather than restating it.
      */
     List<String> columns,
+    /**
+     * {@code schema.table.index} (or {@code table.index}) references; a query
+     * whose index hints name <em>any</em> of them, with any action, is kept.
+     * The index twin of {@link #columns()}, matched by
+     * {@code SqlProfile.hintsIndex} (sqlx-yj0).
+     */
+    List<String> indexes,
     Flag fullScan,
     Flag tmpTable,
     Flag tmpDisk,
@@ -142,5 +149,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null);
 }

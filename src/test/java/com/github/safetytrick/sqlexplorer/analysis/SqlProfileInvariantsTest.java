@@ -171,6 +171,7 @@ public class SqlProfileInvariantsTest {
         assertThat(profile.getCriteriaColumns()).as("criteriaColumns").isNotNull();
         assertThat(profile.getSelectColumns()).as("selectColumns").isNotNull();
         assertThat(profile.getGroupByColumns()).as("groupByColumns").isNotNull();
+        assertThat(profile.getIndexHints()).as("indexHints").isNotNull();
         assertThat(profile.getSchemas()).as("schemas").isNotNull();
         assertThat(profile.getMismatchedJoins()).as("mismatchedJoins").isNotNull();
         assertThat(profile.getSourcedFiles()).as("sourcedFiles").isNotNull();

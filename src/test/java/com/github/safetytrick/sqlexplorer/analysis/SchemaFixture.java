@@ -92,6 +92,7 @@ public final class SchemaFixture {
             new JoinColumnAnalyzer(resolver),
             new WhereClauseAnalyzer(resolver),
             new SelectColumnAnalyzer(resolver),
+            new IndexHintAnalyzer(),
             new GeneratedSqlAnalyzer(),
             new UnknownSchemaAnalyzer());
     }
@@ -107,6 +108,7 @@ public final class SchemaFixture {
             new JoinColumnAnalyzer(resolver),
             new WhereClauseAnalyzer(resolver),
             new SelectColumnAnalyzer(resolver),
+            new IndexHintAnalyzer(),
             new GeneratedSqlAnalyzer());
 
         SqlProfile.Builder builder = SqlProfile.newBuilder();

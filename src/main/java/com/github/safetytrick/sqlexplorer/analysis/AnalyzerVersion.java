@@ -34,9 +34,10 @@ public final class AnalyzerVersion {
      *   <li>4 — select-list and GROUP BY columns of a derived table resolve
      *       to its source table rather than dual, and a UNION derived table
      *       resolves through its first branch (sqlx-03r).</li>
+     *   <li>5 — index hints are recorded (sqlx-yj0).</li>
      * </ul>
      */
-    public static final int ANALYZERS = 4;
+    public static final int ANALYZERS = 5;
 
     /** What a profile records, and what reuse compares: {@code a<ANALYZERS>.n<QueryNormalizer.VERSION>}. */
     public static final String CURRENT = "a" + ANALYZERS + ".n" + QueryNormalizer.VERSION;
