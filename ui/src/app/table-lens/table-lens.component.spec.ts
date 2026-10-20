@@ -71,6 +71,12 @@ describe('TableLensComponent drill-downs', () => {
     expect(component.workbenchParams()['tables']).toBe('app_other.user_profile,app_other.groups');
   });
 
+  it('links the graph to the queries touching this table', async () => {
+    const component = await open('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
+
+    expect(component.graphParams()).toEqual({ source: 'search', tables: 'app_other.user_profile', tableMode: 'ALL' });
+  });
+
   it('restores expanded relationship cards from the presentation params', async () => {
     const component = await open('/table/app_other/user_profile?var-fk=1&var-co=1');
 

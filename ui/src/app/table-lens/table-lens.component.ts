@@ -17,7 +17,7 @@ import {parseColumnRef, parseTableRef} from '../refs';
 import {QueryHit, QuerySearchService} from '../query-search.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {tableKey} from '../query-scope.service';
-import {buildSearchRequest, decodeSearchParams, encodeSearchParams, SearchUrlState, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
+import {buildSearchRequest, decodeSearchParams, defaultSearchState, encodeSearchParams, SearchUrlState, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {SqlSummaryComponent} from '../sql-summary/sql-summary.component';
 import {tableTarget} from '../tag-path';
 
@@ -226,6 +226,20 @@ export class TableLensComponent implements OnInit {
    * The same search, opened in the workbench. A pure param translation —
    * the lens speaks the shared vocabulary, so nothing has to be re-mapped.
    */
+  /**
+   * The graph of the queries touching this table: a search-sourced graph
+   * scoped to it, the same URL the workbench's "graph results" writes.
+   */
+  graphParams(): Record<string, string> {
+    return {
+      source: 'search',
+      ...encodeSearchParams({
+        ...defaultSearchState(),
+        scope: { schemas: [], tables: [this.selfKey()], tableMode: 'ALL' }
+      })
+    };
+  }
+
   workbenchParams(): Record<string, string> {
     const state = decodeSearchParams(this.route.snapshot.queryParamMap);
     return encodeSearchParams({ ...state, scope: this.queryScope() });
