@@ -12,12 +12,16 @@
 #
 # Two things, and nothing else:
 #
-# - ~/.aws, READ-ONLY, at the runtime user's home (/app). The JDBC wrapper's iam
-#   plugin signs a fresh token per connection from the profile named in each
-#   jdbcUrl, which resolves through the SSO token `aws sso login` caches on the
-#   host. When that session lapses, run `aws sso login` on the host again; the
-#   container sees the refreshed cache through this mount, no restart needed.
-#   Read-only so the container can never rewrite your AWS config.
+# - ~/.aws at the runtime user's home (/app), READ-ONLY except its SSO token
+#   cache. The JDBC wrapper's iam plugin signs a fresh token per connection
+#   from the profile named in each jdbcUrl, which resolves through the SSO
+#   token `aws sso login` caches on the host. The cache has to be writable:
+#   the SDK refreshes an expired access token itself and writes it back, and
+#   with the whole of ~/.aws read-only that write failed ("Unable to write
+#   token to location /app/.aws/sso/cache/…") — every connection then failed
+#   from the first expiry until a restart (sqlx-xge). Your config and
+#   credentials stay read-only. When the SSO session itself lapses, run
+#   `aws sso login` on the host; the container sees it, no restart needed.
 #
 # - the `rds` profile, so Spring loads application-rds.yml. Set here rather than
 #   in .env so the production servers exist only when this overlay is named.
@@ -31,3 +35,4 @@ services:
       ENVIRONMENT_PROFILE: override,rds
     volumes:
       - ${HOME}/.aws:/app/.aws:ro
+      - ${HOME}/.aws/sso/cache:/app/.aws/sso/cache

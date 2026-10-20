@@ -38,6 +38,14 @@ public final class DatabaseServer implements AutoCloseable {
      * and {@link #forgetSchemaFailure()}, which is what a load or pull does.
      */
     private RuntimeException schemaFailure;
+    /**
+     * The cluster's last snapshot, once read; null until it is. Remembered for
+     * the same reason the failure is: while no server of the cluster answers,
+     * every schema request falls back to it, and re-reading the snapshot each time
+     * cost three seconds a request across five clusters (sqlx-xge). Dropped
+     * with the rest whenever a load or pull asks again.
+     */
+    private java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnown;
 
     public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
                           SchemaRepositoryFactory schemaRepositoryFactory) {
@@ -112,8 +120,11 @@ public final class DatabaseServer implements AutoCloseable {
      * The cluster's last snapshot, with no connection to this server — for
      * when no server of the cluster can be reached. Not current.
      */
-    public java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnownSchema() {
-        return schemaRepositoryFactory.lastKnown(snapshotKey);
+    public synchronized java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnownSchema() {
+        if (lastKnown == null) {
+            lastKnown = schemaRepositoryFactory.lastKnown(snapshotKey);
+        }
+        return lastKnown;
     }
 
     /**
@@ -125,6 +136,7 @@ public final class DatabaseServer implements AutoCloseable {
      */
     public synchronized void revalidateSchema() {
         schemaFailure = null;
+        lastKnown = null;
         if (schemaLoad == null) {
             return;
         }
@@ -153,12 +165,14 @@ public final class DatabaseServer implements AutoCloseable {
     public synchronized void refreshSchema() {
         schemaLoad = null;
         schemaFailure = null;
+        lastKnown = null;
     }
 
     @Override
     public synchronized void close() {
         schemaLoad = null;
         schemaFailure = null;
+        lastKnown = null;
         if (dataSource != null) {
             dataSource.close();
             dataSource = null;

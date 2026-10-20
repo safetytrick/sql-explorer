@@ -147,7 +147,9 @@ Four things matter, whoever writes the file:
   would break every connection after the first quarter hour. The wrapper signs
   a fresh token for every new connection instead. When your SSO session lapses,
   connections start failing; `aws sso login` on the host fixes it with no
-  restart, because the overlay mounts `~/.aws` (read-only) into the container.
+  restart, because the overlay mounts `~/.aws` into the container — read-only,
+  except the SSO token cache, which the SDK must be able to write when it
+  refreshes an expired access token.
 - **Use the instance endpoint, not a friendly CNAME.** IAM tokens are signed
   for the hostname they are presented to.
 - **List every replica as its own server.** Each keeps its own digest table. A
