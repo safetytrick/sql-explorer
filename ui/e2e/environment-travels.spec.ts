@@ -55,6 +55,23 @@ test('an environment that does not exist is called out', async ({page}) => {
   await expect(page.locator('.env-unknown')).toContainText('deleted-last-week');
 });
 
+/**
+ * A link that names no environment — a middle-click, a pasted address — opens
+ * the page it names, with the stored environment written onto it. It used to
+ * land on /tables: the stamp ran before the router's first navigation had
+ * finished, so it re-navigated from the router's initial empty URL, `/`, which
+ * redirects to /tables (sqlx-dkq).
+ */
+test('a link without an environment opens its own page, naming the stored one', async ({page}) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('sql-explorer.environment', 'staging'));
+
+  await page.goto('/coverage');
+
+  await expect(page).toHaveURL(/\/coverage\?env=staging$/);
+  await expect(page.locator('.view-title')).toContainText('What was captured');
+});
+
 /** Nothing selected still means a clean URL — the default is not invented. */
 test('an untouched view names no environment', async ({page}) => {
   await page.goto('/tables');

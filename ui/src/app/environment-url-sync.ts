@@ -42,7 +42,8 @@ export class EnvironmentUrlSync {
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe(() => this.stamp());
     // The first NavigationEnd may already have fired by the time anything calls
-    // this, so the current URL is stamped directly rather than waited for.
+    // this, so the current URL is stamped directly rather than waited for —
+    // stamp() itself declines if that navigation is still under way.
     this.stamp();
   }
 
@@ -82,6 +83,15 @@ export class EnvironmentUrlSync {
       return;
     }
     if (envFromSearch(location.search) === current) {
+      return;
+    }
+    // Not before the router's first navigation has finished. Until then its
+    // URL is the initial empty one, `/`, not the page being opened, and
+    // navigate([]) keeps the router's URL — so stamping then navigated to `/`,
+    // which redirects to /tables, and every link opened without ?env= (a
+    // middle-click, a pasted address) landed there instead of on its page
+    // (sqlx-dkq). The NavigationEnd that ends that navigation stamps it.
+    if (!this.router.navigated) {
       return;
     }
     this.router.navigate([], {
