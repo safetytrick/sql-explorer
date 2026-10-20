@@ -4,43 +4,73 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.sql.JDBCType;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
-import com.github.safetytrick.sqlexplorer.avro.TableReference;
+import com.github.safetytrick.sqlexplorer.avro.SnapshotColumn;
+import com.github.safetytrick.sqlexplorer.avro.SnapshotForeignKey;
+import com.github.safetytrick.sqlexplorer.avro.SnapshotIndex;
+import com.github.safetytrick.sqlexplorer.avro.SnapshotTable;
+import com.github.safetytrick.sqlexplorer.avro.SnapshotViewColumn;
 import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetConfig;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.parquet.avro.AvroParquetReader;
+import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetReader;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.io.LocalInputFile;
+import org.apache.parquet.io.LocalOutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Persists one {@link SchemaSnapshot} per cluster, as JSON in a
+ * Persists one {@link SchemaSnapshot} per cluster, as Parquet in a
  * {@code schema-snapshots/<environment>/} directory beside the capture
- * archive.
+ * archive — the same format, written the same way, as the captures themselves
+ * (sqlx-7o3).
  *
- * <p>A snapshot is a cache, so a missing, unreadable or older-format file is
+ * <p>One row per table, typed by the {@code Snapshot*} Avro records; what the
+ * snapshot describes — its cluster, the server it was read from, when, and the
+ * fingerprint it was read at — is in the footer's key-value metadata, as a
+ * capture's provenance is in {@code CaptureContext}.
+ *
+ * <p>A snapshot is a cache, so a missing, unreadable or other-format file is
  * simply no snapshot: the cluster is read in full and a new one is written.
- * That is also why JSON rather than Parquet — nothing queries these, and a
- * person debugging a schema can read one.
  */
 @Service
 public class SchemaSnapshotStore {
 
-    /** Bump when {@link SchemaSnapshot} or what it holds changes shape; older files are then ignored. */
-    public static final int FORMAT = 1;
+    /**
+     * Bump when {@link SchemaSnapshot} or what it holds changes shape; older
+     * files are then ignored. 2: Parquet, replacing the JSON of format 1.
+     */
+    public static final int FORMAT = 2;
 
     private static final Logger log = LoggerFactory.getLogger(SchemaSnapshotStore.class);
     private static final Pattern UNSAFE = Pattern.compile("[^A-Za-z0-9._-]");
 
+    private static final String META = "sqlx.snapshot.";
+    private static final String FORMAT_KEY = META + "format";
+    private static final String ENVIRONMENT_KEY = META + "environment";
+    private static final String CLUSTER_KEY = META + "cluster";
+    private static final String SERVER_KEY = META + "server";
+    private static final String READ_AT_KEY = META + "readAt";
+    /** One {@code table<TAB>hash} line per table: a map in a single footer value. */
+    private static final String FINGERPRINT_KEY = META + "fingerprint";
+
     private final Path directory;
-    private final JsonMapper json = JsonMapper.builder()
-        .addMixIn(TableReference.class, AvroRecord.class)
-        .addMixIn(ColumnReference.class, AvroRecord.class)
-        .build();
 
     @Autowired
     public SchemaSnapshotStore(ParquetConfig config) {
@@ -62,36 +92,74 @@ public class SchemaSnapshotStore {
             return Optional.empty();
         }
         try {
-            SchemaSnapshot snapshot = json.readValue(file.toFile(), SchemaSnapshot.class);
-            if (snapshot.format() != FORMAT) {
-                log.info("Schema snapshot {} is format {}, not {}; it will be replaced", file, snapshot.format(), FORMAT);
+            Map<String, String> footer;
+            try (ParquetFileReader reader = ParquetFileReader.open(new LocalInputFile(file))) {
+                footer = reader.getFooter().getFileMetaData().getKeyValueMetaData();
+            }
+            int format = Integer.parseInt(footer.getOrDefault(FORMAT_KEY, "0"));
+            if (format != FORMAT) {
+                log.info("Schema snapshot {} is format {}, not {}; it will be replaced", file, format, FORMAT);
                 return Optional.empty();
             }
-            return Optional.of(snapshot);
-        } catch (RuntimeException e) {
+            List<TableStructure> tables = new ArrayList<>();
+            try (ParquetReader<SnapshotTable> rows = AvroParquetReader.<SnapshotTable>builder(
+                    new LocalInputFile(file), new PlainParquetConfiguration()).build()) {
+                for (SnapshotTable row = rows.read(); row != null; row = rows.read()) {
+                    tables.add(fromRow(row));
+                }
+            }
+            return Optional.of(new SchemaSnapshot(format, footer.get(ENVIRONMENT_KEY), footer.get(CLUSTER_KEY),
+                footer.get(SERVER_KEY), Instant.parse(footer.get(READ_AT_KEY)),
+                fingerprintFrom(footer.getOrDefault(FINGERPRINT_KEY, "")), List.copyOf(tables)));
+        } catch (IOException | RuntimeException e) {
             log.warn("Schema snapshot {} could not be read and will be replaced: {}", file, e.toString());
             return Optional.empty();
         }
     }
 
-    /** Written to a sibling and moved into place, so a reader never sees half a snapshot. */
+    /**
+     * Written to a sibling and moved into place, so a reader never sees half a
+     * snapshot. Removes the cluster's format-1 JSON snapshot, which nothing
+     * reads any more.
+     */
     public void write(SchemaSnapshot snapshot) {
-        Path file = fileFor(new SchemaSnapshot.Key(snapshot.environment(), snapshot.cluster()));
+        SchemaSnapshot.Key key = new SchemaSnapshot.Key(snapshot.environment(), snapshot.cluster());
+        Path file = fileFor(key);
+        Path partial = file.resolveSibling(file.getFileName() + ".partial");
         try {
             Path cluster = file.getParent();
             if (cluster != null) {
                 Files.createDirectories(cluster);
             }
-            Path partial = file.resolveSibling(file.getFileName() + ".partial");
-            json.writeValue(partial.toFile(), snapshot);
+            try (ParquetWriter<SnapshotTable> writer = AvroParquetWriter.<SnapshotTable>builder(new LocalOutputFile(partial))
+                .withSchema(SnapshotTable.getClassSchema())
+                .withDictionaryEncoding(true)
+                .withConf(new Configuration(false))
+                .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
+                .withExtraMetaData(footerOf(snapshot))
+                .build()) {
+                for (TableStructure table : snapshot.tables()) {
+                    writer.write(toRow(table));
+                }
+            }
             Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.deleteIfExists(legacyJsonFor(key));
         } catch (IOException | RuntimeException e) {
             // A snapshot that cannot be written costs the next start a full read, nothing more.
             log.warn("Schema snapshot {} could not be written: {}", file, e.toString());
+            try {
+                Files.deleteIfExists(partial);
+            } catch (IOException ignored) {
+                // the next write overwrites it
+            }
         }
     }
 
     Path fileFor(SchemaSnapshot.Key key) {
+        return directory.resolve(safe(key.environment())).resolve(safe(key.cluster()) + ".parquet");
+    }
+
+    private Path legacyJsonFor(SchemaSnapshot.Key key) {
         return directory.resolve(safe(key.environment())).resolve(safe(key.cluster()) + ".json");
     }
 
@@ -99,7 +167,92 @@ public class SchemaSnapshotStore {
         return UNSAFE.matcher(name).replaceAll("_");
     }
 
-    /** Avro records carry their own schema as a property; the fields are all a snapshot needs. */
-    @JsonIgnoreProperties(value = {"schema", "specificData"}, ignoreUnknown = true)
-    private abstract static class AvroRecord { }
+    // ── footer ────────────────────────────────────────────────────────────
+
+    private static Map<String, String> footerOf(SchemaSnapshot snapshot) {
+        Map<String, String> footer = new LinkedHashMap<>();
+        footer.put(FORMAT_KEY, String.valueOf(snapshot.format()));
+        footer.put(ENVIRONMENT_KEY, snapshot.environment());
+        footer.put(CLUSTER_KEY, snapshot.cluster());
+        footer.put(SERVER_KEY, snapshot.server());
+        footer.put(READ_AT_KEY, snapshot.readAt().toString());
+        StringBuilder fingerprint = new StringBuilder();
+        new TreeMap<>(snapshot.fingerprint().tables())
+            .forEach((table, hash) -> fingerprint.append(table).append('\t').append(hash).append('\n'));
+        footer.put(FINGERPRINT_KEY, fingerprint.toString());
+        return footer;
+    }
+
+    private static SchemaFingerprint fingerprintFrom(String lines) {
+        Map<String, String> tables = new TreeMap<>();
+        for (String line : lines.split("\n")) {
+            int tab = line.indexOf('\t');
+            if (tab > 0) {
+                tables.put(line.substring(0, tab), line.substring(tab + 1));
+            }
+        }
+        return new SchemaFingerprint(tables);
+    }
+
+    // ── rows ──────────────────────────────────────────────────────────────
+
+    static SnapshotTable toRow(TableStructure table) {
+        return SnapshotTable.newBuilder()
+            .setSchemaName(table.schema())
+            .setName(table.name())
+            .setType(table.type())
+            .setRemarks(table.remarks())
+            .setForeignKeys(listOf(table.foreignKeys()).stream().map(fk -> SnapshotForeignKey.newBuilder()
+                .setFrom(fk.from()).setTo(fk.to()).setConstraintName(fk.constraintName())
+                .setOnUpdate(fk.onUpdate()).setOnDelete(fk.onDelete()).build()).toList())
+            .setIndices(listOf(table.indices()).stream().map(index -> SnapshotIndex.newBuilder()
+                .setSchemaName(index.schema()).setUnique(index.unique()).setIdentifier(index.identifier())
+                .setName(index.name()).setIndexType(nameOf(index.indexType())).setDirection(nameOf(index.direction()))
+                .setCardinality(index.cardinality()).setPages(index.pages())
+                .setFilterCondition(index.filterCondition()).setColumns(listOf(index.columns())).build()).toList())
+            .setColumns(listOf(table.columns()).stream().map(column -> SnapshotColumn.newBuilder()
+                .setSchemaName(column.schema()).setTable(column.table()).setColumnName(column.columnName())
+                .setJdbcType(nameOf(column.type())).setTypeName(column.typeName())
+                .setColumnSize(column.columnSize()).setDecimalDigits(column.decimalDigits()).setRadix(column.radix())
+                .setRemarks(column.remarks()).setColumnDefault(column.columnDefault())
+                .setOctetLength(column.octetLength()).setOrdinal(column.ordinal())
+                .setIsNullable(column.isNullable()).setIsAutoIncrement(column.isAutoIncrement())
+                .setIsGenerated(column.isGenerated()).setCharacterSet(column.characterSet())
+                .setCollation(column.collation()).build()).toList())
+            .setUnderlyingTables(table.underlyingTables())
+            .setViewColumns(table.viewColumns() == null ? null : table.viewColumns().stream()
+                .map(view -> SnapshotViewColumn.newBuilder().setName(view.name())
+                    .setSources(listOf(view.sources())).setComputed(view.computed()).build()).toList())
+            .build();
+    }
+
+    static TableStructure fromRow(SnapshotTable row) {
+        return new TableStructure(row.getSchemaName(), row.getName(), row.getType(), row.getRemarks(),
+            row.getForeignKeys().stream().map(fk -> new ForeignKey(List.copyOf(fk.getFrom()), List.copyOf(fk.getTo()),
+                fk.getConstraintName(), fk.getOnUpdate(), fk.getOnDelete())).toList(),
+            row.getIndices().stream().map(index -> new TableIndex(index.getSchemaName(), index.getUnique(),
+                index.getIdentifier(), index.getName(),
+                index.getIndexType() == null ? null : IndexType.valueOf(index.getIndexType()),
+                index.getDirection() == null ? null : IndexDirection.valueOf(index.getDirection()),
+                index.getCardinality(), index.getPages(), index.getFilterCondition(),
+                List.copyOf(index.getColumns()))).toList(),
+            row.getColumns().stream().map(column -> new TableColumn(column.getSchemaName(), column.getTable(),
+                column.getColumnName(), column.getJdbcType() == null ? null : JDBCType.valueOf(column.getJdbcType()),
+                column.getTypeName(), column.getColumnSize(), column.getDecimalDigits(), column.getRadix(),
+                column.getRemarks(), column.getColumnDefault(), column.getOctetLength(), column.getOrdinal(),
+                column.getIsNullable(), column.getIsAutoIncrement(), column.getIsGenerated(),
+                column.getCharacterSet(), column.getCollation())).toList(),
+            row.getUnderlyingTables() == null ? null : List.copyOf(row.getUnderlyingTables()),
+            row.getViewColumns() == null ? null : row.getViewColumns().stream()
+                .map(view -> new ViewColumn(view.getName(), List.copyOf(view.getSources()), view.getComputed()))
+                .toList());
+    }
+
+    private static <T> List<T> listOf(List<T> list) {
+        return list == null ? List.of() : list;
+    }
+
+    private static String nameOf(Enum<?> value) {
+        return value == null ? null : value.name();
+    }
 }

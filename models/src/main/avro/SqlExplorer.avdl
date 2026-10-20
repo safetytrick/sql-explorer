@@ -122,4 +122,74 @@ protocol SqlExplorer {
 		string normalizedTableName;
 		string? normalizedSchemaName;
 	}
+
+	/*
+	 * A cluster's schema snapshot, one row per table (sqlx-7o3). Mirrors the
+	 * loader's TableStructure and its parts; what the snapshot describes — its
+	 * cluster, the server it was read from, when, and the fingerprint it was
+	 * read at — is in the file's footer, as a capture's provenance is.
+	 */
+	record SnapshotColumn {
+		string? schemaName = null;
+		string? table = null;
+		string columnName;
+		/** java.sql.JDBCType name; null when the driver reported a code it has no name for. */
+		string? jdbcType = null;
+		string? typeName = null;
+		int columnSize;
+		int decimalDigits;
+		int radix;
+		string? remarks = null;
+		string? columnDefault = null;
+		int octetLength;
+		int ordinal;
+		string? isNullable = null;
+		string? isAutoIncrement = null;
+		string? isGenerated = null;
+		string? characterSet = null;
+		string? collation = null;
+	}
+
+	record SnapshotIndex {
+		string? schemaName = null;
+		boolean unique;
+		string? identifier = null;
+		string? name = null;
+		/** IndexType name. */
+		string? indexType = null;
+		/** IndexDirection name. */
+		string? direction = null;
+		long cardinality;
+		long pages;
+		string? filterCondition = null;
+		array<string> columns = [];
+	}
+
+	record SnapshotForeignKey {
+		array<ColumnReference> from = [];
+		array<ColumnReference> to = [];
+		string? constraintName = null;
+		string? onUpdate = null;
+		string? onDelete = null;
+	}
+
+	record SnapshotViewColumn {
+		string name;
+		array<ColumnReference> sources = [];
+		boolean computed;
+	}
+
+	record SnapshotTable {
+		string? schemaName = null;
+		string name;
+		string? type = null;
+		string? remarks = null;
+		array<SnapshotForeignKey> foreignKeys = [];
+		array<SnapshotIndex> indices = [];
+		array<SnapshotColumn> columns = [];
+		/** Base tables a view selects from; null for a base table. */
+		union { null, array<TableReference> } underlyingTables = null;
+		/** Per-column lineage for a view; null for a base table. */
+		union { null, array<SnapshotViewColumn> } viewColumns = null;
+	}
 }

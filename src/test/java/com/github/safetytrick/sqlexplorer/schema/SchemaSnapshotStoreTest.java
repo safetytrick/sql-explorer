@@ -95,4 +95,18 @@ class SchemaSnapshotStoreTest {
         assertThat(store.read(new SchemaSnapshot.Key("production", "shard2"))).isEmpty();
         assertThat(store.read(new SchemaSnapshot.Key("staging", "shard1"))).isEmpty();
     }
+
+    /** Snapshots are Parquet now; a cluster's old JSON one is removed when its Parquet one is written (sqlx-7o3). */
+    @Test
+    void writingRemovesTheClustersFormerJsonSnapshot() throws Exception {
+        SchemaSnapshotStore store = new SchemaSnapshotStore(directory);
+        Path cluster = Files.createDirectories(directory.resolve("production"));
+        Path json = cluster.resolve("shard1.json");
+        Files.writeString(json, "{}");
+
+        store.write(snapshot());
+
+        assertThat(json).doesNotExist();
+        assertThat(store.fileFor(SHARD1)).hasFileName("shard1.parquet").exists();
+    }
 }

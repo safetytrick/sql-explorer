@@ -189,8 +189,8 @@ Server names must be unique across the whole environment, not just within a
 cluster, because captures are keyed by server name. A flat `servers:` block
 still works: each server there is a cluster of one.
 
-Each cluster's schema is **snapshotted** in `schema-snapshots/<environment>/`
-next to the captures. A start or pull checks a fingerprint, one cheap query of
+Each cluster's schema is **snapshotted**, as Parquet like the captures, in
+`schema-snapshots/<environment>/` next to them. A start or pull checks a fingerprint, one cheap query of
 about 0.1s on a production primary plus the connection, and reads the full
 schema only if it changed. If no `schemaFrom` server can be reached, the last
 snapshot serves what was already analysed, marked stale on the Captured page.
