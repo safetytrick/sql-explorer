@@ -21,6 +21,7 @@ import {Highlight} from 'ngx-highlightjs';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
 import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from './merge-group';
+import {decodeWorkbenchParams, encodeWorkbenchParams} from './workbench-url';
 import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
 
 const PAGE_SIZE = 50;
@@ -96,6 +97,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   loading = false;
   selected: QueryHit | null = null;
   mergeGroupOpen = false;
+  /** Rows showing their whole formatted SQL, by digest; in the URL as `var-expanded`. */
+  expanded = new Set<string>();
   /** Digest most recently copied, for the transient "copied" affordance. */
   copied: string | null = null;
 
@@ -468,6 +471,23 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.selected = hit;
   }
 
+  isExpanded(hit: QueryHit): boolean {
+    return this.expanded.has(hit.profile.digest);
+  }
+
+  /**
+   * Show or hide a row's whole formatted SQL in place, as the table page lists
+   * it. The row's own click selects it, so the toggle must not also do that.
+   */
+  toggleExpanded(hit: QueryHit, event?: Event) {
+    event?.stopPropagation();
+    const digest = hit.profile.digest;
+    if (!this.expanded.delete(digest)) {
+      this.expanded.add(digest);
+    }
+    this.writeFiltersToUrl();
+  }
+
   sqlVerb(sql: string): string {
     return (sql.trim().split(/\s+/)[0] || '').toUpperCase();
   }
@@ -564,7 +584,10 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (!this.urlReady) { return; }
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: encodeSearchParams(this.currentState()),
+      queryParams: {
+        ...encodeSearchParams(this.currentState()),
+        ...encodeWorkbenchParams({ expanded: [...this.expanded] })
+      },
       replaceUrl: true
     });
   }
@@ -601,6 +624,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.failureKind = state.failureKind;
     this.sort = state.sort;
     this.columns = state.columns;
+    this.expanded = new Set(decodeWorkbenchParams(this.route.snapshot.queryParamMap).expanded);
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically
     if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY') {

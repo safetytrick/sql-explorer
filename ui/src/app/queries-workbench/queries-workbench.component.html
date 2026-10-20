@@ -223,6 +223,9 @@
                [class.has-warn]="hit.profile.mismatchedJoins.length > 0 || hit.profile.analysisFailed"
                (click)="select(hit)">
             <div class="q-top">
+              <button type="button" class="q-expand" (click)="toggleExpanded(hit, $event)"
+                      [attr.aria-expanded]="isExpanded(hit)"
+                      [title]="isExpanded(hit) ? 'hide the full query' : 'show the full query'">{{isExpanded(hit) ? '▾' : '▸'}}</button>
               <div class="q-sql"><span class="kw">{{sqlVerb(hit.profile.query)}}</span> {{sqlRest(hit.profile.query) | slice:0:90}}</div>
               <div class="q-badges">
                 @if (hit.profile.queryActivityStatus === 'ACTIVE') { <span class="badge b-active">active</span> }
@@ -243,6 +246,9 @@
                 }
               </div>
             </div>
+            @if (isExpanded(hit)) {
+              <pre class="q-full-sql"><code highlight="{{hit.profile.query}}"></code></pre>
+            }
             <div class="q-meta">
               <span class="qm">impact <span>{{impactOf(hit)}}</span></span>
               <span class="qm">avg <span>{{ms(hit.profile.runtimeMetrics?.averageTime)}}</span></span>

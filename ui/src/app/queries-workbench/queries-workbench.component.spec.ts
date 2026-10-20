@@ -4,6 +4,7 @@ import {RouterTestingHarness} from '@angular/router/testing';
 import {QueriesWorkbenchComponent} from './queries-workbench.component';
 import {QueryScopeService} from '../query-scope.service';
 import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
+import type {QueryHit} from '../query-search.service';
 
 /**
  * The workbench must seed the schema-tree scope from a shared URL and
@@ -69,5 +70,48 @@ describe('QueriesWorkbenchComponent URL state', () => {
       tables: 'tdb.member_session',
       schemaTags: 'core'
     });
+  });
+
+  /** A hit as far as expansion reads it: the digest is its identity in the URL. */
+  function hit(digest: string): QueryHit {
+    return { profile: { digest } } as unknown as QueryHit;
+  }
+
+  it('seeds expanded rows from var-expanded', async () => {
+    const { component } = await open('/queries?q=select&var-expanded=v3:aaa,v3:bbb');
+    expect(component.isExpanded(hit('v3:aaa'))).toBeTrue();
+    expect(component.isExpanded(hit('v3:bbb'))).toBeTrue();
+    expect(component.isExpanded(hit('v3:ccc'))).toBeFalse();
+  });
+
+  it('writes an expanded row to the URL beside the search, and drops it when collapsed', async () => {
+    const { component, harness } = await open('/queries?q=select');
+    const router = TestBed.inject(Router);
+
+    component.toggleExpanded(hit('v3:aaa'));
+    await harness.fixture.whenStable();
+    const expandedTree = router.parseUrl(router.url);
+    expect(expandedTree.queryParams['var-expanded']).toBe('v3:aaa');
+    expect(expandedTree.queryParams['q']).toBe('select');
+
+    component.toggleExpanded(hit('v3:aaa'));
+    await harness.fixture.whenStable();
+    expect(router.parseUrl(router.url).queryParams['var-expanded']).toBeUndefined();
+  });
+
+  it('expanding a row does not also select it', async () => {
+    const { component } = await open('/queries');
+    const event = new Event('click');
+    const stop = spyOn(event, 'stopPropagation');
+    component.toggleExpanded(hit('v3:aaa'), event);
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it('keeps expansion out of the graph link, which speaks only the search vocabulary', async () => {
+    const { component } = await open('/queries?q=select&var-expanded=v3:aaa');
+    const navigate = spyOn(TestBed.inject(Router), 'navigate');
+    component.graphResults();
+    const [, extras] = navigate.calls.mostRecent().args;
+    expect(extras!.queryParams).toEqual({ source: 'search', q: 'select' });
   });
 });

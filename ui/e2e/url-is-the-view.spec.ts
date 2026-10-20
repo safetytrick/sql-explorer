@@ -74,3 +74,32 @@ test('an untouched view keeps a clean URL', async ({page}) => {
 
   expect(new URL(page.url()).search).toBe('');
 });
+
+/**
+ * A row's whole SQL is view state like any filter: expanding it writes
+ * `var-expanded`, and a link carrying it opens with that row expanded
+ * (sqlx-cnt).
+ */
+test('expanding a row shows its whole SQL and writes it to the URL', async ({page}) => {
+  await page.goto('/queries?q=orders');
+  const row = page.locator('.q-row').first();
+  await expect(row.locator('.q-full-sql')).toHaveCount(0);
+
+  await row.locator('.q-expand').click();
+
+  await expect(row.locator('.q-full-sql')).toContainText('where id = ?');
+  await expect(page).toHaveURL(/[?&]var-expanded=v3(:|%3A)orders/);
+  await expect(page).toHaveURL(/[?&]q=orders/);
+});
+
+test('a link with an expanded row opens with it expanded', async ({page}) => {
+  await page.goto('/queries?var-expanded=v3:users');
+
+  await expect(page.locator('.q-row')).toHaveCount(3);
+  await expect(page.locator('.q-full-sql')).toHaveCount(1);
+  await expect(page.locator('.q-full-sql')).toContainText('`users`');
+
+  await page.locator('.q-expand[aria-expanded="true"]').click();
+  await expect(page.locator('.q-full-sql')).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.has('var-expanded')).toBe(false);
+});
