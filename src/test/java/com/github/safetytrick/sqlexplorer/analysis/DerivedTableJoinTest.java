@@ -66,6 +66,49 @@ class DerivedTableJoinTest {
             "role.description = role.description");
     }
 
+    /** The same derived-table column in the select list resolves to its source table, not dual (sqlx-03r). */
+    @Test
+    void aDerivedTablesColumnInTheSelectListResolvesToItsSourceTable() throws JSQLParserException {
+        SqlProfile profile = fixture.analyze("""
+            SELECT `a`.`name`, `r`.`id`, `r_global`.`id`, `r_global`.`name`
+            FROM `role` `r`
+            JOIN `account` `a` ON `a`.`id` = `r`.`account_id`
+            JOIN (SELECT `id`, NAME FROM `role` WHERE `account_id` IS NULL) AS `r_global`
+              ON `r_global`.`name` = `r`.`name`
+            """);
+
+        assertThat(profile.getSelectColumns()).extracting(DerivedTableJoinTest::name)
+            .containsExactlyInAnyOrder("account.name", "role.id", "role.name");
+    }
+
+    /** A derived table in FROM, with no join at all, resolves the same way. */
+    @Test
+    void aDerivedTableInFromResolvesItsSelectListColumns() throws JSQLParserException {
+        SqlProfile profile = fixture.analyze("""
+            SELECT `g`.`name`, COUNT(`g`.`id`) FROM (SELECT `id`, `name` FROM `role` WHERE `account_id` IS NULL) `g`
+            GROUP BY `g`.`name`
+            """);
+
+        assertThat(profile.getSelectColumns()).extracting(DerivedTableJoinTest::name)
+            .containsExactlyInAnyOrder("role.name", "role.id");
+        assertThat(profile.getGroupByColumns()).extracting(DerivedTableJoinTest::name)
+            .containsExactly("role.name");
+    }
+
+    /** A UNION's columns are named by its first branch; reading one no longer throws. */
+    @Test
+    void aUnionDerivedTableResolvesThroughItsFirstBranch() throws JSQLParserException {
+        SqlProfile profile = fixture.analyze("""
+            SELECT `u`.`name` FROM `role` `r`
+            JOIN (SELECT `id`, `name` FROM `role` UNION SELECT `id`, `name` FROM `account`) `u` ON `u`.`id` = `r`.`id`
+            """);
+
+        assertThat(profile.getAnalysisFailureReason()).isNull();
+        assertThat(profile.getSelectColumns()).extracting(DerivedTableJoinTest::name)
+            .containsExactly("role.name");
+        assertThat(joins(profile)).containsExactly("role.id = role.id");
+    }
+
     /** {@code tdb} is {@link TestSchemas#DEFAULT_SCHEMA}. */
     @Test
     void aSchemaQualifiedDerivedTableResolvesToTheTableNotTheSchema() throws JSQLParserException {

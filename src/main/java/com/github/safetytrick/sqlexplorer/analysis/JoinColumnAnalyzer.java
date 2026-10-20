@@ -2,9 +2,7 @@ package com.github.safetytrick.sqlexplorer.analysis;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
@@ -28,8 +26,6 @@ import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.StatementVisitorAdapter;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
-import net.sf.jsqlparser.statement.select.AllColumns;
-import net.sf.jsqlparser.statement.select.AllTableColumns;
 import net.sf.jsqlparser.statement.select.FromItem;
 import net.sf.jsqlparser.statement.select.FromItemVisitorAdapter;
 import net.sf.jsqlparser.statement.select.Join;
@@ -39,7 +35,6 @@ import net.sf.jsqlparser.statement.select.ParenthesedSelect;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SelectItem;
-import net.sf.jsqlparser.statement.select.SelectItemVisitor;
 import net.sf.jsqlparser.statement.select.SelectItemVisitorAdapter;
 import net.sf.jsqlparser.statement.select.SelectVisitorAdapter;
 import net.sf.jsqlparser.statement.select.SetOperationList;
@@ -412,21 +407,10 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
             @Override
             public <S> Void visit(ParenthesedSelect subSelect, S context) {
-                TableAliasResolver previous = tableAliasResolver;
-                try {
-                    // this is a terrifying hack, I need to fix scope handling for alias resolution, etc.
-                    tableAliasResolver = new SchemaAwareTableAliasResolver(tableAliasResolver, subSelect, columnTableResolver);
-                    if (derivedTable != null) {
-                        throw new UnsupportedSqlException("nested subselect is not implemented");
-                    }
-                    ColumnAliasResolverImpl columnAliasResolverImpl = new ColumnAliasResolverImpl();
-                    // todo handle scope in subselects for the join column analyzer
-                    subSelect.getSelect().accept(columnAliasResolverImpl, context);
-                    // the alias will be null for IN (select) expressions, we also shouldn't be adding these to the derived tables list.
-                    derivedTable = new DerivedTable(subSelect.getAlias() != null ? subSelect.getAlias().getName() : "", columnAliasResolverImpl);
-                } finally {
-                    tableAliasResolver = previous;
+                if (derivedTable != null) {
+                    throw new UnsupportedSqlException("nested subselect is not implemented");
                 }
+                derivedTable = DerivedTables.of(subSelect, tableAliasResolver, columnTableResolver, schema);
                 return null;
             }
 
@@ -451,128 +435,6 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             public <S> Void visit(ParenthesedFromItem parenthesedFromItem, S context) {
                 parenthesedFromItem.getFromItem().accept(this);
                 return null;
-            }
-        }
-
-        private static class TableNamesInFromItemVisitor extends FromItemVisitorAdapter<Void> {
-            List<String> tableNames;
-            public List<String> getTableNames(FromItem fromItem) {
-                tableNames = new ArrayList<>();
-                fromItem.accept(this);
-                return tableNames;
-            }
-
-            @Override
-            public <S> Void visit(Table table, S context) {
-                tableNames.add(table.getName());
-                return null;
-            }
-        }
-
-        private class ColumnAliasResolverImpl extends SelectVisitorAdapter<Void> implements SelectItemVisitor<Void>, ColumnAliasResolver {
-            private final Map<String, String> columnAliasMap = new HashMap<>();
-            private final SimpleColumnAliasResolver simpleColumnAliasResolver = new SimpleColumnAliasResolver(tableAliasResolver);
-            private final List<String> tableNames = new ArrayList<>();
-
-            @Override
-            public String columnReference(Expression expression) {
-                String col = simpleColumnAliasResolver.columnReference(expression);
-                if (col == null) {
-                    return null;
-                }
-                return columnAliasMap.getOrDefault(key(col.substring(col.lastIndexOf('.') + 1)), col);
-            }
-
-            /**
-             * The source column a reference to this derived table names, or
-             * null when its select list does not project that name.
-             *
-             * <p>Keyed by normalized name, as MySQL compares column names: the
-             * select list's bare {@code NAME} is the ON clause's
-             * {@code `name`}. A miss used to return the bare column name, which
-             * callers then read as a table — a join recorded against a table
-             * called {@code name} (sqlx-9xg).
-             */
-            @Override
-            public String columnReference(Column column) {
-                return columnAliasMap.get(key(column.getColumnName()));
-            }
-
-            private static String key(String columnName) {
-                return NameNormalizer.normalize(columnName);
-            }
-
-
-            @Override
-            public <S> Void visit(PlainSelect plainSelect, S context) {
-
-                if (plainSelect.getFromItem() != null) {
-                    tableNames.addAll(new TableNamesInFromItemVisitor()
-                                          .getTableNames(plainSelect.getFromItem()));
-                }
-
-                if (plainSelect.getSelectItems() != null) {
-                    for (SelectItem<?> selectItem : plainSelect.getSelectItems()) {
-                        selectItem.accept(this, context);
-                    }
-                }
-                return null;
-            }
-
-            @Override
-            public <S> Void visit(SetOperationList setOpList, S context) {
-                throw new UnsupportedSqlException("set operation");
-            }
-
-            @Override
-            public <S> Void visit(WithItem<?> withItem, S context) {
-                throw new UnsupportedSqlException("with item");
-            }
-
-            @Override
-            public <S> Void visit(SelectItem<? extends Expression> selectItem, S context) {
-                Expression expression = selectItem.getExpression();
-                // AllTableColumns (`t.*`) extends AllColumns (`*`), so check the subclass first.
-                if (expression instanceof AllTableColumns allTableColumns) {
-                    visitAllTableColumns(allTableColumns);
-                } else if (expression instanceof AllColumns) {
-                    visitAllColumns();
-                } else {
-                    visitSelectExpressionItem(selectItem);
-                }
-                return null;
-            }
-
-            private void visitAllColumns() {
-                for (String tableName : tableNames) {
-                    List<String> columnsForTable = columnTableResolver.getAllColumnNamesForTable(schema, tableName);
-                    for (String column : columnsForTable) {
-                        columnAliasMap.put(key(column), tableName + "." + column);
-                    }
-                }
-            }
-
-            private void visitAllTableColumns(AllTableColumns allTableColumns) {
-                String tableName = tableAliasResolver.resolveTableName(allTableColumns.getTable());
-                List<String> columns = columnTableResolver.getAllColumnNamesForTable(schema, tableName);
-                for (String column : columns) {
-                    columnAliasMap.put(key(column), tableName + "." + column);
-                }
-            }
-
-            private void visitSelectExpressionItem(SelectItem<? extends Expression> selectExpressionItem) {
-                String columnReference = simpleColumnAliasResolver.columnReference(selectExpressionItem.getExpression());
-                String name = null;
-                if (selectExpressionItem.getAlias() != null) {
-                    name = selectExpressionItem.getAlias().getName();
-                } else if (columnReference != null) {
-                    String[] split = columnReference.split("\\.");
-                    name = split[split.length - 1];
-                }
-
-                if (name != null) {
-                    columnAliasMap.put(key(name), columnReference);
-                }
             }
         }
     }

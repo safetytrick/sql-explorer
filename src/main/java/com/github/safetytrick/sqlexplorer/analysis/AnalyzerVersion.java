@@ -31,9 +31,12 @@ public final class AnalyzerVersion {
      *   <li>3 — a join to a derived table resolves its columns whatever their
      *       case or quoting, and never to a table named after the column
      *       (sqlx-9xg).</li>
+     *   <li>4 — select-list and GROUP BY columns of a derived table resolve
+     *       to its source table rather than dual, and a UNION derived table
+     *       resolves through its first branch (sqlx-03r).</li>
      * </ul>
      */
-    public static final int ANALYZERS = 3;
+    public static final int ANALYZERS = 4;
 
     /** What a profile records, and what reuse compares: {@code a<ANALYZERS>.n<QueryNormalizer.VERSION>}. */
     public static final String CURRENT = "a" + ANALYZERS + ".n" + QueryNormalizer.VERSION;

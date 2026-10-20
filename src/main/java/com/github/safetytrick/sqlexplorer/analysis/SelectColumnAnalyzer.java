@@ -106,6 +106,10 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
 
             @Override
             public <S> Void visit(PlainSelect plainSelect, S context) {
+                // A column qualified by a derived table's alias names a column
+                // of whatever that subquery read; without this it resolved to
+                // nothing and was recorded against dual (sqlx-03r).
+                DerivedTables.register(plainSelect, aliasResolver, columnTableResolver, builder.getSchemaName());
                 if (plainSelect.getSelectItems() != null) {
                     ColumnCollector collector = new ColumnCollector(column -> builder.selectColumn(column));
                     for (SelectItem<?> item : plainSelect.getSelectItems()) {
