@@ -42,8 +42,17 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
         }
 
         // columns from temp tables aren't resolved correctly here
+        //
+        // One table in scope: an unqualified column is that table's, as SQL
+        // resolves a bare name in the innermost scope first. A qualified one is
+        // only that table's at the top level. Inside a subquery the qualifier
+        // may name the enclosing query — a correlated subquery's `outer.id` —
+        // and taking the local table for it recorded a join of that table to
+        // itself (sqlx-lww); it is looked up by alias instead, here and then in
+        // the enclosing scope.
         String onlyTableName = getOnlyTableName();
-        if (onlyTableName != null) {
+        boolean qualified = column.getTable() != null && column.getTable().getName() != null;
+        if (onlyTableName != null && (parent == null || !qualified)) {
             return onlyTableName;
         }
 
@@ -153,7 +162,7 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
     private String getOnlyTableName() {
         initMappings();
 
-        if (tableNames.size() == 1  && parent == null) {
+        if (tableNames.size() == 1) {
             return tableNames.getFirst();
         }
         return null;

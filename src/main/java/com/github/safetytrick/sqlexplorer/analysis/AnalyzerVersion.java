@@ -20,8 +20,17 @@ import com.github.safetytrick.sqlexplorer.analysis.parser.QueryNormalizer;
  */
 public final class AnalyzerVersion {
 
-    /** The analyzers' own version. */
-    public static final int ANALYZERS = 1;
+    /**
+     * The analyzers' own version.
+     *
+     * <ul>
+     *   <li>1 — the first recorded version.</li>
+     *   <li>2 — a correlated subquery's references to the enclosing query
+     *       resolve to that query's tables, and joins inside WHERE-clause
+     *       subqueries are recorded (sqlx-lww).</li>
+     * </ul>
+     */
+    public static final int ANALYZERS = 2;
 
     /** What a profile records, and what reuse compares: {@code a<ANALYZERS>.n<QueryNormalizer.VERSION>}. */
     public static final String CURRENT = "a" + ANALYZERS + ".n" + QueryNormalizer.VERSION;

@@ -252,6 +252,36 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 this.columnAliasResolver = new SimpleColumnAliasResolver(tableAliasResolver);
             }
 
+            /**
+             * A subquery in the WHERE clause — EXISTS, IN, a scalar subquery —
+             * joins tables of its own, and those joins are the statement's
+             * too. They went unrecorded: this visitor read only IN-subquery
+             * projections and never entered a subquery's FROM (sqlx-lww).
+             *
+             * <p>Resolved in the subquery's own scope, falling back to the
+             * enclosing one. The statement-wide resolver does not see tables
+             * declared inside a WHERE-clause subquery, so it took the outer
+             * query's single table for every column the subquery named.
+             */
+            @Override
+            public <S> Void visit(Select select, S context) {
+                // A subquery in an expression arrives here, not at
+                // visit(ParenthesedSelect): jsqlparser's adapter dispatches it
+                // to visit(Select), which does nothing without a select visitor.
+                TableAliasResolver enclosing = tableAliasResolver;
+                Select body = select;
+                if (select instanceof ParenthesedSelect parenthesed) {
+                    tableAliasResolver = new SchemaAwareTableAliasResolver(enclosing, parenthesed, columnTableResolver);
+                    body = parenthesed.getSelect();
+                }
+                try {
+                    body.accept(new JoinColumnSelectVisitor(), context);
+                } finally {
+                    tableAliasResolver = enclosing;
+                }
+                return null;
+            }
+
             @Override
             public <S> Void visit(InExpression expr, S context) {
                 super.visit(expr, context);

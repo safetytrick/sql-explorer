@@ -160,10 +160,19 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                 throw new UnsupportedSqlException("with item not supported");
             }
 
+            /**
+             * A subquery's scope: its own aliases, falling back to the
+             * enclosing query's. The parent is what lets a correlated
+             * subquery's reference to an outer alias resolve; without it the
+             * outer alias resolved to the subquery's only table — recording a
+             * join of that table to itself — or, with two tables, to nothing
+             * (sqlx-lww). Every subquery reaches this, whether it appears as an
+             * expression (EXISTS, IN, a scalar subquery) or as a derived table.
+             */
             @Override
             public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
                 TableAliasResolver previous = aliasResolver;
-                aliasResolver = new SchemaAwareTableAliasResolver(null, parenthesedSelect, columnTableResolver);
+                aliasResolver = new SchemaAwareTableAliasResolver(previous, parenthesedSelect, columnTableResolver);
                 parenthesedSelect.getSelect().accept(this, context);
                 aliasResolver = previous;
                 return null;
@@ -201,17 +210,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                     }
 
                     builder.criteriaColumn(ColumnReference.fromComponents(null, tableName, column.getColumnName()));
-                    return null;
-                }
-
-                @Override
-                public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
-                    TableAliasResolver previous = aliasResolver;
-
-                    // todo this won't be able to delegate back to the parent if necessary I think that will fail for some sql
-                    aliasResolver = new SchemaAwareTableAliasResolver(previous, parenthesedSelect, columnTableResolver);
-                    super.visit(parenthesedSelect, context);
-                    aliasResolver = previous;
                     return null;
                 }
 
