@@ -11,6 +11,30 @@ SQL Explorer is a full-stack tool for analyzing MySQL performance. It reads quer
 - **Data models**: Apache Avro (`models/` subproject)
 - **Database**: MySQL 8.4.4, Liquibase migrations
 
+## Keep deployment specifics out of the repo: use neutral names
+
+sql-explorer gets pointed at real databases, so real names turn up while
+debugging: schemas, tables, hosts, digests, accounts. **None of them belong in
+anything committed** — code, tests, fixtures, docs, comments, commit messages
+or bead text that gets exported. That covers:
+
+- organisation and product names, and schema or table names from a real
+  deployment;
+- hostnames, endpoints, IP addresses, cloud account ids, profile and role names;
+- MySQL usernames and people's names or handles;
+- digests, query text or row counts copied from a real Performance Schema;
+- links to internal wikis, tickets or dashboards.
+
+Use neutral stand-ins instead: `app_*` schemas, generic tables (`account`,
+`site`, `account_site`), `` `reader`@`10.0.0.1` ``, `db.example.com`, and
+synthetic digests. When reproducing a bug found against a real database,
+rebuild the *shape* of the statement on a made-up schema (`SchemaFixture.fromSql`)
+rather than pasting it — the shape is what the test needs anyway.
+
+Configuration that has to name a real deployment stays local: `scripts/` is
+git-ignored for that reason. Before committing, scan the diff for anything
+you only know because of a real system.
+
 ## Commands
 
 ### Backend
