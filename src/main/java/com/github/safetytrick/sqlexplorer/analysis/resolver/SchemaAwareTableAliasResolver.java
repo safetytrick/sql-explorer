@@ -60,8 +60,8 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
             if (derivedTables != null) {
                 String tempTableAlias = NameNormalizer.normalize(column.getTable().getName());
                 if (derivedTables.containsKey(tempTableAlias)) {
-                    // todo fix this up
-                    return derivedTables.get(tempTableAlias).columnReference(column).split("\\.")[0];
+                    // A column the derived table does not project resolves to nothing.
+                    return tableOf(derivedTables.get(tempTableAlias).columnReference(column));
                 }
             }
 
@@ -75,8 +75,7 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
             for (Map.Entry<String, DerivedTable> entry : derivedTables.entrySet()) {
                 String columnReference = entry.getValue().columnReference(column);
                 if (columnReference != null) {
-                    // todo does this handle schema names?
-                    return columnReference.split("\\.")[0];
+                    return tableOf(columnReference);
                 }
 
             }
@@ -95,6 +94,19 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
             tableName = parent.resolveTableName(column);
         }
         return tableName;
+    }
+
+    /**
+     * The table of a {@code [schema.]table.column} reference: everything before
+     * the last dot. The first segment was taken before, which is the schema
+     * whenever the derived table read a schema-qualified one.
+     */
+    private static String tableOf(String columnReference) {
+        if (columnReference == null) {
+            return null;
+        }
+        int dot = columnReference.lastIndexOf('.');
+        return dot < 0 ? null : columnReference.substring(0, dot);
     }
 
     public String resolveTableName(Table table) {

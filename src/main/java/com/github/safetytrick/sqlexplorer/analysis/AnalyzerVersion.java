@@ -28,9 +28,12 @@ public final class AnalyzerVersion {
      *   <li>2 — a correlated subquery's references to the enclosing query
      *       resolve to that query's tables, and joins inside WHERE-clause
      *       subqueries are recorded (sqlx-lww).</li>
+     *   <li>3 — a join to a derived table resolves its columns whatever their
+     *       case or quoting, and never to a table named after the column
+     *       (sqlx-9xg).</li>
      * </ul>
      */
-    public static final int ANALYZERS = 2;
+    public static final int ANALYZERS = 3;
 
     /** What a profile records, and what reuse compares: {@code a<ANALYZERS>.n<QueryNormalizer.VERSION>}. */
     public static final String CURRENT = "a" + ANALYZERS + ".n" + QueryNormalizer.VERSION;

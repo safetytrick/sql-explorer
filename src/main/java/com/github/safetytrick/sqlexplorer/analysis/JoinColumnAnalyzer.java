@@ -480,12 +480,26 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 if (col == null) {
                     return null;
                 }
-                return columnAliasMap.getOrDefault(col.split("\\.", 2)[1], col);
+                return columnAliasMap.getOrDefault(key(col.substring(col.lastIndexOf('.') + 1)), col);
             }
 
+            /**
+             * The source column a reference to this derived table names, or
+             * null when its select list does not project that name.
+             *
+             * <p>Keyed by normalized name, as MySQL compares column names: the
+             * select list's bare {@code NAME} is the ON clause's
+             * {@code `name`}. A miss used to return the bare column name, which
+             * callers then read as a table — a join recorded against a table
+             * called {@code name} (sqlx-9xg).
+             */
             @Override
             public String columnReference(Column column) {
-                return columnAliasMap.getOrDefault(column.getColumnName(), column.getColumnName());
+                return columnAliasMap.get(key(column.getColumnName()));
+            }
+
+            private static String key(String columnName) {
+                return NameNormalizer.normalize(columnName);
             }
 
 
@@ -533,7 +547,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 for (String tableName : tableNames) {
                     List<String> columnsForTable = columnTableResolver.getAllColumnNamesForTable(schema, tableName);
                     for (String column : columnsForTable) {
-                        columnAliasMap.put(column, tableName + "." + column);
+                        columnAliasMap.put(key(column), tableName + "." + column);
                     }
                 }
             }
@@ -542,7 +556,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 String tableName = tableAliasResolver.resolveTableName(allTableColumns.getTable());
                 List<String> columns = columnTableResolver.getAllColumnNamesForTable(schema, tableName);
                 for (String column : columns) {
-                    columnAliasMap.put(column, tableName + "." + column);
+                    columnAliasMap.put(key(column), tableName + "." + column);
                 }
             }
 
@@ -557,7 +571,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 }
 
                 if (name != null) {
-                    columnAliasMap.put(name, columnReference);
+                    columnAliasMap.put(key(name), columnReference);
                 }
             }
         }
