@@ -4,11 +4,12 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
 import { TagFilterStripComponent, TaggedRow } from '../tag-filter/tag-filter-strip.component';
-import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
+import { emptyTagFilter, matchesTagFilter, sameTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
 import { TableRollup } from '../api-types';
 import { TypeFilter } from '../schema-tree/tree-filter';
 import { readTypeFilter, TYPE_PARAM } from './type-filter-url';
-import { matchesTypeFilter } from '../schema-tree/tree-filter';
+import { matchesTreeFilter, matchesTypeFilter } from '../schema-tree/tree-filter';
+import { decodeTableSearch, encodeTableSearch, parseColumns, tableKey, TableSearchState } from './table-search-url';
 import {schemaTarget, tableTarget, targetKey, type TagTarget} from '../tag-path';
 import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
 
@@ -41,6 +42,32 @@ export class TableNamesComponent implements OnInit {
   typeFilter: TypeFilter = 'all';
   /** `tables` narrowed by the tag strip; the type filter still applies inside. */
   visible: TableRollup[] = [];
+
+  /**
+   * The search: a name pattern applied here, and columns every table must
+   * have, applied by the server — the page holds no column lists. URL-backed
+   * as `var-name` / `var-columns` (sqlx-v86).
+   */
+  search: TableSearchState = { name: '', columns: [], exclude: [] };
+
+  /**
+   * Rows unchecked, by `schema.table`, that a bulk tag passes over. The
+   * exceptions rather than the selection, so a fresh search starts with every
+   * row checked; in the URL as `var-exclude`, since it is on screen.
+   */
+  excluded: ReadonlySet<string> = new Set();
+
+  /**
+   * Whether any filter narrows the list: the name or column search, the tag
+   * strip, or the all/tables/views control. The checkboxes exist to pass over
+   * a few rows of a narrowed set, so without a filter they are not drawn —
+   * and exclusions are not applied either, since a bulk tag must never skip
+   * a row whose checkbox the page is not showing.
+   */
+  filtered = false;
+
+  /** Which schema and columns the loaded `tables` answer; a load is skipped when unchanged. */
+  private loadedKey: string | null = null;
 
   /**
    * Exactly the rows on screen, which is what a bulk tag has to act on.
@@ -87,30 +114,46 @@ export class TableNamesComponent implements OnInit {
     // seeded from the snapshot, then kept current — /tables and /tables/:schema
     // are the same component, so a schema change must not drop the type filter
     this.typeFilter = readTypeFilter(this.route.snapshot.queryParamMap.get(TYPE_PARAM));
-    this.route.queryParamMap.subscribe(params => {
-      this.typeFilter = readTypeFilter(params.get(TYPE_PARAM));
-      this.applyFilter();
-    });
+    this.readSearch(decodeTableSearch(this.route.snapshot.queryParamMap));
     this.route.params.subscribe(params => {
         this.schema = params['schema'];
-        if (this.schema) {
-          this.titleService.setTitle(`::: schema ${this.schema} :::`);
-          this.getTablesForSchema(this.schema);
-        } else {
-          this.titleService.setTitle('::: sql explorer :::');
-          this.getTables();
-        }
+        this.titleService.setTitle(this.schema ? `::: schema ${this.schema} :::` : '::: sql explorer :::');
+        this.load();
     });
-
+    this.route.queryParamMap.subscribe(params => {
+      this.typeFilter = readTypeFilter(params.get(TYPE_PARAM));
+      this.readSearch(decodeTableSearch(params));
+      this.load();
+      this.applyFilter();
+    });
   }
 
-  getTables() {
+  private readSearch(search: TableSearchState) {
+    this.search = search;
+    this.excluded = new Set(search.exclude);
+  }
+
+  /**
+   * Fetches the tables for the current schema and columns, unless those are
+   * what is already loaded — the route and query-param streams both call
+   * this, and a name or checkbox change needs no fetch. A response for a
+   * schema or columns since replaced is dropped.
+   */
+  private load() {
+    const key = `${this.schema ?? ''}|${this.search.columns.join(',')}`;
+    if (key === this.loadedKey) { return; }
+    this.loadedKey = key;
     this.tables = [];
     this.applyFilter();
-    this.sqlService.getTables().subscribe(data => {
+    const columns = this.search.columns;
+    const request = this.schema
+      ? this.sqlService.getTablesForSchema(this.schema, columns)
+      : this.sqlService.getTables(columns);
+    request.subscribe(data => {
+      if (key !== this.loadedKey) { return; }
       this.tables = data;
       this.applyFilter();
-      this.loadSchemaTags(data);
+      if (!this.schema) { this.loadSchemaTags(data); }
     });
   }
 
@@ -157,14 +200,49 @@ export class TableNamesComponent implements OnInit {
     this.stripRows = this.tables.map(table =>
       ({tags: table.tags ?? [], inheritedTags: this.inherited(table)}));
     this.visible = this.tables.filter(table =>
-      matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter,
+      matchesTreeFilter(table.schema ?? '', table.name, this.search.name)
+      && matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter,
         this.inherited(table)));
     this.displayed = this.visible.filter(table => matchesTypeFilter(this.typeFilter, table.view));
+    this.filtered = !!this.search.name.trim() || this.search.columns.length > 0
+      || this.typeFilter !== 'all' || !sameTagFilter(this.filter, emptyTagFilter());
   }
 
-  /** The tag target of every row on screen. */
+  /** The tag target of every row on screen and, when the checkboxes show, still checked. */
   get bulkTargets(): TagTarget[] {
-    return this.displayed.map(table => tableTarget(table.schema, table.name));
+    return this.displayed
+      .filter(table => !this.filtered || !this.excluded.has(tableKey(table.schema, table.name)))
+      .map(table => tableTarget(table.schema, table.name));
+  }
+
+  setName(name: string) {
+    this.writeSearch({ ...this.search, name, exclude: [] });
+  }
+
+  /** Typed as one list — commas or spaces — and applied on Enter or leaving the box. */
+  setColumns(text: string) {
+    const columns = parseColumns(text);
+    if (columns.join(',') === this.search.columns.join(',')) { return; }
+    this.writeSearch({ ...this.search, columns, exclude: [] });
+  }
+
+  setExcluded(excluded: Set<string>) {
+    this.writeSearch({ ...this.search, exclude: [...excluded] });
+  }
+
+  /**
+   * A new name or column search is a new result set, so it starts with every
+   * row checked: the exclusions are cleared with it.
+   */
+  private writeSearch(search: TableSearchState) {
+    this.readSearch(search);
+    this.applyFilter();
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: encodeTableSearch(search),
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   /**
@@ -176,9 +254,10 @@ export class TableNamesComponent implements OnInit {
     // The noun agrees with the number it follows, which is the total in the
     // "N of M" form and the count in the "all N" form.
     const noun = (count: number) => count === 1 ? 'table' : 'tables';
-    return this.displayed.length === this.tables.length
+    const selected = this.bulkTargets.length;
+    return selected === this.tables.length
       ? `all ${this.tables.length} ${noun(this.tables.length)}`
-      : `${this.displayed.length} of ${this.tables.length} ${noun(this.tables.length)}`;
+      : `${selected} of ${this.tables.length} ${noun(this.tables.length)}`;
   }
 
   /** Re-read tags for the rows just written, without re-fetching the page. */
@@ -213,10 +292,4 @@ export class TableNamesComponent implements OnInit {
     });
   }
 
-  private getTablesForSchema(schema: string) {
-    this.sqlService.getTablesForSchema(schema).subscribe(data => {
-      this.tables = data;
-      this.applyFilter();
-    });
-  }
 }

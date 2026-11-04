@@ -24,10 +24,20 @@
     </span>
   }
 
+  <span class="table-search">
+    <input class="search-box" placeholder="name… (invoice_*)" [value]="search.name"
+           (input)="setName($any($event.target).value)"
+           title="matches schema.table; * is a wildcard, so invoice_* is every table starting invoice_">
+    <input class="search-box columns-box" placeholder="has columns… (entity_id entity_type)"
+           [value]="search.columns.join(' ')"
+           (change)="setColumns($any($event.target).value)"
+           title="tables having every listed column; separate names with spaces or commas, then press Enter">
+  </span>
+
   <app-tag-filter-strip [rows]="stripRows" (filterChange)="onFilter($event)"></app-tag-filter-strip>
 
   <!-- Beside the filters, because the filters are what define the set. -->
-  <app-bulk-tag-bar [targets]="bulkTargets" [count]="displayed.length" [setLabel]="bulkLabel"
+  <app-bulk-tag-bar [targets]="bulkTargets" [count]="bulkTargets.length" [setLabel]="bulkLabel"
                     (changed)="onBulkChanged()"></app-bulk-tag-bar>
 </div>
 
@@ -36,6 +46,9 @@
     <app-table-list-component [tables]="visible"
                               [typeFilter]="typeFilter"
                               [showTypeFilter]="false"
+                              [selectable]="filtered"
+                              [excluded]="excluded"
+                              (excludedChange)="setExcluded($event)"
                               (tagsChanged)="onRowTagsChanged()"></app-table-list-component>
   </div>
 </div>

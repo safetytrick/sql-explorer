@@ -8,6 +8,13 @@
 <table class="data-table ledger">
   <thead>
     <tr>
+      @if (selectable) {
+        <th class="check-col">
+          <input type="checkbox" [checked]="allChecked()" [indeterminate]="someChecked()"
+                 (change)="toggleAll()" title="include or leave out every row in a bulk tag"
+                 aria-label="select all tables">
+        </th>
+      }
       <th class="rank-col">#</th>
       <th class="schema-col">Schema</th>
       <th class="table-col">Name</th>
@@ -18,7 +25,13 @@
   </thead>
   <tbody>
     @for (table of visibleTables(); track table; let i = $index) {
-      <tr>
+      <tr [class.unchecked]="selectable && !isChecked(table)">
+        @if (selectable) {
+          <td class="check-col">
+            <input type="checkbox" [checked]="isChecked(table)" (change)="toggleRow(table)"
+                   [attr.aria-label]="'include ' + table.schema + '.' + table.name">
+          </td>
+        }
         <td class="rank-col">{{i + 1}}</td>
         <td class="schema-col"><a class="schema-name" routerLink="/tables/{{table.schema}}">{{table.schema}}</a></td>
         <td class="table-col"><a class="tbl-name" routerLink="/table/{{table.schema}}/{{table.name}}">{{table.name}}</a>@if (table.view) {

@@ -232,22 +232,47 @@ public class SqlRepositoryService {
         return builder.tags(schemaTags).build();
     }
 
-    public Stream<TableRollup> getAllTablesWithRollup() {
+    /**
+     * Every table the queries reference, with its rollup. With
+     * {@code columns}, only tables having every one of them (sqlx-v86).
+     */
+    public Stream<TableRollup> getAllTablesWithRollup(List<String> columns) {
 
         TagLoader tagLoader = tagsService.getBulkTagLoaderByType("table");
 
-        return repository().getAllTableReferences().map(
-            reference -> getTableRollup(reference, tagLoader)
+        return repository().getAllTableReferences()
+            .filter(reference -> hasColumns(reference, columns))
+            .map(reference -> getTableRollup(reference, tagLoader)
             ).sorted(TableRollup.comparator(ignoredSchemas));
     }
 
-    public Stream<TableRollup> getTablesForSchemaWithRollup(String schema) {
+    /** As {@link #getAllTablesWithRollup}, for one schema. */
+    public Stream<TableRollup> getTablesForSchemaWithRollup(String schema, List<String> columns) {
         TagLoader tagLoader = tagsService.getTableTagLoaderForSchema(schema);
 
         return repository().getAllTableReferences()
-            .filter(table -> table.getNormalizedSchemaName() != null && table.getNormalizedSchemaName().equalsIgnoreCase(schema)).map(
-                reference -> getTableRollup(reference, tagLoader)
+            .filter(table -> table.getNormalizedSchemaName() != null && table.getNormalizedSchemaName().equalsIgnoreCase(schema))
+            .filter(reference -> hasColumns(reference, columns))
+            .map(reference -> getTableRollup(reference, tagLoader)
             ).sorted(TableRollup.comparator(ignoredSchemas));
+    }
+
+    /**
+     * Whether the table has every named column, compared as MySQL compares
+     * column names. No columns asked for is no constraint; a table the schema
+     * does not know has none. Checked before the rollup, which reads every
+     * query on the table and is the expensive part of a listing.
+     */
+    private boolean hasColumns(TableReference reference, List<String> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return true;
+        }
+        TableStructure structure = sqlSchemaService.getTable(reference);
+        if (structure == null || structure.columns() == null) {
+            return false;
+        }
+        return columns.stream().allMatch(wanted -> structure.columns().stream()
+            .anyMatch(column -> column.columnName().equalsIgnoreCase(wanted.strip())));
     }
 
     public TableRollup getTableRollup(TableReference reference, TagLoader tagLoader) {

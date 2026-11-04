@@ -20,6 +20,16 @@ describe('matchesTreeFilter', () => {
     expect(matchesTreeFilter('some_schema', 'branch', 'session')).toBeFalse();
   });
 
+  it('reads a term with * as a wildcard over the table name or schema.table', () => {
+    expect(matchesTreeFilter('app', 'invoice_lines', 'invoice_*')).toBeTrue();
+    expect(matchesTreeFilter('app', 'old_invoice_lines', 'invoice_*')).toBeFalse();
+    expect(matchesTreeFilter('app', 'audit_log', 'app.*_log')).toBeTrue();
+    expect(matchesTreeFilter('other', 'audit_log', 'app.*_log')).toBeFalse();
+    expect(matchesTreeFilter('app', 'INVOICE_LINES', '*Lines')).toBeTrue();
+    // `.` in a pattern is literal, not "any character"
+    expect(matchesTreeFilter('appx', 'log', 'app.*')).toBeFalse();
+  });
+
   it('terms can span the schema/table boundary', () => {
     expect(matchesTreeFilter('some_schema', 'users', 'schema.u')).toBeTrue();
     expect(matchesTreeFilter('some_schema', 'table', 'schema.u')).toBeFalse();

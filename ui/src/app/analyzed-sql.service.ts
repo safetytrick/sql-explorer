@@ -19,13 +19,19 @@ import {
 
 const endpoint = '/api/sql-explorer/';
 
+/** Spring binds a repeated `columns` to its list parameter; none sent is no constraint. */
+function columnsParam(columns: string[]): HttpParams {
+  return columns.reduce((params, column) => params.append('columns', column), new HttpParams());
+}
+
 @Injectable()
 export class AnalyzedSqlService {
 
   constructor(private http: HttpClient) {}
 
-  getTables(): Observable<TableRollup[]> {
-    return this.http.get<TableRollup[]>(endpoint + 'tables');
+  /** Tables the queries reference; with `columns`, only those having every one (sqlx-v86). */
+  getTables(columns: string[] = []): Observable<TableRollup[]> {
+    return this.http.get<TableRollup[]>(endpoint + 'tables', { params: columnsParam(columns) });
   }
 
   getSql(id: string): Observable<SqlProfile> {
@@ -123,8 +129,8 @@ export class AnalyzedSqlService {
     return this.http.get<GroupedTableRelationships[]>(endpoint + 'graph/by-tag/' + tag, {params: params});
   }
 
-  getTablesForSchema(schema: string): Observable<TableRollup[]> {
-    return this.http.get<TableRollup[]>(endpoint + 'tables/' + schema);
+  getTablesForSchema(schema: string, columns: string[] = []): Observable<TableRollup[]> {
+    return this.http.get<TableRollup[]>(endpoint + 'tables/' + schema, { params: columnsParam(columns) });
   }
 
   getSqlForTableAndJoin(schema: string, table: string, otherSchema: string, otherTable: string): Observable<Table> {

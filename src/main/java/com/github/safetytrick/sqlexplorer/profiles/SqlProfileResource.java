@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -37,14 +38,16 @@ class SqlProfileResource {
     @GetMapping("/schemas")
     public Stream<SchemaRollup> getSchemas() { return sqlRepositoryService.getAllSchemasWithRollup(); }
 
+    /** Every table the queries reference; {@code columns} keeps tables having all of them. */
     @GetMapping("/tables")
-    public Stream<TableRollup> getTableNames() {
-        return sqlRepositoryService.getAllTablesWithRollup();
+    public Stream<TableRollup> getTableNames(@RequestParam(required = false) List<String> columns) {
+        return sqlRepositoryService.getAllTablesWithRollup(columns);
     }
 
     @GetMapping("/tables/{schema}")
-    public Stream<TableRollup> getTableNamesForSchema(@PathVariable String schema) {
-        return sqlRepositoryService.getTablesForSchemaWithRollup(schema);
+    public Stream<TableRollup> getTableNamesForSchema(@PathVariable String schema,
+                                                      @RequestParam(required = false) List<String> columns) {
+        return sqlRepositoryService.getTablesForSchemaWithRollup(schema, columns);
     }
 
     @GetMapping("/table/{schema}/{name}")

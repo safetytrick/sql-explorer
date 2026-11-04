@@ -1,15 +1,31 @@
 /**
- * Sidebar tree filter: the term matches against "schema.table" as one
- * string, so a term matching the schema shows all its tables, and a
- * leading-dot term (".users") anchors past the schema part and matches
- * table names only. Case-insensitive substring.
+ * The table-name filter shared by the sidebar tree and `/tables`: the term
+ * matches against "schema.table" as one string, so a term matching the
+ * schema shows all its tables, and a leading-dot term (".users") anchors
+ * past the schema part and matches table names only. Case-insensitive
+ * substring.
+ *
+ * A term containing `*` is a wildcard pattern instead, matched whole against
+ * the table name or against "schema.table": `invoice_*` is every table whose
+ * name starts with `invoice_`, `app.*_log` every log table in `app`. `_` is
+ * literal, not SQL's single-character wildcard — table names are full of it.
  */
 export function matchesTreeFilter(schema: string, table: string, needle: string): boolean {
   const term = needle.trim().toLowerCase();
   if (!term) {
     return true;
   }
-  return `${schema}.${table}`.toLowerCase().includes(term);
+  const qualified = `${schema}.${table}`.toLowerCase();
+  if (term.includes('*')) {
+    const pattern = wildcard(term);
+    return pattern.test(table.toLowerCase()) || pattern.test(qualified);
+  }
+  return qualified.includes(term);
+}
+
+function wildcard(term: string): RegExp {
+  const literal = term.split('*').map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`^${literal.join('.*')}$`);
 }
 
 export type TypeFilter = 'all' | 'tables' | 'views';
