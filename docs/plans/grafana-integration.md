@@ -31,12 +31,6 @@ nothing matching `digest`. What is there under a `mysql` search is Debezium
 connector metrics and Kafka consumer lag. There is no `mysqld_exporter` feeding
 it.
 
-**MySQL observability at this org does not go through Prometheus.** It goes
-through Grafana's own MySQL datasources — there are **16 of them**, one per
-environment and tier (`mysql-prod-a`, `mysql-alpha-a`,
-`mysql-prod-b`, …). The `App MySQL` and `Other MySQL` dashboards select
-between them with a template variable and run SQL:
-
 ```sql
 SELECT $__timeGroup(timest, '10m') AS time, variable_name AS metric, avg(variable_value+0)
   FROM my2.status

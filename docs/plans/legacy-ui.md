@@ -40,7 +40,7 @@ than dropped:
   would open an empty list that reads as broken.
 - **Join drill-down** is `tables=a,b&tableMode=ALL`. The search API already
   means "references all of them", verified equal to the legacy join endpoint
-  (116 = 116 on `app_other.group_member` × `app_other.groups`).
+  (116 = 116 on `$schema.table` × `$schema.$table`).
 
 All of it is URL state in the shared `search-url.ts` vocabulary, so "open in
 workbench" is a param translation rather than a hand-mapping.

@@ -10,9 +10,9 @@ Verified here — backend 203 tests / 0 failures, UI 146/146, lint clean:
 
 Manual smoke, all of it shareable as a link:
 
-1. `/table/app_other/user_profile` — Queries card at the bottom; FK and
+1. `/table/$schema/$table` — Queries card at the bottom; FK and
    "commonly queried together" collapsed to name chips.
-2. Click a **join or criteria** column → `?columns=app_other.user_profile.user_id`
+2. Click a **join or criteria** column → `?columns=$schema.$table.$column`
    and the list narrows. Select-only columns (`twitter_link`) are not
    clickable on purpose — they can never constrain a query.
 3. Click an FK or co-queried chip → `?tables=a,b&tableMode=ALL`, the join
