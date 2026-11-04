@@ -37,3 +37,4 @@ mcp/node_modules/
 # written up in docs/plans/ instead.
 .design/
 scripts/
+policy.yaml
