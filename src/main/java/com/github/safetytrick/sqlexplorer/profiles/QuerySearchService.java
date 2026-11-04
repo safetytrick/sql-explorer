@@ -17,6 +17,7 @@ import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -176,6 +177,7 @@ public class QuerySearchService {
 
         if (!matchesColumns(r, profile)) return false;
         if (!matchesIndexes(r, profile)) return false;
+        if (!matchesHinted(r, profile)) return false;
 
         if (!matchesFlag(r.fullScan(), m == null ? null : m.getFullTableScan())) return false;
         if (!matchesFlag(r.tmpTable(), m == null ? null : m.getTempTables() > 0)) return false;
@@ -273,6 +275,19 @@ public class QuerySearchService {
             }
             return profile.hintsIndex(index.getTable(), index.getNormalizedColumn());
         });
+    }
+
+    /** {@link QuerySearchRequest#hinted()}: any index hint, or one with the given action, on any table. */
+    private static boolean matchesHinted(QuerySearchRequest r, SqlProfile profile) {
+        if (r.hinted() == null) {
+            return true;
+        }
+        List<IndexHint> hints = profile.getIndexHints();
+        if (hints == null || hints.isEmpty()) {
+            return false;
+        }
+        return r.hinted() == QuerySearchRequest.HintAction.ANY
+            || hints.stream().anyMatch(hint -> r.hinted().name().equalsIgnoreCase(hint.getAction()));
     }
 
     /** ANY = references any selected table; ALL = references all of them. Empty = unconstrained. */

@@ -16,7 +16,7 @@
  * `now-7d` stay live.
  */
 import {decodeScopeTags, encodeScopeTags} from './scope-tags';
-import type {Activity, Flag, QuerySearchRequest, SortKey, TableMode, TagMode} from './query-search.service';
+import type {Activity, Flag, HintAction, QuerySearchRequest, SortKey, TableMode, TagMode} from './query-search.service';
 import type {QueryScope, SchemaTagFilter, SchemaTagScope} from './query-scope.service';
 import type {ColumnRef} from './refs';
 import {resolveDateExpr} from './date-range-selector/date-math';
@@ -71,6 +71,12 @@ export interface SearchUrlState {
    * index drill-down writes this — the index twin of `columns` (sqlx-yj0).
    */
   indexes: string[];
+  /**
+   * Only queries carrying an index hint: any action, or the one named. Null
+   * does not constrain. Unlike `indexes` it names no index, so it finds
+   * hinted queries anywhere (sqlx-yj0.5).
+   */
+  hinted: HintAction | null;
 }
 
 /** Minimal read surface of Angular's ParamMap, so specs need no router. */
@@ -97,7 +103,8 @@ export function defaultSearchState(): SearchUrlState {
     scope: { schemas: [], tables: [], tableMode: 'ANY' },
     schemaTagFilter: { includeTags: [], excludeTags: [], tagMode: 'ANY' },
     columns: [],
-    indexes: []
+    indexes: [],
+    hinted: null
   };
 }
 
@@ -144,6 +151,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   }
   if (state.columns.length) { params['columns'] = state.columns.join(','); }
   if (state.indexes.length) { params['indexes'] = state.indexes.join(','); }
+  if (state.hinted) { params['hinted'] = state.hinted; }
   return params;
 }
 
@@ -190,7 +198,8 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     },
     schemaTagFilter: decodeScopeTags(params),
     columns: csv('columns'),
-    indexes: csv('indexes')
+    indexes: csv('indexes'),
+    hinted: decodeHinted(params.get('hinted'))
   };
 }
 
@@ -290,6 +299,7 @@ export function buildSearchRequest(state: SearchUrlState,
     tableMode: state.scope.tableMode,
     columns: state.columns.length ? state.columns : null,
     indexes: state.indexes.length ? state.indexes : null,
+    hinted: state.hinted,
     fullScan: flag(state.fullScan),
     tmpTable: flag(state.tmpTable),
     tmpDisk: flag(state.tmpDisk),
@@ -334,6 +344,12 @@ function pctToFraction(value: number | null): number | null {
 
 function dates(after: string | null, before: string | null) {
   return !after && !before ? null : { after: after || null, before: before || null };
+}
+
+/** Only a known action survives a hand-edited link; anything else does not constrain. */
+function decodeHinted(value: string | null): HintAction | null {
+  const upper = value?.toUpperCase();
+  return upper === 'ANY' || upper === 'USE' || upper === 'FORCE' || upper === 'IGNORE' ? upper : null;
 }
 
 function flag(value: Flag): Flag | null {

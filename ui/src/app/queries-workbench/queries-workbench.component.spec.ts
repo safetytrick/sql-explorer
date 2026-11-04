@@ -107,6 +107,21 @@ describe('QueriesWorkbenchComponent URL state', () => {
     expect(stop).toHaveBeenCalled();
   });
 
+  it('seeds the index-hint filter from a link and writes a change back to the URL', async () => {
+    const { component, harness } = await open('/queries?hinted=FORCE');
+    expect(component.hinted).toBe('FORCE');
+    expect(component.activeFilterChips()).toContain('index hint: force');
+
+    component.setHinted('ANY');
+    await harness.fixture.whenStable();
+    const router = TestBed.inject(Router);
+    expect(router.parseUrl(router.url).queryParams['hinted']).toBe('ANY');
+
+    component.setHinted(null);
+    await harness.fixture.whenStable();
+    expect(router.parseUrl(router.url).queryParams['hinted']).toBeUndefined();
+  });
+
   it('keeps expansion out of the graph link, which speaks only the search vocabulary', async () => {
     const { component } = await open('/queries?q=select&var-expanded=v3:aaa');
     const navigate = spyOn(TestBed.inject(Router), 'navigate');

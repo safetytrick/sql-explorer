@@ -420,3 +420,32 @@ describe('index drill-down param', () => {
     expect(request.indexes).toEqual(['app.orders.PRIMARY']);
   });
 });
+
+/** Any query carrying an index hint, whatever index it names (sqlx-yj0.5). */
+describe('hinted param', () => {
+
+  it('round-trips each action and reaches the request', () => {
+    for (const action of ['ANY', 'USE', 'FORCE', 'IGNORE'] as const) {
+      const state = defaultSearchState();
+      state.hinted = action;
+
+      const encoded = encodeSearchParams(state);
+      expect(encoded['hinted']).toBe(action);
+
+      const decoded = decodeSearchParams(reader(encoded));
+      expect(decoded.hinted).toBe(action);
+      expect(buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).hinted).toBe(action);
+    }
+  });
+
+  it('is omitted when unset, so an untouched view keeps a clean URL', () => {
+    expect(encodeSearchParams(defaultSearchState())['hinted']).toBeUndefined();
+    expect(buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).hinted)
+      .toBeNull();
+  });
+
+  it('ignores a value that is not an action, and forgives case', () => {
+    expect(decodeSearchParams(reader({ hinted: 'sometimes' })).hinted).toBeNull();
+    expect(decodeSearchParams(reader({ hinted: 'force' })).hinted).toBe('FORCE');
+  });
+});

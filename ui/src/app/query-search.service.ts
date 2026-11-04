@@ -16,6 +16,9 @@ export interface DateRange {
 }
 
 export type Flag = 'ANY' | 'YES' | 'NO';
+
+/** Index-hint filter: ANY = some hint, on any table; otherwise one action. */
+export type HintAction = 'ANY' | 'USE' | 'FORCE' | 'IGNORE';
 export type Activity = 'ANY' | 'ACTIVE' | 'DORMANT';
 export type TagMode = 'ANY' | 'ALL';
 export type TableMode = 'ANY' | 'ALL';
@@ -42,6 +45,7 @@ export interface QuerySearchRequest {
   excludeTables?: string[] | null; // normalized "schema.table" keys, dropped from results
   columns?: string[] | null;       // "schema.table.column"; kept if the column joins or filters
   indexes?: string[] | null;       // "schema.table.index"; kept if an index hint names it
+  hinted?: HintAction | null;      // ANY = carries some index hint; otherwise a hint with that action
   fullScan?: Flag | null;
   tmpTable?: Flag | null;
   tmpDisk?: Flag | null;

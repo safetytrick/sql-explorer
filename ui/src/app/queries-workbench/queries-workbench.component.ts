@@ -6,6 +6,7 @@ import {debounceTime, Subject, Subscription} from 'rxjs';
 import {
   Activity,
   Flag,
+  HintAction,
   QueryHit,
   QueryProfile,
   QuerySearchRequest,
@@ -83,6 +84,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   cleanAnalysis = false;
   analysisSkipped = false;
   failureKind: 'ANALYZER' | 'PARSE' | null = null;
+  /** Index-hint filter; null = unconstrained (sqlx-yj0.5). */
+  hinted: HintAction | null = null;
+  readonly hintOptions: { value: HintAction | null; label: string }[] = [
+    { value: null, label: 'any' }, { value: 'ANY', label: 'hinted' },
+    { value: 'FORCE', label: 'force' }, { value: 'USE', label: 'use' }, { value: 'IGNORE', label: 'ignore' }
+  ];
   sort: SortKey = 'IMPACT';
   /**
    * Column drill-down, arriving from a table-lens link. The workbench has no
@@ -233,6 +240,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       sort: this.sort,
       columns: this.columns,
       indexes: this.indexes,
+      hinted: this.hinted,
       scope: this.queryScopeService.scope,
       schemaTagFilter: this.queryScopeService.schemaTagFilter
     };
@@ -334,6 +342,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.hasExamples = false;
     this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = this.analysisSkipped = false;
     this.failureKind = null;
+    this.hinted = null;
     this.queryScopeService.clear();
     this.queryScopeService.clearSchemaTagFilter();
     this.filtersChanged();
@@ -396,6 +405,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (this.warnings !== 'ANY') { chips.push('warnings: ' + this.warnings.toLowerCase()); }
     if (this.truncated !== 'ANY') { chips.push('truncated: ' + this.truncated.toLowerCase()); }
     if (this.multiSchema !== 'ANY') { chips.push('multi-schema: ' + this.multiSchema.toLowerCase()); }
+    if (this.hinted) { chips.push(this.hinted === 'ANY' ? 'index hint: any' : 'index hint: ' + this.hinted.toLowerCase()); }
     if (this.analyzerWarnings) { chips.push('analyzer: warnings'); }
     if (this.analysisFailed) { chips.push('analyzer: failed'); }
     if (this.cleanAnalysis) { chips.push('analyzer: clean'); }
@@ -405,6 +415,16 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   }
 
   // ── execution flag tri-states (template helpers) ──
+
+  setHinted(value: HintAction | null) {
+    this.hinted = value;
+    this.filtersChanged();
+  }
+
+  /** The distinct hint actions a row's statement uses, for its badge. */
+  hintActions(profile: QueryProfile): string[] {
+    return [...new Set((profile.indexHints ?? []).map(hint => hint.action.toLowerCase()))].sort();
+  }
 
   flagValue(key: FlagKey): Flag {
     return this[key];
@@ -628,6 +648,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.sort = state.sort;
     this.columns = state.columns;
     this.indexes = state.indexes;
+    this.hinted = state.hinted;
     this.expanded = new Set(decodeWorkbenchParams(this.route.snapshot.queryParamMap).expanded);
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically

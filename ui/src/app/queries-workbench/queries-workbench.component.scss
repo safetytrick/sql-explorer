@@ -401,6 +401,7 @@
   &.b-warn    { background: var(--amber-dim); color: var(--amber); }
   &.b-err     { background: var(--red-dim); color: var(--red); }
   &.b-anal    { background: var(--amber-dim); color: var(--amber); }
+  &.b-hint    { background: var(--teal-dim); color: var(--teal); }
 
   // Not a severity. A spread is a fact about what the metrics beside it are
   // averaging, and dressing it as a warning would push people to "fix" a merge

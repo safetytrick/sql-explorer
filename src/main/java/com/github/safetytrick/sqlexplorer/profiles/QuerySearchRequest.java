@@ -66,6 +66,13 @@ public record QuerySearchRequest(
      * {@code SqlProfile.hintsIndex} (sqlx-yj0).
      */
     List<String> indexes,
+    /**
+     * Keep only queries carrying an index hint: {@code ANY} for any action,
+     * or one action ({@code USE}, {@code FORCE}, {@code IGNORE}) on any table.
+     * Null does not constrain. Composes with {@link #indexes()}, which names
+     * the index rather than the action (sqlx-yj0.5).
+     */
+    HintAction hinted,
     Flag fullScan,
     Flag tmpTable,
     Flag tmpDisk,
@@ -142,6 +149,9 @@ public record QuerySearchRequest(
 
     public enum FailureKind { ANALYZER, PARSE }
 
+    /** {@link #hinted()}: ANY = some index hint; otherwise a hint with that action. */
+    public enum HintAction { ANY, USE, FORCE, IGNORE }
+
     /** Sort keys; results are always descending (worst first). IMPACT = total query time; the default. */
     public enum Sort { IMPACT, AVG_TIME, MAX_TIME, AVG_ROWS_SCANNED, SELECTIVITY, LAST_SEEN }
 
@@ -149,5 +159,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null);
 }

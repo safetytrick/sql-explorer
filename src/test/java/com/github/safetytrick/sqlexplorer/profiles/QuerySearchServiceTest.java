@@ -21,6 +21,7 @@ import extensions.com.github.safetytrick.sqlexplorer.avro.ColumnReference.Column
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Activity;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.DateRange;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Flag;
+import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.HintAction;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Range;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Sort;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.TableMode;
@@ -473,6 +474,25 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void hintedFilterKeepsQueriesCarryingAnyHintOrOneAction() {
+        SqlProfile forced = withColumns("forced", "app.orders", List.of(), List.of(), List.of());
+        forced.setIndexHints(List.of(new IndexHint(TableReference.fromString("app.orders"),
+            "orders_status_idx", "orders_status_idx", "FORCE")));
+        SqlProfile used = withColumns("used", "app.account", List.of(), List.of(), List.of());
+        used.setIndexHints(List.of(new IndexHint(TableReference.fromString("app.account"),
+            "account_site_idx", "account_site_idx", "USE")));
+        repositoryReturns(forced, used, withColumns("unhinted", "app.orders", List.of(), List.of(), List.of()));
+
+        assertThat(searchIds(request().hinted(HintAction.ANY).build())).containsExactlyInAnyOrder("forced", "used");
+        assertThat(searchIds(request().hinted(HintAction.FORCE).build())).containsExactly("forced");
+        assertThat(searchIds(request().hinted(HintAction.IGNORE).build())).isEmpty();
+        assertThat(searchIds(request().hinted(null).build())).containsExactlyInAnyOrder("forced", "used", "unhinted");
+        // composes with the table scope
+        assertThat(searchIds(request().tables(List.of("app.account")).hinted(HintAction.ANY).build()))
+            .containsExactly("used");
+    }
+
+    @Test
     void noColumnFilterLeavesTheSearchUnconstrained() {
         repositoryReturns(
             withColumns("a", "app.orders", List.of("app.orders.status"), List.of(), List.of()),
@@ -634,6 +654,7 @@ class QuerySearchServiceTest {
         private TagMode tagMode;
         private List<String> schemas, excludeSchemas, tables, excludeTables, columns, indexes;
         private TableMode tableMode;
+        private HintAction hinted;
         private Boolean untaggedOnly, analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
         private Flag fullScan, truncated, multiSchema;
@@ -653,6 +674,7 @@ class QuerySearchServiceTest {
         RequestBuilder excludeTables(List<String> v) { this.excludeTables = v; return this; }
         RequestBuilder columns(List<String> v) { this.columns = v; return this; }
         RequestBuilder indexes(List<String> v) { this.indexes = v; return this; }
+        RequestBuilder hinted(HintAction v) { this.hinted = v; return this; }
         RequestBuilder tables(List<String> v) { this.tables = v; return this; }
         RequestBuilder tableMode(TableMode v) { this.tableMode = v; return this; }
         RequestBuilder untaggedOnly(Boolean v) { this.untaggedOnly = v; return this; }
@@ -672,7 +694,7 @@ class QuerySearchServiceTest {
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
-                schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes,
+                schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
                 analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);
