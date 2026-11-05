@@ -674,6 +674,76 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dragging = true;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
+    this.downX = event.clientX;
+    this.downY = event.clientY;
+  }
+
+  /** Where the last press started: a click that ends a pan is not a click on what it ends over. */
+  private downX = 0;
+  private downY = 0;
+
+  private wasDrag(event: MouseEvent): boolean {
+    return Math.hypot(event.clientX - this.downX, event.clientY - this.downY) > 4;
+  }
+
+  /**
+   * The drawn edge nearest the pointer, within a few screen pixels (sqlx-aoy.4).
+   * Edges are straight segments between the two nodes' borders (edgePorts), so
+   * this is a point-to-segment distance; only layers on screen are hit.
+   */
+  private edgeAt(event: MouseEvent): Edge | null {
+    const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
+    const px = this.worldX(event.clientX - rect.left);
+    const py = this.worldY(event.clientY - rect.top);
+    const tolerance = 6 / this.scale;
+    const candidates = [
+      ...(this.layers.fk ? this.fkEdges : []),
+      ...(this.layers.co ? this.coEdges : []),
+      ...(this.layers.view ? this.viewEdges : [])
+    ];
+    let best: Edge | null = null;
+    let bestDistance = tolerance;
+    for (const edge of candidates) {
+      const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const length = dx * dx + dy * dy;
+      const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / length));
+      const distance = Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+      if (distance <= bestDistance) {
+        best = edge;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
+  /** The workbench, showing the queries that touch both ends of an edge. */
+  private edgeQueries(edge: Edge) {
+    const env = this.route.snapshot.queryParams[ENV_PARAM];
+    return this.router.createUrlTree(['/queries'], { queryParams: {
+      tables: [tableKey(edge.from.schema, edge.from.table), tableKey(edge.to.schema, edge.to.table)].join(','),
+      tableMode: 'ALL',
+      ...(env ? {[ENV_PARAM]: env} : {})
+    }});
+  }
+
+  private openEdge(edge: Edge, newTab: boolean) {
+    const tree = this.edgeQueries(edge);
+    if (newTab) {
+      window.open(this.router.serializeUrl(tree), '_blank', 'noopener');
+    } else {
+      this.router.navigateByUrl(tree);
+    }
+  }
+
+  private edgeTitle(edge: Edge): string {
+    const kind = this.fkEdges.includes(edge) ? `foreign key ${edge.label}`
+      : this.viewEdges.includes(edge) ? 'view built on it'
+      : `queried together · ${this.fmtExecs(edge.execs || 0)} executions`;
+    return `<div class="tt-name">${edge.from.table} ↔ ${edge.to.table}</div>`
+      + `<div class="tt-line">${kind}</div>`
+      + '<div class="tt-foot">click for the queries touching both, ⌘/ctrl-click for a new tab</div>';
   }
 
   @HostListener('document:mouseup')
@@ -709,7 +779,16 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         + (fkIn.length ? `<div class="tt-line">FK ← ${fkIn.join(', ')}</div>` : '')
         + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to select, again to open, ⌘/ctrl-click for a new tab</div>`;
     } else {
-      tooltip.style.display = 'none';
+      const edge = this.edgeAt(event);
+      this.graphCanvas.nativeElement.style.cursor = edge ? 'pointer' : '';
+      if (edge) {
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.clientX - rect.left + 14) + 'px';
+        tooltip.style.top = (event.clientY - rect.top - 8) + 'px';
+        tooltip.innerHTML = this.edgeTitle(edge);
+      } else {
+        tooltip.style.display = 'none';
+      }
     }
   }
 
@@ -738,15 +817,30 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Middle-click: fires as auxclick, not click. */
   onAuxClick(event: MouseEvent) {
-    const found = event.button === 1 ? this.nodeAt(event) : undefined;
+    if (event.button !== 1) { return; }
+    const found = this.nodeAt(event);
     if (found) {
       event.preventDefault();
       this.openInNewTab(found);
+      return;
+    }
+    const edge = this.edgeAt(event);
+    if (edge) {
+      event.preventDefault();
+      this.openEdge(edge, true);
     }
   }
 
   onClick(event: MouseEvent) {
+    if (this.wasDrag(event)) { return; }
     const found = this.nodeAt(event);
+    if (!found) {
+      const edge = this.edgeAt(event);
+      if (edge) {
+        this.openEdge(edge, event.metaKey || event.ctrlKey);
+        return;
+      }
+    }
     if (found && (event.metaKey || event.ctrlKey)) {
       this.openInNewTab(found);
       return;

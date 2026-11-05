@@ -124,6 +124,52 @@ describe('GraphLensComponent — scope legibility', () => {
     });
   });
 
+  // an edge opens the queries behind it (sqlx-aoy.4)
+  describe('clicking an edge', () => {
+    const node = (table: string, x: number) => ({id: 'app.' + table, schema: 'app', table, columnCount: 3,
+      queryCount: 2, warn: false, selfJoin: false, view: false, x, y: 0});
+    let at: (x: number, y: number, init?: MouseEventInit) => MouseEvent;
+
+    beforeEach(() => {
+      const a = node('account', 0);
+      const b = node('site', 400);
+      const internals = component as unknown as {nodes: unknown[]; coEdges: unknown[]; fkEdges: unknown[];
+        viewEdges: unknown[]; scale: number; tx: number; ty: number};
+      internals.nodes = [a, b];
+      internals.coEdges = [{from: a, to: b, label: '', execs: 1200}];
+      internals.fkEdges = [];
+      internals.viewEdges = [];
+      // co-query edges are a layer that starts hidden, and hidden edges are not clickable
+      component.layers = {...component.layers, co: true};
+      internals.scale = 1;
+      internals.tx = 0;
+      internals.ty = 0;
+      const rect = (fixture.nativeElement as HTMLElement).querySelector('canvas')!.getBoundingClientRect();
+      at = (x, y, init = {}) => new MouseEvent('click', {clientX: rect.left + x, clientY: rect.top + y, ...init});
+      (router.navigate as jasmine.Spy).calls.reset();
+    });
+
+    it('opens the workbench on the queries touching both tables', () => {
+      const navigate = spyOn(router, 'navigateByUrl').and.returnValue(Promise.resolve(true));
+      component.onMouseDown(at(265, 22));
+      component.onClick(at(265, 22));
+
+      expect(navigate).toHaveBeenCalled();
+      expect(router.serializeUrl(navigate.calls.mostRecent().args[0] as never))
+        .toBe('/queries?tables=app.account,app.site&tableMode=ALL');
+    });
+
+    it('ignores a click well off the line, and one that ends a pan', () => {
+      const navigate = spyOn(router, 'navigateByUrl').and.returnValue(Promise.resolve(true));
+      component.onMouseDown(at(265, 120));
+      component.onClick(at(265, 120));
+      component.onMouseDown(at(100, 22));
+      component.onClick(at(265, 22));
+
+      expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
   it('offers the schema select on a schema graph', () => {
     navigateTo({schema: 'app'}, {});
     loadSchemaTree();
