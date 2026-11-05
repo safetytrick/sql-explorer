@@ -1,3 +1,4 @@
+import {TagColorsService} from '../tag-colors.service';
 import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {FormsModule} from '@angular/forms';
@@ -102,15 +103,60 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Settled bounds and colour per schema, drawn behind the nodes. */
   private regions: SchemaRegion[] = [];
 
+  /**
+   * Tags the toolbar can scope the graph to (sqlx-aoy.7), busiest first. A tag
+   * on queries makes a tag graph; a tag on schemas makes a search graph over
+   * those schemas' queries. A tag only on tables has no include scope yet —
+   * the search vocabulary uses table tags only to exclude — so it is listed,
+   * disabled, saying so, rather than silently missing.
+   */
+  tagChoices: {name: string, kind: 'queries' | 'schemas' | null, label: string, why: string}[] = [];
+
+  scopeToTag(name: string) {
+    const choice = this.tagChoices.find(candidate => candidate.name === name);
+    if (!name || !choice?.kind) {
+      if (!name && this.mode === 'tag') { this.clearScope(); }
+      return;
+    }
+    this.selectedTable = null;
+    const env = this.route.snapshot.queryParams[ENV_PARAM];
+    const carry = env ? {[ENV_PARAM]: env} : {};
+    if (choice.kind === 'queries') {
+      this.router.navigate(['/graph'], { queryParams: {
+        ...encodeGraphParams({ table: null, layers: this.layers, tag: name, source: null }), ...carry } });
+    } else {
+      this.router.navigate(['/graph'], { queryParams: {
+        ...encodeGraphParams({ table: null, layers: this.layers, tag: null, source: 'search' }),
+        schemaTags: name, ...carry } });
+    }
+  }
+
+  private loadTagChoices() {
+    this.tagColors.getSummaries().subscribe(summaries => {
+      this.tagChoices = [...summaries]
+        .sort((a, b) => (b.queries + b.schemas + b.tables) - (a.queries + a.schemas + a.tables) || a.name.localeCompare(b.name))
+        .map(summary => summary.queries > 0
+          ? {name: summary.name, kind: 'queries' as const, label: `${summary.queries} queries`,
+             why: 'graph the tables these queries touch'}
+          : summary.schemas > 0
+            ? {name: summary.name, kind: 'schemas' as const, label: `${summary.schemas} schemas`,
+               why: 'graph the queries in these schemas'}
+            : {name: summary.name, kind: null, label: summary.tables ? `${summary.tables} tables` : 'unused',
+               why: 'tags on tables cannot scope a graph yet; tag the queries or the schema'});
+    });
+  }
+
   constructor(private schemaLensService: SchemaLensService,
               private environmentService: EnvironmentService,
               private analyzedSqlService: AnalyzedSqlService,
               private themeService: ThemeService,
               private route: ActivatedRoute,
-              private router: Router) { }
+              private router: Router,
+              private tagColors: TagColorsService) { }
 
   ngOnInit() {
     this.refreshPalette();
+    this.loadTagChoices();
     this.subscriptions.add(this.themeService.current$.subscribe(() => {
       this.refreshPalette();
       this.draw();

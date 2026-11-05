@@ -202,6 +202,29 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(component.selectedNode()?.table).toBe('note');
   });
 
+  // scoping by tag from the toolbar (sqlx-aoy.7)
+  it('scopes to a query tag as a tag graph, and a schema tag as a search graph', () => {
+    component.tagChoices = [
+      {name: 'billing', kind: 'queries', label: '4 queries', why: ''},
+      {name: 'core', kind: 'schemas', label: '2 schemas', why: ''},
+      {name: 'pii', kind: null, label: '3 tables', why: ''}
+    ];
+    const navigate = router.navigate as jasmine.Spy;
+    navigate.calls.reset();
+
+    component.scopeToTag('billing');
+    expect(navigate.calls.mostRecent().args[1].queryParams['tag']).toBe('billing');
+
+    component.scopeToTag('core');
+    const search = navigate.calls.mostRecent().args[1].queryParams;
+    expect(search['source']).toBe('search');
+    expect(search['schemaTags']).toBe('core');
+
+    navigate.calls.reset();
+    component.scopeToTag('pii');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('offers the schema select on a schema graph', () => {
     navigateTo({schema: 'app'}, {});
     loadSchemaTree();

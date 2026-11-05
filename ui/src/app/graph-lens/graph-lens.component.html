@@ -8,6 +8,15 @@
           (wheel)="onWheel($event)"></canvas>
 
   <div class="graph-toolbar">
+    <!-- Tags are the best way to make a focused graph, so the choice sits first
+         in the toolbar rather than only behind a link (sqlx-aoy.7). -->
+    <select class="tag-scope" [ngModel]="mode === 'tag' ? tag : ''" (ngModelChange)="scopeToTag($event)"
+            title="graph only what a tag marks: the queries carrying it, or the queries in the schemas carrying it">
+      <option value="">scope to tag…</option>
+      @for (choice of tagChoices; track choice.name) {
+        <option [value]="choice.name" [disabled]="!choice.kind" [title]="choice.why">{{choice.name}} · {{choice.label}}</option>
+      }
+    </select>
     @if (mode === 'tag') {
       <span class="mode-chip" title="graph scoped to the queries carrying this tag">tag: {{tag}}<button
         type="button" class="chip-x" (click)="clearScope()"
