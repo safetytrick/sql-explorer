@@ -1,0 +1,13 @@
+.theme-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+.theme-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text2);
+  cursor: pointer;
+  &.on { border-color: var(--blue); color: var(--text); background: var(--blue-dim); }
+}

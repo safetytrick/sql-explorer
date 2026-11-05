@@ -64,13 +64,9 @@
               + ' — showing the default instead'">no such environment: {{unknownEnvironment}}</span>
       </li>
     }
+    <!-- the theme picker moved to Settings: chosen once, not glanced at (sqlx-m6r.5) -->
     <li class="nav-item">
-      <select class="nav-environment-select" title="Color theme"
-              (change)="onThemeChange($any($event.target).value)">
-        @for (theme of themes; track theme.id) {
-          <option [value]="theme.id" [selected]="theme.id === currentTheme">{{theme.label}}</option>
-        }
-      </select>
+      <a class="nav-link nav-settings" routerLink="/settings" title="settings: theme">Settings</a>
     </li>
   </ul>
 

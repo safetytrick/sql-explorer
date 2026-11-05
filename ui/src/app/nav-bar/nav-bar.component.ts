@@ -3,7 +3,6 @@ import {ExplainService} from '../explain.service';
 import { RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
 import { EnvironmentUrlSync } from '../environment-url-sync';
-import { ThemeService, THEMES, ThemeOption } from '../theme.service';
 
 @Component({
     selector: 'app-nav-bar',
@@ -27,12 +26,9 @@ export class NavBarComponent implements OnInit {
    * would be reading another corpus's numbers with nothing to say so.
    */
   unknownEnvironment: string | null = null;
-  themes: ThemeOption[] = THEMES;
-  currentTheme = '';
 
   constructor(private explainService: ExplainService,
               private environmentService: EnvironmentService,
-              private themeService: ThemeService,
               private environmentUrl: EnvironmentUrlSync) { }
 
   toggleAdmin(event: Event) {
@@ -57,7 +53,6 @@ export class NavBarComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.currentTheme = this.themeService.getCurrent();
     this.current = this.environmentService.getCurrent();
     this.environmentService.getEnvironments().subscribe(list => {
       this.environments = list.environments;
@@ -73,11 +68,6 @@ export class NavBarComponent implements OnInit {
     // Requests, address and data all move together; EnvironmentUrlSync owns
     // that because the reload and the address change have to be one sequence.
     this.environmentUrl.switchTo(name);
-  }
-
-  onThemeChange(id: string) {
-    this.themeService.setCurrent(id);
-    this.currentTheme = id;
   }
 
   toggleExplain() {

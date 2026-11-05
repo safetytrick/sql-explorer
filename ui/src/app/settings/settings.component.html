@@ -1,0 +1,16 @@
+<div class="view-header">
+  <span class="view-title">Settings</span>
+  <span class="view-sub">kept in this browser</span>
+</div>
+
+<div class="lens-card">
+  <div class="card-head"><span class="card-head-title">Theme</span></div>
+  <div class="theme-list" role="radiogroup" aria-label="color theme">
+    @for (theme of themes; track theme.id) {
+      <label class="theme-choice" [class.on]="theme.id === current">
+        <input type="radio" name="theme" [value]="theme.id" [checked]="theme.id === current" (change)="choose(theme.id)">
+        {{theme.label}}
+      </label>
+    }
+  </div>
+</div>

@@ -1,3 +1,4 @@
+import {SettingsComponent} from './settings/settings.component';
 import {SchemaDriftComponent} from './schema-drift/schema-drift.component';
 import {paramTitle} from './page-title';
 /**
@@ -117,6 +118,11 @@ const routes: Routes = [
     path: 'captured',
     component: CoverageLensComponent,
     title: 'Captured'
+  },
+  {
+    path: 'settings',
+    component: SettingsComponent,
+    title: 'Settings'
   },
   {
     path: 'drift',
