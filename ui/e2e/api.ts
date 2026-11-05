@@ -110,7 +110,7 @@ function search(body: Record<string, unknown>) {
   return {
     total: results.length,
     results: results.map(profile => ({profile, tags: []})),
-    facets: {tableFacets: {}, schemaFacets: {app: 2, ops: 1}}
+    facets: {tables: {}, schemas: {app: 2, ops: 1}}  // the shape QuerySearchResult.Facets serializes to
   };
 }
 

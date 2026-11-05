@@ -1,6 +1,8 @@
 <app-nav-bar></app-nav-bar>
 <div class="app-body">
-  <app-schema-tree></app-schema-tree>
+  @if (showTree) {
+    <app-schema-tree></app-schema-tree>
+  }
   <div class="main-content">
     @if (showExplain) {
       <app-explain-view></app-explain-view>

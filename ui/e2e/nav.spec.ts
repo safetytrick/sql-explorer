@@ -19,3 +19,17 @@ test('no nav entry is underlined, routed or not', async ({page}) => {
   expect(decorations.length).toBeGreaterThan(5);
   expect(decorations.filter(line => line !== 'none')).toEqual([]);
 });
+
+/** The schema tree is the workbench's scope picker; elsewhere it is not drawn or loaded (sqlx-pyz.1). */
+test('the schema tree appears on the workbench only', async ({page}) => {
+  let treeRequests = 0;
+  page.on('request', request => { if (request.url().endsWith('/schema-tree')) { treeRequests++; } });
+
+  await page.goto('/tables');
+  await expect(page.locator('.data-table tbody tr').first()).toBeVisible();
+  await expect(page.locator('app-schema-tree')).toHaveCount(0);
+  expect(treeRequests).toBe(0);
+
+  await page.locator('nav.navbar a', {hasText: 'Queries'}).click();
+  await expect(page.locator('app-schema-tree')).toHaveCount(1);
+});
