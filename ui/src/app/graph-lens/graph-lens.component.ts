@@ -37,7 +37,15 @@ interface LayoutNode {
   y: number;
 }
 
-interface Edge { from: LayoutNode; to: LayoutNode; label: string; warn?: boolean; execs?: number; }
+interface Edge {
+  from: LayoutNode; to: LayoutNode; label: string; warn?: boolean; execs?: number;
+  /** An FK no query joins on: it only enforces integrity (sqlx-aoy.3). */
+  neverJoined?: boolean;
+}
+
+/** Dash patterns, in screen pixels before scaling. */
+const DASHED = [5, 4];
+const DOTTED = [1.5, 4];
 
 /** The area one schema's tables occupy, and the colour it is drawn in. */
 interface SchemaRegion {
@@ -85,6 +93,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private nodes: LayoutNode[] = [];
   private fkEdges: Edge[] = [];
   private coEdges: Edge[] = [];
+  private joinEdges: Edge[] = [];
   private viewEdges: Edge[] = [];
   private tx = 0;
   private ty = 0;
@@ -600,11 +609,21 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     });
     const resolve = (schema: string, table: string) => byId.get(`${schema}.${table}`.toLowerCase());
     this.fkEdges = graph.fkEdges
-      .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable), label: edge.label, warn: edge.mismatch }))
+      .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable),
+        label: edge.label, warn: edge.mismatch, neverJoined: edge.joined === false }))
       .filter(edge => edge.from && edge.to) as Edge[];
+    this.joinEdges = (graph.joinEdges || [])
+      .map(edge => ({ from: resolve(edge.aSchema, edge.aTable), to: resolve(edge.bSchema, edge.bTable),
+        label: edge.columns.join(', '), execs: edge.executions }))
+      .filter(edge => edge.from && edge.to) as Edge[];
+    // Every joined pair is also queried together. The co-query layer keeps
+    // only the pairs that are not joined, so each pair is drawn once and a
+    // dashed line means "used together, never joined" (sqlx-aoy.3).
+    const pair = (a: LayoutNode, b: LayoutNode) => [a.id, b.id].sort().join('|');
+    const joined = new Set(this.joinEdges.map(edge => pair(edge.from, edge.to)));
     this.coEdges = graph.coQueryEdges
       .map(edge => ({ from: resolve(edge.aSchema, edge.aTable), to: resolve(edge.bSchema, edge.bTable), label: '', execs: edge.executions }))
-      .filter(edge => edge.from && edge.to) as Edge[];
+      .filter(edge => edge.from && edge.to && !joined.has(pair(edge.from, edge.to))) as Edge[];
     this.viewEdges = (graph.viewEdges || [])
       .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable), label: 'over' }))
       .filter(edge => edge.from && edge.to) as Edge[];
@@ -614,7 +633,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private runForceLayout() {
-    const springs = [...this.fkEdges, ...this.coEdges, ...this.viewEdges];
+    const springs = [...this.fkEdges, ...this.joinEdges, ...this.coEdges, ...this.viewEdges];
     const homes = new Map(this.regions.map(region => [region.schema, region]));
     for (let iteration = 0; iteration < 220; iteration++) {
       const cooling = 1 - iteration / 220;
@@ -753,6 +772,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const tolerance = 6 / this.scale;
     const candidates = [
       ...(this.layers.fk ? this.fkEdges : []),
+      ...(this.layers.join ? this.joinEdges : []),
       ...(this.layers.co ? this.coEdges : []),
       ...(this.layers.view ? this.viewEdges : [])
     ];
@@ -797,9 +817,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private edgeTitle(edge: Edge): string {
-    const kind = this.fkEdges.includes(edge) ? `foreign key ${edge.label}`
+    const kind = this.fkEdges.includes(edge)
+        ? `foreign key ${edge.label}${edge.neverJoined ? ' · no query joins on it' : ''}`
+      : this.joinEdges.includes(edge) ? `joined on ${edge.label} · ${this.fmtExecs(edge.execs || 0)} executions`
       : this.viewEdges.includes(edge) ? 'view built on it'
-      : `queried together · ${this.fmtExecs(edge.execs || 0)} executions`;
+      : `queried together, never joined · ${this.fmtExecs(edge.execs || 0)} executions`;
     return `<div class="tt-name">${edge.from.table} ↔ ${edge.to.table}</div>`
       + `<div class="tt-line">${kind}</div>`
       + '<div class="tt-foot">click for the queries touching both, ⌘/ctrl-click for a new tab</div>';
@@ -929,17 +951,19 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * foreign keys each way and the tables it is queried with, busiest first.
    * Each relationship carries its edge, so its queries are one click away.
    */
-  selectedDetail(): {fkOut: Edge[], fkIn: Edge[], co: {other: LayoutNode, edge: Edge}[]} | null {
+  selectedDetail(): {fkOut: Edge[], fkIn: Edge[], joins: {other: LayoutNode, edge: Edge}[],
+                     co: {other: LayoutNode, edge: Edge}[]} | null {
     const node = this.selectedNode();
     if (!node) { return null; }
-    const co = this.coEdges
+    const partners = (edges: Edge[]) => edges
       .filter(edge => edge.from === node || edge.to === node)
       .map(edge => ({other: edge.from === node ? edge.to : edge.from, edge}))
       .sort((a, b) => (b.edge.execs ?? 0) - (a.edge.execs ?? 0));
     return {
       fkOut: this.fkEdges.filter(edge => edge.from === node),
       fkIn: this.fkEdges.filter(edge => edge.to === node),
-      co
+      joins: partners(this.joinEdges),
+      co: partners(this.coEdges)
     };
   }
 
@@ -1037,7 +1061,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (this.layers.co) {
       for (const edge of this.coEdges) {
-        this.drawArrow(ctx, edge, this.alpha(this.palette.text2, 0.55), true, 1, false);
+        this.drawArrow(ctx, edge, this.alpha(this.palette.text2, 0.55), DASHED, 1, false);
         const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
         ctx.save();
         ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
@@ -1048,14 +1072,28 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         ctx.restore();
       }
     }
+    if (this.layers.join) {
+      for (const edge of this.joinEdges) {
+        this.drawArrow(ctx, edge, this.alpha(this.palette.green, 0.75), null, 1.5, false);
+        const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
+        ctx.save();
+        ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
+        ctx.fillStyle = this.alpha(this.palette.green, 0.95);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.fmtExecs(edge.execs || 0), this.wx((x1 + x2) / 2), this.wy((y1 + y2) / 2) + 10 * this.scale);
+        ctx.restore();
+      }
+    }
     if (this.layers.view) {
       for (const edge of this.viewEdges) {
-        this.drawArrow(ctx, edge, this.alpha(this.palette.purple, 0.75), true, 1.5, true);
+        this.drawArrow(ctx, edge, this.alpha(this.palette.purple, 0.75), DASHED, 1.5, true);
       }
     }
     if (this.layers.fk) {
       for (const edge of this.fkEdges) {
-        this.drawArrow(ctx, edge, edge.warn ? this.palette.amber : this.alpha(this.palette.blue, 0.7), false, 1.5, true);
+        this.drawArrow(ctx, edge, edge.warn ? this.palette.amber : this.alpha(this.palette.blue, 0.7),
+          edge.neverJoined ? DOTTED : null, 1.5, true);
         const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
         const mx = (x1 + x2) / 2;
         const my = (y1 + y2) / 2;
@@ -1110,13 +1148,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     return [ax + ex, ay + ey, bx + fx, by + fy];
   }
 
-  private drawArrow(ctx: CanvasRenderingContext2D, edge: Edge, color: string, dashed: boolean, weight: number, head: boolean) {
+  private drawArrow(ctx: CanvasRenderingContext2D, edge: Edge, color: string, dash: number[] | null, weight: number, head: boolean) {
     const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = weight * this.scale;
     ctx.globalAlpha = 0.8;
-    if (dashed) { ctx.setLineDash([5 * this.scale, 4 * this.scale]); }
+    if (dash) { ctx.setLineDash(dash.map(length => length * this.scale)); }
     ctx.beginPath();
     ctx.moveTo(this.wx(x1), this.wy(y1));
     ctx.lineTo(this.wx(x2), this.wy(y2));

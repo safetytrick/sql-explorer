@@ -118,6 +118,41 @@ class GraphV2ServiceTest {
     }
 
     @Test
+    void joinEdgesComeFromAnalysisAndLeaveSelfJoinsOut() {
+        GraphV2 graph = service.getSchemaGraph("app");
+
+        // q1 joins sessions to users; q3's self-join is a node flag, not an edge;
+        // q2 queries sessions with rollup but never joins them
+        assertThat(graph.joinEdges())
+            .extracting(GraphV2.JoinEdge::aTable, GraphV2.JoinEdge::bTable, GraphV2.JoinEdge::columns,
+                GraphV2.JoinEdge::queries, GraphV2.JoinEdge::executions)
+            .containsExactly(tuple("sessions", "users", List.of("id=id"), 1, 100L));
+    }
+
+    @Test
+    void aQueryJoiningOnSeveralColumnsCountsOnceAndOrientsEachPair() {
+        GraphV2 graph = service.getGraphForProfiles(List.of(
+            // written users-first: the pair is still oriented sessions=users
+            profile("q1", List.of(SESSIONS, USERS), metrics(4),
+                join(USERS, "id", SESSIONS, "user_id"), join(SESSIONS, "id", USERS, "id"))));
+
+        assertThat(graph.joinEdges())
+            .extracting(GraphV2.JoinEdge::columns, GraphV2.JoinEdge::queries, GraphV2.JoinEdge::executions)
+            .containsExactly(tuple(List.of("id=id", "user_id=id"), 1, 4L));
+    }
+
+    @Test
+    void aForeignKeyIsJoinedOnlyWhenAQueryJoinsOnItsColumns() {
+        // setUp's join is sessions.id = users.id: same tables, not the key's columns
+        assertThat(service.getSchemaGraph("app").fkEdges())
+            .extracting(GraphV2.FkEdge::joined).containsExactly(false);
+
+        GraphV2 joined = service.getGraphForProfiles(List.of(
+            profile("q1", List.of(SESSIONS, USERS), metrics(1), join(USERS, "id", SESSIONS, "user_id"))));
+        assertThat(joined.fkEdges()).extracting(GraphV2.FkEdge::joined).containsExactly(true);
+    }
+
+    @Test
     void coQueryEdgesAggregateExecutionsPerPair() {
         GraphV2 graph = service.getSchemaGraph("app");
 
@@ -155,7 +190,12 @@ class GraphV2ServiceTest {
     }
 
     private static JoinColumns join(TableReference left, TableReference right) {
-        return new JoinColumns(new ColumnReference(left, "id", "id"), new ColumnReference(right, "id", "id"), "INNER");
+        return join(left, "id", right, "id");
+    }
+
+    private static JoinColumns join(TableReference left, String leftColumn, TableReference right, String rightColumn) {
+        return new JoinColumns(new ColumnReference(left, leftColumn, leftColumn),
+            new ColumnReference(right, rightColumn, rightColumn), "INNER");
     }
 
     private static RuntimeMetrics metrics(long executions) {

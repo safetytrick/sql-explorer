@@ -177,7 +177,7 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(component.legendOpen).toBe(true);
     const text = (fixture.nativeElement as HTMLElement).querySelector('.graph-legend')?.textContent ?? '';
     expect(text).toContain('size means nothing');
-    expect(text).toContain('executions of the queries touching both tables');
+    expect(text).toContain('executions of the queries behind it');
   });
 
   // a selected node's detail is pinned and followable (sqlx-aoy.6)
@@ -200,6 +200,41 @@ describe('GraphLensComponent — scope legibility', () => {
 
     component.selectTable('note');
     expect(component.selectedNode()?.table).toBe('note');
+  });
+
+  // joins, queried-together and unjoined foreign keys are told apart (sqlx-aoy.3)
+  it('draws a joined pair once, as a join, and marks a foreign key nothing joins on', () => {
+    const graph = {
+      nodes: ['account', 'site', 'note'].map(table =>
+        ({schema: 'app', table, columnCount: 2, queryCount: 1, warn: false, selfJoin: false, view: false})),
+      fkEdges: [
+        {fromSchema: 'app', fromTable: 'site', toSchema: 'app', toTable: 'account', label: 'account_id→id', mismatch: false, joined: true},
+        {fromSchema: 'app', fromTable: 'note', toSchema: 'app', toTable: 'account', label: 'account_id→id', mismatch: false, joined: false}
+      ],
+      coQueryEdges: [
+        {aSchema: 'app', aTable: 'account', bSchema: 'app', bTable: 'site', queries: 1, executions: 50},
+        {aSchema: 'app', aTable: 'account', bSchema: 'app', bTable: 'note', queries: 1, executions: 7}
+      ],
+      viewEdges: [],
+      joinEdges: [{aSchema: 'app', aTable: 'account', bSchema: 'app', bTable: 'site',
+        columns: ['id=account_id'], queries: 1, executions: 50}]
+    };
+    type Built = {from: {table: string}; to: {table: string}; label: string; neverJoined?: boolean};
+    const internals = component as unknown as {buildLayout(graph: unknown): void;
+      joinEdges: Built[]; coEdges: Built[]; fkEdges: Built[]};
+    internals.buildLayout(graph);
+
+    expect(internals.joinEdges.map(edge => [edge.from.table, edge.to.table, edge.label]))
+      .toEqual([['account', 'site', 'id=account_id']]);
+    // account–site is joined, so only account–note is left as "queried together"
+    expect(internals.coEdges.map(edge => edge.to.table)).toEqual(['note']);
+    expect(internals.fkEdges.map(edge => [edge.from.table, edge.neverJoined]))
+      .toEqual([['site', false], ['note', true]]);
+
+    component.selectedTable = 'account';
+    const detail = component.selectedDetail()!;
+    expect(detail.joins.map(partner => partner.other.table)).toEqual(['site']);
+    expect(detail.co.map(partner => partner.other.table)).toEqual(['note']);
   });
 
   // scoping by tag from the toolbar (sqlx-aoy.7)

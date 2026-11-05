@@ -41,6 +41,7 @@
     <button class="btn" (click)="zoom(0.83)">−</button>
     <button class="btn" (click)="resetView()">reset</button>
     <button class="btn" [class.on]="layers.fk" (click)="toggle('fk')">FK</button>
+    <button class="btn" [class.on]="layers.join" (click)="toggle('join')">joins</button>
     <button class="btn" [class.on]="layers.co" (click)="toggle('co')">co-query</button>
     <button class="btn" [class.on]="layers.self" (click)="toggle('self')">self-joins</button>
     @if (hasViewEdges()) {
@@ -69,6 +70,7 @@
           <div class="nd-rel">
             <a class="nd-follow" (click)="selectTable(edge.to.table)" title="select it on the graph">{{edge.to.table}}</a>
             <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
+            @if (edge.neverJoined) { <span class="dim nd-unjoined" title="no query joins on this key">never joined</span> }
             <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" title="queries touching both">queries</a>
           </div>
         }
@@ -79,12 +81,24 @@
           <div class="nd-rel">
             <a class="nd-follow" (click)="selectTable(edge.from.table)" title="select it on the graph">{{edge.from.table}}</a>
             <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
+            @if (edge.neverJoined) { <span class="dim nd-unjoined" title="no query joins on this key">never joined</span> }
             <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" title="queries touching both">queries</a>
           </div>
         }
       }
+      @if (detail.joins.length) {
+        <div class="nd-label">joined with</div>
+        @for (partner of detail.joins.slice(0, 12); track partner.other.id) {
+          <div class="nd-rel">
+            <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
+            <span class="mono dim" [title]="partner.edge.label">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
+            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" title="queries touching both">queries</a>
+          </div>
+        }
+        @if (detail.joins.length > 12) { <div class="nd-more dim">and {{detail.joins.length - 12}} more</div> }
+      }
       @if (detail.co.length) {
-        <div class="nd-label">queried together with</div>
+        <div class="nd-label">queried together with, never joined</div>
         @for (partner of detail.co.slice(0, 12); track partner.other.id) {
           <div class="nd-rel">
             <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
@@ -104,7 +118,9 @@
     <button type="button" class="leg-toggle" (click)="toggleLegend()" [attr.aria-expanded]="legendOpen">
       {{legendOpen ? '▾' : '▸'}} legend</button>
     <div class="leg-row"><div class="leg-line blue"></div> foreign key</div>
-    <div class="leg-row"><div class="leg-dash"></div> queried together</div>
+    <div class="leg-row"><div class="leg-dot blue"></div> foreign key no query joins on</div>
+    <div class="leg-row"><div class="leg-line green"></div> joined in a query</div>
+    <div class="leg-row"><div class="leg-dash"></div> queried together, never joined</div>
     <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>
     @if (hasViewEdges()) {
       <div class="leg-row"><div class="leg-dash purple"></div> view → its base table</div>
@@ -114,7 +130,7 @@
       <div class="leg-row"><div class="leg-node"></div> a table; every box is the same size, so size means nothing</div>
       <div class="leg-row"><div class="leg-node warn"></div> amber border: a query on it failed analysis or joins mismatched types</div>
       <div class="leg-row"><span class="leg-sample">app · 12c · 40q</span> schema · columns · distinct queries</div>
-      <div class="leg-row"><span class="leg-sample">1.2M</span> on a dashed line: executions of the queries touching both tables</div>
+      <div class="leg-row"><span class="leg-sample">1.2M</span> on a join or dashed line: executions of the queries behind it</div>
       <div class="leg-row"><span class="leg-sample mono">site_id</span> on an FK: its first column pair</div>
       <div class="leg-row"><div class="leg-loop"></div> loop: the table is joined to itself</div>
       <div class="leg-row"><div class="leg-region"></div> shaded area: one schema</div>

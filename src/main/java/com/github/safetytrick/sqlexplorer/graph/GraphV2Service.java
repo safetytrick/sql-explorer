@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -27,8 +28,9 @@ import org.springframework.stereotype.Service;
 /**
  * Graph payload for the canvas view: the schema's tables (plus any table
  * co-queried or FK-referenced alongside them), FK edges labeled with their
- * first column pair and flagged on strict type mismatch, co-query edges
- * weighted by executions, and per-node self-join flags.
+ * first column pair, flagged on strict type mismatch and on whether any query
+ * joins on them, join edges from analysis, co-query edges weighted by
+ * executions, and per-node self-join flags.
  */
 @Service
 public class GraphV2Service {
@@ -58,6 +60,7 @@ public class GraphV2Service {
                                Stream<SqlProfile> profiles) {
         Map<String, NodeBuilder> nodes = new TreeMap<>();
         Map<String, CoQueryBuilder> coQueries = new TreeMap<>();
+        Map<String, JoinBuilder> joins = new TreeMap<>();
         List<TableStructure> structures = sqlSchemaService.getTables();
 
         // seed nodes (schema mode: every metadata table of the schema, queried or not)
@@ -85,17 +88,26 @@ public class GraphV2Service {
                     coQuery(coQueries, tables.get(i), tables.get(j)).add(profile);
                 }
             }
+            Set<JoinBuilder> joinedHere = new HashSet<>();
             for (JoinColumns join : profile.getJoinColumns()) {
                 if (join.getLeft() == null || join.getRight() == null) {
                     continue;
                 }
                 TableReference left = join.getLeft().getTable();
                 TableReference right = join.getRight().getTable();
-                if (left != null && right != null && left.equalsNormalized(right)
-                    && left.getNormalizedSchemaName() != null && left.getNormalizedTableName() != null) {
-                    node(nodes, left.getNormalizedSchemaName(), left.getNormalizedTableName()).selfJoin = true;
+                if (!named(left) || !named(right)) {
+                    continue;
                 }
+                if (left.equalsNormalized(right)) {
+                    node(nodes, left.getNormalizedSchemaName(), left.getNormalizedTableName()).selfJoin = true;
+                    continue;
+                }
+                JoinBuilder pair = joinPair(joins, left, right);
+                pair.addColumns(join.getLeft(), join.getRight());
+                joinedHere.add(pair);
             }
+            // a query joining two tables on several columns is still one query
+            joinedHere.forEach(pair -> pair.add(profile));
         });
 
         // view→base edges: a displayed view pulls its base tables into the graph
@@ -150,7 +162,7 @@ public class GraphV2Service {
                 fkEdges.add(new GraphV2.FkEdge(structure.schema(), structure.name(),
                     target.getNormalizedSchemaName(), target.getNormalizedTableName(),
                     from.getNormalizedColumn() + "→" + to.getNormalizedColumn(),
-                    mismatch));
+                    mismatch, joinedOn(joins, structure.schema(), structure.name(), target, fk)));
             }
         }
 
@@ -160,7 +172,11 @@ public class GraphV2Service {
         List<GraphV2.CoQueryEdge> coQueryEdges = coQueries.values().stream()
             .map(CoQueryBuilder::build)
             .toList();
-        return new GraphV2(nodeList, fkEdges, coQueryEdges, viewEdges);
+        List<GraphV2.JoinEdge> joinEdges = joins.values().stream()
+            .filter(pair -> nodes.containsKey(pair.aKey) && nodes.containsKey(pair.bKey))
+            .map(JoinBuilder::build)
+            .toList();
+        return new GraphV2(nodeList, fkEdges, coQueryEdges, viewEdges, joinEdges);
     }
 
     private static List<TableReference> distinctTables(SqlProfile profile) {
@@ -190,6 +206,48 @@ public class GraphV2Service {
         String keyB = key(b.getNormalizedSchemaName(), b.getNormalizedTableName());
         String pairKey = keyA.compareTo(keyB) < 0 ? keyA + "|" + keyB : keyB + "|" + keyA;
         return pairs.computeIfAbsent(pairKey, k -> new CoQueryBuilder(a, b));
+    }
+
+    private static boolean named(TableReference table) {
+        return table != null && table.getNormalizedSchemaName() != null && table.getNormalizedTableName() != null;
+    }
+
+    private static JoinBuilder joinPair(Map<String, JoinBuilder> pairs, TableReference left, TableReference right) {
+        String keyLeft = key(left.getNormalizedSchemaName(), left.getNormalizedTableName());
+        String keyRight = key(right.getNormalizedSchemaName(), right.getNormalizedTableName());
+        boolean leftFirst = keyLeft.compareTo(keyRight) < 0;
+        String pairKey = leftFirst ? keyLeft + "|" + keyRight : keyRight + "|" + keyLeft;
+        return pairs.computeIfAbsent(pairKey, k -> leftFirst ? new JoinBuilder(left, right) : new JoinBuilder(right, left));
+    }
+
+    /**
+     * Whether queries join the foreign key's tables on every one of its column
+     * pairs. Joining the same two tables on other columns does not count: that
+     * is a different relationship, and the key would still only be enforcing
+     * integrity.
+     */
+    private static boolean joinedOn(Map<String, JoinBuilder> joins, String schema, String table,
+                                    TableReference target, ForeignKey fk) {
+        String fromKey = key(schema, table);
+        String toKey = key(target.getNormalizedSchemaName(), target.getNormalizedTableName());
+        boolean fromFirst = fromKey.compareTo(toKey) < 0;
+        JoinBuilder pair = joins.get(fromFirst ? fromKey + "|" + toKey : toKey + "|" + fromKey);
+        if (pair == null) {
+            return false;
+        }
+        for (int i = 0; i < fk.from().size(); i++) {
+            String fromColumn = columnName(fk.from().get(i));
+            String toColumn = columnName(fk.to().get(i));
+            if (!pair.columns.contains(fromFirst ? fromColumn + "=" + toColumn : toColumn + "=" + fromColumn)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String columnName(ColumnReference column) {
+        String name = column.getNormalizedColumn() != null ? column.getNormalizedColumn() : column.getColumn();
+        return name == null ? "?" : name.toLowerCase(Locale.ROOT);
     }
 
     private static Map<String, TableColumn> columnsOf(TableStructure structure) {
@@ -229,6 +287,42 @@ public class GraphV2Service {
 
         private GraphV2.Node build() {
             return new GraphV2.Node(schema, table, columnCount, queryCount, warn, selfJoin, view);
+        }
+    }
+
+    private static final class JoinBuilder {
+        private final TableReference a;
+        private final TableReference b;
+        private final String aKey;
+        private final String bKey;
+        private final Set<String> columns = new TreeSet<>();
+        private int queries;
+        private long executions;
+
+        private JoinBuilder(TableReference a, TableReference b) {
+            this.a = a;
+            this.b = b;
+            this.aKey = key(a.getNormalizedSchemaName(), a.getNormalizedTableName());
+            this.bKey = key(b.getNormalizedSchemaName(), b.getNormalizedTableName());
+        }
+
+        /** Records the column pair oriented a=b, whichever side of the ON it was written on. */
+        private void addColumns(ColumnReference left, ColumnReference right) {
+            boolean leftIsA = key(left.getTable().getNormalizedSchemaName(), left.getTable().getNormalizedTableName())
+                .equals(aKey);
+            columns.add(leftIsA ? columnName(left) + "=" + columnName(right) : columnName(right) + "=" + columnName(left));
+        }
+
+        private void add(SqlProfile profile) {
+            queries++;
+            if (profile.getRuntimeMetrics() != null) {
+                executions += profile.getRuntimeMetrics().getExecuted();
+            }
+        }
+
+        private GraphV2.JoinEdge build() {
+            return new GraphV2.JoinEdge(a.getNormalizedSchemaName(), a.getNormalizedTableName(),
+                b.getNormalizedSchemaName(), b.getNormalizedTableName(), List.copyOf(columns), queries, executions);
         }
     }
 

@@ -174,6 +174,20 @@ export interface GraphFkEdge {
   toTable: string;
   label: string;
   mismatch: boolean;
+  /** Some query joins the two tables on the key's columns; false means it only enforces integrity. */
+  joined?: boolean;
+}
+
+/** Two tables joined in at least one query, from analysis (sqlx-aoy.3). */
+export interface GraphJoinEdge {
+  aSchema: string;
+  aTable: string;
+  bSchema: string;
+  bTable: string;
+  /** Distinct column pairs, `a_col=b_col`. */
+  columns: string[];
+  queries: number;
+  executions: number;
 }
 
 export interface GraphCoQueryEdge {
@@ -198,6 +212,7 @@ export interface GraphV2 {
   fkEdges: GraphFkEdge[];
   coQueryEdges: GraphCoQueryEdge[];
   viewEdges: GraphViewEdge[];
+  joinEdges?: GraphJoinEdge[];
 }
 
 @Injectable({ providedIn: 'root' })

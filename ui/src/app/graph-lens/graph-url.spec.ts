@@ -14,11 +14,11 @@ describe('encodeGraphParams', () => {
   it('prefixes graph-owned params with var-', () => {
     const params = encodeGraphParams({
       table: 'member_session',
-      layers: { fk: true, co: true, self: true, view: true },
+      layers: { fk: true, join: true, co: true, self: true, view: true },
       tag: null, source: null
     });
     expect(params['var-table']).toBe('member_session');
-    expect(params['var-layers']).toBe('fk,co,self,view');
+    expect(params['var-layers']).toBe('fk,join,co,self,view');
   });
 
   it('keeps scope params unprefixed, tag winning over source', () => {
@@ -33,7 +33,7 @@ describe('encodeGraphParams', () => {
   it('encodes all-layers-off as a sentinel instead of an empty param', () => {
     const params = encodeGraphParams({
       table: null,
-      layers: { fk: false, co: false, self: false, view: false },
+      layers: { fk: false, join: false, co: false, self: false, view: false },
       tag: null, source: null
     });
     expect(params['var-layers']).toBe('none');
@@ -45,9 +45,9 @@ describe('graphOwnedParamPatch (merge writes)', () => {
   it('touches only var- params, null-clearing at defaults', () => {
     expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }))
       .toEqual({ 'var-table': null, 'var-layers': null });
-    expect(graphOwnedParamPatch('member_session', { fk: true, co: true, self: true, view: true }))
-      .toEqual({ 'var-table': 'member_session', 'var-layers': 'fk,co,self,view' });
-    expect(graphOwnedParamPatch(null, { fk: false, co: false, self: false, view: false })['var-layers'])
+    expect(graphOwnedParamPatch('member_session', { fk: true, join: true, co: true, self: true, view: true }))
+      .toEqual({ 'var-table': 'member_session', 'var-layers': 'fk,join,co,self,view' });
+    expect(graphOwnedParamPatch(null, { fk: false, join: false, co: false, self: false, view: false })['var-layers'])
       .toBe('none');
   });
 });
@@ -70,17 +70,17 @@ describe('decodeGraphParams', () => {
 
   it('ignores unknown layer names and honours the none sentinel', () => {
     expect(decodeGraphParams(reader({ 'var-layers': 'fk,bogus,view' })).layers)
-      .toEqual({ fk: true, co: false, self: false, view: true });
+      .toEqual({ fk: true, join: false, co: false, self: false, view: true });
     expect(decodeGraphParams(reader({ 'var-layers': 'none' })).layers)
-      .toEqual({ fk: false, co: false, self: false, view: false });
+      .toEqual({ fk: false, join: false, co: false, self: false, view: false });
   });
 
   it('round-trips every non-default state', () => {
     const states: GraphUrlState[] = [
-      { table: 'member_session', layers: { fk: false, co: true, self: false, view: true }, tag: null, source: null },
+      { table: 'member_session', layers: { fk: false, join: false, co: true, self: false, view: true }, tag: null, source: null },
       { table: null, layers: { ...DEFAULT_LAYERS }, tag: 'core', source: null },
-      { table: 'branch', layers: { fk: true, co: true, self: true, view: true }, tag: null, source: 'search' },
-      { table: null, layers: { fk: false, co: false, self: false, view: false }, tag: null, source: null }
+      { table: 'branch', layers: { fk: true, join: true, co: true, self: true, view: true }, tag: null, source: 'search' },
+      { table: null, layers: { fk: false, join: false, co: false, self: false, view: false }, tag: null, source: null }
     ];
     for (const state of states) {
       expect(decodeGraphParams(reader(encodeGraphParams(state)))).toEqual(state);

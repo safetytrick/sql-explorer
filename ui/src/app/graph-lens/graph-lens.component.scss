@@ -103,6 +103,9 @@ canvas {
   .leg-line { height: 2px; width: 22px; border-radius: 1px; }
   .leg-line.blue { background: var(--blue); }
   .leg-line.amber { background: var(--amber); }
+  .leg-line.green { background: var(--green); }
+  .leg-dot { border-top: 2px dotted var(--text3); width: 22px; }
+  .leg-dot.blue { border-top-color: var(--blue); }
   .leg-dash { border-top: 2px dashed var(--text3); width: 22px; }
   .leg-dash.purple { border-top-color: var(--purple); }
   // the full key (sqlx-aoy.2)
@@ -172,6 +175,7 @@ canvas {
 .nd-close { margin-left: auto; border: none; background: none; color: var(--text3); cursor: pointer; font-size: 14px; }
 .nd-sub { margin: 2px 0 8px; color: var(--text3); }
 .nd-warn { color: var(--amber); }
+.nd-unjoined { font-size: 10px; font-style: italic; }
 .nd-actions { display: flex; gap: 6px; margin-bottom: 6px; a { text-decoration: none; padding: 2px 8px; font-size: 11px; } }
 .nd-label { margin: 8px 0 3px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
 .nd-rel { display: flex; align-items: baseline; gap: 6px; padding: 1px 0; }

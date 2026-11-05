@@ -15,6 +15,9 @@
 
 export interface GraphLayers {
   fk: boolean;
+  /** Tables joined to each other in a query, from analysis (sqlx-aoy.3). */
+  join: boolean;
+  /** Queried together but never joined: every joined pair is left to `join`. */
   co: boolean;
   self: boolean;
   view: boolean;
@@ -32,9 +35,9 @@ export interface GraphUrlState {
   source: 'search' | null;
 }
 
-export const DEFAULT_LAYERS: GraphLayers = { fk: true, co: false, self: true, view: true };
+export const DEFAULT_LAYERS: GraphLayers = { fk: true, join: true, co: false, self: true, view: true };
 
-const LAYER_NAMES = ['fk', 'co', 'self', 'view'] as const;
+const LAYER_NAMES = ['fk', 'join', 'co', 'self', 'view'] as const;
 
 /** `var-layers` value meaning "every layer off" (an empty param would be dropped). */
 const NO_LAYERS = 'none';
@@ -99,6 +102,7 @@ function decodeLayers(raw: string | null): GraphLayers {
   const enabled = new Set(raw === NO_LAYERS ? [] : raw.split(',').filter(Boolean));
   return {
     fk: enabled.has('fk'),
+    join: enabled.has('join'),
     co: enabled.has('co'),
     self: enabled.has('self'),
     view: enabled.has('view')
