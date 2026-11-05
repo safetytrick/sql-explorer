@@ -2,7 +2,7 @@ import {GLOSSARY} from '../glossary';
 import {InViewDirective} from '../in-view.directive';
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
-import {DatePipe, DecimalPipe, SlicePipe} from '@angular/common';
+import {DatePipe, DecimalPipe, NgTemplateOutlet, SlicePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {debounceTime, Subject, Subscription} from 'rxjs';
 import {
@@ -33,8 +33,42 @@ const PAGE_SIZE = 50;
 export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'WITH', 'OTHER'];
 
 /** SqlProfileReportService.SLOW_THRESHOLD / CHATTY_THRESHOLD, in ms. */
-const SLOW_MIN_MS = 1000;
-const CHATTY_MAX_MS = 20;
+/** A one-click bound for a performance range; `on` when the range is exactly this. */
+export interface RangePreset { label: string; title: string; min: number | null; max: number | null; }
+
+/**
+ * Presets for the performance ranges (sqlx-ywy.3). Free-text bounds are
+ * awkward and only occasionally need to be exact, so each range offers a few
+ * log-spaced steps; the min/max boxes stay for the exact case. Selectivity is
+ * where the steps matter most: the interesting range is near zero, where
+ * 0.01% and 0.1% are very different queries.
+ */
+export const RANGE_PRESETS: Record<'avgTime' | 'maxTime' | 'avgRows' | 'selectivityPct' | 'rowsSorted', RangePreset[]> = {
+  avgTime: [
+    { label: 'slow >1s', title: 'average execution over a second', min: 1000, max: null },
+    { label: 'chatty <20ms', title: 'average execution under 20ms: cheap, so only costly in bulk', min: null, max: 20 },
+  ],
+  maxTime: [
+    { label: '>1s', title: 'slowest execution over a second', min: 1000, max: null },
+    { label: '>10s', title: 'slowest execution over ten seconds', min: 10000, max: null },
+  ],
+  avgRows: [
+    { label: '>1k', title: 'scans over a thousand rows per execution', min: 1000, max: null },
+    { label: '>100k', title: 'scans over a hundred thousand rows per execution', min: 100000, max: null },
+    { label: '>1M', title: 'scans over a million rows per execution', min: 1000000, max: null },
+  ],
+  selectivityPct: [
+    { label: '<0.01%', title: 'sends fewer than 1 row per 10,000 scanned', min: null, max: 0.01 },
+    { label: '<0.1%', title: 'sends fewer than 1 row per 1,000 scanned', min: null, max: 0.1 },
+    { label: '<1%', title: 'sends fewer than 1 row per 100 scanned', min: null, max: 1 },
+    { label: '<10%', title: 'sends fewer than 1 row per 10 scanned', min: null, max: 10 },
+  ],
+  rowsSorted: [
+    { label: '>10k', title: 'sorts over ten thousand rows in total', min: 10000, max: null },
+    { label: '>1M', title: 'sorts over a million rows in total', min: 1000000, max: null },
+  ],
+};
+type RangeKey = keyof typeof RANGE_PRESETS;
 
 /** Component fields holding a tri-state Flag, toggled generically from the template. */
 type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'truncated' | 'multiSchema';
@@ -43,7 +77,7 @@ type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'tr
   selector: 'app-queries-workbench',
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, Highlight, DateRangeSelectorComponent,
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, NgTemplateOutlet, Highlight, DateRangeSelectorComponent,
     BulkTagBarComponent, InViewDirective]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
@@ -467,21 +501,15 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   // ── slow/chatty shortcuts over the avg-time range ──
 
-  isSlow(): boolean {
-    return this.avgTime.min === SLOW_MIN_MS && this.avgTime.max === null;
+  readonly rangePresets = RANGE_PRESETS;
+
+  presetOn(key: RangeKey, preset: RangePreset): boolean {
+    return this[key].min === preset.min && this[key].max === preset.max;
   }
 
-  isChatty(): boolean {
-    return this.avgTime.min === null && this.avgTime.max === CHATTY_MAX_MS;
-  }
-
-  toggleSlow() {
-    this.avgTime = this.isSlow() ? { min: null, max: null } : { min: SLOW_MIN_MS, max: null };
-    this.filtersChanged();
-  }
-
-  toggleChatty() {
-    this.avgTime = this.isChatty() ? { min: null, max: null } : { min: null, max: CHATTY_MAX_MS };
+  /** Apply a preset, or clear the range when it is the one already applied. */
+  togglePreset(key: RangeKey, preset: RangePreset) {
+    this[key] = this.presetOn(key, preset) ? { min: null, max: null } : { min: preset.min, max: preset.max };
     this.filtersChanged();
   }
 

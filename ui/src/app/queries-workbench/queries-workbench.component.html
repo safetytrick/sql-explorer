@@ -78,10 +78,7 @@
       <div class="section-hdr">Performance</div>
       <div class="fg">
         <div class="fg-label"><span class="term" [title]="glossary.averageTime">Avg time (ms)</span></div>
-        <div class="tri-row shortcut-row">
-          <span class="tri-btn" [class.on]="isSlow()" (click)="toggleSlow()">slow &gt;1s</span>
-          <span class="tri-btn" [class.on]="isChatty()" (click)="toggleChatty()">chatty &lt;20ms</span>
-        </div>
+        <ng-container *ngTemplateOutlet="presets; context: {key: 'avgTime'}"></ng-container>
         <div class="range-row">
           <input type="number" placeholder="min" [(ngModel)]="avgTime.min" (change)="filtersChanged()">
           <input type="number" placeholder="max" [(ngModel)]="avgTime.max" (change)="filtersChanged()">
@@ -89,6 +86,7 @@
       </div>
       <div class="fg">
         <div class="fg-label">Max time (ms)</div>
+        <ng-container *ngTemplateOutlet="presets; context: {key: 'maxTime'}"></ng-container>
         <div class="range-row">
           <input type="number" placeholder="min" [(ngModel)]="maxTime.min" (change)="filtersChanged()">
           <input type="number" placeholder="max" [(ngModel)]="maxTime.max" (change)="filtersChanged()">
@@ -96,6 +94,7 @@
       </div>
       <div class="fg">
         <div class="fg-label">Avg rows scanned</div>
+        <ng-container *ngTemplateOutlet="presets; context: {key: 'avgRows'}"></ng-container>
         <div class="range-row">
           <input type="number" placeholder="min" [(ngModel)]="avgRows.min" (change)="filtersChanged()">
           <input type="number" placeholder="max" [(ngModel)]="avgRows.max" (change)="filtersChanged()">
@@ -103,13 +102,15 @@
       </div>
       <div class="fg">
         <div class="fg-label"><span class="term" [title]="glossary.selectivity">Selectivity %</span> <span class="hint">sent/scanned</span></div>
+        <ng-container *ngTemplateOutlet="presets; context: {key: 'selectivityPct'}"></ng-container>
         <div class="range-row">
-          <input type="number" placeholder="min" min="0" max="100" [(ngModel)]="selectivityPct.min" (change)="filtersChanged()">
-          <input type="number" placeholder="max" min="0" max="100" [(ngModel)]="selectivityPct.max" (change)="filtersChanged()">
+          <input type="number" placeholder="min" min="0" max="100" step="any" [(ngModel)]="selectivityPct.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" min="0" max="100" step="any" [(ngModel)]="selectivityPct.max" (change)="filtersChanged()">
         </div>
       </div>
       <div class="fg">
         <div class="fg-label">Rows sorted</div>
+        <ng-container *ngTemplateOutlet="presets; context: {key: 'rowsSorted'}"></ng-container>
         <div class="range-row">
           <input type="number" placeholder="min" [(ngModel)]="rowsSorted.min" (change)="filtersChanged()">
           <input type="number" placeholder="max" [(ngModel)]="rowsSorted.max" (change)="filtersChanged()">
@@ -471,3 +472,13 @@
     </div>
   </div>
 </div>
+
+<!-- one row of preset bounds for a performance range (sqlx-ywy.3) -->
+<ng-template #presets let-key="key">
+  <div class="tri-row shortcut-row">
+    @for (preset of rangePresets[$any(key)]; track preset.label) {
+      <span class="tri-btn" [class.on]="presetOn($any(key), preset)" [title]="preset.title"
+            (click)="togglePreset($any(key), preset)">{{preset.label}}</span>
+    }
+  </div>
+</ng-template>

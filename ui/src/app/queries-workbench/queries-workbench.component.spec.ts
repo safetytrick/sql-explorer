@@ -171,6 +171,23 @@ describe('QueriesWorkbenchComponent URL state', () => {
     labels.forEach(label => expect(label.getAttribute('title')?.length).toBeGreaterThan(20));
   });
 
+  // one-click, log-spaced bounds; the same click clears it (sqlx-ywy.3)
+  it('applies a selectivity preset, writes it to the URL, and clears it on a second click', async () => {
+    const { component, harness } = await open('/queries');
+    const router = TestBed.inject(Router);
+    const tenth = component.rangePresets.selectivityPct.find(preset => preset.label === '<0.1%')!;
+
+    component.togglePreset('selectivityPct', tenth);
+    await harness.fixture.whenStable();
+    expect(component.presetOn('selectivityPct', tenth)).toBeTrue();
+    expect(router.parseUrl(router.url).queryParams['selMax']).toBe('0.1');
+
+    component.togglePreset('selectivityPct', tenth);
+    await harness.fixture.whenStable();
+    expect(component.selectivityPct).toEqual({min: null, max: null});
+    expect(router.parseUrl(router.url).queryParams['selMax']).toBeUndefined();
+  });
+
   it('expanding a row does not also select it', async () => {
     const { component } = await open('/queries');
     const event = new Event('click');
