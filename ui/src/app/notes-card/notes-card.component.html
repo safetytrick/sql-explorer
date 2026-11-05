@@ -1,0 +1,32 @@
+<div class="lens-card">
+  <div class="card-head">
+    <span class="card-head-title">Notes</span>
+    @if (notes.length) { <span class="card-head-note">{{notes.length}}</span> }
+    @if (!adding) {
+      <button type="button" class="btn add-note" (click)="adding = true">+ note</button>
+    }
+  </div>
+  @if (failed) {
+    <div class="card-empty">notes could not be read</div>
+  } @else if (!notes.length && !adding) {
+    <div class="card-empty">no notes — for what the DDL does not say</div>
+  }
+  @for (note of notes; track note.id) {
+    <div class="note">
+      <div class="note-text">{{note.text}}</div>
+      <div class="note-meta">{{note.author?.email || 'someone'}} · {{note.createdOn | date: 'MMM d, y'}}</div>
+    </div>
+  }
+  @if (adding) {
+    <div class="note-form">
+      <textarea [(ngModel)]="draft" rows="3" placeholder="what the schema does not say…"
+                (keydown.meta.enter)="save()" (keydown.control.enter)="save()"></textarea>
+      <div class="note-actions">
+        @if (saveFailed) { <span class="save-failed">not saved</span> }
+        <button type="button" class="btn" (click)="cancel()">cancel</button>
+        <button type="button" class="btn primary" [disabled]="!draft.trim() || saving" (click)="save()">
+          {{saving ? 'saving…' : 'save'}}</button>
+      </div>
+    </div>
+  }
+</div>

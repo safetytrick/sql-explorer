@@ -1,3 +1,4 @@
+import {NotesCardComponent} from '../notes-card/notes-card.component';
 import {Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DecimalPipe} from '@angular/common';
@@ -19,7 +20,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, defaultSearchState, encodeSearchParams, SearchUrlState, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {SqlSummaryComponent} from '../sql-summary/sql-summary.component';
-import {tableTarget} from '../tag-path';
+import {tablePath, tableTarget} from '../tag-path';
 
 /** Queries fetched per page for the table's query list. */
 const QUERY_PAGE_SIZE = 25;
@@ -28,7 +29,7 @@ const QUERY_PAGE_SIZE = 25;
   selector: 'app-table-lens',
   templateUrl: './table-lens.component.html',
   styleUrls: ['./table-lens.component.scss'],
-  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight, SqlSummaryComponent]
+  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight, SqlSummaryComponent, NotesCardComponent]
 })
 export class TableLensComponent implements OnInit, OnDestroy {
   /**
@@ -46,6 +47,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
   private flashTimer?: ReturnType<typeof setTimeout>;
 
   protected readonly tableTarget = tableTarget;
+  protected readonly tablePath = tablePath;
 
   schema = '';
   table = '';
