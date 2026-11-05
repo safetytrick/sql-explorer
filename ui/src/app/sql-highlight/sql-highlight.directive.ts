@@ -1,7 +1,7 @@
 import {Directive, ElementRef, HostListener, inject, Input, OnChanges} from '@angular/core';
-import {analyze, Mark, Source} from './sql-scopes';
+import {Mark, Source} from './sql-scopes';
 import {Token} from './sql-tokens';
-import {assignColors} from './table-colors';
+import {paintSql, SchemaHint} from './paint';
 
 /**
  * `<code [sqlHighlight]="sql">`: highlights a statement with each table
@@ -12,7 +12,11 @@ import {assignColors} from './table-colors';
  * Lexical colours reuse the `hljs-*` class names so the existing theme rules
  * apply unchanged; table colours are `.sqt-c{n}` in styles.css.
  *
- * Synchronous, unlike ngx-highlightjs: the text is in the DOM as soon as
+ * `[sqlSchema]` is optional: given the column lists of the query's tables, an
+ * unqualified column in a multi-table SELECT is coloured too. Only pass what
+ * the page already has loaded — see `SchemaHint`.
+ *
+ * Synchronous, unlike the highlight.js directive it replaced: the text is in the DOM as soon as
  * change detection runs. The DOM is built node by node with textContent, so
  * nothing in the statement is ever interpreted as markup.
  */
@@ -23,11 +27,12 @@ import {assignColors} from './table-colors';
 export class SqlHighlightDirective implements OnChanges {
 
   @Input() sqlHighlight: string | null | undefined;
+  @Input() sqlSchema: readonly SchemaHint[] | null | undefined;
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
 
   ngOnChanges(): void {
-    this.render(this.sqlHighlight ?? '');
+    this.render(this.sqlHighlight ?? '', this.sqlSchema);
   }
 
   @HostListener('mouseover', ['$event'])
@@ -52,9 +57,8 @@ export class SqlHighlightDirective implements OnChanges {
     this.lit = id;
   }
 
-  private render(sql: string): void {
-    const {tokens, marks, sources} = analyze(sql);
-    const colors = assignColors(sources);
+  private render(sql: string, schema: readonly SchemaHint[] | null | undefined): void {
+    const {analysis: {tokens, marks}, colors} = paintSql(sql, schema);
     const doc = this.host.ownerDocument;
     const frag = doc.createDocumentFragment();
     tokens.forEach((t, i) => {

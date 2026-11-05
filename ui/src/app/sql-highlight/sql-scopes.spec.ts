@@ -1,6 +1,7 @@
 import {analyze, Analysis, Role, Source} from './sql-scopes';
 import {tokenize} from './sql-tokens';
 import {assignColors, preferredSlot} from './table-colors';
+import {constrainingInstances, instancesOf, paintSql} from './paint';
 
 /** `[text, role, source name-or-alias]` for every marked token. */
 function marked(a: Analysis): [string, Role, string | undefined][] {
@@ -152,5 +153,69 @@ describe('assignColors', () => {
     const tables = Array.from({length: 10}, (_, i) => `t${i}`);
     const a = analyze(`SELECT 1 FROM ${tables.map(t => `account ${t}`).join(', ')}`);
     expect(new Set(assignColors(a.sources).values()).size).toBe(10);
+  });
+});
+
+describe('analyze with column lists (sqlx-4vp)', () => {
+  const schema = [
+    {name: 'account', columns: ['id', 'name', 'parent_id']},
+    {name: 'site', columns: ['id', 'account_id', 'region']},
+  ];
+  const painted = (sql: string, hint = schema) => paintSql(sql, hint).analysis;
+
+  it('places a column only one table in scope has', () => {
+    const a = painted('SELECT name, region, id FROM account a JOIN site s ON s.account_id = a.id');
+    expect(sourceOf(a, 'name')?.alias).toBe('a');
+    expect(sourceOf(a, 'region')?.alias).toBe('s');
+    expect(sourceOf(a, 'id', 0)).toBeUndefined();   // both have it
+  });
+
+  it('leaves a self-join\'s shared columns unplaced', () => {
+    const a = painted('SELECT name FROM account a JOIN account p ON p.id = a.parent_id');
+    expect(sourceOf(a, 'name')).toBeUndefined();
+  });
+
+  it('will not guess past a table it knows nothing about', () => {
+    const a = painted('SELECT name FROM account a JOIN audit_log l ON l.ref = a.id');
+    expect(sourceOf(a, 'name')).toBeUndefined();
+    const c = painted('WITH x AS (SELECT 1 AS name) SELECT name FROM account a, x');
+    expect(sourceOf(c, 'name', 1)).toBeUndefined();
+  });
+
+  it('looks outward for a correlated column the inner table lacks', () => {
+    const a = painted('SELECT a.id FROM account a WHERE EXISTS (SELECT 1 FROM site s WHERE account_id = a.id AND name = ?)');
+    expect(sourceOf(a, 'account_id')?.alias).toBe('s');
+    expect(sourceOf(a, 'name')?.alias).toBe('a');
+  });
+
+  it('changes nothing without column lists', () => {
+    expect(sourceOf(analyze('SELECT name FROM account a JOIN site s ON s.id = a.id'), 'name')).toBeUndefined();
+  });
+});
+
+describe('paintSql', () => {
+  it('lists each table instance with the colour it was given', () => {
+    const p = paintSql('SELECT 1 FROM app_core.account a JOIN account b ON b.id = a.parent_id JOIN site ON site.id = ?');
+    expect(p.tables.map(t => [t.label, t.name, t.schema, t.kind])).toEqual([
+      ['a', 'account', 'app_core', 'table'], ['b', 'account', undefined, 'table'], ['site', 'site', undefined, 'table'],
+    ]);
+    expect(p.tables[0].cssClass).toBe(`sqt-c${p.tables[0].slot}`);
+    expect(p.tables[0].slot).toBe(preferredSlot('account'));
+    expect(new Set(p.tables.map(t => t.slot)).size).toBe(3);
+  });
+
+  it('records which instance constrains which column, ignoring the select list', () => {
+    const p = paintSql('SELECT b.name FROM account a JOIN account b ON b.id = a.parent_id WHERE a.status = ?');
+    const both = instancesOf(p, 'app_core', 'account');
+    expect(both.map(t => t.label)).toEqual(['a', 'b']);
+    expect(constrainingInstances(p, both, 'parent_id').map(t => t.label)).toEqual(['a']);
+    expect(constrainingInstances(p, both, 'id').map(t => t.label)).toEqual(['b']);
+    expect(constrainingInstances(p, both, 'name')).toEqual([]);   // select list only
+  });
+
+  it('gives a table that appears once every one of its columns', () => {
+    const p = paintSql('SELECT 1 FROM account a, site s WHERE region = ?');
+    const one = instancesOf(p, null, 'site');
+    expect(constrainingInstances(p, one, 'region')).toEqual(one);
   });
 });

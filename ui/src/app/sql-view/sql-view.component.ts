@@ -7,6 +7,7 @@ import {Title} from '@angular/platform-browser';
 import {DatePipe, DecimalPipe, SlicePipe} from '@angular/common';
 import {RouterLink} from '@angular/router';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
+import {constrainingInstances, instancesOf, paintSql, SchemaHint, TableColor} from '../sql-highlight/paint';
 import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
@@ -17,6 +18,15 @@ import {buildIndexPanels, TableIndexPanel} from './index-relevance';
 import {SEEN_FORMAT} from '../seen-format';
 import {QueryExamplesComponent} from '../query-examples/query-examples.component';
 import {queryTarget} from '../tag-path';
+
+/** The SQL's colours for one index panel: the table's instances, and per column which of them constrain it. */
+interface PanelColors {
+  instances: TableColor[];
+  /** Keyed by lowercased column name. */
+  columns: Map<string, TableColor[]>;
+}
+
+const panelKey = (panel: TableIndexPanel) => `${panel.schema}.${panel.table}`.toLowerCase();
 
 @Component({
   selector: 'app-sql-view',
@@ -43,6 +53,15 @@ export class SqlViewComponent implements OnInit {
   copied: string | null = null;
   /** Recomputed when the query loads or a table structure resolves — not per tick. */
   indexPanels: TableIndexPanel[] = [];
+  /**
+   * Column lists of the tables already loaded for the index card, handed to
+   * the highlighter so it can place unqualified columns in a multi-table
+   * query (sqlx-4vp). Only this page does it: it costs no request here, and
+   * the other pages that show SQL don't load structures at all.
+   */
+  sqlSchema: SchemaHint[] | null = null;
+  /** The SQL's table colours, echoed on the index card (sqlx-l9h). */
+  private panelColors = new Map<string, PanelColors>();
 
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,
               private changeDetectorRef: ChangeDetectorRef,
@@ -56,6 +75,8 @@ export class SqlViewComponent implements OnInit {
     this.query = null;
     this.tables = [];
     this.indexPanels = [];
+    this.sqlSchema = null;
+    this.panelColors = new Map();
     this.loading = true;
     this.notFound = false;
     this.sqlService.getSql(id).subscribe({
@@ -83,7 +104,7 @@ export class SqlViewComponent implements OnInit {
         // references) — those have nothing to render
         if (structure) {
           this.tables.push(structure);
-          this.indexPanels = this.computeIndexPanels();
+          this.refreshPanels();
           this.changeDetectorRef.markForCheck();
         }
       });
@@ -108,10 +129,39 @@ export class SqlViewComponent implements OnInit {
     ];
   }
 
-  private computeIndexPanels(): TableIndexPanel[] {
-    return this.query
-      ? buildIndexPanels(this.tables, this.constrainingColumns(), this.query.schemaName)
-      : [];
+  private refreshPanels() {
+    if (!this.query) { return; }
+    this.indexPanels = buildIndexPanels(this.tables, this.constrainingColumns(), this.query.schemaName);
+    this.sqlSchema = this.tables.map(t => ({schema: t.schema, name: t.name, columns: (t.columns || []).map(c => c.columnName)}));
+    const painted = paintSql(this.query.query, this.sqlSchema);
+    this.panelColors = new Map(this.indexPanels.map(panel => {
+      const instances = instancesOf(painted, panel.schema, panel.table);
+      const names = new Set([...panel.queryColumns, ...panel.indexes.flatMap(i => i.matched.map(c => c.toLowerCase()))]);
+      const columns = new Map([...names].map(c => [c, constrainingInstances(painted, instances, c)]));
+      return [panelKey(panel), {instances, columns}];
+    }));
+  }
+
+  // ── the SQL's colours on the index card ──
+
+  /** Every instance of the panel's table in the SQL; more than one is a self-join. */
+  instancesFor(panel: TableIndexPanel): TableColor[] {
+    return this.panelColors.get(panelKey(panel))?.instances ?? [];
+  }
+
+  /** The instances that constrain a column of the panel's table. */
+  columnColors(panel: TableIndexPanel, column: string): TableColor[] {
+    return this.panelColors.get(panelKey(panel))?.columns.get(column.toLowerCase()) ?? [];
+  }
+
+  /** `tinted sqt-cN` when one instance owns the column; several show as swatches instead. */
+  tintClass(colors: TableColor[]): string {
+    return colors.length === 1 ? `tinted ${colors[0].cssClass}` : '';
+  }
+
+  /** Hover text naming the instance(s) behind a colour. */
+  tintTitle(colors: TableColor[]): string {
+    return colors.length ? 'constrained via ' + colors.map(c => c.label).join(', ') : '';
   }
 
   // ── performance strip ──

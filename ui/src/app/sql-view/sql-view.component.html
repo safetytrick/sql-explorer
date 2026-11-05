@@ -97,7 +97,7 @@
             {{copied === query.query ? '✓' : '⧉'}}
           </button>
         </div>
-        <pre class="sql-display"><code [sqlHighlight]="query.query"></code></pre>
+        <pre class="sql-display"><code [sqlHighlight]="query.query" [sqlSchema]="sqlSchema"></code></pre>
         @if (repeatSpread; as spread) {
           <div class="spread-note">
             Members of this merge group repeat between <strong>{{spread.min}}</strong> and
@@ -135,14 +135,23 @@
         @for (panel of indexPanels; track panel.schema + '.' + panel.table) {
           <div class="idx-panel">
             <div class="idx-panel-head">
-              <a class="mono tbl-name" [routerLink]="['/table', panel.schema, panel.table]">{{panel.table}}</a>
+              @let instances = instancesFor(panel);
+              <a class="mono tbl-name {{instances.length === 1 ? 'tinted ' + instances[0].cssClass : ''}}"
+                 [routerLink]="['/table', panel.schema, panel.table]">{{panel.table}}</a>
+              @if (instances.length > 1) {
+                <!-- a self-join: name each instance in its own colour -->
+                @for (inst of instances; track inst.id) {
+                  <span class="mono sqt-swatch inst-label {{inst.cssClass}}" title="{{inst.label}} → {{panel.table}}">{{inst.label}}</span>
+                }
+              }
               <span class="dim mono idx-schema">{{panel.schema}}</span>
             </div>
             @if (panel.queryColumns.length) {
               <div class="idx-cols">
                 <span class="dim">constrains</span>
                 @for (column of panel.queryColumns; track column) {
-                  <span class="rp rp-criteria">{{column}}</span>
+                  @let colors = columnColors(panel, column);
+                  <span class="rp rp-criteria {{tintClass(colors)}}" [title]="tintTitle(colors)">{{column}}@if (colors.length > 1) {@for (c of colors; track c.id) {<span class="sqt-swatch inst-dot {{c.cssClass}}">●</span>}}</span>
                 }
               </div>
             }
@@ -165,9 +174,12 @@
                   </div>
                   <div class="idx-row-cols">
                     @for (column of scored.index.columns; track column; let first = $first) {
-                      <span class="mono idx-col"
-                            [class.matched]="scored.matched.includes(column)"
-                            [class.lead]="first">{{column}}</span>
+                      @let matched = scored.matched.includes(column);
+                      @let colors = matched ? columnColors(panel, column) : [];
+                      <span class="mono idx-col {{tintClass(colors)}}"
+                            [class.matched]="matched"
+                            [class.lead]="first"
+                            [title]="tintTitle(colors)">{{column}}@if (colors.length > 1) {@for (c of colors; track c.id) {<span class="sqt-swatch inst-dot {{c.cssClass}}">●</span>}}</span>
                     }
                   </div>
                 </div>

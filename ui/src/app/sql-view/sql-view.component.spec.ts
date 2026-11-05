@@ -2,7 +2,8 @@ import { COMMON_TEST_PROVIDERS } from '../testing/common-test-providers';
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 
 import { SqlViewComponent } from './sql-view.component';
-import { SqlProfile } from '../api-types';
+import { SqlProfile, TableStructure } from '../api-types';
+import { HttpTestingController } from '@angular/common/http/testing';
 
 describe('SqlViewComponent', () => {
   let component: SqlViewComponent;
@@ -138,6 +139,80 @@ describe('SqlViewComponent', () => {
     /** Fixed width is the point — 16 characters in May and in December alike. */
     it('uses the one shared format', () => {
       expect(component.SEEN_FORMAT).toBe('yyyy-MM-dd HH:mm');
+    });
+  });
+  /**
+   * sqlx-4vp and sqlx-l9h: the page hands the highlighter the structures it
+   * loaded for the index card, and the index card wears the SQL's colours.
+   */
+  describe('table colours', () => {
+    let http: HttpTestingController;
+
+    function structure(name: string, columns: string[], indices: [string, string[]][]): TableStructure {
+      return {
+        schema: 'app_core', name, type: 'TABLE', remarks: '', foreignKeys: [],
+        columns: columns.map((columnName, ordinal) => ({columnName, ordinal, typeName: 'INT', type: 'INTEGER'})),
+        indices: indices.map(([idx, cols]) => ({name: idx, columns: cols, unique: false})),
+        underlyingTables: null, viewColumns: null,
+      } as unknown as TableStructure;
+    }
+
+    function load(query: string, tables: string[], criteria: string[], structures: TableStructure[]) {
+      http = TestBed.inject(HttpTestingController);
+      component.getSql('q1');
+      http.expectOne(r => r.url.endsWith('analyzed-sql/q1')).flush({
+        ...profileWithNullColumnArrays(), query, schemaName: 'app_core', analysisFailed: false,
+        tables: tables.map(t => 'app_core.' + t), criteriaColumns: criteria,
+      });
+      for (const st of structures) {
+        http.expectOne(r => r.url.endsWith('metadata/table/app_core/' + st.name)).flush(st);
+      }
+      fixture.detectChanges();
+    }
+
+    const el = () => fixture.nativeElement as HTMLElement;
+    const colorOf = (e: Element | null) => [...(e?.classList ?? [])].find(c => /^sqt-c\d$/.test(c));
+
+    it('places an unqualified column using the loaded structures', () => {
+      load('SELECT a.id FROM account a JOIN site s ON s.account_id = a.id WHERE region = ?',
+        ['account', 'site'], ['app_core.site.region'],
+        [structure('account', ['id', 'name'], []), structure('site', ['id', 'account_id', 'region'], [])]);
+
+      const region = [...el().querySelectorAll('pre.sql-display code span')].find(x => x.textContent === 'region');
+      const s = [...el().querySelectorAll('pre.sql-display code span.sqt-alias')].find(x => x.textContent === 's');
+      expect(colorOf(region!)).toBeDefined();
+      expect(colorOf(region!)).toBe(colorOf(s!));
+    });
+
+    it('colours a constrained index column like its table in the SQL', () => {
+      load('SELECT a.id FROM account a WHERE a.status = ?', ['account'], ['app_core.account.status'],
+        [structure('account', ['id', 'status'], [['idx_status', ['status', 'id']]])]);
+
+      const alias = el().querySelector('pre.sql-display code .sqt-alias');
+      const indexCol = [...el().querySelectorAll('.idx-col.matched')].find(x => x.textContent === 'status');
+      const chip = [...el().querySelectorAll('.rp-criteria')].find(x => x.textContent === 'status');
+      const head = el().querySelector('.tbl-name');
+      expect(colorOf(alias)).toBeDefined();
+      expect(colorOf(indexCol!)).toBe(colorOf(alias));
+      expect(colorOf(chip!)).toBe(colorOf(alias));
+      expect(colorOf(head)).toBe(colorOf(alias));
+    });
+
+    it('names each side of a self-join on the card, and swatches a column both constrain', () => {
+      load('SELECT a.id FROM account a JOIN account p ON p.id = a.parent_id WHERE a.id = ?',
+        ['account'], ['app_core.account.id', 'app_core.account.parent_id'],
+        [structure('account', ['id', 'parent_id'], [['PRIMARY', ['id']], ['idx_parent', ['parent_id']]])]);
+
+      const labels = [...el().querySelectorAll('.inst-label')].map(x => x.textContent);
+      expect(labels).toEqual(['a', 'p']);
+
+      const parent = [...el().querySelectorAll('.idx-col.matched')].find(x => x.textContent === 'parent_id');
+      const a = el().querySelector('.inst-label');
+      expect(colorOf(parent!)).toBe(colorOf(a));          // only `a` constrains parent_id
+
+      const id = [...el().querySelectorAll('.idx-col.matched')].find(x => x.textContent?.startsWith('id'));
+      expect(colorOf(id!)).toBeUndefined();               // both sides do: no single colour…
+      expect(id!.querySelectorAll('.inst-dot').length).toBe(2);   // …one swatch each
     });
   });
 });

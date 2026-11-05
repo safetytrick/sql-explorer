@@ -495,16 +495,16 @@ ul.criteria-columns > li {
   --sqt-l: 0.52;
   --sqt-c: 0.15;
 }
-.sqt-c0 { color: oklch(var(--sqt-l) var(--sqt-c) 25); }
-.sqt-c1 { color: oklch(var(--sqt-l) var(--sqt-c) 55); }
-.sqt-c2 { color: oklch(var(--sqt-l) var(--sqt-c) 85); }
-.sqt-c3 { color: oklch(var(--sqt-l) var(--sqt-c) 115); }
-.sqt-c4 { color: oklch(var(--sqt-l) var(--sqt-c) 145); }
-.sqt-c5 { color: oklch(var(--sqt-l) var(--sqt-c) 172); }
-.sqt-c6 { color: oklch(var(--sqt-l) var(--sqt-c) 200); }
-.sqt-c7 { color: oklch(var(--sqt-l) var(--sqt-c) 295); }
-.sqt-c8 { color: oklch(var(--sqt-l) var(--sqt-c) 325); }
-.sqt-c9 { color: oklch(var(--sqt-l) var(--sqt-c) 355); }
+.sqt-c0 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 25); color: var(--sqt-color); }
+.sqt-c1 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 55); color: var(--sqt-color); }
+.sqt-c2 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 85); color: var(--sqt-color); }
+.sqt-c3 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 115); color: var(--sqt-color); }
+.sqt-c4 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 145); color: var(--sqt-color); }
+.sqt-c5 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 172); color: var(--sqt-color); }
+.sqt-c6 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 200); color: var(--sqt-color); }
+.sqt-c7 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 295); color: var(--sqt-color); }
+.sqt-c8 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 325); color: var(--sqt-color); }
+.sqt-c9 { --sqt-color: oklch(var(--sqt-l) var(--sqt-c) 355); color: var(--sqt-color); }
 .sqt-table, .sqt-alias { font-weight: 600; }
 .sqt-qual { font-weight: 500; }
 .sqt-virtual.sqt-table, .sqt-virtual.sqt-alias {
@@ -513,4 +513,6 @@ ul.criteria-columns > li {
 }
 .sqt-schema { color: var(--text3); }
 .sqt[data-sqt] { cursor: default; border-radius: 2px; }
-.sqt-hot { background: color-mix(in oklch, currentColor 22%, transparent); }
+.sqt-hot { background: color-mix(in oklch, var(--sqt-color, currentColor) 22%, transparent); }
+/* a swatch of a table instance's colour outside the SQL, e.g. the index card */
+.sqt-swatch { color: var(--sqt-color); font-weight: 600; }

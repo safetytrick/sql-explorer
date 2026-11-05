@@ -233,6 +233,9 @@
 
   .tbl-name { font-size: 12px; color: var(--blue); text-decoration: none; }
   .tbl-name:hover { text-decoration: underline; }
+  // the SQL's colour for this table (sqlx-l9h)
+  .tbl-name.tinted { color: var(--sqt-color); font-weight: 600; }
+  .inst-label { font-size: 10px; }
   .idx-schema { font-size: 9px; }
 
   .idx-cols {
@@ -253,7 +256,11 @@
   color: var(--text2);
 
   &.rp-criteria { background: var(--teal-dim); color: var(--teal); }
+  &.rp-criteria.tinted { color: var(--sqt-color); background: color-mix(in oklch, var(--sqt-color) 16%, transparent); }
 }
+
+// one per instance when a self-join constrains the column from more than one side
+.inst-dot { font-size: 7px; margin-left: 2px; vertical-align: middle; }
 
 .idx-row {
   padding: 4px 0 4px 6px;
@@ -288,6 +295,8 @@
 
     // a column this query constrains
     &.matched { background: var(--green-dim); color: var(--green); }
+    // …in the colour of the table instance that constrains it, as in the SQL
+    &.matched.tinted { color: var(--sqt-color); background: color-mix(in oklch, var(--sqt-color) 16%, transparent); }
     // the leading column decides whether the index is usable at all
     &.lead { text-decoration: underline; text-underline-offset: 2px; }
   }

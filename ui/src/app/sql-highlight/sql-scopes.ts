@@ -8,8 +8,10 @@ import {Token, tokenize} from './sql-tokens';
  * This is a display heuristic over a token stream, not a parser. It never
  * fails: anything it cannot place is simply left unmarked and renders in the
  * plain text colour. What it does place it places from syntax alone — there is
- * no schema here, so an unqualified column is only attributed when its SELECT
- * has exactly one table to attribute it to.
+ * no schema by default, so an unqualified column is only attributed when its
+ * SELECT has exactly one table to attribute it to. A caller that already holds
+ * the tables' column lists can pass them (`AnalyzeOptions.columnsOf`) to place
+ * the rest; nothing here fetches anything.
  */
 
 export type SourceKind = 'table' | 'cte' | 'derived';
@@ -33,12 +35,35 @@ export interface Mark {
   source?: Source;
 }
 
+/** A column attributed to a table instance, and whether it can drive an index. */
+export interface ColumnUse {
+  source: Source;
+  /** Lowercased. */
+  column: string;
+  /**
+   * True outside the select list: WHERE, ON, GROUP BY, ORDER BY, SET… The
+   * select list cannot drive index selection, so the index card ignores it.
+   */
+  constrains: boolean;
+}
+
 export interface Analysis {
   tokens: Token[];
   /** Parallel to `tokens`. */
   marks: (Mark | undefined)[];
   /** In order of declaration. */
   sources: Source[];
+  /** Every attributed column reference, in token order. */
+  uses: ColumnUse[];
+}
+
+export interface AnalyzeOptions {
+  /**
+   * A table's columns, lowercased, or undefined when unknown. Lets an
+   * unqualified column in a multi-table SELECT be attributed when exactly one
+   * of its tables has it. Never asked about CTEs or derived tables.
+   */
+  columnsOf?: (source: Source) => ReadonlySet<string> | undefined;
 }
 
 interface Scope {
@@ -77,6 +102,7 @@ interface Ref {
   dots: number[];
   /** A bare name standing for a table, e.g. `DELETE t1 FROM …`. */
   tableRef: boolean;
+  inSelect: boolean;
 }
 
 /** Keywords that may sit between FROM/INTO/TABLE and the table name. */
@@ -99,11 +125,12 @@ const isMember = (t: Token | undefined): boolean =>
 
 const lower = (t: Token): string => (t.ident ?? t.text).toLowerCase();
 
-export function analyze(sql: string): Analysis {
+export function analyze(sql: string, options: AnalyzeOptions = {}): Analysis {
   const tokens = tokenize(sql);
   const marks: (Mark | undefined)[] = new Array(tokens.length);
   const sources: Source[] = [];
   const refs: Ref[] = [];
+  const uses: ColumnUse[] = [];
 
   const sig: number[] = [];
   tokens.forEach((t, i) => { if (t.kind !== 'ws' && t.kind !== 'comment') { sig.push(i); } });
@@ -294,13 +321,18 @@ export function analyze(sql: string): Analysis {
       continue;
     }
 
-    refs.push({scope: cur, target: f.target, noResolve: f.noResolve, parts, dots, tableRef: f.deleteList});
+    refs.push({scope: cur, target: f.target, noResolve: f.noResolve, parts, dots, tableRef: f.deleteList,
+      inSelect: f.selectList});
     p = q;
   }
 
   // Pass 2: every scope's FROM is known now, so qualifiers can be resolved.
   for (const ref of refs) {
     const name = (pos: number) => lower(T(pos)!);
+    const column = (pos: number, s: Source) => {
+      mark(pos, 'column', s);
+      if (T(pos)!.text !== '*') { uses.push({source: s, column: name(pos), constrains: !ref.inSelect}); }
+    };
     if (ref.parts.length >= 2) {
       const qual = ref.parts[ref.parts.length - 2];
       const s = lookup(ref.scope, name(qual));
@@ -308,22 +340,47 @@ export function analyze(sql: string): Analysis {
       if (ref.parts.length >= 3) { mark(ref.parts[ref.parts.length - 3], 'schema'); }
       mark(qual, 'qualifier', s);
       mark(ref.dots[ref.dots.length - 1], 'dot', s);
-      mark(ref.parts[ref.parts.length - 1], 'column', s);
+      column(ref.parts[ref.parts.length - 1], s);
     } else if (ref.tableRef) {
       const s = lookup(ref.scope, name(ref.parts[0]));
       if (s) { mark(ref.parts[0], 'qualifier', s); }
     } else if (ref.target) {
-      mark(ref.parts[0], 'column', ref.target);
-    } else if (!ref.noResolve && ref.scope.sources.length === 1) {
-      const n = name(ref.parts[0]);
-      const only = ref.scope.sources[0];
-      if (!ref.scope.selectAliases.has(n) && n !== only.alias?.toLowerCase()) {
-        mark(ref.parts[0], 'column', only);
-      }
+      column(ref.parts[0], ref.target);
+    } else if (!ref.noResolve && !ref.scope.selectAliases.has(name(ref.parts[0]))) {
+      const s = owner(ref.scope, name(ref.parts[0]), options.columnsOf);
+      if (s) { column(ref.parts[0], s); }
     }
   }
 
-  return {tokens, marks, sources};
+  return {tokens, marks, sources, uses};
+}
+
+/**
+ * The table an unqualified column belongs to, or undefined when that cannot
+ * be told.
+ *
+ * Without column lists, only a SELECT with exactly one table can answer. With
+ * them, the column belongs to the one table in scope that has it — and only
+ * if every table in scope is known, since a CTE or an unloaded table might
+ * have it too. A self-join has the column on both sides and stays unplaced,
+ * which is right. When no table in a scope has the column it may be a
+ * correlated reference, so the enclosing scope is asked.
+ */
+function owner(scope: Scope, n: string,
+               columnsOf: AnalyzeOptions['columnsOf']): Source | undefined {
+  for (let s: Scope | null = scope; s; s = s.parent) {
+    if (s.sources.some(x => x.alias?.toLowerCase() === n)) { return undefined; }
+    if (!columnsOf) {
+      return s.sources.length === 1 ? s.sources[0] : undefined;
+    }
+    const known = s.sources.map(x => ({x, cols: x.kind === 'table' ? columnsOf(x) : undefined}));
+    const has = known.filter(k => k.cols?.has(n));
+    const unknown = known.filter(k => !k.cols);
+    if (s.sources.length === 1 && (unknown.length === 1 || has.length === 1)) { return s.sources[0]; }
+    if (has.length === 1 && unknown.length === 0) { return has[0].x; }
+    if (has.length > 0 || unknown.length > 0) { return undefined; }
+  }
+  return undefined;
 }
 
 /** Innermost scope first; an alias wins over a bare table name. */
