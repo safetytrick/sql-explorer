@@ -90,14 +90,26 @@ describe('TableNamesComponent', () => {
     });
 
     // the one or two rows a bulk tag should pass over stay on screen, unchecked
-    it('passes over unchecked rows of a filtered list', () => {
+    it('passes over unchecked rows of a searched list', () => {
       component.excluded = new Set(['app.orders']);
       component.typeFilter = 'tables';
+      component.search = {name: 'app.', columns: [], exclude: []};
       component.onFilter(emptyTagFilter());
 
-      expect(component.filtered).toBeTrue();
+      expect(component.searching).toBeTrue();
       expect(component.bulkTargets).toEqual([tableTarget('app', 'users')]);
       expect(component.bulkLabel).toBe('1 of 3 tables');
+    });
+
+    // The sidebar's exclude filter reaches the tag strip; arriving with it
+    // must not draw a column of pre-checked boxes (sqlx-c8w.1).
+    it('draws no checkboxes for a tag filter or type filter alone', () => {
+      component.typeFilter = 'tables';
+      component.excluded = new Set(['app.orders']);
+      component.onFilter({...emptyTagFilter(), excludeTags: ['system']});
+
+      expect(component.searching).toBeFalse();
+      expect(component.bulkTargets).toContain(tableTarget('app', 'orders'));
     });
 
     // with no filter the checkboxes are hidden, so an exclusion left in the
@@ -107,7 +119,7 @@ describe('TableNamesComponent', () => {
       component.excluded = new Set(['app.orders']);
       component.onFilter(emptyTagFilter());
 
-      expect(component.filtered).toBeFalse();
+      expect(component.searching).toBeFalse();
       expect(component.bulkTargets.length).toBe(3);
       expect(component.bulkLabel).toBe('all 3 tables');
     });

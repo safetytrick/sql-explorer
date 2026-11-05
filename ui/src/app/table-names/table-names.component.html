@@ -46,7 +46,7 @@
     <app-table-list-component [tables]="visible"
                               [typeFilter]="typeFilter"
                               [showTypeFilter]="false"
-                              [selectable]="filtered"
+                              [selectable]="searching"
                               [excluded]="excluded"
                               (excludedChange)="setExcluded($event)"
                               (tagsChanged)="onRowTagsChanged()"></app-table-list-component>

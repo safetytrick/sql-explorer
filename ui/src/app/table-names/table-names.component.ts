@@ -3,7 +3,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import { TableListComponent } from '../table-list-component/table-list.component';
 import { TagFilterStripComponent, TaggedRow } from '../tag-filter/tag-filter-strip.component';
-import { emptyTagFilter, matchesTagFilter, sameTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
+import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
 import { TableRollup } from '../api-types';
 import { TypeFilter } from '../schema-tree/tree-filter';
 import { readTypeFilter, TYPE_PARAM } from './type-filter-url';
@@ -57,13 +57,16 @@ export class TableNamesComponent implements OnInit {
   excluded: ReadonlySet<string> = new Set();
 
   /**
-   * Whether any filter narrows the list: the name or column search, the tag
-   * strip, or the all/tables/views control. The checkboxes exist to pass over
-   * a few rows of a narrowed set, so without a filter they are not drawn —
-   * and exclusions are not applied either, since a bulk tag must never skip
+   * Whether a name or column search narrows the list. That is when the
+   * checkboxes are drawn: they exist to pass over a few rows of a searched
+   * set before a bulk tag. A tag filter or the all/tables/views control does
+   * not count — bulk tagging a tag-filtered list is not useful, and the
+   * sidebar's exclude filter travels into the tag strip, so counting it drew
+   * every row pre-checked on arrival from /schemas (sqlx-c8w.1). Without the
+   * checkboxes exclusions are not applied either: a bulk tag must never skip
    * a row whose checkbox the page is not showing.
    */
-  filtered = false;
+  searching = false;
 
   /** Which schema and columns the loaded `tables` answer; a load is skipped when unchanged. */
   private loadedKey: string | null = null;
@@ -202,14 +205,13 @@ export class TableNamesComponent implements OnInit {
       && matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter,
         this.inherited(table)));
     this.displayed = this.visible.filter(table => matchesTypeFilter(this.typeFilter, table.view));
-    this.filtered = !!this.search.name.trim() || this.search.columns.length > 0
-      || this.typeFilter !== 'all' || !sameTagFilter(this.filter, emptyTagFilter());
+    this.searching = !!this.search.name.trim() || this.search.columns.length > 0;
   }
 
   /** The tag target of every row on screen and, when the checkboxes show, still checked. */
   get bulkTargets(): TagTarget[] {
     return this.displayed
-      .filter(table => !this.filtered || !this.excluded.has(tableKey(table.schema, table.name)))
+      .filter(table => !this.searching || !this.excluded.has(tableKey(table.schema, table.name)))
       .map(table => tableTarget(table.schema, table.name));
   }
 
