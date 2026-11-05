@@ -38,17 +38,17 @@ describe('appRoutes: the table drill-downs', () => {
   }
 
   it('sends a column path to the lens, rewritten to the canonical ?columns= URL', async () => {
-    await router.navigateByUrl('/table/app_other/user_profile/user_id');
+    await router.navigateByUrl('/table/app_main/user_profile/user_id');
 
     expect(matched()).toBe(TableLensComponent);
-    expect(router.url).toBe('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
+    expect(router.url).toBe('/table/app_main/user_profile?columns=app_main.user_profile.user_id');
   });
 
   it('keeps the rest of the filter when a column link is followed from a filtered view', async () => {
-    await router.navigateByUrl('/table/app_other/user_profile/user_id?activity=ACTIVE');
+    await router.navigateByUrl('/table/app_main/user_profile/user_id?activity=ACTIVE');
 
     expect(router.url).toContain('activity=ACTIVE');
-    expect(router.url).toContain('columns=app_other.user_profile.user_id');
+    expect(router.url).toContain('columns=app_main.user_profile.user_id');
   });
 
   /**
@@ -59,24 +59,24 @@ describe('appRoutes: the table drill-downs', () => {
    * entirely wrong page. Declaration order is the only thing preventing it.
    */
   it('redirects the retired queries route to the lens rather than reading "queries" as a column', async () => {
-    await router.navigateByUrl('/table/app_other/user_profile/queries');
+    await router.navigateByUrl('/table/app_main/user_profile/queries');
 
     expect(matched()).toBe(TableLensComponent);
-    expect(router.url).toBe('/table/app_other/user_profile');
+    expect(router.url).toBe('/table/app_main/user_profile');
   });
 
   it('redirects the retired join route to the lens scoped to both tables', async () => {
-    await router.navigateByUrl('/table/app_other/group_member/join/app_other/groups');
+    await router.navigateByUrl('/table/app_main/group_member/join/app_main/user_group');
 
     expect(matched()).toBe(TableLensComponent);
     // ?tables=a,b + tableMode=ALL is what the lens's own join toggle writes
-    expect(router.url).toBe('/table/app_other/group_member?tables=app_other.group_member,app_other.groups&tableMode=ALL');
+    expect(router.url).toBe('/table/app_main/group_member?tables=app_main.group_member,app_main.user_group&tableMode=ALL');
   });
 
   it('keeps the retired routes ahead of the column drill-down', async () => {
     // the failure this guards is silent: :column would match and redirect to
-    // ?columns=app_other.user_profile.queries, which renders a normal-looking page
-    await router.navigateByUrl('/table/app_other/user_profile/queries');
+    // ?columns=app_main.user_profile.queries, which renders a normal-looking page
+    await router.navigateByUrl('/table/app_main/user_profile/queries');
     expect(router.url).not.toContain('columns=');
   });
 
@@ -97,7 +97,7 @@ describe('appRoutes: the table drill-downs', () => {
       await router.navigateByUrl('/queries');
       expect(matched()).not.toBe(NotFoundComponent);
 
-      await router.navigateByUrl('/table/app_other/user_profile');
+      await router.navigateByUrl('/table/app_main/user_profile');
       expect(matched()).toBe(TableLensComponent);
     });
 
@@ -110,9 +110,9 @@ describe('appRoutes: the table drill-downs', () => {
   });
 
   it('leaves the bare table route alone', async () => {
-    await router.navigateByUrl('/table/app_other/user_profile');
+    await router.navigateByUrl('/table/app_main/user_profile');
 
     expect(matched()).toBe(TableLensComponent);
-    expect(router.url).toBe('/table/app_other/user_profile');
+    expect(router.url).toBe('/table/app_main/user_profile');
   });
 });

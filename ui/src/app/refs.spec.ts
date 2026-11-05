@@ -3,8 +3,8 @@ import {parseColumnRef, parseTableRef, tableRefOf} from './refs';
 describe('parseTableRef', () => {
 
   it('splits schema and table', () => {
-    expect(parseTableRef('app_other.trigger_stat_get_user_list'))
-      .toEqual({ schema: 'app_other', table: 'trigger_stat_get_user_list' });
+    expect(parseTableRef('app_main.trigger_stat_get_user_list'))
+      .toEqual({ schema: 'app_main', table: 'trigger_stat_get_user_list' });
   });
 
   it('leaves the schema null when the reference is bare', () => {
@@ -20,8 +20,8 @@ describe('parseTableRef', () => {
 describe('parseColumnRef', () => {
 
   it('splits schema, table and column', () => {
-    expect(parseColumnRef('app_other.user_profile.uuid'))
-      .toEqual({ schema: 'app_other', table: 'user_profile', column: 'uuid' });
+    expect(parseColumnRef('app_main.user_profile.uuid'))
+      .toEqual({ schema: 'app_main', table: 'user_profile', column: 'uuid' });
   });
 
   it('handles a column qualified only by its table', () => {
@@ -43,7 +43,7 @@ describe('parseColumnRef', () => {
 describe('tableRefOf', () => {
 
   it('returns the table part of a column reference', () => {
-    expect(tableRefOf('app_other.user_profile.uuid')).toBe('app_other.user_profile');
+    expect(tableRefOf('app_main.user_profile.uuid')).toBe('app_main.user_profile');
     expect(tableRefOf('user_profile.uuid')).toBe('user_profile');
   });
 

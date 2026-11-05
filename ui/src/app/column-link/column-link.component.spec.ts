@@ -35,21 +35,21 @@ describe('ColumnLinkComponent', () => {
    * out of the page should already be the shareable one.
    */
   it('links to the table lens with the column drilled into', () => {
-    component.schema = 'app_other';
-    component.columnReference = 'app_other.user_profile.user_id';
+    component.schema = 'app_main';
+    component.columnReference = 'app_main.user_profile.user_id';
     fixture.detectChanges();
 
-    expect(href()).toBe('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
+    expect(href()).toBe('/table/app_main/user_profile?columns=app_main.user_profile.user_id');
     expect(fixture.nativeElement.textContent.trim()).toBe('user_profile.user_id');
   });
 
   /** An unqualified reference keeps the schema supplied separately. */
   it('qualifies the filter with the separately supplied schema', () => {
-    component.schema = 'app_other';
+    component.schema = 'app_main';
     component.columnReference = 'user_profile.user_id';
     fixture.detectChanges();
 
-    expect(href()).toBe('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
+    expect(href()).toBe('/table/app_main/user_profile?columns=app_main.user_profile.user_id');
   });
 
   /**

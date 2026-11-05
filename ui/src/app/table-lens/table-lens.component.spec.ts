@@ -35,7 +35,7 @@ describe('TableLensComponent drill-downs', () => {
   }
 
   it('starts with no drill-down and both relationship cards collapsed', async () => {
-    const component = await open('/table/app_other/user_profile');
+    const component = await open('/table/app_main/user_profile');
 
     expect(component.drillColumn).toBeNull();
     expect(component.joinWith).toBeNull();
@@ -44,15 +44,15 @@ describe('TableLensComponent drill-downs', () => {
   });
 
   it('reads a column drill-down out of a shared link', async () => {
-    const component = await open('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
+    const component = await open('/table/app_main/user_profile?columns=app_main.user_profile.user_id');
 
-    expect(component.drillColumn).toBe('app_other.user_profile.user_id');
+    expect(component.drillColumn).toBe('app_main.user_profile.user_id');
   });
 
   it('reads a join drill-down, ignoring the table itself among the scope', async () => {
-    const component = await open('/table/app_other/group_member?tables=app_other.group_member,app_other.groups&tableMode=ALL');
+    const component = await open('/table/app_main/group_member?tables=app_main.group_member,app_main.user_group&tableMode=ALL');
 
-    expect(component.joinWith).toBe('app_other.groups');
+    expect(component.joinWith).toBe('app_main.user_group');
   });
 
   /**
@@ -60,25 +60,25 @@ describe('TableLensComponent drill-downs', () => {
    * table. The join is still this table's: the search must require both.
    */
   it('searches this table together with a join table the URL names alone', async () => {
-    const harness = await RouterTestingHarness.create('/table/app_other/user_profile?tables=app_other.groups');
+    const harness = await RouterTestingHarness.create('/table/app_main/user_profile?tables=app_main.user_group');
     const component: TableLensComponent = harness.routeDebugElement!.componentInstance;
     const http = TestBed.inject(HttpTestingController);
     const search = http.expectOne(request => request.url.endsWith('queries/search'));
 
-    expect(component.joinWith).toBe('app_other.groups');
-    expect(search.request.body.tables).toEqual(['app_other.user_profile', 'app_other.groups']);
+    expect(component.joinWith).toBe('app_main.user_group');
+    expect(search.request.body.tables).toEqual(['app_main.user_profile', 'app_main.user_group']);
     expect(search.request.body.tableMode).toBe('ALL');
-    expect(component.workbenchParams()['tables']).toBe('app_other.user_profile,app_other.groups');
+    expect(component.workbenchParams()['tables']).toBe('app_main.user_profile,app_main.user_group');
   });
 
   it('links the graph to the queries touching this table', async () => {
-    const component = await open('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
+    const component = await open('/table/app_main/user_profile?columns=app_main.user_profile.user_id');
 
-    expect(component.graphParams()).toEqual({ source: 'search', tables: 'app_other.user_profile', tableMode: 'ALL' });
+    expect(component.graphParams()).toEqual({ source: 'search', tables: 'app_main.user_profile', tableMode: 'ALL' });
   });
 
   it('restores expanded relationship cards from the presentation params', async () => {
-    const component = await open('/table/app_other/user_profile?var-fk=1&var-co=1');
+    const component = await open('/table/app_main/user_profile?var-fk=1&var-co=1');
 
     expect(component.fkOpen).toBe(true);
     expect(component.coOpen).toBe(true);
@@ -89,7 +89,7 @@ describe('TableLensComponent drill-downs', () => {
    * drill — a select-only column would open an empty list that reads as broken.
    */
   it('offers the drill-down only for join and criteria columns', async () => {
-    const component = await open('/table/app_other/user_profile');
+    const component = await open('/table/app_main/user_profile');
 
     expect(component.isDrillable(column('user_id', ['join']))).toBe(true);
     expect(component.isDrillable(column('status', ['criteria']))).toBe(true);
@@ -139,11 +139,11 @@ describe('TableLensComponent drill-downs', () => {
   });
 
   it('translates the view into workbench params without re-mapping anything', async () => {
-    const component = await open('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
+    const component = await open('/table/app_main/user_profile?columns=app_main.user_profile.user_id');
     const params = component.workbenchParams();
 
-    expect(params['columns']).toBe('app_other.user_profile.user_id');
-    expect(params['tables']).toBe('app_other.user_profile');
+    expect(params['columns']).toBe('app_main.user_profile.user_id');
+    expect(params['tables']).toBe('app_main.user_profile');
   });
 });
 
@@ -200,7 +200,7 @@ describe('TableLensComponent query metrics', () => {
   }
 
   it('renders the six per-query metrics in the row', async () => {
-    const element = await openWithHits('/table/app_other/user_profile', [HIT]);
+    const element = await openWithHits('/table/app_main/user_profile', [HIT]);
     const metrics = element.querySelector('.query-metrics')!;
     const rendered = new Map(Array.from(metrics.querySelectorAll('.metric-row')).map(row => [
       row.querySelector('.metric-key')!.textContent!.trim(),
@@ -220,7 +220,7 @@ describe('TableLensComponent query metrics', () => {
   });
 
   it('keeps the full-scan badge, which the shared summary does not carry', async () => {
-    const element = await openWithHits('/table/app_other/user_profile', [HIT]);
+    const element = await openWithHits('/table/app_main/user_profile', [HIT]);
 
     expect(element.querySelector('.query-row-head .badge')!.textContent).toContain('full scan');
   });
@@ -310,7 +310,7 @@ describe('TableLensComponent unknown table', () => {
    * that keeps this from turning the whole app into a not-found page.
    */
   it('keeps the page for a table the schema lacks but queries reference', async () => {
-    const {component, element} = await open('/table/app_other/user_profile', {
+    const {component, element} = await open('/table/app_main/user_profile', {
       structure: null,
       stats: { ...STATS, distinctQueries: 7 }
     });
@@ -322,7 +322,7 @@ describe('TableLensComponent unknown table', () => {
   });
 
   it('does not claim absence while the metadata is still in flight', async () => {
-    const {component, element} = await open('/table/app_other/user_profile', { stats: STATS });
+    const {component, element} = await open('/table/app_main/user_profile', { stats: STATS });
 
     expect(component.notFound()).toBe(false);
     expect(element.querySelector('.lens-card.not-found')).toBeNull();
@@ -330,21 +330,21 @@ describe('TableLensComponent unknown table', () => {
 
   /** An outage is not an absence — the metadata failing tells us nothing. */
   it('does not claim absence when the metadata request fails', async () => {
-    const {component} = await open('/table/app_other/user_profile', { structureFails: true, stats: STATS });
+    const {component} = await open('/table/app_main/user_profile', { structureFails: true, stats: STATS });
 
     expect(component.metadataFailed).toBe(true);
     expect(component.notFound()).toBe(false);
   });
 
   it('leaves a real table alone', async () => {
-    const {component} = await open('/table/app_other/user_profile', { structure: STRUCTURE, stats: STATS });
+    const {component} = await open('/table/app_main/user_profile', { structure: STRUCTURE, stats: STATS });
 
     expect(component.notFound()).toBe(false);
     expect(component.unintrospected()).toBe(false);
   });
 
   it('flags a drill-down naming a column the table does not have', async () => {
-    const {component, element} = await open('/table/app_other/user_profile?columns=app_other.user_profile.nope', {
+    const {component, element} = await open('/table/app_main/user_profile?columns=app_main.user_profile.nope', {
       structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
     });
 
@@ -353,7 +353,7 @@ describe('TableLensComponent unknown table', () => {
   });
 
   it('flags a drill-down whose reference belongs to another table', async () => {
-    const {component} = await open('/table/app_other/user_profile?columns=app_other.groups.user_id', {
+    const {component} = await open('/table/app_main/user_profile?columns=app_main.user_group.user_id', {
       structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
     });
 
@@ -361,7 +361,7 @@ describe('TableLensComponent unknown table', () => {
   });
 
   it('accepts a real column whatever its case', async () => {
-    const {component} = await open('/table/app_other/user_profile?columns=app_other.user_profile.USER_ID', {
+    const {component} = await open('/table/app_main/user_profile?columns=app_main.user_profile.USER_ID', {
       structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
     });
 
@@ -370,7 +370,7 @@ describe('TableLensComponent unknown table', () => {
 
   /** With no column list there is nothing to check against, so make no claim. */
   it('stays quiet about the drill column when no metadata is available', async () => {
-    const {component} = await open('/table/app_other/user_profile?columns=app_other.user_profile.anything', {
+    const {component} = await open('/table/app_main/user_profile?columns=app_main.user_profile.anything', {
       structure: null, stats: { ...STATS, distinctQueries: 4 }, columns: []
     });
 
@@ -378,7 +378,7 @@ describe('TableLensComponent unknown table', () => {
   });
 
   it('says the filter matched nothing rather than blaming the table', async () => {
-    const {harness, element} = await open('/table/app_other/user_profile?columns=app_other.user_profile.user_id', {
+    const {harness, element} = await open('/table/app_main/user_profile?columns=app_main.user_profile.user_id', {
       structure: STRUCTURE, stats: STATS, columns: [column('user_id')]
     });
     const http = TestBed.inject(HttpTestingController);
