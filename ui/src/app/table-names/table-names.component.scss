@@ -42,3 +42,9 @@
 }
 
 .columns-box { width: 230px; }
+
+.unqueried-link {
+  text-decoration: none;
+  color: var(--text3);
+  &:hover { color: var(--blue); }
+}

@@ -1,6 +1,6 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {ActivatedRoute, Router} from '@angular/router';
+import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import { TableListComponent } from '../table-list-component/table-list.component';
 import { TagFilterStripComponent, TaggedRow } from '../tag-filter/tag-filter-strip.component';
 import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
@@ -16,7 +16,7 @@ import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
     selector: 'app-table-names',
     templateUrl: './table-names.component.html',
     styleUrls: ['./table-names.component.scss'],
-    imports: [TableListComponent, TagFilterStripComponent, BulkTagBarComponent]
+    imports: [TableListComponent, TagFilterStripComponent, BulkTagBarComponent, RouterLink]
 })
 export class TableNamesComponent implements OnInit {
 

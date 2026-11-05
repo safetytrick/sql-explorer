@@ -54,3 +54,11 @@ test('the nav moves between the main views', async ({page}) => {
   await expect(page).toHaveURL(/\/unqueried/);
   await expect(page.locator('.view-title')).toContainText('Unqueried tables');
 });
+
+/** Tables lists only queried tables, and says where the others are (sqlx-c8w.13). */
+test('the tables list points to the unqueried tables it leaves out', async ({page}) => {
+  await page.goto('/tables');
+  await page.locator('.unqueried-link').click();
+
+  await expect(page).toHaveURL(/\/unqueried/);
+});

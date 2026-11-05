@@ -8,6 +8,11 @@
   } @else {
     <span class="view-sub">{{visible.length}} of {{tables.length}}</span>
   }
+  <!-- Only tables a query touches are listed; say so, and where the rest are
+       (sqlx-c8w.13). -->
+  <a class="view-sub unqueried-link" routerLink="/unqueried"
+     title="this list holds only tables some captured query touches; tables the schema has that nothing queries are listed separately">
+    queried tables only · unqueried ›</a>
 
   <!-- Hoisted out of app-table-list-component so the header is the page's one
        control strip. The component still owns the filtering; it is only the
