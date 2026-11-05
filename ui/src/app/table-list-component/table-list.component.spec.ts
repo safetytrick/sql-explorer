@@ -37,6 +37,14 @@ describe('TableListComponentComponent', () => {
     expect(el.querySelectorAll('.schema-col').length).toBe(0);
   });
 
+  it('explains what # of Queries and Total Query Time count, on hover', () => {
+    const terms = (fixture.nativeElement as HTMLElement).querySelectorAll('th .term');
+    const titles = Array.from(terms).map(term => term.getAttribute('title') ?? '');
+    expect(titles.length).toBe(2);
+    expect(titles[0]).toContain('Distinct query patterns');
+    expect(titles[1]).toContain('Time spent executing');
+  });
+
   /** The checkboxes report exceptions; the page that owns them decides what they mean (sqlx-v86). */
   describe('when selectable', () => {
     const table = (name: string) => ({schema: 'app', name, view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1});

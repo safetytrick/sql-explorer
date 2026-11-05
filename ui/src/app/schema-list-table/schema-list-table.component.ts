@@ -1,3 +1,4 @@
+import {GLOSSARY} from '../glossary';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { PicoViewComponent } from '../pico-view/pico-view.component';
@@ -12,6 +13,9 @@ import {schemaTarget} from '../tag-path';
     imports: [RouterLink, PicoViewComponent, TagFieldComponent]
 })
 export class SchemaListTableComponent {
+  /** Header definitions (hover). */
+  readonly glossary = GLOSSARY;
+
   protected readonly schemaTarget = schemaTarget;
 
   /**

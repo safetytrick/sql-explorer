@@ -364,6 +364,15 @@ ul.criteria-columns > li {
 .card-head .card-head-title { font-size: 11px; font-weight: 500; color: var(--text2); }
 .card-head .card-head-note { font-size: 10px; color: var(--text3); margin-left: auto; }
 
+/* A word or header with a definition behind it (glossary.ts): hover for
+   what the number counts. Dotted, so it reads as "explained", not "link". */
+.term {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text3);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
 /* A prose note in a lens card: what a result rests on, before acting on it.
    Shared since three pages carried their own copy and one of them had lost
    its padding (sqlx-1bo.5). The amber edge is the default; a page overrides

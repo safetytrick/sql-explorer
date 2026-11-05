@@ -19,8 +19,8 @@
       @if (showSchema) { <th class="schema-col">Schema</th> }
       <th class="table-col">Name</th>
       <th class="table-tags">Tags</th>
-      <th class="query-count num"># of Queries</th>
-      <th class="total-time num">Total Query Time</th>
+      <th class="query-count num"><span class="term" [title]="glossary.tableQueries"># of Queries</span></th>
+      <th class="total-time num"><span class="term" [title]="glossary.tableTime">Total Query Time</span></th>
     </tr>
   </thead>
   <tbody>

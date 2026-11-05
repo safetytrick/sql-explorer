@@ -1,3 +1,4 @@
+import {GLOSSARY} from '../glossary';
 import {Component, EventEmitter, Input, Output} from '@angular/core';
 import {RouterLink} from '@angular/router';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
@@ -14,6 +15,9 @@ import {tableKey} from '../table-names/table-search-url';
     imports: [RouterLink, PicoViewComponent, TagFieldComponent]
 })
 export class TableListComponent {
+  /** Header definitions (hover). */
+  readonly glossary = GLOSSARY;
+
   protected readonly tableTarget = tableTarget;
 
   private rows: TableRollup[] = [];
