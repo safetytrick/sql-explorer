@@ -1,5 +1,6 @@
-import {compactCount} from '../compact-count';
-import { Component, HostListener, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import {environmentState, environmentStatusLine, isProblem, STATE_LABEL, STATE_MEANING} from '../environment-health';
+import {EnvironmentState} from '../environment.service';
 import {ExplainService} from '../explain.service';
 import { RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
@@ -11,7 +12,7 @@ import { EnvironmentUrlSync } from '../environment-url-sync';
     styleUrls: ['./nav-bar.component.scss'],
     imports: [RouterLink]
 })
-export class NavBarComponent implements OnInit {
+export class NavBarComponent implements OnInit, OnDestroy {
 
   /** Admin menu open state — replaces Bootstrap's dropdown JS. */
   adminOpen = false;
@@ -57,13 +58,67 @@ export class NavBarComponent implements OnInit {
 
   ngOnInit() {
     this.current = this.environmentService.getCurrent();
+    this.refreshEnvironments();
+    this.environmentService.unknown$.subscribe(name => this.unknownEnvironment = name);
+  }
+
+  ngOnDestroy() {
+    clearTimeout(this.refreshTimer);
+  }
+
+  /**
+   * Read the environments' states, and read them again while any is pulling:
+   * a restart's pull runs in the background, and the status has to change
+   * when it lands rather than when someone next reloads (sqlx-nbi.8).
+   */
+  private refreshTimer?: ReturnType<typeof setTimeout>;
+
+  private refreshEnvironments() {
+    clearTimeout(this.refreshTimer);
     this.environmentService.getEnvironments().subscribe(list => {
       this.environments = list.environments;
       if (!this.current) {
         this.current = list.defaultEnvironment;
       }
+      if (list.environments.some(env => environmentState(env) === 'PULLING')) {
+        this.refreshTimer = setTimeout(() => this.refreshEnvironments(), 5000);
+      }
     });
-    this.environmentService.unknown$.subscribe(name => this.unknownEnvironment = name);
+  }
+
+  /** Environments with a pull this page started, and why one failed. */
+  pullingNow = new Set<string>();
+  pullError: Record<string, string> = {};
+
+  /** Pull now: read the environment's servers, which takes a cached one live (sqlx-nbi.5). */
+  pull(name: string, event: Event) {
+    event.stopPropagation();
+    this.pullingNow.add(name);
+    delete this.pullError[name];
+    this.environmentService.pull(name).subscribe({
+      next: () => { this.pullingNow.delete(name); this.refreshEnvironments(); },
+      error: err => {
+        this.pullingNow.delete(name);
+        this.pullError[name] = err?.error?.message || err?.message || 'the pull failed';
+        this.refreshEnvironments();
+      },
+    });
+  }
+
+  state(env: EnvironmentSummary): EnvironmentState {
+    return this.pullingNow.has(env.name) ? 'PULLING' : environmentState(env);
+  }
+
+  problem(env: EnvironmentSummary): boolean {
+    return isProblem(this.state(env));
+  }
+
+  readonly stateLabel = STATE_LABEL;
+
+  /** Hover text: what the state means, then each problem. */
+  stateTitle(env: EnvironmentSummary): string {
+    const problems = env.health?.problems ?? [];
+    return [STATE_MEANING[this.state(env)], ...problems.map(p => '• ' + p)].join('\n');
   }
 
   /** The environment chooser is open (sqlx-m6r.6). */
@@ -75,7 +130,7 @@ export class NavBarComponent implements OnInit {
     this.adminOpen = false;
     if (this.envOpen) {
       // statuses change as sources load; read them fresh when the chooser opens
-      this.environmentService.getEnvironments().subscribe(list => this.environments = list.environments);
+      this.refreshEnvironments();
     }
   }
 
@@ -90,16 +145,9 @@ export class NavBarComponent implements OnInit {
     return this.environments.find(env => env.name === this.current);
   }
 
-  /** "216k statements · loaded Nov 4, 9:29 PM", or what is missing. */
+  /** "cached · 6h old · 216k statements", or what is wrong. */
   statusLine(env: EnvironmentSummary): string {
-    const sources = env.sources;
-    if (!sources?.loaded) { return 'nothing loaded'; }
-    const count = sources.importStats?.count;
-    const statements = count === null || count === undefined ? `${sources.sourceCount} source${sources.sourceCount === 1 ? '' : 's'}`
-      : `${compactCount(count)} statements`;
-    const when = sources.loadedOn ? ' · loaded ' + new Date(sources.loadedOn).toLocaleString('en-US',
-      {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) : '';
-    return statements + when;
+    return this.pullingNow.has(env.name) ? 'pulling…' : environmentStatusLine(env);
   }
 
   onEnvChange(name: string) {

@@ -45,13 +45,25 @@
            loaded — and opens a chooser that says the same about each
            alternative, like picking a cloud region (sqlx-m6r.6). -->
       <li class="nav-item env-picker">
+        @let summary = currentSummary();
+        <!-- A problem shows on the button itself: every number on every page
+             is about this environment, and a corpus missing a server looks
+             just like a complete one (sqlx-nbi.8). -->
         <button type="button" class="env-current" [class.unknown]="unknownEnvironment"
-                [attr.data-env]="unknownEnvironment || current" [attr.aria-expanded]="envOpen" aria-haspopup="listbox"
-                title="the environment every page shows; click to choose another"
+                [class.problem]="!unknownEnvironment && summary && problem(summary)"
+                [attr.data-env]="unknownEnvironment || current"
+                [attr.data-state]="!unknownEnvironment && summary ? state(summary) : null"
+                [attr.aria-expanded]="envOpen" aria-haspopup="listbox"
+                [title]="!unknownEnvironment && summary ? stateTitle(summary) + '\n\nClick to choose an environment.'
+                         : 'the environment every page shows; click to choose another'"
                 (click)="toggleEnv($event)">
-          <span class="env-dot" [class.loaded]="!unknownEnvironment && currentSummary()?.sources?.loaded"></span>
+          <span class="env-dot" [class.loaded]="!unknownEnvironment && summary?.sources?.loaded"
+                [attr.data-state]="!unknownEnvironment && summary ? state(summary) : null"></span>
+          @if (!unknownEnvironment && summary && problem(summary)) {
+            <span class="env-warn" aria-label="problem">⚠</span>
+          }
           <span class="env-name">{{unknownEnvironment || current}}</span>
-          @if (!unknownEnvironment && currentSummary(); as summary) {
+          @if (!unknownEnvironment && summary) {
             <span class="env-status">{{statusLine(summary)}}</span>
           }
           <span class="env-caret">▾</span>
@@ -60,15 +72,36 @@
           <div class="env-menu" role="listbox" (click)="$event.stopPropagation()">
             <div class="env-menu-head">environment — every page shows its data</div>
             @for (env of environments; track env.name) {
-              <button type="button" class="env-option" role="option"
-                      [class.on]="!unknownEnvironment && env.name === current"
-                      [attr.aria-selected]="!unknownEnvironment && env.name === current"
-                      (click)="chooseEnv(env.name)">
-                <span class="env-dot" [class.loaded]="env.sources?.loaded"></span>
-                <span class="env-option-name">{{env.name}}</span>
-                <span class="env-option-status">{{statusLine(env)}}</span>
-                <span class="env-option-servers">{{env.servers.length}} server{{env.servers.length === 1 ? '' : 's'}}</span>
-              </button>
+              <div class="env-row" [class.on]="!unknownEnvironment && env.name === current"
+                   [class.problem]="problem(env)" [attr.data-env]="env.name">
+                <button type="button" class="env-option" role="option"
+                        [class.on]="!unknownEnvironment && env.name === current"
+                        [attr.aria-selected]="!unknownEnvironment && env.name === current"
+                        [title]="stateTitle(env)"
+                        (click)="chooseEnv(env.name)">
+                  <span class="env-dot" [class.loaded]="env.sources?.loaded" [attr.data-state]="state(env)"></span>
+                  <span class="env-option-name">{{env.name}}</span>
+                  <span class="env-option-status">{{statusLine(env)}}</span>
+                  <span class="env-option-servers">{{env.servers.length}} server{{env.servers.length === 1 ? '' : 's'}}</span>
+                </button>
+                @if (env.health?.configuredSources !== 0) {
+                <button type="button" class="env-pull" [disabled]="state(env) === 'PULLING'"
+                        [title]="env.cached ? 'read its servers now; this takes it live' : 'read its servers now'"
+                        (click)="pull(env.name, $event)">
+                  {{state(env) === 'PULLING' ? 'pulling…' : problem(env) ? 'Retry pull' : 'Pull now'}}
+                </button>
+                }
+                @if (problem(env) || pullError[env.name]) {
+                  <ul class="env-problems">
+                    @for (p of env.health?.problems ?? []; track $index) {
+                      <li>{{p}}</li>
+                    }
+                    @if (pullError[env.name]) {
+                      <li>pull failed: {{pullError[env.name]}}</li>
+                    }
+                  </ul>
+                }
+              </div>
             }
           </div>
         }

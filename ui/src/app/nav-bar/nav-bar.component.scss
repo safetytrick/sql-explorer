@@ -142,7 +142,16 @@ nav.navbar {
   cursor: pointer;
   &:hover { border-color: var(--blue); }
   &.unknown { border-color: var(--red, #a33); color: var(--red, #a33); }
+  // stale, partial or unavailable: a fault, so it reads as one before the
+  // chooser is opened (sqlx-nbi.8)
+  &.problem { border-color: var(--amber, #c80); background: color-mix(in srgb, var(--amber, #c80) 14%, var(--bg3)); }
+  &.problem[data-state='PARTIAL'], &.problem[data-state='UNAVAILABLE'] {
+    border-color: var(--red, #a33);
+    background: color-mix(in srgb, var(--red, #a33) 14%, var(--bg3));
+  }
 }
+.env-warn { color: var(--amber, #c80); font-size: 12px; line-height: 1; }
+.problem[data-state='PARTIAL'] .env-warn, .problem[data-state='UNAVAILABLE'] .env-warn { color: var(--red, #a33); }
 .env-name { font-family: var(--mono); font-weight: 600; }
 .env-status { color: var(--text3); }
 .env-caret { color: var(--text3); font-size: 9px; }
@@ -153,6 +162,42 @@ nav.navbar {
   background: var(--text3);
   flex-shrink: 0;
   &.loaded { background: var(--green); }
+  // the state, when the backend reports one, wins over loaded/not loaded
+  &[data-state='LIVE'] { background: var(--green); }
+  &[data-state='CACHED'] { background: var(--blue); }
+  &[data-state='PULLING'] { background: var(--blue); animation: env-pulse 1s ease-in-out infinite alternate; }
+  &[data-state='STALE'] { background: var(--amber, #c80); }
+  &[data-state='PARTIAL'], &[data-state='UNAVAILABLE'] { background: var(--red, #a33); }
+}
+@keyframes env-pulse { from { opacity: 1; } to { opacity: 0.3; } }
+.env-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding-right: 8px;
+  &.on { background: var(--blue-dim); }
+  &.problem { border-left: 2px solid var(--amber, #c80); }
+}
+.env-pull {
+  padding: 2px 8px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--text2);
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  &:hover:not([disabled]) { border-color: var(--blue); color: var(--text); }
+  &[disabled] { opacity: 0.6; cursor: default; }
+}
+.env-problems {
+  grid-column: 1 / -1;
+  margin: 0 12px 6px 30px;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: var(--amber, #c80);
+  li { padding: 1px 0; overflow-wrap: anywhere; }
 }
 .env-menu {
   position: absolute;
@@ -181,7 +226,7 @@ nav.navbar {
   text-align: left;
   cursor: pointer;
   &:hover { background: var(--bg4); color: var(--text); }
-  &.on { color: var(--text); background: var(--blue-dim); }
+  &.on { color: var(--text); background: none; }
 }
 .env-option-name { font-family: var(--mono); font-weight: 600; }
 .env-option-status, .env-option-servers { font-size: 11px; color: var(--text3); white-space: nowrap; }

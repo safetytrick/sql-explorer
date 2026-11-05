@@ -32,10 +32,28 @@ export interface SourcesSummary {
   importStats: SqlImportStats | null;
 }
 
+/** What an environment is served from and anything wrong with it (sqlx-nbi.8). */
+export type EnvironmentState = 'LIVE' | 'CACHED' | 'PULLING' | 'STALE' | 'PARTIAL' | 'UNAVAILABLE';
+
+export interface EnvironmentHealth {
+  state: EnvironmentState;
+  /** The earliest capture it is served from. */
+  oldestCapture: string | null;
+  maxAgeMinutes: number;
+  /** One plain sentence per problem; empty when LIVE or CACHED. */
+  problems: string[];
+  lastPull: {at: string; succeeded: boolean; error: string | null} | null;
+  /** With none, a pull has nothing to read. */
+  configuredSources?: number;
+}
+
 export interface EnvironmentSummary {
   name: string;
   servers: ServerSummary[];
   sources: SourcesSummary;
+  /** Served from its cache with no server connected; a pull takes it live (sqlx-nbi). */
+  cached?: boolean;
+  health?: EnvironmentHealth;
 }
 
 export interface PullResult {

@@ -59,3 +59,43 @@ test('the nav leads with the primary pages and keeps operator pages under Admin'
   await page.locator('.dropdown-item', {hasText: 'Captured'}).click();
   await expect(page).toHaveURL(/\/captured/);
 });
+
+/**
+ * A problem reads as one on the status button, before the chooser is opened,
+ * and the chooser says why and offers to pull again (sqlx-nbi.8).
+ */
+test('an environment in a problem state says so on the button and in the chooser', async ({page}) => {
+  const health = (state: string, problems: string[] = []) => ({
+    state, oldestCapture: '2026-08-30T06:00:00Z', maxAgeMinutes: 1440, problems, lastPull: null});
+  const sources = {loaded: true, sourceCount: 2, loadedOn: '2026-08-30T12:00:00Z', importStats: null, resident: true};
+  await page.route('**/api/sql-explorer/environments', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({defaultEnvironment: 'regression', environments: [
+      {name: 'regression', servers: [], sources, cached: false,
+        health: health('PARTIAL', ['dummy-replica: nothing to serve (Communications link failure)'])},
+      {name: 'staging', servers: [], sources, cached: true, health: health('CACHED')},
+    ]}),
+  }));
+  let pulled = '';
+  await page.route('**/api/sql-explorer/environments/*/pull', route => {
+    pulled = route.request().url();
+    return route.fulfill({contentType: 'application/json',
+      body: JSON.stringify({environment: 'regression', profiles: 1, window: null, prunedCaptures: 0, pruningEnabled: false})});
+  });
+
+  await page.goto('/schemas');
+  const current = page.locator('.env-current');
+  await expect(current).toHaveClass(/problem/);
+  await expect(current).toHaveAttribute('data-state', 'PARTIAL');
+  await expect(current.locator('.env-status')).toContainText('partial');
+  await expect(current.locator('.env-status')).toContainText('1 problem');
+
+  await current.click();
+  const broken = page.locator('.env-row[data-env="regression"]');
+  await expect(broken.locator('.env-problems')).toContainText('dummy-replica: nothing to serve');
+  await expect(page.locator('.env-row[data-env="staging"] .env-option-status')).toContainText('cached');
+  await expect(page.locator('.env-row[data-env="staging"] .env-problems')).toHaveCount(0);
+
+  await broken.locator('.env-pull').click();
+  await expect.poll(() => pulled).toContain('/environments/regression/pull');
+});
