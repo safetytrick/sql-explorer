@@ -201,6 +201,8 @@
         <span class="active-chip">{{chip}}</span>
       }
       <div class="bar-right">
+        <span class="tri-btn" [class.on]="detailPane" (click)="toggleDetailPane()"
+              title="a detail pane under the list; without it, clicking a query opens its full page">pane</span>
         <span class="bar-label">sql:</span>
         <span class="tri-btn" [class.on]="!fullSql" (click)="setFullSql(false)" title="one line per query; expand a row with its caret">line</span>
         <span class="tri-btn" [class.on]="fullSql" (click)="setFullSql(true)" title="every query's whole formatted SQL, to read down the list without clicking">full</span>
@@ -232,9 +234,9 @@
         }
         @for (hit of hits; track hit.profile.id) {
           <div class="q-row"
-               [class.selected]="selected?.profile?.id === hit.profile.id"
+               [class.selected]="detailPane && selected?.profile?.id === hit.profile.id"
                [class.has-warn]="hit.profile.mismatchedJoins.length > 0 || hit.profile.analysisFailed"
-               (click)="select(hit)">
+               (click)="rowClick(hit, $event)" (auxclick)="rowAuxClick(hit, $event)">
             <div class="q-top">
               <button type="button" class="q-expand" (click)="toggleExpanded(hit, $event)"
                       [attr.aria-expanded]="isExpanded(hit)"
@@ -287,6 +289,9 @@
         }
       </div>
 
+      <!-- The detail pane is opt-in: a row click opens the full query page,
+           which is what gets used (sqlx-ywy.5). var-detail=1 brings it back. -->
+      @if (detailPane) {
       <!-- ── Resize handle ── -->
       <div class="split-handle" (mousedown)="startResize($event)"></div>
 
@@ -473,6 +478,7 @@
           </div>
         }
       </div>
+      }
     </div>
   </div>
 </div>

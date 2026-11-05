@@ -1,3 +1,4 @@
+import {ENV_PARAM} from '../environment-url';
 import {countBadge, CountBadge} from './count-badge';
 import {GLOSSARY} from '../glossary';
 import {InViewDirective} from '../in-view.directive';
@@ -153,6 +154,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   expanded = new Set<string>();
   /** Every row shows its whole SQL, for reading down the list without clicking (sqlx-ywy.1). `var-sql=full`. */
   fullSql = false;
+  /**
+   * The detail pane under the list. Off by default: it was cramped, did not
+   * size itself to its content, and the full query page is what got used
+   * instead, so a row click opens that page (sqlx-ywy.5). `var-detail=1`.
+   */
+  detailPane = false;
   /** Digest most recently copied, for the transient "copied" affordance. */
   copied: string | null = null;
 
@@ -559,6 +566,46 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.selected = hit;
   }
 
+  toggleDetailPane() {
+    this.detailPane = !this.detailPane;
+    if (this.detailPane && !this.selected && this.hits.length) {
+      this.selected = this.hits[0];
+    }
+    this.writeFiltersToUrl();
+  }
+
+  /**
+   * With the pane on, a click selects. Without it, a click opens the query's
+   * full page, and cmd/ctrl-click a new tab, as a link would. A click that ends
+   * a text selection — copying SQL out of an expanded row — does neither.
+   */
+  rowClick(hit: QueryHit, event: MouseEvent) {
+    if (this.detailPane) {
+      this.select(hit);
+      return;
+    }
+    if ((window.getSelection()?.toString() ?? '').length > 0) { return; }
+    if (event.metaKey || event.ctrlKey) {
+      this.openInNewTab(hit);
+    } else {
+      this.router.navigate(['/analyzed-sql', hit.profile.digest]);
+    }
+  }
+
+  /** Middle-click on a row opens its page in a new tab. */
+  rowAuxClick(hit: QueryHit, event: MouseEvent) {
+    if (event.button !== 1 || this.detailPane) { return; }
+    event.preventDefault();
+    this.openInNewTab(hit);
+  }
+
+  private openInNewTab(hit: QueryHit) {
+    const env = this.route.snapshot.queryParams[ENV_PARAM];
+    const tree = this.router.createUrlTree(['/analyzed-sql', hit.profile.digest],
+      { queryParams: env ? {[ENV_PARAM]: env} : {} });
+    window.open(this.router.serializeUrl(tree), '_blank', 'noopener');
+  }
+
   isExpanded(hit: QueryHit): boolean {
     return this.fullSql !== this.expanded.has(hit.profile.digest);
   }
@@ -682,7 +729,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       relativeTo: this.route,
       queryParams: {
         ...encodeSearchParams(this.currentState()),
-        ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql })
+        ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql, detailPane: this.detailPane })
       },
       replaceUrl: true
     });
@@ -725,6 +772,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     const view = decodeWorkbenchParams(this.route.snapshot.queryParamMap);
     this.expanded = new Set(view.expanded);
     this.fullSql = view.fullSql;
+    this.detailPane = view.detailPane;
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically
     if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY') {

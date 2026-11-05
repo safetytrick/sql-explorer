@@ -16,7 +16,7 @@ test.beforeEach(async ({page}) => {
  * string as the `app norm` box beside it under the wrong name (sqlx-3cp).
  */
 test('the two digest boxes show different digests under correct labels', async ({page}) => {
-  await page.goto('/queries?q=orders');
+  await page.goto('/queries?q=orders&var-detail=1');
   await page.locator('.q-row').first().click();
 
   const boxes = page.locator('.digest-box');
@@ -29,7 +29,7 @@ test('the two digest boxes show different digests under correct labels', async (
 });
 
 test('the perf_schema box carries the MySQL digest, not the v-prefixed one', async ({page}) => {
-  await page.goto('/queries?q=orders');
+  await page.goto('/queries?q=orders&var-detail=1');
   await page.locator('.q-row').first().click();
 
   const perfBox = page.locator('.digest-box').nth(1);
@@ -39,9 +39,21 @@ test('the perf_schema box carries the MySQL digest, not the v-prefixed one', asy
 });
 
 test('selecting a row shows its SQL', async ({page}) => {
-  await page.goto('/queries');
+  await page.goto('/queries?var-detail=1');
   await page.locator('.q-row', {hasText: 'sessions'}).click();
 
   await expect(page.locator('.detail-section').first()).toBeVisible();
   await expect(page.locator('.digest-box').first()).toContainText('v3:sessions');
+});
+
+/**
+ * The pane is opt-in now: without it a row click opens the query's own page,
+ * which is where people went anyway (sqlx-ywy.5).
+ */
+test('without the pane, clicking a row opens the query page', async ({page}) => {
+  await page.goto('/queries');
+  await expect(page.locator('.detail-pane')).toHaveCount(0);
+  await page.locator('.q-row', {hasText: 'sessions'}).click();
+
+  await expect(page).toHaveURL(/\/analyzed-sql\/v3:sessions/);
 });

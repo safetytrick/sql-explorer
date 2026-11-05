@@ -22,10 +22,13 @@ export interface WorkbenchViewState {
   expanded: string[];
   /** Every row shows its whole formatted SQL (sqlx-ywy.1). */
   fullSql: boolean;
+  /** The detail pane under the list; off by default (sqlx-ywy.5). */
+  detailPane: boolean;
 }
 
 const EXPANDED = 'var-expanded';
 const SQL = 'var-sql';
+const DETAIL = 'var-detail';
 
 /** The workbench-owned params; defaults are omitted, so an untouched view keeps a clean URL. */
 export function encodeWorkbenchParams(state: WorkbenchViewState): Record<string, string> {
@@ -36,10 +39,13 @@ export function encodeWorkbenchParams(state: WorkbenchViewState): Record<string,
   if (state.fullSql) {
     params[SQL] = 'full';
   }
+  if (state.detailPane) {
+    params[DETAIL] = '1';
+  }
   return params;
 }
 
 export function decodeWorkbenchParams(params: ParamReader): WorkbenchViewState {
   const expanded = (params.get(EXPANDED) ?? '').split(',').map(id => id.trim()).filter(id => id.length);
-  return { expanded: [...new Set(expanded)], fullSql: params.get(SQL) === 'full' };
+  return { expanded: [...new Set(expanded)], fullSql: params.get(SQL) === 'full', detailPane: params.get(DETAIL) === '1' };
 }
