@@ -1,0 +1,30 @@
+# Adds the `offline-dummy` environment, whose servers cannot be reached, for
+# checking offline restarts against something that is not a real deployment
+# (sqlx-nbi.9). Its config is src/main/docker-local/config/application-offline-dummy.yml.
+#
+# Deliberately does NOT stack with docker-compose.rds.yml: both set
+# ENVIRONMENT_PROFILE, and leaving rds out is what keeps real servers out of
+# the test. Stacks with the local-build overlay:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local-build.yml \
+#                  -f docker-compose.offline-dummy.yml up -d sql-explorer
+#
+# The states, each reached by a restart with different variables:
+#
+#   fresh cache    OFFLINE_DUMMY_HOST=explorer-mysql up -d --force-recreate sql-explorer
+#                  then POST /api/sql-explorer/environments/offline-dummy/pull once,
+#                  then up -d --force-recreate sql-explorer with the variable unset.
+#                  Expect: offline-dummy CACHED, no connection attempted.
+#   stale cache    SQL_EXPLORER_CACHE_MAX_AGE=1m up -d --force-recreate sql-explorer
+#                  Expect: the pull fails, startup completes, STALE with the reason.
+#   no capture     remove src/main/docker-local/parquet/sql-repository-dummy-*.parquet
+#                  and restart. Expect: UNAVAILABLE (or PARTIAL with one removed).
+#   offline        SQL_EXPLORER_CACHE_OFFLINE=true: every environment from its cache,
+#                  whatever its age; nothing is pulled at startup.
+services:
+  sql-explorer:
+    environment:
+      ENVIRONMENT_PROFILE: override,offline-dummy
+      OFFLINE_DUMMY_HOST: ${OFFLINE_DUMMY_HOST:-db.offline-dummy.invalid}
+      SQL_EXPLORER_CACHE_MAX_AGE: ${SQL_EXPLORER_CACHE_MAX_AGE:-24h}
+      SQL_EXPLORER_CACHE_OFFLINE: ${SQL_EXPLORER_CACHE_OFFLINE:-false}

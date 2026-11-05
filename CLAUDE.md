@@ -104,6 +104,36 @@ Performance Schema reset it contains nothing of them. The capture before a reset
 is the only record of which queries ran in that period, so it is never pruned —
 "keep the last N" would eventually delete exactly that one (sqlx-ijz).
 
+### Restarts: a fresh cache connects to nothing
+
+At startup every environment is served from its captures first. An
+environment whose cache is **fresh** then stays that way — no startup pull,
+schemas straight from their snapshots, and no connection to any of its servers
+until someone pulls it (sqlx-nbi). Fresh means every configured source has a
+usable capture no older than `sql-explorer.cache.max-age` (default `24h`) and
+every cluster has a schema snapshot. One stale or missing source and the whole
+environment is pulled, as before. `max-age: 0` turns this off;
+`sql-explorer.cache.offline: true` serves every environment from its cache
+whatever its age and pulls nothing at startup. A `pullCron` still fires.
+
+The guarantee lives in one place: `DatabaseServer.getDataSource` throws
+`ServerOfflineException` while the environment is cached, so no code path can
+open a pool by accident. Pages that need a live server (unused indexes, live
+EXPLAIN) answer "served from its cache; pull to go live". Any load or pull
+takes the environment live.
+
+Startup never fails on connectivity. A source that cannot be read keeps the
+capture it was served from, and `/environments` reports each environment's
+`health`: `LIVE`, `CACHED`, `PULLING`, `STALE`, `PARTIAL` or `UNAVAILABLE`,
+with the reasons. The nav's environment button shows a problem state before it
+is opened.
+
+To exercise this, use the `offline-dummy` environment
+(`docker-compose.offline-dummy.yml`, steps in the file): two servers under a
+`.invalid` hostname that never resolves, made reachable for one pull by
+setting `OFFLINE_DUMMY_HOST=explorer-mysql`. Never test it against a real
+deployment.
+
 ### Docker (local dev)
 
 Start services in order — MySQL must be up before the backend:

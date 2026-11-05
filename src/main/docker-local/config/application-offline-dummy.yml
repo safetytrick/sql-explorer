@@ -1,0 +1,29 @@
+# A dummy environment for checking offline restarts (sqlx-nbi.9): what the app
+# does when an environment's servers cannot be reached, with a fresh cache, a
+# stale one, or none. Loaded only by the `offline-dummy` profile, which
+# docker-compose.offline-dummy.yml sets — see the steps in that file.
+#
+# Its two servers point at OFFLINE_DUMMY_HOST. Unset, that is a name under
+# `.invalid`, which by RFC 6761 never resolves, so every connection fails at
+# once and nothing outside this machine is ever contacted. Set it to
+# `explorer-mysql` to make the servers reachable for one pull, which writes the
+# captures and schema snapshots a later offline restart is served from.
+#
+# Same disposable explorer-mysql credentials as the `local` environment.
+environments:
+  offline-dummy:
+    # lets the live EXPLAIN refusal for a cached environment be seen
+    explainEnabled: true
+    servers:
+      dummy-primary:
+        jdbcUrl: "jdbc:mysql://${OFFLINE_DUMMY_HOST:db.offline-dummy.invalid}:3306?connectTimeout=3000"
+        username: root
+        password: password
+        sources:
+          - type: x-statement-analysis
+      dummy-replica:
+        jdbcUrl: "jdbc:mysql://${OFFLINE_DUMMY_HOST:db.offline-dummy.invalid}:3306?connectTimeout=3000"
+        username: root
+        password: password
+        sources:
+          - type: x-statement-analysis
