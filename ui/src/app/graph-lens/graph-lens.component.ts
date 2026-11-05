@@ -1030,13 +1030,35 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     return best;
   }
 
-  /** The workbench params for the queries that touch both ends of an edge. */
-  private edgeQueryParams(edge: Edge): Record<string, string> {
+  /**
+   * The search this graph was drawn from, as workbench params, less its table
+   * scope: what a link out of the graph keeps, so the queries it opens are the
+   * ones the graph counted (sqlx-aoy.8). The environment is kept too. The
+   * graph's own params and `view` are not: a link opens the list.
+   */
+  private carriedSearch(): Record<string, string> {
+    const search = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
+    delete search['tables'];
+    delete search['tableMode'];
     const env = this.route.snapshot.queryParams[ENV_PARAM];
+    return {...search, ...(env ? {[ENV_PARAM]: env} : {})};
+  }
+
+  /**
+   * Whether the graph is drawn from a filtered search, so what it says about
+   * queries is about the matching ones: a key "no query joins on" may well be
+   * joined by a query the search leaves out.
+   */
+  get filtered(): boolean {
+    return Object.keys(encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap))).length > 0;
+  }
+
+  /** The matching queries that touch both ends of an edge, in the workbench. */
+  private edgeQueryParams(edge: Edge): Record<string, string> {
     return {
+      ...this.carriedSearch(),
       tables: [tableKey(edge.from.schema, edge.from.table), tableKey(edge.to.schema, edge.to.table)].join(','),
-      tableMode: 'ALL',
-      ...(env ? {[ENV_PARAM]: env} : {})
+      tableMode: 'ALL'
     };
   }
 
@@ -1244,10 +1266,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     return {path: '/queries', query: this.edgeQueryParams(edge)};
   }
 
-  /** The selected table's own queries in the workbench. */
+  /** The selected table's matching queries in the workbench. */
   tableQueriesLink(node: LayoutNode): Record<string, string> {
-    const env = this.route.snapshot.queryParams[ENV_PARAM];
-    return {tables: tableKey(node.schema, node.table), ...(env ? {[ENV_PARAM]: env} : {})};
+    return {...this.carriedSearch(), tables: tableKey(node.schema, node.table)};
   }
 
   readonly fmtExecsPublic = (value: number) => this.fmtExecs(value);

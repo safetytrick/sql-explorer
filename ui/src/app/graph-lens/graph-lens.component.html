@@ -55,8 +55,8 @@
           <div class="nd-rel">
             <a class="nd-follow" (click)="selectTable(edge.to.table)" title="select it on the graph">{{edge.to.table}}</a>
             <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
-            @if (edge.neverJoined) { <span class="dim nd-unjoined" title="no query joins on this key">never joined</span> }
-            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" title="queries touching both">queries</a>
+            @if (edge.neverJoined) { <span class="dim nd-unjoined" [title]="filtered ? 'no matching query joins on this key' : 'no query joins on this key'">never joined</span> }
+            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
           </div>
         }
       }
@@ -66,8 +66,8 @@
           <div class="nd-rel">
             <a class="nd-follow" (click)="selectTable(edge.from.table)" title="select it on the graph">{{edge.from.table}}</a>
             <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
-            @if (edge.neverJoined) { <span class="dim nd-unjoined" title="no query joins on this key">never joined</span> }
-            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" title="queries touching both">queries</a>
+            @if (edge.neverJoined) { <span class="dim nd-unjoined" [title]="filtered ? 'no matching query joins on this key' : 'no query joins on this key'">never joined</span> }
+            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
           </div>
         }
       }
@@ -77,7 +77,7 @@
           <div class="nd-rel">
             <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
             <span class="mono dim" [title]="partner.edge.label">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
-            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" title="queries touching both">queries</a>
+            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
           </div>
         }
         @if (detail.joins.length > 12) { <div class="nd-more dim">and {{detail.joins.length - 12}} more</div> }
@@ -88,7 +88,7 @@
           <div class="nd-rel">
             <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
             <span class="dim">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
-            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" title="queries touching both">queries</a>
+            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
           </div>
         }
         @if (detail.co.length > 12) { <div class="nd-more dim">and {{detail.co.length - 12}} more</div> }
@@ -105,14 +105,14 @@
     @if (layout === 'grid') {
       <!-- on the grid, colour is the aggregate, so the kind of line is in its style (sqlx-aoy.14) -->
       <div class="leg-row"><div class="leg-line"></div><span class="leg-head">▸</span> foreign key</div>
-      <div class="leg-row"><div class="leg-dot"></div><span class="leg-head">▸</span> foreign key no query joins on</div>
+      <div class="leg-row"><div class="leg-dot"></div><span class="leg-head">▸</span> foreign key no {{filtered ? 'matching ' : ''}}query joins on</div>
       <div class="leg-row"><div class="leg-line thick"></div> joined in a query</div>
       <div class="leg-row"><div class="leg-dash"></div> queried together, never joined</div>
       <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>
       <div class="leg-row"><div class="leg-swatches"><i></i><i></i><i></i></div> colour: the aggregate the line belongs to; grey, none</div>
     } @else {
       <div class="leg-row"><div class="leg-line blue"></div> foreign key</div>
-      <div class="leg-row"><div class="leg-dot blue"></div> foreign key no query joins on</div>
+      <div class="leg-row"><div class="leg-dot blue"></div> foreign key no {{filtered ? 'matching ' : ''}}query joins on</div>
       <div class="leg-row"><div class="leg-line green"></div> joined in a query</div>
       <div class="leg-row"><div class="leg-dash"></div> queried together, never joined</div>
       <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>

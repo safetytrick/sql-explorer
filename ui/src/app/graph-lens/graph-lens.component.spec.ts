@@ -153,6 +153,34 @@ describe('GraphLensComponent — scope legibility', () => {
     });
   });
 
+  // links out of the graph open the queries it counted (sqlx-aoy.8)
+  describe('links to the queries behind it', () => {
+    const node = (table: string) => ({id: 'app.' + table, schema: 'app', table, columnCount: 3,
+      queryCount: 2, warn: false, selfJoin: false, view: false, x: 0, y: 0});
+
+    it('keep the search the graph was drawn from, with the table scope swapped for the edge', () => {
+      navigateTo({}, {q: 'invoice', fullScan: 'YES', tables: 'app.note', env: 'local',
+        view: 'graph', 'var-layers': 'fk', 'var-table': 'account'});
+      const link = component.edgeLink({from: node('account'), to: node('site'), label: ''} as never);
+      expect(link.path).toBe('/queries');
+      expect(link.query).toEqual({q: 'invoice', fullScan: 'YES', env: 'local',
+        tables: 'app.account,app.site', tableMode: 'ALL'});
+      expect(component.tableQueriesLink(node('site') as never))
+        .toEqual({q: 'invoice', fullScan: 'YES', env: 'local', tables: 'app.site'});
+    });
+
+    it('say a never-joined key is unjoined by the matching queries, once the search is filtered', () => {
+      navigateTo({}, {});
+      const legend = () => (fixture.nativeElement as HTMLElement).querySelector('.graph-legend')?.textContent ?? '';
+      expect(component.filtered).toBeFalse();
+      expect(legend()).toContain('foreign key no query joins on');
+
+      navigateTo({}, {q: 'invoice'});
+      expect(component.filtered).toBeTrue();
+      expect(legend()).toContain('foreign key no matching query joins on');
+    });
+  });
+
   // the full key opens from the legend and is kept in a link (sqlx-aoy.2)
   it('opens the full legend from var-legend, and explains the node marks', () => {
     expect(component.legendOpen).toBe(false);
