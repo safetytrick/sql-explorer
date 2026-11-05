@@ -55,8 +55,8 @@ export class TableListComponent {
    * Whether to draw the inline all/tables/views control above the table.
    *
    * `/tables` folds it into the page header so there is one control strip
-   * rather than two, and sets this false. `tables-with-column` and
-   * `tagged-table-view` have no such header and keep the inline control.
+   * rather than two, and sets this false. `tables-with-column` has no such
+   * header and keeps the inline control.
    */
   @Input() showTypeFilter = true;
 

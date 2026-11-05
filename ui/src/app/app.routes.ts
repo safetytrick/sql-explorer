@@ -10,10 +10,7 @@ import {tableKey} from './query-scope.service';
 import {SchemaListComponent} from './schema-list/schema-list.component';
 import {TableNamesComponent} from './table-names/table-names.component';
 import {TablesWithColumnComponent} from './tables-with-column/tables-with-column.component';
-import {TaggedTableViewComponent} from './tagged-table-view/tagged-table-view.component';
-import {TaggedSchemaViewComponent} from './tagged-schema-view/tagged-schema-view.component';
 import {SqlViewComponent} from './sql-view/sql-view.component';
-import {TaggedSqlViewComponent} from './tagged-sql-view/tagged-sql-view.component';
 import {ExplainViewComponent} from './explain-view/explain-view.component';
 import {QueryUtilitiesComponent} from './query-utilities/query-utilities.component';
 import {TableGraphLoaderComponent} from './table-graph-loader/table-graph-loader.component';
@@ -90,6 +87,20 @@ export const tableJoinRedirect: RedirectFunction = route => {
   });
 };
 
+/**
+ * The by-tag pages were separate copies of Schemas, Tables and the workbench
+ * narrowed to one tag. Each list page filters by tag itself now, so these
+ * addresses redirect to it with `?tags=` (sqlx-m0j.2) — links to them have been
+ * shared, and the list page is the better place to land: the filter can be
+ * widened from there. `tagMode` is written for the list pages, whose strip
+ * always writes it; the workbench defaults to ANY and needs none for one tag.
+ */
+export function byTagRedirect(target: string, tagMode: 'ALL' | null): RedirectFunction {
+  return route => inject(Router).createUrlTree([target], {
+    queryParams: {...route.queryParams, tags: route.params['tag'], ...(tagMode ? {tagMode} : {})}
+  });
+}
+
 const routes: Routes = [
   {
     path: 'queries',
@@ -133,8 +144,7 @@ const routes: Routes = [
   },
   {
     path: 'schemas/by-tag/:tag',
-    component: TaggedSchemaViewComponent,
-    title: paramTitle(p => `Schemas tagged ${p['tag']}`)
+    redirectTo: byTagRedirect('/schemas', 'ALL')
   },
   {
     path: 'tables/:schema',
@@ -158,8 +168,7 @@ const routes: Routes = [
   },
   {
     path: 'tables/by-tag/:tag',
-    component: TaggedTableViewComponent,
-    title: paramTitle(p => `Tables tagged ${p['tag']}`)
+    redirectTo: byTagRedirect('/tables', 'ALL')
   },
   {
     path: 'table/:schema/:name',
@@ -191,8 +200,7 @@ const routes: Routes = [
   },
   {
     path: 'analyzed-sql/by-tag/:tag',
-    component: TaggedSqlViewComponent,
-    title: paramTitle(p => `Queries tagged ${p['tag']}`)
+    redirectTo: byTagRedirect('/queries', null)
   },
   {
     path: 'explain/from-tsv',

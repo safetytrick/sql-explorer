@@ -55,19 +55,20 @@
                 [style.color]="chip(tag.name, tag.color).color">{{tag.name}}</span>
           <span class="card-head-title">carried by {{members.length}}</span>
 
-          <!-- The per-type counts still navigate to the by-tag views, as they
-               did from the flat list; they read as a breakdown here. -->
+          <!-- The per-type counts open each list page filtered by the tag
+               (sqlx-m0j.2), where the filter can be widened; they used to go
+               to separate by-tag copies of those pages. -->
           <span class="counts">
             @if (tag.schemas > 0) {
-              <a class="count-link" [routerLink]="['/schemas/by-tag', tag.name]"
+              <a class="count-link" [routerLink]="['/schemas']" [queryParams]="{tags: tag.name, tagMode: 'ALL'}"
                  [title]="'schemas tagged ' + tag.name">{{tag.schemas}} {{tag.schemas === 1 ? 'schema' : 'schemas'}}</a>
             } @else { <span class="dim">0 schemas</span> }
             @if (tag.tables > 0) {
-              <a class="count-link" [routerLink]="['/tables/by-tag', tag.name]"
+              <a class="count-link" [routerLink]="['/tables']" [queryParams]="{tags: tag.name, tagMode: 'ALL'}"
                  [title]="'tables tagged ' + tag.name">{{tag.tables}} {{tag.tables === 1 ? 'table' : 'tables'}}</a>
             } @else { <span class="dim">0 tables</span> }
             @if (tag.queries > 0) {
-              <a class="count-link" [routerLink]="['/analyzed-sql/by-tag', tag.name]"
+              <a class="count-link" [routerLink]="['/queries']" [queryParams]="{tags: tag.name}"
                  [title]="'queries tagged ' + tag.name">{{tag.queries}} {{tag.queries === 1 ? 'query' : 'queries'}}</a>
             } @else { <span class="dim">0 queries</span> }
             @if (tag.other > 0) { <span class="dim">{{tag.other}} other</span> }

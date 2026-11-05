@@ -1,9 +1,0 @@
-<h3>Tag: <span class="tag-chip">{{tag}}</span></h3>
-<ol>
-  @for (query of taggedQueries; track query) {
-    <li>
-      <app-small-sql-view [query]="query"></app-small-sql-view>
-    </li>
-  }
-</ol>
-

@@ -101,6 +101,22 @@ describe('appRoutes: the table drill-downs', () => {
       expect(matched()).toBe(TableLensComponent);
     });
 
+    // the by-tag pages became ?tags= on the list pages; their links still land (sqlx-m0j.2)
+    it('sends a by-tag address to the list page, filtered by the tag', async () => {
+      await router.navigateByUrl('/tables/by-tag/billing');
+      expect(router.url).toBe('/tables?tags=billing&tagMode=ALL');
+    });
+
+    it('sends a schemas by-tag address to Schemas, keeping other params', async () => {
+      await router.navigateByUrl('/schemas/by-tag/billing?env=staging');
+      expect(router.url).toBe('/schemas?env=staging&tags=billing&tagMode=ALL');
+    });
+
+    it('sends a queries by-tag address to the workbench', async () => {
+      await router.navigateByUrl('/analyzed-sql/by-tag/billing');
+      expect(router.url).toBe('/queries?tags=billing');
+    });
+
     it('still sends the bare root to the starting page, /schemas', async () => {
       await router.navigateByUrl('/');
 
