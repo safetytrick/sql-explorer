@@ -449,3 +449,27 @@ describe('hinted param', () => {
     expect(decodeSearchParams(reader({ hinted: 'force' })).hinted).toBe('FORCE');
   });
 });
+
+describe('table tag param (sqlx-aoy.10)', () => {
+
+  it('round-trips as the tag names and reaches the request unresolved', () => {
+    const state = defaultSearchState();
+    state.tableTags = ['billing', 'audit'];
+
+    const encoded = encodeSearchParams(state);
+    expect(encoded['tableTags']).toBe('billing,audit');
+
+    const decoded = decodeSearchParams(reader(encoded));
+    expect(decoded.tableTags).toEqual(['billing', 'audit']);
+    // the server resolves the tables, so a shared link follows the tag
+    expect(buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).tableTags)
+      .toEqual(['billing', 'audit']);
+  });
+
+  it('is omitted when unset, and kept apart from the query\'s own tags', () => {
+    expect(encodeSearchParams(defaultSearchState())['tableTags']).toBeUndefined();
+    expect(buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).tableTags)
+      .toBeNull();
+    expect(decodeSearchParams(reader({ tags: 'billing' })).tableTags).toEqual([]);
+  });
+});

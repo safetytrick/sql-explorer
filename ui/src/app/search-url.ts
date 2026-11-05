@@ -34,6 +34,12 @@ export interface SearchUrlState {
   tags: string[];
   tagMode: TagMode;
   untaggedOnly: boolean;
+  /**
+   * Tags on tables, `tableTags=a,b`: a query is kept when any table it touches
+   * carries any of them (sqlx-aoy.10). Shared as the names and resolved by the
+   * server, so the link follows the tag. `tags` is the query's own tags.
+   */
+  tableTags: string[];
   avgTime: RangeState;
   maxTime: RangeState;
   avgRows: RangeState;
@@ -88,7 +94,7 @@ export function defaultSearchState(): SearchUrlState {
     activity: 'ANY',
     types: [],
     firstAfter: null, firstBefore: null, lastAfter: null, lastBefore: null,
-    tags: [], tagMode: 'ANY', untaggedOnly: false,
+    tags: [], tagMode: 'ANY', untaggedOnly: false, tableTags: [],
     avgTime: { min: null, max: null },
     maxTime: { min: null, max: null },
     avgRows: { min: null, max: null },
@@ -126,6 +132,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   if (state.tags.length) { params['tags'] = state.tags.join(','); }
   if (state.tagMode !== 'ANY') { params['tagMode'] = state.tagMode; }
   if (state.untaggedOnly) { params['untagged'] = '1'; }
+  if (state.tableTags.length) { params['tableTags'] = state.tableTags.join(','); }
   putRange('avgTime', state.avgTime);
   putRange('maxTime', state.maxTime);
   putRange('avgRows', state.avgRows);
@@ -172,6 +179,7 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     tags: csv('tags'),
     tagMode: (params.get('tagMode') as TagMode) || 'ANY',
     untaggedOnly: params.get('untagged') === '1',
+    tableTags: csv('tableTags'),
     avgTime: readRange('avgTime'),
     maxTime: readRange('maxTime'),
     avgRows: readRange('avgRows'),
@@ -292,6 +300,7 @@ export function buildSearchRequest(state: SearchUrlState,
     tags: state.tags.length ? state.tags : null,
     tagMode: state.tagMode,
     untaggedOnly: state.untaggedOnly || null,
+    tableTags: state.tableTags.length ? state.tableTags : null,
     schemas: resolveRequestSchemas(state.scope.schemas, tagScope.includedSchemas),
     excludeSchemas: tagScope.excludedSchemas.length ? tagScope.excludedSchemas : null,
     excludeTables: tagScope.excludedTables.length ? tagScope.excludedTables : null,

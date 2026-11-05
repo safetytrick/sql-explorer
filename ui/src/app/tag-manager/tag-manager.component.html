@@ -78,6 +78,9 @@
             @if (tag.queries > 0) {
               <a class="row-link" [routerLink]="['/queries']" [queryParams]="{tags: tag.name, view: 'graph'}"
                  title="graph the tables these queries touch">graph ↗</a>
+            } @else if (tag.tables > 0) {
+              <a class="row-link" [routerLink]="['/queries']" [queryParams]="{tableTags: tag.name, view: 'graph'}"
+                 title="graph the queries touching the tables carrying this tag">graph ↗</a>
             }
             <span class="dim last-used">{{tag.lastUsed ? (tag.lastUsed | date:'MMM d, yy') : '—'}}</span>
             <button type="button" class="btn add-btn" (click)="openAdd(); $event.stopPropagation()">+ add</button>

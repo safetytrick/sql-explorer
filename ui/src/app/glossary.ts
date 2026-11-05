@@ -87,6 +87,8 @@ export const GLOSSARY = {
     'A real statement, with its literal values, is stored for the pattern. Only those can be EXPLAINed: the '
     + 'pattern itself has ? placeholders.',
   impact: 'Total execution time across all executions: what costs the server the most overall.',
+  tableTags: 'Queries that touch at least one table carrying any of these tags. Tagged with, above, '
+    + 'matches tags on the query itself; this matches tags on its tables.',
 } as const;
 
 export type GlossaryTerm = keyof typeof GLOSSARY;

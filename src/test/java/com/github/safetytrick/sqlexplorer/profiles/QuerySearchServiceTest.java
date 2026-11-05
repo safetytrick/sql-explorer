@@ -283,6 +283,23 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void tableTagsKeepQueriesTouchingATaggedTable() {
+        when(tagsService.findAllByType("table")).thenReturn(List.of(
+            tableTag("Billing", "app", "Invoices"), tableTag("audit", "app", "orders")));
+        repositoryReturns(
+            withTables("invoices", "app.invoices"),
+            withTables("orders-users", "app.orders", "app.users"),
+            withTables("users", "app.users"));
+
+        assertThat(searchIds(request().tableTags(List.of("billing")).build())).containsExactly("invoices");
+        assertThat(searchIds(request().tableTags(List.of("billing", "audit")).build()))
+            .containsExactlyInAnyOrder("invoices", "orders-users");
+        // a tag on no table matches nothing, rather than being ignored
+        assertThat(searchIds(request().tableTags(List.of("nowhere")).build())).isEmpty();
+        assertThat(searchIds(request().build())).hasSize(3);
+    }
+
+    @Test
     void tableScopeMatchesAnyAndAll() {
         repositoryReturns(
             withTables("orders", "app.orders"),
@@ -604,6 +621,15 @@ class QuerySearchServiceTest {
         return tag;
     }
 
+    private static Tag tableTag(String name, String schema, String table) {
+        Tag tag = new Tag();
+        tag.setName(name);
+        tag.setType("table");
+        tag.setSchemaName(schema);
+        tag.setTableName(table);
+        return tag;
+    }
+
     private static MetricsBuilder metrics() {
         return new MetricsBuilder();
     }
@@ -651,6 +677,7 @@ class QuerySearchServiceTest {
         private List<String> types;
         private DateRange lastSeen;
         private List<String> tags;
+        private List<String> tableTags;
         private TagMode tagMode;
         private List<String> schemas, excludeSchemas, tables, excludeTables, columns, indexes;
         private TableMode tableMode;
@@ -668,6 +695,7 @@ class QuerySearchServiceTest {
         RequestBuilder types(List<String> v) { this.types = v; return this; }
         RequestBuilder lastSeen(DateRange v) { this.lastSeen = v; return this; }
         RequestBuilder tags(List<String> v) { this.tags = v; return this; }
+        RequestBuilder tableTags(List<String> v) { this.tableTags = v; return this; }
         RequestBuilder tagMode(TagMode v) { this.tagMode = v; return this; }
         RequestBuilder schemas(List<String> v) { this.schemas = v; return this; }
         RequestBuilder excludeSchemas(List<String> v) { this.excludeSchemas = v; return this; }
@@ -693,7 +721,7 @@ class QuerySearchServiceTest {
 
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
-                activity, types, null, lastSeen, tags, tagMode, untaggedOnly,
+                activity, types, null, lastSeen, tags, tagMode, untaggedOnly, tableTags,
                 schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,

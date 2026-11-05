@@ -50,6 +50,7 @@ public class QuerySearchService {
     public static final String OTHER_TYPE = "OTHER";
 
     private static final String QUERY_TAG_TYPE = "query";
+    private static final String TABLE_TAG_TYPE = "table";
     private static final double PICOS_PER_MILLI = 1_000_000_000d;
 
     private final SqlRepositoryService sqlRepositoryService;
@@ -112,6 +113,7 @@ public class QuerySearchService {
             ? queryExampleLookup.digestsWithExamples()
             : Set.of();
         Map<String, List<Tag>> tagsByQueryId = queryTagsById();
+        Set<String> taggedTables = taggedTables(criteria.tableTags());
 
         Map<String, Integer> tableFacets = new HashMap<>();
         Map<String, Integer> schemaFacets = new HashMap<>();
@@ -125,6 +127,9 @@ public class QuerySearchService {
                 return;
             }
             ScopeKeys keys = scopeKeys(profile);
+            if (taggedTables != null && keys.tables().stream().noneMatch(taggedTables::contains)) {
+                return;
+            }
             keys.tables().forEach(key -> tableFacets.merge(key, 1, Integer::sum));
             keys.schemas().forEach(key -> schemaFacets.merge(key, 1, Integer::sum));
             if (matchesScope(criteria, keys)) {
@@ -145,6 +150,28 @@ public class QuerySearchService {
             .flatMap(List::stream)
             .distinct()
             .toList();
+    }
+
+    /**
+     * The {@code schema.table} keys carrying any of these table tags, or null
+     * when the filter is off. Read once per search, like the query tags.
+     */
+    private Set<String> taggedTables(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return null;
+        }
+        Set<String> wanted = new HashSet<>();
+        names.forEach(name -> wanted.add(name.toLowerCase(Locale.ROOT)));
+        Set<String> tables = new HashSet<>();
+        for (Tag tag : tagsService.findAllByType(TABLE_TAG_TYPE)) {
+            String schema = tag.getPathElements().get("schema");
+            String table = tag.getPathElements().get("table");
+            if (tag.getName() != null && wanted.contains(tag.getName().toLowerCase(Locale.ROOT))
+                && schema != null && table != null) {
+                tables.add((schema + "." + table).toLowerCase(Locale.ROOT));
+            }
+        }
+        return tables;
     }
 
     private Map<String, List<Tag>> queryTagsById() {

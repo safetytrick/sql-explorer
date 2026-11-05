@@ -101,6 +101,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   tagInput = '';
   tagSuggestions: string[] = [];
   untaggedOnly = false;
+  /** Tags on the tables a query touches (sqlx-aoy.10); `tableTags`. */
+  tableTags: string[] = [];
+  tableTagInput = '';
+  tableTagSuggestions: string[] = [];
+  /** Tag names in use on tables, busiest first, for the table-tag suggestions. */
+  private tableTagNames: string[] = [];
   avgTime: RangeState = { min: null, max: null };
   maxTime: RangeState = { min: null, max: null };
   avgRows: RangeState = { min: null, max: null };
@@ -188,7 +194,11 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.subscriptions.add(this.searchTrigger.pipe(debounceTime(250)).subscribe(() => this.runSearch()));
     this.subscriptions.add(this.environmentService.current$.subscribe(() => this.searchTrigger.next()));
-    this.subscriptions.add(this.tagColorsService.getSummaries().subscribe());
+    this.subscriptions.add(this.tagColorsService.getSummaries().subscribe(summaries => {
+      this.tableTagNames = summaries.filter(summary => summary.tables > 0)
+        .sort((a, b) => b.tables - a.tables || a.name.localeCompare(b.name))
+        .map(summary => summary.name);
+    }));
     // the schema tree drives the schema/table scope; a change there re-runs
     // the search and (once the URL has seeded us) is reflected back into it
     this.subscriptions.add(this.queryScopeService.scope$.subscribe(() => {
@@ -285,6 +295,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       tags: this.tags,
       tagMode: this.tagMode,
       untaggedOnly: this.untaggedOnly,
+      tableTags: this.tableTags,
       avgTime: this.avgTime,
       maxTime: this.maxTime,
       avgRows: this.avgRows,
@@ -420,6 +431,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.tags = [];
     this.tagMode = 'ANY';
     this.untaggedOnly = false;
+    this.tableTags = [];
     this.avgTime = { min: null, max: null };
     this.maxTime = { min: null, max: null };
     this.avgRows = { min: null, max: null };
@@ -479,6 +491,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     if (this.lastAfter || this.lastBefore) { chips.push('last seen'); }
     if (this.tags.length) { chips.push(`tags(${this.tagMode.toLowerCase()}): ${this.tags.join(', ')}`); }
     if (this.untaggedOnly) { chips.push('untagged'); }
+    if (this.tableTags.length) { chips.push(`tables tagged: ${this.tableTags.join(', ')}`); }
     const schemaTagFilter = this.queryScopeService.schemaTagFilter;
     if (schemaTagFilter.includeTags.length) {
       chips.push(`schema tags(${schemaTagFilter.tagMode.toLowerCase()}): ${schemaTagFilter.includeTags.join(', ')}`);
@@ -573,6 +586,29 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   removeTag(name: string) {
     this.tags = this.tags.filter(tag => tag !== name);
+    this.filtersChanged();
+  }
+
+  /** Suggest tags that are on tables, from the summaries already loaded; no request per keystroke. */
+  onTableTagInput() {
+    const text = this.tableTagInput.trim().toLowerCase();
+    this.tableTagSuggestions = text
+      ? this.tableTagNames.filter(name => name.toLowerCase().includes(text) && !this.tableTags.includes(name)).slice(0, 8)
+      : [];
+  }
+
+  addTableTag(name: string) {
+    const value = name.trim();
+    if (value && !this.tableTags.includes(value)) {
+      this.tableTags = [...this.tableTags, value];
+      this.filtersChanged();
+    }
+    this.tableTagInput = '';
+    this.tableTagSuggestions = [];
+  }
+
+  removeTableTag(name: string) {
+    this.tableTags = this.tableTags.filter(tag => tag !== name);
     this.filtersChanged();
   }
 
@@ -770,6 +806,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.tags = state.tags;
     this.tagMode = state.tagMode;
     this.untaggedOnly = state.untaggedOnly;
+    this.tableTags = state.tableTags;
     this.avgTime = state.avgTime;
     this.maxTime = state.maxTime;
     this.avgRows = state.avgRows;

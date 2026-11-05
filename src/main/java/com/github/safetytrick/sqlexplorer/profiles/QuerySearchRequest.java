@@ -35,6 +35,13 @@ public record QuerySearchRequest(
     List<String> tags,
     TagMode tagMode,
     Boolean untaggedOnly,
+    /**
+     * Tag names on tables: a query is kept when any table it touches carries
+     * any of them (sqlx-aoy.10). Sent as the names, not the tables, so a shared
+     * link follows the tag as it changes; resolved here, per search. Unlike
+     * {@link #tags()}, which match tags on the query itself.
+     */
+    List<String> tableTags,
     /** Normalized schema names; a query in any listed schema matches. */
     List<String> schemas,
     /** Normalized schema names; a query that touches any of these is excluded. */
@@ -157,7 +164,7 @@ public record QuerySearchRequest(
 
     /** An unconstrained search (used when the request body is absent). */
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
-        null, null, null, null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null);
 }

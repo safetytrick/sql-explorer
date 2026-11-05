@@ -74,6 +74,23 @@
         }
         <label class="check-row"><input type="checkbox" [(ngModel)]="untaggedOnly" (change)="filtersChanged()"> untagged only</label>
       </div>
+      <div class="fg">
+        <div class="fg-label"><span class="term" [title]="glossary.tableTags">Touches tables tagged</span> <span class="hint">any</span></div>
+        <div class="tag-input-area">
+          @for (tag of tableTags; track tag) {
+            <span class="tag-chip" [style.background]="tagStyle(tag).background" [style.color]="tagStyle(tag).color">{{tag}} <span class="rx" (click)="removeTableTag(tag)">×</span></span>
+          }
+          <input placeholder="add table tag…" [(ngModel)]="tableTagInput" (input)="onTableTagInput()"
+                 (keydown.enter)="addTableTag(tableTagInput)">
+        </div>
+        @if (tableTagSuggestions.length) {
+          <div class="tag-sugg-wrap">
+            @for (name of tableTagSuggestions; track name) {
+              <span class="tag-sugg-item" (mousedown)="addTableTag(name)">{{name}}</span>
+            }
+          </div>
+        }
+      </div>
 
       <div class="section-hdr">Performance</div>
       <div class="fg">

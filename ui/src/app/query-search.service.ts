@@ -38,6 +38,8 @@ export interface QuerySearchRequest {
   tags?: string[] | null;
   tagMode?: TagMode | null;
   untaggedOnly?: boolean | null;
+  /** Tags on tables: queries touching any table carrying one (sqlx-aoy.10). */
+  tableTags?: string[] | null;
   schemas?: string[] | null;
   excludeSchemas?: string[] | null;
   tables?: string[] | null;        // normalized "schema.table" keys
