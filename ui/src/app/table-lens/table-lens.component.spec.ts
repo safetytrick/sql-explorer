@@ -88,6 +88,14 @@ describe('TableLensComponent drill-downs', () => {
    * Only a column that joins or filters can constrain a query, so only those
    * drill — a select-only column would open an empty list that reads as broken.
    */
+  it('opens the Columns card by default', async () => {
+    expect((await open('/table/app_main/user_profile')).columnsOpen).toBe(true);
+  });
+
+  it('keeps the Columns card collapsed from a link', async () => {
+    expect((await open('/table/app_main/user_profile?var-cols=0')).columnsOpen).toBe(false);
+  });
+
   it('offers the drill-down only for join and criteria columns', async () => {
     const component = await open('/table/app_main/user_profile');
 

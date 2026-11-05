@@ -96,6 +96,8 @@ export class TableLensComponent implements OnInit, OnDestroy {
    * one click away. Reflected in the URL as presentation state.
    */
   fkOpen = false;
+  /** The Columns card, open unless `var-cols=0` (sqlx-rw2.2): the one card read first, so open by default. */
+  columnsOpen = true;
   coOpen = false;
 
   // ── parity with the legacy table view ──
@@ -134,6 +136,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
       this.drillIndex = state.indexes[0] ?? null;
       this.joinWith = state.scope.tables.find(key => key !== this.selfKey()) ?? null;
       this.fkOpen = params.get('var-fk') === '1';
+      this.columnsOpen = params.get('var-cols') !== '0';
       this.coOpen = params.get('var-co') === '1';
       this.runQuerySearch();
     });
@@ -270,6 +273,8 @@ export class TableLensComponent implements OnInit, OnDestroy {
   clearDrillDown() {
     this.patchUrl({ columns: null, indexes: null, tables: null, tableMode: null });
   }
+
+  toggleColumns() { this.patchUrl({ 'var-cols': this.columnsOpen ? '0' : null }); }
 
   toggleFk() { this.patchUrl({ 'var-fk': this.fkOpen ? null : '1' }); }
 

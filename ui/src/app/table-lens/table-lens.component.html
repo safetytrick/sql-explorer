@@ -216,13 +216,17 @@
       <!-- Columns -->
       <div class="lens-card">
         <div class="card-head">
-          <span class="card-head-title">Columns</span>
+          <button type="button" class="card-collapse" (click)="toggleColumns()" [attr.aria-expanded]="columnsOpen">
+            <span class="merge-caret">{{columnsOpen ? '▾' : '▸'}}</span>
+            <span class="card-head-title">Columns</span>
+          </button>
           <div class="col-filters">
             <span class="tri-btn" [class.on]="columnFilter === 'all'" (click)="columnFilter = 'all'">all {{columns.length}}</span>
             <span class="tri-btn" [class.on]="columnFilter === 'used'" (click)="columnFilter = 'used'">used</span>
             <span class="tri-btn" [class.on]="columnFilter === 'keys'" (click)="columnFilter = 'keys'">keys</span>
           </div>
         </div>
+        @if (columnsOpen) {
         <div class="table-scroll">
           <table class="data-table">
             <thead>
@@ -297,6 +301,7 @@
             </tbody>
           </table>
         </div>
+        }
       </div>
       <!-- Queries -->
       <div class="lens-card queries-card" #queriesCard [class.flash]="queriesFlash">
