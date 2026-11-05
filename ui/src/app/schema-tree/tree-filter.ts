@@ -5,7 +5,8 @@
  * past the schema part and matches table names only. Case-insensitive
  * substring.
  *
- * A term containing `*` is a wildcard pattern instead, matched whole against
+ * A term written `/like this/` is a regular expression instead (sqlx-c8w.6).
+ * A term containing `*` is still read as a wildcard pattern, matched whole against
  * the table name or against "schema.table": `invoice_*` is every table whose
  * name starts with `invoice_`, `app.*_log` every log table in `app`. `_` is
  * literal, not SQL's single-character wildcard — table names are full of it.
@@ -16,11 +17,29 @@ export function matchesTreeFilter(schema: string, table: string, needle: string)
     return true;
   }
   const qualified = `${schema}.${table}`.toLowerCase();
+  const regex = asRegex(needle.trim());
+  if (regex) {
+    return regex.test(table) || regex.test(`${schema}.${table}`);
+  }
   if (term.includes('*')) {
     const pattern = wildcard(term);
     return pattern.test(table.toLowerCase()) || pattern.test(qualified);
   }
   return qualified.includes(term);
+}
+
+/**
+ * `/pattern/` is a regular expression (sqlx-c8w.6), case-insensitive, tried
+ * against the table name and against "schema.table". An invalid pattern is
+ * not an error to shout about mid-typing: it matches nothing until it parses.
+ */
+function asRegex(needle: string): RegExp | null {
+  if (needle.length < 3 || !needle.startsWith('/') || !needle.endsWith('/')) { return null; }
+  try {
+    return new RegExp(needle.slice(1, -1), 'i');
+  } catch {
+    return /(?!)/;
+  }
 }
 
 function wildcard(term: string): RegExp {

@@ -30,6 +30,17 @@ describe('matchesTreeFilter', () => {
     expect(matchesTreeFilter('appx', 'log', 'app.*')).toBeFalse();
   });
 
+  it('reads /…/ as a case-insensitive regex over the table name or schema.table', () => {
+    expect(matchesTreeFilter('app', 'invoice_lines', '/^invoice_/')).toBeTrue();
+    expect(matchesTreeFilter('app', 'old_invoice_lines', '/^invoice_/')).toBeFalse();
+    expect(matchesTreeFilter('app', 'audit_log', '/^app\\..*_LOG$/')).toBeTrue();
+    expect(matchesTreeFilter('app', 'account', '/(acc|site)/')).toBeTrue();
+    // half-typed and invalid: matches nothing rather than throwing
+    expect(matchesTreeFilter('app', 'account', '/(acc/')).toBeFalse();
+    // a lone slash is just text
+    expect(matchesTreeFilter('app', 'a/b', '/')).toBeTrue();
+  });
+
   it('terms can span the schema/table boundary', () => {
     expect(matchesTreeFilter('some_schema', 'users', 'schema.u')).toBeTrue();
     expect(matchesTreeFilter('some_schema', 'table', 'schema.u')).toBeFalse();
