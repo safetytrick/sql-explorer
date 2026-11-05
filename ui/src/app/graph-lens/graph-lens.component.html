@@ -42,6 +42,10 @@
     <button class="btn" (click)="resetView()">reset</button>
     <button class="btn" [class.on]="layout === 'grid'" (click)="toggleLayout()"
             title="place tables on a grid of schemas and aggregates instead of the force layout">grid</button>
+    @if (layout === 'grid') {
+      <button class="btn" (click)="resetArrangement()"
+              title="put the tables and aggregates of the schemas shown back where they are placed automatically; the arrangement is shared, so this is for everyone">auto-place</button>
+    }
     <button class="btn" [class.on]="layers.fk" (click)="toggle('fk')">FK</button>
     <button class="btn" [class.on]="layers.join" (click)="toggle('join')">joins</button>
     <button class="btn" [class.on]="layers.co" (click)="toggle('co')">co-query</button>
@@ -50,6 +54,10 @@
       <button class="btn" [class.on]="layers.view" (click)="toggle('view')">views</button>
     }
     @if (loading) { <span class="loading">loading…</span> }
+    @if (layout === 'grid' && !layoutError) {
+      <span class="loading" title="moves are saved for everyone, by schema name, in every environment">drag a table, an aggregate's label or a schema's name to arrange; shared</span>
+    }
+    @if (layoutError) { <span class="layout-error">{{layoutError}}</span> }
   </div>
 
   <!-- The selected node's detail, pinned: the hover's content, followable (sqlx-aoy.6). -->

@@ -9,8 +9,10 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
 import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, GraphLayout, graphOwnedParamPatch, GraphSource} from './graph-url';
 import {buildAggregates} from './aggregates';
-import {GridNode, GridSpacing, layoutGrid, LayoutBox} from './grid-layout';
+import {GridNode, GridSpacing, layoutGrid, LayoutBox, Slot} from './grid-layout';
 import {Point, routeEdges} from './routing';
+import {LayoutChange, LayoutKind, planMove, SavedLayout, slotAt} from './layout-moves';
+import {GraphLayoutService} from './graph-layout.service';
 import {SchemaTagScope, tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
@@ -70,6 +72,15 @@ const REGION_PAD = 46;
 /** An aggregate's drawn block on the grid layout: its root and members, outlined in its hue. */
 interface AggregateBox { schema: string; root: string; hue: number; x: number; y: number; w: number; h: number; }
 
+/** What a grid box is, for turning a drop into a saved change. */
+interface GridItem { kind: LayoutKind; schema: string; name: string; box: LayoutBox; parent: LayoutBox | null; }
+
+/** A move in progress on the grid: what is held, where it was picked up and where it is now, in world units. */
+interface GridDrag { key: string; box: LayoutBox; startX: number; startY: number; x: number; y: number; active: boolean; }
+
+/** Height of an aggregate's label strip, which is where an aggregate is picked up; matches GRID_SPACING. */
+const AGGREGATE_HEADER = 18;
+
 /** A table's aggregate on the grid: its hue, and whether the table is the root. */
 interface Membership { hue: number; root: boolean; }
 
@@ -124,6 +135,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private routeCache = new Map<string, Map<Edge, Point[]>>();
   /** The line under the pointer, highlighted end to end. */
   private hoveredEdge: Edge | null = null;
+  /** The hand arrangement, shared by everyone (sqlx-aoy.15); empty until loaded. */
+  private savedLayout = new SavedLayout();
+  /** Every grid box by key, with what it is and the box it sits in. */
+  private gridIndex = new Map<string, GridItem>();
+  private gridDrag: GridDrag | null = null;
+  /** Why the last move could not be saved; the layout is reloaded when this is set. */
+  layoutError: string | null = null;
   /** Whether the theme is dark, which sets how light the aggregate hues are. */
   private darkTheme = true;
   loading = false;
@@ -206,11 +224,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
               private themeService: ThemeService,
               private route: ActivatedRoute,
               private router: Router,
-              private tagColors: TagColorsService) { }
+              private tagColors: TagColorsService,
+              private graphLayoutService: GraphLayoutService) { }
 
   ngOnInit() {
     this.refreshPalette();
     this.loadTagChoices();
+    this.loadArrangement();
     this.subscriptions.add(this.themeService.current$.subscribe(() => {
       this.refreshPalette();
       this.draw();
@@ -634,6 +654,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.lastGraph = graph;
     this.aggregateBoxes = [];
     this.gridBoxes = [];
+    this.gridIndex.clear();
     this.membership.clear();
     this.routeCache.clear();
     this.hoveredEdge = null;
@@ -716,23 +737,38 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       a: { schema: edge.from.schema, table: edge.from.table },
       b: { schema: edge.to.schema, table: edge.to.table }
     }));
+    const saved = this.savedLayout;
     const aggregates = buildAggregates(
-      this.nodes.map(node => ({ schema: node.schema, table: node.table })), relations);
-    const leaf = (schema: string, table: string): GridNode =>
-      ({ key: `t:${schema}.${table}`.toLowerCase(), size: { w: NW, h: NH } });
+      this.nodes.map(node => ({ schema: node.schema, table: node.table })), relations, saved.overrides());
+    const items = new Map<string, Omit<GridItem, 'box' | 'parent'>>();
+    const leaf = (schema: string, table: string, fallback?: Slot): GridNode => {
+      const key = `t:${schema}.${table}`.toLowerCase();
+      items.set(key, { kind: 'table', schema, name: table });
+      return { key, size: { w: NW, h: NH }, slot: saved.slot('table', schema, table) ?? fallback };
+    };
     const schemas = [...new Set(this.nodes.map(node => node.schema))].sort();
-    const tree: GridNode[] = schemas.map(schema => ({
-      key: `s:${schema}`,
-      children: aggregates.filter(aggregate => aggregate.schema === schema).map(aggregate =>
-        aggregate.tables.length === 1
-          // keyed so lone tables sort after the aggregates in their schema
-          ? leaf(schema, aggregate.root)
-          : {
-              key: `a:${schema}.${aggregate.root}`.toLowerCase(),
-              children: aggregate.tables.map((table, index) =>
-                ({ ...leaf(schema, table), slot: index === 0 ? { col: 0, row: 0 } : undefined }))
-            })
-    }));
+    const tree: GridNode[] = schemas.map(schema => {
+      items.set(`s:${schema}`, { kind: 'schema', schema, name: '' });
+      return {
+        key: `s:${schema}`,
+        slot: saved.slot('schema', schema, ''),
+        children: aggregates.filter(aggregate => aggregate.schema === schema).map(aggregate => {
+          if (aggregate.tables.length === 1) {
+            // keyed so lone tables sort after the aggregates in their schema
+            return leaf(schema, aggregate.root);
+          }
+          const key = `a:${schema}.${aggregate.root}`.toLowerCase();
+          items.set(key, { kind: 'aggregate', schema, name: aggregate.root });
+          return {
+            key,
+            slot: saved.slot('aggregate', schema, aggregate.root),
+            // unarranged, the root takes its block's top-left
+            children: aggregate.tables.map((table, index) =>
+              leaf(schema, table, index === 0 ? { col: 0, row: 0 } : undefined))
+          };
+        })
+      };
+    });
 
     const nodeAt = new Map(this.nodes.map(node => [`t:${node.id}`.toLowerCase(), node]));
     const blocks = aggregates.filter(aggregate => aggregate.tables.length > 1);
@@ -748,6 +784,14 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       if (node) { node.x = box.x; node.y = box.y; }
     };
     this.gridBoxes = layoutGrid(tree, GRID_SPACING);
+    const index = (boxes: LayoutBox[], parent: LayoutBox | null) => {
+      for (const box of boxes) {
+        const item = items.get(box.key);
+        if (item) { this.gridIndex.set(box.key, { ...item, box, parent }); }
+        index(box.children, box);
+      }
+    };
+    index(this.gridBoxes, null);
     for (const schemaBox of this.gridBoxes) {
       const region = regionOf.get(schemaBox.key.slice(2));
       if (region) {
@@ -843,6 +887,144 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private hueColor(hue: number, alpha: number): string {
     return `hsla(${hue.toFixed(1)}, 65%, ${this.darkTheme ? 62 : 40}%, ${alpha})`;
+  }
+
+  // ── arranging the grid by hand (sqlx-aoy.15) ──
+
+  private loadArrangement() {
+    this.graphLayoutService.load().subscribe({
+      next: items => {
+        this.savedLayout = new SavedLayout(items);
+        this.relayoutGrid(true);
+      },
+      // nothing saved, or the store is unreachable: placement is automatic
+      error: () => undefined
+    });
+  }
+
+  /** Lay the loaded graph out again on the grid, after the arrangement changed. */
+  private relayoutGrid(fit: boolean) {
+    if (this.layout !== 'grid' || !this.lastGraph) { return; }
+    this.buildLayout(this.lastGraph);
+    if (fit) { this.resetView(); } else { this.draw(); }
+  }
+
+  /**
+   * What a press on the grid picks up: a table anywhere on it, an aggregate by
+   * its label strip, a schema by its name above the region. Anything else is
+   * a pan, so the canvas still drags the way it always has.
+   */
+  private grabAt(x: number, y: number): GridItem | null {
+    if (this.layout !== 'grid') { return null; }
+    const node = this.nodes.find(candidate =>
+      x >= candidate.x && x <= candidate.x + NW && y >= candidate.y && y <= candidate.y + NH);
+    if (node) { return this.gridIndex.get(`t:${node.id}`.toLowerCase()) ?? null; }
+    for (const item of this.gridIndex.values()) {
+      const box = item.box;
+      const across = x >= box.x && x <= box.x + box.w;
+      if (item.kind === 'aggregate' && across && y >= box.y && y <= box.y + AGGREGATE_HEADER) { return item; }
+      // the name is drawn above the region, and only when there is more than one
+      if (item.kind === 'schema' && this.regions.length > 1 && across && y >= box.y - 22 && y <= box.y + 4) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The saved changes a drop makes, or null when it makes none.
+   *
+   * <p>A schema or an aggregate moves within its grid. A table moves within
+   * its aggregate; dropped into another aggregate it joins it, dropped on a
+   * table that is in no aggregate the two make a new one, and dropped on the
+   * open schema it leaves its aggregate. A root carries its aggregate with it,
+   * since moving it out on its own would leave the members under nothing.
+   * Nothing crosses schemas: an aggregate never spans two.
+   */
+  private dropChanges(key: string, x: number, y: number): LayoutChange[] | null {
+    const item = this.gridIndex.get(key);
+    if (!item) { return null; }
+    const inside = (box: LayoutBox) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h;
+    if (item.kind === 'schema') { return this.moveWithin(this.gridBoxes, key, x, y); }
+    const schemaBox = this.gridBoxes.find(inside);
+    if (!schemaBox || this.gridIndex.get(schemaBox.key)?.schema !== item.schema) { return null; }
+    if (item.kind === 'aggregate') { return this.moveWithin(schemaBox.children, key, x, y); }
+
+    const container = item.parent;
+    const aggregateBox = schemaBox.children.find(box => box.key.startsWith('a:') && inside(box));
+    if (aggregateBox) {
+      if (aggregateBox === container) { return this.moveWithin(aggregateBox.children, key, x, y); }
+      const root = this.gridIndex.get(aggregateBox.key)!.name;
+      return [{ kind: 'table', schema: item.schema, name: item.name, parent: root },
+        ...this.moveWithin(aggregateBox.children, key, x, y)];
+    }
+    const lone = schemaBox.children.find(box => box.key.startsWith('t:') && box.key !== key && inside(box));
+    if (lone) {
+      // a new aggregate, in the lone table's cell, rooted at it
+      const root = this.gridIndex.get(lone.key)!;
+      return [
+        { kind: 'table', schema: item.schema, name: item.name, parent: root.name, slot: { col: 1, row: 0 } },
+        { kind: 'table', schema: item.schema, name: root.name, slot: { col: 0, row: 0 } },
+        { kind: 'aggregate', schema: item.schema, name: root.name, slot: lone.slot }
+      ];
+    }
+    if (container === schemaBox) { return this.moveWithin(schemaBox.children, key, x, y); }
+    const node = this.nodes.find(candidate => `t:${candidate.id}`.toLowerCase() === key);
+    if (node && this.membership.get(node)?.root && container) {
+      return this.moveWithin(schemaBox.children, container.key, x, y);
+    }
+    return [{ kind: 'table', schema: item.schema, name: item.name, parent: null },
+      ...this.moveWithin(schemaBox.children, key, x, y)];
+  }
+
+  /** Slots for every cell of a grid after `key` is dropped at (x, y) in it. */
+  private moveWithin(cells: LayoutBox[], key: string, x: number, y: number): LayoutChange[] {
+    const own = cells.find(cell => cell.key === key);
+    const plan = planMove(cells.map(cell => ({ key: cell.key, slot: cell.slot })), key, slotAt(cells, x, y),
+      own ? own.slot : null);
+    const changes: LayoutChange[] = [];
+    for (const [cellKey, slot] of plan) {
+      const item = this.gridIndex.get(cellKey);
+      if (item) { changes.push({ kind: item.kind, schema: item.schema, name: item.name, slot }); }
+    }
+    return changes;
+  }
+
+  /** Apply changes here at once, then save them; a failed save says so and reloads what is saved. */
+  private arrange(changes: LayoutChange[]) {
+    const { layout, written } = this.savedLayout.apply(changes);
+    this.savedLayout = layout;
+    this.layoutError = null;
+    this.relayoutGrid(false);
+    this.graphLayoutService.save(written).subscribe({
+      next: items => this.savedLayout = new SavedLayout(items),
+      error: error => {
+        this.layoutError = `the move was not saved: ${error?.error?.message ?? error?.message ?? 'no answer'}`;
+        this.loadArrangement();
+      }
+    });
+  }
+
+  /** Back to automatic placement for the schemas shown. Shared, so it asks first. */
+  resetArrangement() {
+    const schemas = [...new Set(this.nodes.map(node => node.schema))].sort();
+    if (!schemas.length || !window.confirm(
+      `Put the tables and aggregates of ${schemas.join(', ')} back to automatic placement? `
+      + 'The arrangement is shared, so this resets it for everyone.')) {
+      return;
+    }
+    forkJoin(schemas.map(schema => this.graphLayoutService.reset(schema))).subscribe({
+      next: () => this.loadArrangement(),
+      error: () => {
+        this.layoutError = 'the arrangement could not be reset';
+        this.loadArrangement();
+      }
+    });
+  }
+
+  /** Box keys by kind, for asserting what the grid indexed. */
+  gridItemsForTest(): {key: string; kind: LayoutKind; slot: Slot}[] {
+    return [...this.gridIndex.entries()].map(([key, item]) => ({ key, kind: item.kind, slot: item.box.slot }));
   }
 
   private runForceLayout() {
@@ -958,6 +1140,18 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   // ── interactions ──
 
   onMouseDown(event: MouseEvent) {
+    this.downX = event.clientX;
+    this.downY = event.clientY;
+    const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
+    const x = this.worldX(event.clientX - rect.left);
+    const y = this.worldY(event.clientY - rect.top);
+    const held = this.grabAt(x, y);
+    if (held) {
+      // becomes a move once it travels; until then it may still be a click
+      const key = [...this.gridIndex.entries()].find(([, item]) => item === held)![0];
+      this.gridDrag = { key, box: held.box, startX: x, startY: y, x, y, active: false };
+      return;
+    }
     this.dragging = true;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
@@ -1045,9 +1239,30 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   @HostListener('document:mouseup')
-  onMouseUp() { this.dragging = false; }
+  onMouseUp() {
+    this.dragging = false;
+    const drag = this.gridDrag;
+    this.gridDrag = null;
+    if (!drag?.active) { return; }
+    const changes = this.dropChanges(drag.key, drag.x, drag.y);
+    if (changes?.length) {
+      this.arrange(changes);
+    } else {
+      this.draw();
+    }
+  }
 
   onMouseMove(event: MouseEvent) {
+    if (this.gridDrag) {
+      const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
+      this.gridDrag.x = this.worldX(event.clientX - rect.left);
+      this.gridDrag.y = this.worldY(event.clientY - rect.top);
+      this.gridDrag.active = this.gridDrag.active || this.wasDrag(event);
+      this.tooltip.nativeElement.style.display = 'none';
+      this.graphCanvas.nativeElement.style.cursor = 'grabbing';
+      this.draw();
+      return;
+    }
     if (this.dragging) {
       this.tx += event.clientX - this.lastX;
       this.ty += event.clientY - this.lastY;
@@ -1080,7 +1295,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to pin its details, again to open, ⌘/ctrl-click for a new tab</div>`;
     } else {
       const edge = edgeUnder;
-      this.graphCanvas.nativeElement.style.cursor = edge ? 'pointer' : '';
+      this.graphCanvas.nativeElement.style.cursor = edge ? 'pointer' : this.grabAt(mx, my) ? 'grab' : '';
       if (edge) {
         tooltip.style.display = 'block';
         tooltip.style.left = (event.clientX - rect.left + 14) + 'px';
@@ -1348,6 +1563,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const node of this.nodes) {
       this.drawNode(ctx, node);
     }
+    this.drawHeld(ctx);
     this.drawMinimap();
   }
 
@@ -1406,6 +1622,25 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.closePath();
       ctx.fill();
     }
+    ctx.restore();
+  }
+
+  /** What is being moved, drawn as an outline following the pointer. */
+  private drawHeld(ctx: CanvasRenderingContext2D) {
+    const drag = this.gridDrag;
+    if (!drag?.active) { return; }
+    const box = drag.box;
+    const x = this.wx(box.x + drag.x - drag.startX);
+    const y = this.wy(box.y + drag.y - drag.startY);
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, box.w * this.scale, box.h * this.scale, 6 * this.scale);
+    ctx.fillStyle = this.alpha(this.palette.blue, 0.1);
+    ctx.fill();
+    ctx.strokeStyle = this.palette.blue;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.stroke();
     ctx.restore();
   }
 

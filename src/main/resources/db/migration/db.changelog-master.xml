@@ -488,4 +488,42 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		The graph's hand-arranged grid layout (sqlx-aoy.15).
+
+		Keyed by schema name with no environment column, unlike tags and notes:
+		a layout describes a schema's shape, and the same schema in staging and
+		production should look the same. Shared by everyone, by the user's
+		decision (2026-11-05).
+
+		One row per arranged item. `kind` says which grid the slot is in:
+		`schema` (the environment's grid; item_name is ''), `aggregate` (its
+		schema's grid, named by its root table) or `table` (its aggregate's grid,
+		or its schema's when it is in none). A table row can also carry an
+		aggregate override: `aggregate_override` set, and `aggregate_parent` the
+		table it belongs under, null for "a root of its own". The slot columns
+		avoid the name `row`, a reserved word in MySQL 8.
+	-->
+	<changeSet id="create-graph_layout" author="claude">
+		<sql>
+			create table graph_layout
+			(
+				id                 int primary key not null auto_increment,
+				kind               varchar(16)  not null,
+				schema_name        varchar(64)  not null,
+				item_name          varchar(64)  not null default '',
+				slot_col           int,
+				slot_row           int,
+				aggregate_override boolean      not null default false,
+				aggregate_parent   varchar(64),
+				updated_on         timestamp    not null default current_timestamp on update current_timestamp,
+				updated_by_id      int,
+				unique key graph_layout_item (kind, schema_name, item_name),
+				index (updated_by_id),
+				foreign key (updated_by_id) references users (id)
+					on update cascade on delete set null
+			);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

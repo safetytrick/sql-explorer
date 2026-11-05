@@ -318,6 +318,89 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(component.routesForTest()!.size).toBe(3);
   });
 
+  // arranging the grid by hand (sqlx-aoy.15)
+  describe('arranging the grid', () => {
+    const node = (table: string) =>
+      ({schema: 'app_main', table, columnCount: 2, queryCount: 1, warn: false, selfJoin: false, view: false});
+    const graph = {
+      nodes: ['account', 'invoice', 'invoice_item', 'site'].map(node),
+      fkEdges: [{fromSchema: 'app_main', fromTable: 'invoice_item', toSchema: 'app_main', toTable: 'invoice',
+        label: 'invoice_id→id', mismatch: false, joined: true}],
+      coQueryEdges: [], viewEdges: [], joinEdges: []
+    };
+    interface Internals {
+      buildLayout(graph: unknown): void;
+      dropChanges(key: string, x: number, y: number):
+        {kind: string; schema: string; name: string; slot?: unknown; parent?: string | null}[] | null;
+      nodes: {table: string; x: number; y: number}[];
+    }
+    let internals: Internals;
+    const http = () => TestBed.inject(HttpTestingController);
+    const at = (table: string) => internals.nodes.find(n => n.table === table)!;
+
+    beforeEach(() => {
+      internals = component as unknown as Internals;
+      component.layout = 'grid';
+      internals.buildLayout(graph);
+    });
+
+    it('lays out from the saved arrangement once it loads: slots and aggregate overrides', () => {
+      http().match(req => req.url.endsWith('graph/layout')).forEach(req => req.flush([
+        {kind: 'table', schema: 'app_main', name: 'account', col: null, row: null, override: true, parent: 'site'},
+        {kind: 'aggregate', schema: 'app_main', name: 'invoice', col: 5, row: 0, override: false, parent: null}
+      ]));
+      expect(component.aggregatesForTest.map(box => box.root).sort()).toEqual(['invoice', 'site']);
+      const invoice = component.gridItemsForTest().find(item => item.key === 'a:app_main.invoice')!;
+      expect(invoice.slot).toEqual({col: 5, row: 0});
+    });
+
+    it('joins a table to the aggregate it is dropped in', () => {
+      const changes = internals.dropChanges('t:app_main.account', at('invoice_item').x + 5, at('invoice_item').y + 5)!;
+      expect(changes[0]).toEqual({kind: 'table', schema: 'app_main', name: 'account', parent: 'invoice'});
+      expect(changes.filter(change => change.slot).map(change => change.name).sort())
+        .toEqual(['account', 'invoice', 'invoice_item']);
+    });
+
+    it('makes a new aggregate when a table is dropped on one that is in none', () => {
+      const changes = internals.dropChanges('t:app_main.account', at('site').x + 5, at('site').y + 5)!;
+      expect(changes.find(change => change.name === 'account')!.parent).toBe('site');
+      expect(changes.find(change => change.kind === 'aggregate')!.name).toBe('site');
+    });
+
+    it('takes a member out of its aggregate when dropped on the open schema', () => {
+      const site = at('site');
+      const changes = internals.dropChanges('t:app_main.invoice_item', site.x + 400, site.y + 5)!;
+      expect(changes[0]).toEqual({kind: 'table', schema: 'app_main', name: 'invoice_item', parent: null});
+    });
+
+    it('moves nothing across schemas', () => {
+      expect(internals.dropChanges('t:app_main.account', -5000, -5000)).toBeNull();
+    });
+
+    it('applies a move at once and saves the merged items in one batch', () => {
+      http().match(req => req.url.endsWith('graph/layout')).forEach(req => req.flush([]));
+      const site = at('site');
+      (component as unknown as {arrange(changes: unknown[]): void}).arrange(
+        internals.dropChanges('t:app_main.account', site.x + 5, site.y + 5)!);
+      expect(component.aggregatesForTest.map(box => box.root).sort()).toEqual(['invoice', 'site']);
+      const put = http().expectOne(req => req.method === 'PUT' && req.url.endsWith('graph/layout'));
+      expect((put.request.body as {name: string; override: boolean}[])
+        .find(item => item.name === 'account')!.override).toBeTrue();
+      put.flush([]);
+    });
+
+    it('says so, and reloads what is saved, when a move cannot be saved', () => {
+      http().match(req => req.url.endsWith('graph/layout')).forEach(req => req.flush([]));
+      const site = at('site');
+      (component as unknown as {arrange(changes: unknown[]): void}).arrange(
+        internals.dropChanges('t:app_main.account', site.x + 5, site.y + 5)!);
+      http().expectOne(req => req.method === 'PUT').flush({message: 'nope'}, {status: 400, statusText: 'Bad Request'});
+      expect(component.layoutError).toContain('not saved');
+      http().expectOne(req => req.method === 'GET' && req.url.endsWith('graph/layout')).flush([]);
+      expect(component.aggregatesForTest.map(box => box.root)).toEqual(['invoice']);
+    });
+  });
+
   it('switches layout without refetching, and writes var-layout', () => {
     const internals = component as unknown as {buildLayout(graph: unknown): void};
     internals.buildLayout({nodes: [{schema: 'app_main', table: 'account', columnCount: 1, queryCount: 1,

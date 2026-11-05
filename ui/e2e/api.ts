@@ -171,6 +171,7 @@ export async function stubApi(page: Page) {
     return route.fulfill(json(rows));
   });
   await page.route(`${BASE}/graph/v2/**`, route => route.fulfill(json({nodes: [], edges: []})));
+  await page.route(`${BASE}/graph/layout`, route => route.fulfill(json([])));
 }
 
 /**
