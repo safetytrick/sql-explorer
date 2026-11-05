@@ -35,12 +35,12 @@ const EXCLUDED_PARAM = 'var-excluded';
  * Tables the schema describes that no analyzed query touches.
  *
  * <p>Grouped by schema rather than listed flat, because the grouping is the
- * finding. Measured on the regression corpus: of 87 unqueried tables outside
- * MySQL's own schemas, `app_iam` contributes 14 of its 14, `app_gdpr` 5 of 5 and
- * `app_temporal` 29 of 32 — those are schemas with no captured traffic, not
- * schemas full of dead tables. `del` contributing 5 of 30 is the actionable
- * case. A flat list would read as 87 deletion candidates and about half of
- * them would be wrong.
+ * finding. On a real corpus most unqueried tables outside MySQL's own
+ * schemas came from a few schemas that were unqueried in their entirety —
+ * every table, or nearly — which are schemas with no captured traffic, not
+ * schemas full of dead tables. A schema where a handful of its tables are
+ * unqueried is the actionable case. A flat list would read as one long list of
+ * deletion candidates and about half of them would be wrong.
  */
 @Component({
   selector: 'app-unqueried-tables',
