@@ -7,9 +7,6 @@
   }
   <app-tag-filter-strip [rows]="schemas" (filterChange)="onFilter($event)"></app-tag-filter-strip>
 
-  <!-- Beside the filters, because the filters are what define the set. -->
-  <app-bulk-tag-bar [targets]="bulkTargets" [count]="visible.length" [setLabel]="bulkLabel"
-                    (changed)="onBulkChanged()"></app-bulk-tag-bar>
 </div>
 
 <div class="lens-card">

@@ -4,15 +4,18 @@ import { SchemaListTableComponent } from '../schema-list-table/schema-list-table
 import { TagFilterStripComponent } from '../tag-filter/tag-filter-strip.component';
 import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
 import { SchemaRollup } from '../api-types';
-import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
-import { schemaTarget, targetKey, type TagTarget } from '../tag-path';
 
 @Component({
     selector: 'app-schema-list',
     templateUrl: './schema-list.component.html',
     styleUrls: ['./schema-list.component.scss'],
-    imports: [SchemaListTableComponent, TagFilterStripComponent, BulkTagBarComponent]
+    imports: [SchemaListTableComponent, TagFilterStripComponent]
 })
+/**
+ * Schemas: the starting page, ranked by total query time. Tags are edited per
+ * row; there is no bulk-tag bar here — there are too few schemas for one to
+ * earn its place (sqlx-c8w.2).
+ */
 export class SchemaListComponent implements OnInit {
 
   schemas: SchemaRollup[] = [];
@@ -54,32 +57,5 @@ export class SchemaListComponent implements OnInit {
   private applyFilter() {
     this.visible = this.schemas.filter(schema =>
       matchesTagFilter((schema.tags ?? []).map(tag => tag.name), this.filter));
-  }
-
-  /** The tag target of every schema on screen — nothing narrows further here. */
-  get bulkTargets(): TagTarget[] {
-    return this.visible.map(schema => schemaTarget(schema.name));
-  }
-
-  get bulkLabel(): string {
-    // The noun agrees with the number it follows: the total in both forms.
-    const noun = this.schemas.length === 1 ? 'schema' : 'schemas';
-    return this.visible.length === this.schemas.length
-      ? `all ${this.schemas.length} ${noun}`
-      : `${this.visible.length} of ${this.schemas.length} ${noun}`;
-  }
-
-  /** Re-read tags for the rows just written, without re-fetching the page. */
-  onBulkChanged() {
-    const targets = this.bulkTargets;
-    // A Set of keys, not a scan: this runs inside a map over every loaded row.
-    const written = new Map(targets.map((target, index) => [targetKey(target), index]));
-    this.sqlService.getTagsForTargets(targets).subscribe(byIndex => {
-      this.schemas = this.schemas.map(schema => {
-        const at = written.get(targetKey(schemaTarget(schema.name)));
-        return at === undefined ? schema : {...schema, tags: byIndex[at] ?? []};
-      });
-      this.applyFilter();
-    });
   }
 }
