@@ -1,5 +1,5 @@
 import {Component, OnDestroy, OnInit, Optional} from '@angular/core';
-import {ActivatedRoute, Router} from '@angular/router';
+import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {DatePipe} from '@angular/common';
 import {CoverageService, groupByCluster, showsClusterHeading, usedVariant} from '../coverage.service';
@@ -86,7 +86,7 @@ export function summariseFindings(report: CoverageReport | null): FindingSummary
   selector: 'app-coverage-lens',
   templateUrl: './coverage-lens.component.html',
   styleUrls: ['./coverage-lens.component.scss'],
-  imports: [DatePipe]
+  imports: [DatePipe, RouterLink]
 })
 export class CoverageLensComponent implements OnInit, OnDestroy {
 

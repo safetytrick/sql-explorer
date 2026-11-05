@@ -52,33 +52,10 @@
   }
 
   @if (report!.drift.length) {
-    <div class="lens-card drift-card">
-      <div class="card-head">
-        <span class="card-head-title">Schema drift</span>
-        <span class="card-head-note">{{report!.drift.length}} table{{report!.drift.length === 1 ? '' : 's'}}
-          defined differently by clusters carrying the same schema</span>
-      </div>
-      <p class="drift-why">
-        Lookups use the first cluster's definition, so queries are analysed against it everywhere. A table
-        listed here is one where that is not true of every cluster — often a migration applied to some
-        shards and not others.
-      </p>
-      <table class="data-table">
-        <tbody>
-          @for (drift of report!.drift; track drift.table) {
-            <tr>
-              <td class="drift-table">{{drift.table}}</td>
-              <td>
-                @for (variant of drift.variants; track $index) {
-                  <span class="drift-variant" [class.absent]="!variant.present">
-                    {{variant.present ? '' : 'absent on '}}{{variant.clusters.join(', ')}}@if (variant === usedVariant(drift)) { (used)}
-                  </span>
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <!-- drift has its own page now (sqlx-om1.6); Captured keeps a pointer -->
+    <div class="lens-card note-card drift-pointer">
+      <strong>{{report!.drift.length}} table{{report!.drift.length === 1 ? '' : 's'}} defined differently</strong>
+      by clusters carrying the same schema. <a routerLink="/drift">Schema drift ›</a>
     </div>
   }
 

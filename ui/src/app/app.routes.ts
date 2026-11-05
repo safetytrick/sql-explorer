@@ -1,3 +1,4 @@
+import {SchemaDriftComponent} from './schema-drift/schema-drift.component';
 import {paramTitle} from './page-title';
 /**
  * The application's route table, kept out of `main.ts` so it can be exercised
@@ -116,6 +117,11 @@ const routes: Routes = [
     path: 'captured',
     component: CoverageLensComponent,
     title: 'Captured'
+  },
+  {
+    path: 'drift',
+    component: SchemaDriftComponent,
+    title: 'Schema drift'
   },
   /** The page's old name; links to it have been shared (sqlx-om1.4). */
   {

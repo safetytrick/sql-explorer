@@ -1,0 +1,42 @@
+<div class="view-header">
+  <span class="view-title">Schema drift</span>
+  <span class="view-sub">tables defined differently by clusters carrying the same schema</span>
+</div>
+
+@if (loading) {
+  <div class="view-note">reading the schema…</div>
+} @else if (failed) {
+  <div class="view-note">the coverage report could not be read, so whether anything drifts is unknown.</div>
+} @else if (!drift.length) {
+  <div class="lens-card"><div class="card-empty">Every cluster carrying a schema defines its tables the same way.</div></div>
+} @else {
+  <div class="lens-card drift-card">
+    <div class="card-head">
+      <span class="card-head-title">{{drift.length}} table{{drift.length === 1 ? '' : 's'}}</span>
+      <a class="card-head-link" routerLink="/captured">what was captured ›</a>
+    </div>
+    <p class="drift-why">
+      Lookups use the first cluster's definition, so queries are analysed against it everywhere. A table
+      listed here is one where that is not true of every cluster — often a migration applied to some
+      shards and not others.
+    </p>
+    <div class="table-scroll">
+      <table class="data-table">
+        <tbody>
+          @for (entry of drift; track entry.table) {
+            <tr>
+              <td class="drift-table">{{entry.table}}</td>
+              <td>
+                @for (variant of entry.variants; track $index) {
+                  <span class="drift-variant" [class.absent]="!variant.present">
+                    {{variant.present ? '' : 'absent on '}}{{variant.clusters.join(', ')}}@if (variant === usedVariant(entry)) { (used)}
+                  </span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}

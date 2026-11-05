@@ -33,6 +33,7 @@
       @if (adminOpen) {
         <div class="dropdown-menu">
           <a class="dropdown-item" routerLink="/admin/sources" (click)="closeAdmin()">Sources</a>
+          <a class="dropdown-item" routerLink="/drift" (click)="closeAdmin()">Schema drift</a>
         </div>
       }
     </li>
