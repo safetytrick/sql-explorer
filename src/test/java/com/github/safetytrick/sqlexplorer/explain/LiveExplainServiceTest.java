@@ -37,6 +37,18 @@ class LiveExplainServiceTest {
         assertThat(result.detail()).contains("explainEnabled");
     }
 
+    /** A cached environment connects to nothing, EXPLAIN included, until it is pulled (sqlx-nbi.4). */
+    @Test
+    void refusesACachedEnvironmentWithoutConnecting() {
+        Environment environment = new Environment("offline-dummy", List.of(), true);
+        environment.setCached(true);
+
+        LiveExplainService.Result result = serviceFor(environment).explain("select 1", "probe");
+
+        assertThat(result.failure()).isEqualTo(LiveExplainService.Failure.OFFLINE);
+        assertThat(result.detail()).contains("pull it to go live");
+    }
+
     @Test
     void theTwoArgumentEnvironmentConstructorDefaultsToOff() {
         assertThat(new Environment("regression", List.of()).isExplainEnabled()).isFalse();

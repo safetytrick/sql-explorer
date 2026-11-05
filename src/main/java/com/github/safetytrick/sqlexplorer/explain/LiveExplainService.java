@@ -59,6 +59,8 @@ public class LiveExplainService {
         NOT_ENABLED,
         /** The environment has no server to run against. */
         NO_SERVER,
+        /** The environment is served from its cache and connects to nothing until pulled (sqlx-nbi.4). */
+        OFFLINE,
         /** The statement is not one this may run — see {@link #assertExplainable}. */
         REFUSED,
         /** The server rejected or failed the statement. */
@@ -104,6 +106,12 @@ public class LiveExplainService {
             return Result.failed(Failure.NOT_ENABLED,
                 "environment '" + environment.getName() + "' has not enabled EXPLAIN; "
                     + "set environments." + environment.getName() + ".explainEnabled: true to allow it");
+        }
+
+        if (environment.isCached()) {
+            return Result.failed(Failure.OFFLINE,
+                "environment '" + environment.getName() + "' is served from its cache and is not connected; "
+                    + "pull it to go live, then EXPLAIN");
         }
 
         String refusal = assertExplainable(sql);

@@ -47,6 +47,14 @@ public final class DatabaseServer implements AutoCloseable {
      */
     private java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnown;
 
+    /**
+     * The environment this server belongs to while it is served from its
+     * cache, or null while it is live (sqlx-nbi.4). While set, no pool is
+     * created and nothing connects: {@link #getDataSource()} refuses, and the
+     * schema comes from the cluster's snapshot.
+     */
+    private volatile String offlineIn;
+
     public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
                           SchemaRepositoryFactory schemaRepositoryFactory) {
         this(name, connectionInfo, sourceDefinitions, schemaRepositoryFactory, null);
@@ -74,7 +82,27 @@ public final class DatabaseServer implements AutoCloseable {
         return sourceDefinitions;
     }
 
+    /** Refuse every connection while {@code environment} is served from its cache; null goes live. */
+    public void setOffline(String environment) {
+        this.offlineIn = environment;
+    }
+
+    public boolean isOffline() {
+        return offlineIn != null;
+    }
+
+    /**
+     * The server's pool, created on first use.
+     *
+     * @throws ServerOfflineException while the environment is served from its
+     *                                cache: the one place a pool is created is
+     *                                the one place the refusal has to live
+     */
     public synchronized DataSource getDataSource() {
+        String offline = offlineIn;
+        if (offline != null) {
+            throw new ServerOfflineException(offline, name);
+        }
         if (dataSource == null) {
             HikariConfig config = new HikariConfig();
             config.setPoolName("metadata-" + name);
@@ -101,6 +129,13 @@ public final class DatabaseServer implements AutoCloseable {
     public synchronized SchemaRepositoryFactory.SchemaLoad getSchemaLoad() {
         if (schemaFailure != null) {
             throw schemaFailure;
+        }
+        String offline = offlineIn;
+        if (schemaLoad == null && offline != null) {
+            // Not remembered as a failure and not logged: nothing went wrong,
+            // and going live must try the server at once. The cluster falls
+            // back to its snapshot (sqlx-nbi.3).
+            throw new ServerOfflineException(offline, name);
         }
         if (schemaLoad == null) {
             try {
@@ -137,7 +172,7 @@ public final class DatabaseServer implements AutoCloseable {
     public synchronized void revalidateSchema() {
         schemaFailure = null;
         lastKnown = null;
-        if (schemaLoad == null) {
+        if (schemaLoad == null || offlineIn != null) {
             return;
         }
         boolean current;

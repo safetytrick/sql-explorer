@@ -24,6 +24,9 @@ public final class Environment implements AutoCloseable {
     private final boolean explainEnabled;
     private final String pullCron;
 
+    /** Served from its cache, connecting to nothing, until something takes it live (sqlx-nbi). */
+    private volatile boolean cached;
+
     public Environment(String name, List<DatabaseServer> servers) {
         this(name, servers, false, null);
     }
@@ -55,6 +58,20 @@ public final class Environment implements AutoCloseable {
     /** Whether EXPLAIN may be run against this environment's servers. Off by default. */
     public boolean isExplainEnabled() {
         return explainEnabled;
+    }
+
+    /**
+     * Whether the environment is served from its cache with every server
+     * disconnected (sqlx-nbi). Set at startup when the cache is fresh; cleared
+     * by any load or pull, which is what going live means.
+     */
+    public boolean isCached() {
+        return cached;
+    }
+
+    public void setCached(boolean cached) {
+        this.cached = cached;
+        servers.forEach(server -> server.setOffline(cached ? name : null));
     }
 
     /** Cron expression to pull this environment's sources on, or null for none. */

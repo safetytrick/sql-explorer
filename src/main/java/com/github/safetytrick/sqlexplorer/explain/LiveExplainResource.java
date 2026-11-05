@@ -97,6 +97,8 @@ class LiveExplainResource {
         HttpStatus status = switch (result.failure()) {
             case NOT_ENABLED -> HttpStatus.FORBIDDEN;
             case NO_SERVER -> HttpStatus.SERVICE_UNAVAILABLE;
+            // the environment is cached: a pull takes it live, so this is a state, not a fault
+            case OFFLINE -> HttpStatus.CONFLICT;
             case REFUSED -> HttpStatus.BAD_REQUEST;
             case EXECUTION_FAILED -> HttpStatus.BAD_GATEWAY;
         };

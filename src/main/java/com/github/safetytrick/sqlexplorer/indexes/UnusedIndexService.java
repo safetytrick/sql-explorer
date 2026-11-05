@@ -110,7 +110,12 @@ public class UnusedIndexService {
                 // Named, not counted. Silence from a connection is not evidence
                 // that an index is unused on it.
                 complete = false;
-                log.warn("could not read index usage from {}: {}", server.getName(), e.toString());
+                if (e instanceof com.github.safetytrick.sqlexplorer.environment.ServerOfflineException) {
+                    // cached environment: nothing was tried, so nothing failed (sqlx-nbi.4)
+                    log.debug("index usage of {} not read: {}", server.getName(), e.getMessage());
+                } else {
+                    log.warn("could not read index usage from {}: {}", server.getName(), e.toString());
+                }
                 connections.add(new UnusedIndexes.Connection(server.getName(),
                     Coverage.Verdict.UNKNOWN, e.getMessage(), null, 0, 0));
             }
