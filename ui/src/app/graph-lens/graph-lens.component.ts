@@ -1,5 +1,5 @@
 import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
-import {ActivatedRoute, Router} from '@angular/router';
+import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {FormsModule} from '@angular/forms';
 import {forkJoin, map, of, Subscription, switchMap} from 'rxjs';
 import {GraphV2, SchemaLensService} from '../schema-lens.service';
@@ -59,7 +59,7 @@ const REGION_PAD = 46;
   selector: 'app-graph-lens',
   templateUrl: './graph-lens.component.html',
   styleUrls: ['./graph-lens.component.scss'],
-  imports: [FormsModule]
+  imports: [FormsModule, RouterLink]
 })
 export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
@@ -727,14 +727,18 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     return best;
   }
 
-  /** The workbench, showing the queries that touch both ends of an edge. */
-  private edgeQueries(edge: Edge) {
+  /** The workbench params for the queries that touch both ends of an edge. */
+  private edgeQueryParams(edge: Edge): Record<string, string> {
     const env = this.route.snapshot.queryParams[ENV_PARAM];
-    return this.router.createUrlTree(['/queries'], { queryParams: {
+    return {
       tables: [tableKey(edge.from.schema, edge.from.table), tableKey(edge.to.schema, edge.to.table)].join(','),
       tableMode: 'ALL',
       ...(env ? {[ENV_PARAM]: env} : {})
-    }});
+    };
+  }
+
+  private edgeQueries(edge: Edge) {
+    return this.router.createUrlTree(['/queries'], { queryParams: this.edgeQueryParams(edge) });
   }
 
   private openEdge(edge: Edge, newTab: boolean) {
@@ -786,7 +790,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         `<div class="tt-name">${found.table}</div>`
         + (fkOut.length ? `<div class="tt-line">FK → ${fkOut.join(', ')}</div>` : '')
         + (fkIn.length ? `<div class="tt-line">FK ← ${fkIn.join(', ')}</div>` : '')
-        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to select, again to open, ⌘/ctrl-click for a new tab</div>`;
+        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to pin its details, again to open, ⌘/ctrl-click for a new tab</div>`;
     } else {
       const edge = this.edgeAt(event);
       this.graphCanvas.nativeElement.style.cursor = edge ? 'pointer' : '';
@@ -866,6 +870,57 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       this.writeUrl();
     }
   }
+
+  // ── the pinned detail of the selected node (sqlx-aoy.6) ──
+
+  /** The selected node, if it is on the graph. */
+  selectedNode(): LayoutNode | null {
+    return this.selectedTable ? this.nodes.find(node => node.table === this.selectedTable) ?? null : null;
+  }
+
+  /**
+   * What the hover says about the selected node, pinned and followable: its
+   * foreign keys each way and the tables it is queried with, busiest first.
+   * Each relationship carries its edge, so its queries are one click away.
+   */
+  selectedDetail(): {fkOut: Edge[], fkIn: Edge[], co: {other: LayoutNode, edge: Edge}[]} | null {
+    const node = this.selectedNode();
+    if (!node) { return null; }
+    const co = this.coEdges
+      .filter(edge => edge.from === node || edge.to === node)
+      .map(edge => ({other: edge.from === node ? edge.to : edge.from, edge}))
+      .sort((a, b) => (b.edge.execs ?? 0) - (a.edge.execs ?? 0));
+    return {
+      fkOut: this.fkEdges.filter(edge => edge.from === node),
+      fkIn: this.fkEdges.filter(edge => edge.to === node),
+      co
+    };
+  }
+
+  /** Follow a relationship: select the table at its other end. */
+  selectTable(table: string | null) {
+    this.selectedTable = table;
+    this.draw();
+    this.writeUrl();
+  }
+
+  clearSelection() {
+    this.selectedTable = null;
+    this.draw();
+    this.writeUrl();
+  }
+
+  edgeLink(edge: Edge): {path: string, query: Record<string, string>} {
+    return {path: '/queries', query: this.edgeQueryParams(edge)};
+  }
+
+  /** The selected table's own queries in the workbench. */
+  tableQueriesLink(node: LayoutNode): Record<string, string> {
+    const env = this.route.snapshot.queryParams[ENV_PARAM];
+    return {tables: tableKey(node.schema, node.table), ...(env ? {[ENV_PARAM]: env} : {})};
+  }
+
+  readonly fmtExecsPublic = (value: number) => this.fmtExecs(value);
 
   onWheel(event: WheelEvent) {
     event.preventDefault();

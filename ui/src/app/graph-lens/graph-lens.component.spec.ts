@@ -180,6 +180,28 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(text).toContain('executions of the queries touching both tables');
   });
 
+  // a selected node's detail is pinned and followable (sqlx-aoy.6)
+  it('pins the selected node\'s relationships, busiest partner first, and follows one', () => {
+    const node = (table: string) => ({id: 'app.' + table, schema: 'app', table, columnCount: 3,
+      queryCount: 2, warn: false, selfJoin: false, view: false, x: 0, y: 0});
+    const [account, site, note] = [node('account'), node('site'), node('note')];
+    const internals = component as unknown as {nodes: unknown[]; coEdges: unknown[]; fkEdges: unknown[]};
+    internals.nodes = [account, site, note];
+    internals.fkEdges = [{from: account, to: site, label: 'site_id → id'}];
+    internals.coEdges = [{from: note, to: account, label: '', execs: 10}, {from: account, to: site, label: '', execs: 900}];
+    component.selectedTable = 'account';
+
+    const detail = component.selectedDetail()!;
+    expect(detail.fkOut.map(edge => edge.to.table)).toEqual(['site']);
+    expect(detail.co.map(partner => partner.other.table)).toEqual(['site', 'note']);
+    const link = component.edgeLink(detail.co[0].edge);
+    expect(link.query['tables']).toBe('app.account,app.site');
+    expect(link.query['tableMode']).toBe('ALL');
+
+    component.selectTable('note');
+    expect(component.selectedNode()?.table).toBe('note');
+  });
+
   it('offers the schema select on a schema graph', () => {
     navigateTo({schema: 'app'}, {});
     loadSchemaTree();

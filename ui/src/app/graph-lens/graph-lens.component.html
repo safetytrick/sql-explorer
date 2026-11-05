@@ -40,6 +40,56 @@
     @if (loading) { <span class="loading">loading…</span> }
   </div>
 
+  <!-- The selected node's detail, pinned: the hover's content, followable (sqlx-aoy.6). -->
+  @if (selectedNode(); as node) {
+    @let detail = selectedDetail()!;
+    <div class="node-detail">
+      <div class="nd-head">
+        <span class="nd-name mono">{{node.table}}</span>
+        <button type="button" class="nd-close" (click)="clearSelection()" aria-label="close">×</button>
+      </div>
+      <div class="nd-sub">{{node.schema}} · {{node.columnCount ?? '?'}} columns · {{node.queryCount}} queries
+        @if (node.warn) { <span class="nd-warn" title="a query on it failed analysis or joins mismatched types">· analyzer findings</span> }</div>
+      <div class="nd-actions">
+        <a class="btn" [routerLink]="['/table', node.schema, node.table]">open table</a>
+        <a class="btn" [routerLink]="['/queries']" [queryParams]="tableQueriesLink(node)">its queries</a>
+      </div>
+      @if (detail.fkOut.length) {
+        <div class="nd-label">references (FK →)</div>
+        @for (edge of detail.fkOut; track edge.to.id + edge.label) {
+          <div class="nd-rel">
+            <a class="nd-follow" (click)="selectTable(edge.to.table)" title="select it on the graph">{{edge.to.table}}</a>
+            <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
+            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" title="queries touching both">queries</a>
+          </div>
+        }
+      }
+      @if (detail.fkIn.length) {
+        <div class="nd-label">referenced by (FK ←)</div>
+        @for (edge of detail.fkIn; track edge.from.id + edge.label) {
+          <div class="nd-rel">
+            <a class="nd-follow" (click)="selectTable(edge.from.table)" title="select it on the graph">{{edge.from.table}}</a>
+            <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
+            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" title="queries touching both">queries</a>
+          </div>
+        }
+      }
+      @if (detail.co.length) {
+        <div class="nd-label">queried together with</div>
+        @for (partner of detail.co.slice(0, 12); track partner.other.id) {
+          <div class="nd-rel">
+            <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
+            <span class="dim">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
+            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" title="queries touching both">queries</a>
+          </div>
+        }
+        @if (detail.co.length > 12) { <div class="nd-more dim">and {{detail.co.length - 12}} more</div> }
+      } @else if (!layers.co) {
+        <div class="nd-more dim">turn on co-query to list the tables it is queried with</div>
+      }
+    </div>
+  }
+
   <!-- What every mark means (sqlx-aoy.2). Compact until opened; open is var-legend=1. -->
   <div class="graph-legend" [class.open]="legendOpen">
     <button type="button" class="leg-toggle" (click)="toggleLegend()" [attr.aria-expanded]="legendOpen">

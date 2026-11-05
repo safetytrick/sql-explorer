@@ -149,3 +149,32 @@ canvas {
   ::ng-deep .tt-line { font-size: 10px; color: var(--text3); }
   ::ng-deep .tt-foot { font-size: 10px; color: var(--text3); margin-top: 4px; border-top: 1px solid var(--border); padding-top: 4px; }
 }
+
+// the selected node's pinned detail (sqlx-aoy.6)
+.node-detail {
+  position: absolute;
+  top: 50px;
+  right: 10px;
+  width: 300px;
+  max-height: calc(100% - 180px);
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  z-index: 11;
+  font-size: 11px;
+  color: var(--text2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.nd-head { display: flex; align-items: center; }
+.nd-name { font-size: 13px; color: var(--text); font-weight: 600; }
+.nd-close { margin-left: auto; border: none; background: none; color: var(--text3); cursor: pointer; font-size: 14px; }
+.nd-sub { margin: 2px 0 8px; color: var(--text3); }
+.nd-warn { color: var(--amber); }
+.nd-actions { display: flex; gap: 6px; margin-bottom: 6px; a { text-decoration: none; padding: 2px 8px; font-size: 11px; } }
+.nd-label { margin: 8px 0 3px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
+.nd-rel { display: flex; align-items: baseline; gap: 6px; padding: 1px 0; }
+.nd-follow { color: var(--blue); cursor: pointer; font-family: var(--mono); &:hover { text-decoration: underline; } }
+.nd-q { margin-left: auto; color: var(--text3); text-decoration: none; &:hover { color: var(--blue); } }
+.nd-more { margin-top: 3px; }
