@@ -66,10 +66,10 @@ test('a link without an environment opens its own page, naming the stored one', 
   await page.goto('/');
   await page.evaluate(() => localStorage.setItem('sql-explorer.environment', 'staging'));
 
-  await page.goto('/coverage');
+  await page.goto('/captured');
 
-  await expect(page).toHaveURL(/\/coverage\?env=staging$/);
-  await expect(page.locator('.view-title')).toContainText('What was captured');
+  await expect(page).toHaveURL(/\/captured\?env=staging$/);
+  await expect(page.locator('.view-title')).toContainText('Captured');
 });
 
 /** Nothing selected still means a clean URL — the default is not invented. */

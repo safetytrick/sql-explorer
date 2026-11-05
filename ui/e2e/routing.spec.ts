@@ -62,3 +62,11 @@ test('the tables list points to the unqueried tables it leaves out', async ({pag
 
   await expect(page).toHaveURL(/\/unqueried/);
 });
+
+/** The page was renamed; a link to its old address still arrives (sqlx-om1.4). */
+test('the old /coverage address opens Captured, keeping its query', async ({page}) => {
+  await page.goto('/coverage?env=staging');
+
+  await expect(page).toHaveURL(/\/captured\?env=staging$/);
+  await expect(page.locator('.view-title')).toHaveText('Captured');
+});

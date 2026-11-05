@@ -102,9 +102,14 @@ const routes: Routes = [
     title: 'Unqueried tables'
   },
   {
-    path: 'coverage',
+    path: 'captured',
     component: CoverageLensComponent,
     title: 'Captured'
+  },
+  /** The page's old name; links to it have been shared (sqlx-om1.4). */
+  {
+    path: 'coverage',
+    redirectTo: '/captured'
   },
   {
     path: 'unused-indexes',
