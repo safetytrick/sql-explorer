@@ -40,12 +40,27 @@
     @if (loading) { <span class="loading">loading…</span> }
   </div>
 
-  <div class="graph-legend">
-    <div class="leg-row"><div class="leg-line blue"></div> FK</div>
-    <div class="leg-row"><div class="leg-dash"></div> co-query</div>
-    <div class="leg-row"><div class="leg-line amber"></div> type mismatch</div>
+  <!-- What every mark means (sqlx-aoy.2). Compact until opened; open is var-legend=1. -->
+  <div class="graph-legend" [class.open]="legendOpen">
+    <button type="button" class="leg-toggle" (click)="toggleLegend()" [attr.aria-expanded]="legendOpen">
+      {{legendOpen ? '▾' : '▸'}} legend</button>
+    <div class="leg-row"><div class="leg-line blue"></div> foreign key</div>
+    <div class="leg-row"><div class="leg-dash"></div> queried together</div>
+    <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>
     @if (hasViewEdges()) {
-      <div class="leg-row"><div class="leg-dash purple"></div> view → base</div>
+      <div class="leg-row"><div class="leg-dash purple"></div> view → its base table</div>
+    }
+    @if (legendOpen) {
+      <div class="leg-sep"></div>
+      <div class="leg-row"><div class="leg-node"></div> a table; every box is the same size, so size means nothing</div>
+      <div class="leg-row"><div class="leg-node warn"></div> amber border: a query on it failed analysis or joins mismatched types</div>
+      <div class="leg-row"><span class="leg-sample">app · 12c · 40q</span> schema · columns · distinct queries</div>
+      <div class="leg-row"><span class="leg-sample">1.2M</span> on a dashed line: executions of the queries touching both tables</div>
+      <div class="leg-row"><span class="leg-sample mono">site_id</span> on an FK: its first column pair</div>
+      <div class="leg-row"><div class="leg-loop"></div> loop: the table is joined to itself</div>
+      <div class="leg-row"><div class="leg-region"></div> shaded area: one schema</div>
+      <div class="leg-row"><div class="leg-node selected"></div> blue: the selected table</div>
+      <div class="leg-hint">click a line for the queries behind it; click a table twice to open it</div>
     }
   </div>
 

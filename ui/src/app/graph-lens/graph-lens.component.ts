@@ -126,8 +126,17 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * var-layers). Only a *scope* change refetches; selection/layer changes —
    * including our own replaceUrl writes and browser back/forward — redraw.
    */
+  /** The legend's full key is showing; `var-legend=1` (sqlx-aoy.2). */
+  legendOpen = false;
+
+  toggleLegend() {
+    this.router.navigate([], { relativeTo: this.route, queryParams: { 'var-legend': this.legendOpen ? null : '1' },
+      queryParamsHandling: 'merge', replaceUrl: true });
+  }
+
   private applyRoute() {
     const state = decodeGraphParams(this.route.snapshot.queryParamMap);
+    this.legendOpen = this.route.snapshot.queryParamMap.get('var-legend') === '1';
     this.selectedTable = state.table;
     this.layers = state.layers;
     if (state.tag) {

@@ -170,6 +170,16 @@ describe('GraphLensComponent — scope legibility', () => {
     });
   });
 
+  // the full key opens from the legend and is kept in a link (sqlx-aoy.2)
+  it('opens the full legend from var-legend, and explains the node marks', () => {
+    expect(component.legendOpen).toBe(false);
+    navigateTo({}, {'var-legend': '1'});
+    expect(component.legendOpen).toBe(true);
+    const text = (fixture.nativeElement as HTMLElement).querySelector('.graph-legend')?.textContent ?? '';
+    expect(text).toContain('size means nothing');
+    expect(text).toContain('executions of the queries touching both tables');
+  });
+
   it('offers the schema select on a schema graph', () => {
     navigateTo({schema: 'app'}, {});
     loadSchemaTree();
