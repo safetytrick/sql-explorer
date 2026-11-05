@@ -292,13 +292,15 @@ describe('GraphLensComponent — scope legibility', () => {
     };
     const internals = component as unknown as {buildLayout(graph: unknown): void;
       nodes: {table: string; x: number; y: number}[]};
+    component.layout = 'force';
     internals.buildLayout(graph);
     expect(component.routesForTest()).toBeNull();
 
     component.layout = 'grid';
+    component.toggle('fk');
     internals.buildLayout(graph);
     const routes = component.routesForTest()!;
-    // fk and join are on by default, co is not
+    // join is on by default; fk was switched on above, co is still off
     expect(routes.size).toBe(2);
     for (const [edge, path] of routes) {
       for (let i = 1; i < path.length; i++) {
@@ -408,9 +410,11 @@ describe('GraphLensComponent — scope legibility', () => {
     const navigate = router.navigate as jasmine.Spy;
     navigate.calls.reset();
 
-    component.toggleLayout();
+    // the grid is the default, so an untouched page says nothing about layout
     expect(component.layout).toBe('grid');
-    expect(navigate.calls.mostRecent().args[1].queryParams['var-layout']).toBe('grid');
+    component.toggleLayout();
+    expect(component.layout).toBe('force');
+    expect(navigate.calls.mostRecent().args[1].queryParams['var-layout']).toBe('force');
     component.toggleLayout();
     expect(navigate.calls.mostRecent().args[1].queryParams['var-layout']).toBeNull();
   });

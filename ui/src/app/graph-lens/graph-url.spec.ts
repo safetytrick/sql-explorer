@@ -47,7 +47,8 @@ describe('graphOwnedParamPatch (merge writes)', () => {
       .toEqual({ 'var-table': null, 'var-layers': null, 'var-layout': null });
     expect(graphOwnedParamPatch('member_session', { fk: true, join: true, co: true, self: true, view: true }))
       .toEqual({ 'var-table': 'member_session', 'var-layers': 'fk,join,co,self,view', 'var-layout': null });
-    expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }, 'grid')['var-layout']).toBe('grid');
+    expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }, 'grid')['var-layout']).toBeNull();
+    expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }, 'force')['var-layout']).toBe('force');
     expect(graphOwnedParamPatch(null, { fk: false, join: false, co: false, self: false, view: false })['var-layers'])
       .toBe('none');
   });
@@ -59,8 +60,15 @@ describe('decodeGraphParams', () => {
     const state = decodeGraphParams(reader({}));
     expect(state.table).toBeNull();
     expect(state.layers).toEqual(DEFAULT_LAYERS);
+    expect(state.layers).toEqual({ fk: false, join: true, co: false, self: false, view: true });
+    expect(state.layout).toBe('grid');
     expect(state.tag).toBeNull();
     expect(state.source).toBeNull();
+  });
+
+  it('reads var-layout=force as the simulation, and a link from when grid was opt-in as the grid', () => {
+    expect(decodeGraphParams(reader({ 'var-layout': 'force' })).layout).toBe('force');
+    expect(decodeGraphParams(reader({ 'var-layout': 'grid' })).layout).toBe('grid');
   });
 
   it('still reads the legacy ?table= highlight param', () => {

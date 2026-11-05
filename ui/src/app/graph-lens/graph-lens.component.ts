@@ -7,7 +7,7 @@ import {GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
-import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, GraphLayout, graphOwnedParamPatch, GraphSource} from './graph-url';
+import {decodeGraphParams, DEFAULT_LAYERS, DEFAULT_LAYOUT, encodeGraphParams, GraphLayers, GraphLayout, graphOwnedParamPatch, GraphSource} from './graph-url';
 import {buildAggregates} from './aggregates';
 import {GridNode, GridSpacing, layoutGrid, LayoutBox, Slot} from './grid-layout';
 import {Point, routeEdges} from './routing';
@@ -122,8 +122,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   schema = '';
   selectedTable: string | null = null;
   layers: GraphLayers = { ...DEFAULT_LAYERS };
-  /** Force simulation or nested grids; `var-layout=grid` (sqlx-aoy.13). */
-  layout: GraphLayout = 'force';
+  /** Nested grids (the default) or the force simulation, `var-layout=force` (sqlx-aoy.13). */
+  layout: GraphLayout = DEFAULT_LAYOUT;
   /** The graph last laid out, so switching layout re-places it without a fetch. */
   private lastGraph: GraphV2 | null = null;
   private aggregateBoxes: AggregateBox[] = [];
@@ -259,8 +259,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.legendOpen = this.route.snapshot.queryParamMap.get('var-legend') === '1';
     this.selectedTable = state.table;
     this.layers = state.layers;
-    const layoutChanged = (state.layout ?? 'force') !== this.layout;
-    this.layout = state.layout ?? 'force';
+    const layoutChanged = (state.layout ?? DEFAULT_LAYOUT) !== this.layout;
+    this.layout = state.layout ?? DEFAULT_LAYOUT;
     if (state.tag) {
       this.mode = 'tag';
       this.tag = state.tag;
