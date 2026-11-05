@@ -45,6 +45,25 @@ describe('TableListComponentComponent', () => {
     expect(titles[1]).toContain('Time spent executing');
   });
 
+  // a long list draws in steps; selection still covers every row (sqlx-c8w.11)
+  it('draws a long list 250 rows at a time, while select-all still covers every row', () => {
+    component.tables = Array.from({length: 600}, (_, at) =>
+      ({schema: 'app', name: 't' + at, view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1}));
+    component.selectable = true;
+    fixture.detectChanges();
+    const rows = () => (fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr').length;
+    expect(rows()).toBe(250);
+
+    component.renderMore();
+    fixture.detectChanges();
+    expect(rows()).toBe(500);
+
+    const emitted: Set<string>[] = [];
+    component.excludedChange.subscribe(set => emitted.push(set));
+    component.toggleAll();
+    expect(emitted[0].size).toBe(600);
+  });
+
   /** The checkboxes report exceptions; the page that owns them decides what they mean (sqlx-v86). */
   describe('when selectable', () => {
     const table = (name: string) => ({schema: 'app', name, view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1});

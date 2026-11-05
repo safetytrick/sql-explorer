@@ -1,3 +1,4 @@
+import {InViewDirective} from '../in-view.directive';
 import {GLOSSARY} from '../glossary';
 import {Component, EventEmitter, Input, Output} from '@angular/core';
 import {RouterLink} from '@angular/router';
@@ -8,11 +9,14 @@ import {matchesTypeFilter, TypeFilter} from '../schema-tree/tree-filter';
 import {tableTarget} from '../tag-path';
 import {tableKey} from '../table-names/table-search-url';
 
+/** Rows drawn at a time in a long table list (sqlx-c8w.11). */
+export const RENDER_STEP = 250;
+
 @Component({
     selector: 'app-table-list-component',
     templateUrl: './table-list.component.html',
     styleUrls: ['./table-list.component.scss'],
-    imports: [RouterLink, PicoViewComponent, TagFieldComponent]
+    imports: [RouterLink, PicoViewComponent, TagFieldComponent, InViewDirective]
 })
 export class TableListComponent {
   /** Header definitions (hover). */
@@ -26,6 +30,7 @@ export class TableListComponent {
   @Input()
   set tables(tables: TableRollup[]) {
     this.rows = tables ?? [];
+    this.renderLimit = RENDER_STEP;
     // Cached on assignment; see the note in SchemaListTableComponent.
     this.heaviest = Math.max(...this.rows.map(table => table.totalQueryTime), 1);
   }
@@ -62,6 +67,24 @@ export class TableListComponent {
 
   visibleTables(): TableRollup[] {
     return this.rows.filter(table => matchesTypeFilter(this.typeFilter, table.view));
+  }
+
+  /**
+   * Rows actually rendered (sqlx-c8w.11). A large list draws its first
+   * {@link RENDER_STEP} and the next as the end scrolls near, so a schema with
+   * thousands of tables does not build every row up front. Selection, counts
+   * and bulk actions still cover every filtered row: only drawing is deferred.
+   */
+  renderLimit = RENDER_STEP;
+
+  renderedTables(): TableRollup[] {
+    return this.visibleTables().slice(0, this.renderLimit);
+  }
+
+  renderMore() {
+    if (this.renderLimit < this.visibleTables().length) {
+      this.renderLimit += RENDER_STEP;
+    }
   }
 
   hasViews(): boolean {

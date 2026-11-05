@@ -24,7 +24,7 @@
     </tr>
   </thead>
   <tbody>
-    @for (table of visibleTables(); track table; let i = $index) {
+    @for (table of renderedTables(); track table; let i = $index) {
       <tr [class.unchecked]="selectable && !isChecked(table)">
         @if (selectable) {
           <td class="check-col">
@@ -56,6 +56,11 @@
     }
   </tbody>
 </table>
+@if (renderLimit < visibleTables().length) {
+  <!-- draws the next rows as it scrolls near; clicking is the fallback (sqlx-c8w.11) -->
+  <div class="render-more" (appInView)="renderMore()" (click)="renderMore()">
+    {{visibleTables().length - renderLimit}} more below</div>
+}
 
 @if (visibleTables().length === 0) {
   <div class="card-empty">No tables match this filter.</div>

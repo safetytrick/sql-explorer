@@ -62,3 +62,5 @@
 
 // A row a bulk tag will pass over stays readable but recedes.
 tr.unchecked td:not(.check-col) { opacity: 0.45; }
+
+.render-more { padding: 8px 14px; font-size: 11px; color: var(--text3); text-align: center; cursor: pointer; }
