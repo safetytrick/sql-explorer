@@ -1,3 +1,4 @@
+import {GLOSSARY} from '../glossary';
 import {formatPageTitle} from '../page-title';
 import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
@@ -26,6 +27,9 @@ import {queryTarget} from '../tag-path';
     QueryExamplesComponent, DatePipe]
 })
 export class SqlViewComponent implements OnInit {
+  /** Hover definitions for the runtime metrics (glossary.ts, sqlx-tcv.1). */
+  readonly glossary = GLOSSARY;
+
   protected readonly queryTarget = queryTarget;
 
   /** @see SEEN_FORMAT */

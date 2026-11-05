@@ -296,6 +296,14 @@ own copy — five stylesheets each defined `.tag-chip`, four defined
 A new page should reach for these first. Component SCSS is for what is
 genuinely local — column widths, page-specific controls.
 
+**Definitions live in `ui/src/app/glossary.ts`.** A number or concept that
+needs explaining — a column header, a metric, a filter option — gets its
+definition from there, shown as hover text on a `.term` (dotted underline,
+help cursor). One entry per concept, so the same header explains itself the
+same way on every page. Write what the number *is*, caveats included: the
+Schemas totals, for instance, add up per-table figures and overstate, and the
+definition says so.
+
 Two things to know before touching them:
 
 - **Component-scoped copies still win** on specificity (an attribute selector

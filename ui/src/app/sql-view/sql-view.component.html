@@ -238,43 +238,43 @@
             <div class="metric-grid">
               <div class="metric-group">
                 <div class="ds-label">Counts</div>
-                <div class="metric-row"><span class="metric-key">Executed</span><span class="metric-val blue">{{metrics.executed | number}}</span></div>
-                <div class="metric-row"><span class="metric-key sub">Errors</span><span class="metric-val" [class.hot]="metrics.errors > 0">{{metrics.errors | number}}</span></div>
-                <div class="metric-row"><span class="metric-key sub">Warnings</span><span class="metric-val" [class.hot]="metrics.warnings > 0">{{metrics.warnings | number}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.executed">Executed</span><span class="metric-val blue">{{metrics.executed | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.errors">Errors</span><span class="metric-val" [class.hot]="metrics.errors > 0">{{metrics.errors | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.warnings">Warnings</span><span class="metric-val" [class.hot]="metrics.warnings > 0">{{metrics.warnings | number}}</span></div>
               </div>
               <div class="metric-group">
                 <div class="ds-label">Time</div>
-                <div class="metric-row"><span class="metric-key">Total</span><span class="metric-val hot"><app-pico-view [duration]="metrics.totalTime"></app-pico-view></span></div>
-                <div class="metric-row"><span class="metric-key sub">Max</span><span class="metric-val"><app-pico-view [duration]="metrics.maxTime"></app-pico-view></span></div>
-                <div class="metric-row"><span class="metric-key sub">Average</span><span class="metric-val"><app-pico-view [duration]="metrics.averageTime"></app-pico-view></span></div>
-                <div class="metric-row"><span class="metric-key sub">Lock</span><span class="metric-val"><app-pico-view [duration]="metrics.lockTime"></app-pico-view></span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.totalTime">Total</span><span class="metric-val hot"><app-pico-view [duration]="metrics.totalTime"></app-pico-view></span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.maxTime">Max</span><span class="metric-val"><app-pico-view [duration]="metrics.maxTime"></app-pico-view></span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.averageTime">Average</span><span class="metric-val"><app-pico-view [duration]="metrics.averageTime"></app-pico-view></span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.lockTime">Lock</span><span class="metric-val"><app-pico-view [duration]="metrics.lockTime"></app-pico-view></span></div>
               </div>
               <div class="metric-group">
                 <div class="ds-label">Rows</div>
-                <div class="metric-row"><span class="metric-key">Total sent</span><span class="metric-val">{{metrics.rowsSent | number}}</span></div>
-                <div class="metric-row"><span class="metric-key sub">Avg sent</span><span class="metric-val">{{metrics.averageRowsSent | number}}</span></div>
-                <div class="metric-row"><span class="metric-key">Total scanned</span><span class="metric-val hot">{{metrics.rowsScanned | number}}</span></div>
-                <div class="metric-row"><span class="metric-key sub">Avg scanned</span><span class="metric-val">{{metrics.averageRowsScanned | number}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.rowsSent">Total sent</span><span class="metric-val">{{metrics.rowsSent | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.rowsSent">Avg sent</span><span class="metric-val">{{metrics.averageRowsSent | number}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.rowsScanned">Total scanned</span><span class="metric-val hot">{{metrics.rowsScanned | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.rowsScanned">Avg scanned</span><span class="metric-val">{{metrics.averageRowsScanned | number}}</span></div>
                 @if (metrics.rowsAffected > 0) {
-                  <div class="metric-row"><span class="metric-key">Affected</span><span class="metric-val">{{metrics.rowsAffected | number}}</span></div>
-                  <div class="metric-row"><span class="metric-key sub">Avg affected</span><span class="metric-val">{{metrics.averageRowsAffected | number}}</span></div>
+                  <div class="metric-row"><span class="metric-key term" [title]="glossary.rowsAffected">Affected</span><span class="metric-val">{{metrics.rowsAffected | number}}</span></div>
+                  <div class="metric-row"><span class="metric-key sub term" [title]="glossary.rowsAffected">Avg affected</span><span class="metric-val">{{metrics.averageRowsAffected | number}}</span></div>
                 }
               </div>
               <div class="metric-group">
                 <div class="ds-label">Temp tables</div>
-                <div class="metric-row"><span class="metric-key">Count</span><span class="metric-val">{{metrics.tempTables | number}}</span></div>
-                <div class="metric-row"><span class="metric-key sub">Disk</span><span class="metric-val" [class.hot]="metrics.tempDiskTables > 0">{{metrics.tempDiskTables | number}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.tempTables">Count</span><span class="metric-val">{{metrics.tempTables | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.tempDiskTables">Disk</span><span class="metric-val" [class.hot]="metrics.tempDiskTables > 0">{{metrics.tempDiskTables | number}}</span></div>
               </div>
               <div class="metric-group">
                 <div class="ds-label">Sorting</div>
-                <div class="metric-row"><span class="metric-key">Rows sorted</span><span class="metric-val">{{metrics.rowsSorted | number}}</span></div>
-                <div class="metric-row"><span class="metric-key sub">Merge passes</span><span class="metric-val" [class.hot]="metrics.sortMergePasses > 0">{{metrics.sortMergePasses | number}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.rowsSorted">Rows sorted</span><span class="metric-val">{{metrics.rowsSorted | number}}</span></div>
+                <div class="metric-row"><span class="metric-key sub term" [title]="glossary.sortMergePasses">Merge passes</span><span class="metric-val" [class.hot]="metrics.sortMergePasses > 0">{{metrics.sortMergePasses | number}}</span></div>
               </div>
               <div class="metric-group">
                 <div class="ds-label">Activity</div>
-                <div class="metric-row"><span class="metric-key">First seen</span><span class="metric-val">{{metrics.firstSeen ? (metrics.firstSeen | date:SEEN_FORMAT) : '—'}}</span></div>
-                <div class="metric-row"><span class="metric-key">Last seen</span><span class="metric-val">{{metrics.lastSeen ? (metrics.lastSeen | date:SEEN_FORMAT) : '—'}}</span></div>
-                <div class="metric-row"><span class="metric-key">Status</span><span class="metric-val" [class.green]="query.queryActivityStatus === 'ACTIVE'">{{query.queryActivityStatus.toLowerCase()}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.firstSeen">First seen</span><span class="metric-val">{{metrics.firstSeen ? (metrics.firstSeen | date:SEEN_FORMAT) : '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.lastSeen">Last seen</span><span class="metric-val">{{metrics.lastSeen ? (metrics.lastSeen | date:SEEN_FORMAT) : '—'}}</span></div>
+                <div class="metric-row"><span class="metric-key term" [title]="glossary.activity">Status</span><span class="metric-val" [class.green]="query.queryActivityStatus === 'ACTIVE'">{{query.queryActivityStatus.toLowerCase()}}</span></div>
               </div>
             </div>
           </div>

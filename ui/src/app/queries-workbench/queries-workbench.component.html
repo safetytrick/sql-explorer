@@ -22,7 +22,7 @@
 
       <div class="section-hdr">Activity</div>
       <div class="fg">
-        <div class="fg-label">Query activity</div>
+        <div class="fg-label"><span class="term" [title]="glossary.activity">Query activity</span></div>
         <div class="tri-row">
           <span class="tri-btn" [class.on]="activity === 'ANY'" (click)="activity = 'ANY'; filtersChanged()">any</span>
           <span class="tri-btn" [class.on]="activity === 'ACTIVE'" (click)="activity = 'ACTIVE'; filtersChanged()">active</span>
@@ -77,7 +77,7 @@
 
       <div class="section-hdr">Performance</div>
       <div class="fg">
-        <div class="fg-label">Avg time (ms)</div>
+        <div class="fg-label"><span class="term" [title]="glossary.averageTime">Avg time (ms)</span></div>
         <div class="tri-row shortcut-row">
           <span class="tri-btn" [class.on]="isSlow()" (click)="toggleSlow()">slow &gt;1s</span>
           <span class="tri-btn" [class.on]="isChatty()" (click)="toggleChatty()">chatty &lt;20ms</span>
@@ -102,7 +102,7 @@
         </div>
       </div>
       <div class="fg">
-        <div class="fg-label">Selectivity % <span class="hint">sent/scanned</span></div>
+        <div class="fg-label"><span class="term" [title]="glossary.selectivity">Selectivity %</span> <span class="hint">sent/scanned</span></div>
         <div class="range-row">
           <input type="number" placeholder="min" min="0" max="100" [(ngModel)]="selectivityPct.min" (change)="filtersChanged()">
           <input type="number" placeholder="max" min="0" max="100" [(ngModel)]="selectivityPct.max" (change)="filtersChanged()">
@@ -118,14 +118,14 @@
 
       <div class="section-hdr">Execution flags</div>
       @for (flagDef of [
-        {key: 'fullScan', label: 'Full table scan'},
-        {key: 'tmpTable', label: 'Temp tables'},
-        {key: 'tmpDisk', label: 'Temp to disk'},
-        {key: 'errors', label: 'Errors'},
-        {key: 'warnings', label: 'Warnings'}
+        {key: 'fullScan', label: 'Full table scan', help: glossary.fullScan},
+        {key: 'tmpTable', label: 'Temp tables', help: glossary.tempTables},
+        {key: 'tmpDisk', label: 'Temp to disk', help: glossary.tempDiskTables},
+        {key: 'errors', label: 'Errors', help: glossary.errors},
+        {key: 'warnings', label: 'Warnings', help: glossary.warnings}
       ]; track flagDef.key) {
         <div class="fg">
-          <div class="fg-label">{{flagDef.label}}</div>
+          <div class="fg-label"><span class="term" [title]="flagDef.help">{{flagDef.label}}</span></div>
           <div class="tri-row">
             <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'ANY'" (click)="setFlag(flagDef.key, 'ANY')">any</span>
             <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'YES'" (click)="setFlag(flagDef.key, 'YES')">yes</span>
@@ -136,11 +136,11 @@
 
       <div class="section-hdr">Statement</div>
       @for (flagDef of [
-        {key: 'truncated', label: 'Truncated capture'},
-        {key: 'multiSchema', label: 'Multi-schema'}
+        {key: 'truncated', label: 'Truncated capture', help: glossary.truncated},
+        {key: 'multiSchema', label: 'Multi-schema', help: glossary.multiSchema}
       ]; track flagDef.key) {
         <div class="fg">
-          <div class="fg-label">{{flagDef.label}}</div>
+          <div class="fg-label"><span class="term" [title]="flagDef.help">{{flagDef.label}}</span></div>
           <div class="tri-row">
             <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'ANY'" (click)="setFlag(flagDef.key, 'ANY')">any</span>
             <span class="tri-btn" [class.on]="flagValue(flagDef.key) === 'YES'" (click)="setFlag(flagDef.key, 'YES')">yes</span>
@@ -150,7 +150,7 @@
       }
 
       <div class="fg">
-        <div class="fg-label">Index hint <span class="hint">USE / FORCE / IGNORE INDEX</span></div>
+        <div class="fg-label"><span class="term" [title]="glossary.indexHint">Index hint</span> <span class="hint">USE / FORCE / IGNORE INDEX</span></div>
         <div class="tri-row">
           @for (option of hintOptions; track option.label) {
             <span class="tri-btn" [class.on]="hinted === option.value" (click)="setHinted(option.value)">{{option.label}}</span>
@@ -160,8 +160,8 @@
 
       <div class="section-hdr">Examples</div>
       <div class="fg checks">
-        <label class="check-row" title="queries with a real statement stored — the ones that can be planned">
-          <input type="checkbox" [(ngModel)]="hasExamples" (change)="filtersChanged()"> has an example
+        <label class="check-row" [title]="glossary.hasExamples">
+          <input type="checkbox" [(ngModel)]="hasExamples" (change)="filtersChanged()"> <span class="term">has an example</span>
         </label>
       </div>
 
@@ -204,7 +204,7 @@
         <span class="tri-btn" [class.on]="!fullSql" (click)="setFullSql(false)" title="one line per query; expand a row with its caret">line</span>
         <span class="tri-btn" [class.on]="fullSql" (click)="setFullSql(true)" title="every query's whole formatted SQL, to read down the list without clicking">full</span>
         <span class="bar-label">sort:</span>
-        <select [(ngModel)]="sort" (change)="filtersChanged()">
+        <select [(ngModel)]="sort" (change)="filtersChanged()" [title]="sort === 'IMPACT' ? 'impact: ' + glossary.impact : ''">
           <option value="IMPACT">impact ↓</option>
           <option value="AVG_TIME">avg time ↓</option>
           <option value="MAX_TIME">max time ↓</option>

@@ -41,6 +41,52 @@ export const GLOSSARY = {
   parseFailure:
     'The SQL parser could not read the statement: syntax it does not support. Truncated captures are not '
     + 'counted here, since a cut-off statement cannot parse.',
+
+  // ── runtime metrics, from Performance Schema's digest summary (sqlx-tcv.1) ──
+  executed: 'How many times the pattern ran in the captured period.',
+  errors: 'Errors MySQL raised across all executions (Performance Schema counts errors, not failed executions).',
+  warnings: 'Warnings MySQL raised across all executions (one execution can raise several).',
+  totalTime: 'Total execution time across all executions. What "impact" ranks by.',
+  maxTime: 'The slowest single execution in the captured period.',
+  averageTime: 'Total time divided by executions.',
+  lockTime: 'Time spent waiting for table locks, included in the execution time.',
+  rowsSent: 'Rows returned to the client.',
+  rowsScanned:
+    'Rows the server read to produce the result. Far more scanned than sent means rows were read and thrown '
+    + 'away, which is often an index opportunity.',
+  rowsAffected: 'Rows changed by INSERT, UPDATE or DELETE.',
+  tempTables:
+    'Internal temporary tables MySQL created to run the statement, typically for GROUP BY, DISTINCT, UNION '
+    + 'or a derived table.',
+  tempDiskTables:
+    'Temporary tables that went to disk instead of memory: too large, or holding column types the memory '
+    + 'engine cannot store. Much slower than in-memory ones.',
+  rowsSorted: 'Rows sorted for ORDER BY or GROUP BY across all executions.',
+  sortMergePasses:
+    'Sort spill. A sort that does not fit in sort_buffer_size is written to disk and merged back in passes; '
+    + 'any value above zero means sorts spilled to disk.',
+  firstSeen: 'When Performance Schema first recorded the pattern, as of the capture.',
+  lastSeen: 'When Performance Schema last recorded the pattern, as of the capture.',
+  activity:
+    'Active: seen within 30 days of the capture and run more than once. Dormant: anything else. A dormant '
+    + 'pattern may simply have run once, or not since a deploy.',
+
+  // ── the rest of the workbench filters ──
+  selectivity:
+    'Rows sent divided by rows scanned, as a percentage. Low means most of what was read was thrown away. '
+    + 'The interesting range is near zero: 0.01% and 0.1% are very different queries.',
+  fullScan:
+    'At least one execution used no index, or no good index, to find its rows (Performance Schema\'s '
+    + 'no-index and no-good-index counters).',
+  truncated:
+    'Performance Schema cut the statement text off at its digest length limit, so the end of the query is '
+    + 'missing and it cannot be fully analyzed.',
+  multiSchema: 'The statement touches tables in more than one schema.',
+  indexHint: 'The statement carries a USE, FORCE or IGNORE INDEX hint on one of its tables.',
+  hasExamples:
+    'A real statement, with its literal values, is stored for the pattern. Only those can be EXPLAINed: the '
+    + 'pattern itself has ? placeholders.',
+  impact: 'Total execution time across all executions: what costs the server the most overall.',
 } as const;
 
 export type GlossaryTerm = keyof typeof GLOSSARY;
