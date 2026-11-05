@@ -70,3 +70,21 @@ test('the old /coverage address opens Captured, keeping its query', async ({page
   await expect(page).toHaveURL(/\/captured\?env=staging$/);
   await expect(page.locator('.view-title')).toHaveText('Captured');
 });
+
+/** A tag on a row narrows the list it is on, rather than leaving for another page (sqlx-c8w.9). */
+test('clicking a tag on a tables row filters the list in place', async ({page}) => {
+  await page.route('**/api/sql-explorer/tables', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify([
+      {name: 'orders', schema: 'app', numberOfQueries: 3, totalQueryTime: 1000, view: false, tags: [{id: 1, name: 'system'}]},
+      {name: 'events', schema: 'app', numberOfQueries: 3, totalQueryTime: 1000, view: false, tags: []}
+    ])
+  }));
+  await page.goto('/tables');
+  await expect(page.locator('.data-table tbody tr')).toHaveCount(2);
+
+  await page.locator('.data-table tbody a', {hasText: 'system'}).click();
+
+  await expect(page).toHaveURL(/\/tables\?.*tags=system/);
+  await expect(page.locator('.data-table tbody tr')).toHaveCount(1);
+});

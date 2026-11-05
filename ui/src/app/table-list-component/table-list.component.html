@@ -43,7 +43,8 @@
           <app-tag-field [target]="tableTarget(table.schema, table.name)"
                          [tags]="table.tags"
                          [dense]="true"
-                         linkPrefix="/tables/by-tag/"
+                         [filterInPlace]="tagFilterInPlace"
+                         [linkPrefix]="tagFilterInPlace ? null : '/tables/by-tag/'"
                          (changed)="onRowTags(table, $event)"></app-tag-field>
         </td>
         <td class="query-count num">{{table.numberOfQueries}}</td>

@@ -16,6 +16,9 @@ export class SchemaListTableComponent {
   /** Header definitions (hover). */
   readonly glossary = GLOSSARY;
 
+  /** Tag chips filter this page by their tag rather than leaving it; for a page with a tag strip (sqlx-c8w.9). */
+  @Input() tagFilterInPlace = false;
+
   protected readonly schemaTarget = schemaTarget;
 
   /**

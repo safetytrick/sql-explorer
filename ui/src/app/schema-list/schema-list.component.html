@@ -11,6 +11,6 @@
 
 <div class="lens-card">
   <div class="table-scroll ledger-scroll">
-    <app-schema-list-table [schemas]="visible" (tagsChanged)="onRowTagsChanged()"></app-schema-list-table>
+    <app-schema-list-table [schemas]="visible" [tagFilterInPlace]="true" (tagsChanged)="onRowTagsChanged()"></app-schema-list-table>
   </div>
 </div>

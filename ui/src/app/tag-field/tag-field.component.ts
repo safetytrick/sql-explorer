@@ -1,5 +1,5 @@
-import {Component, ElementRef, EventEmitter, HostListener, Input, OnDestroy, OnInit, Output, ViewChild} from '@angular/core';
-import {RouterLink} from '@angular/router';
+import {Component, ElementRef, EventEmitter, HostListener, inject, Input, OnDestroy, OnInit, Output, ViewChild} from '@angular/core';
+import {ActivatedRoute, Params, RouterLink} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
@@ -48,6 +48,25 @@ export class TagFieldComponent implements OnInit, OnDestroy {
 
   /** When set, the chip label becomes a link to `linkPrefix + tag.name`. */
   @Input() linkPrefix: string | null = null;
+
+  /**
+   * The chip label filters the current page by its tag instead of going
+   * anywhere (sqlx-c8w.9): it adds the tag to `?tags=`, which the page's tag
+   * strip reads, keeping whatever else the URL says. For list pages that carry
+   * a tag strip; wins over `linkPrefix`.
+   */
+  @Input() filterInPlace = false;
+  private readonly route = inject(ActivatedRoute, {optional: true});
+
+  /** The query-param patch that adds `name` to the page's tag filter. */
+  filterParams(name: string): Params {
+    const params = this.route?.snapshot.queryParamMap;
+    const current = (params?.get('tags') ?? '').split(',').filter(Boolean);
+    const tags = current.some(tag => tag.toLowerCase() === name.toLowerCase()) ? current : [...current, name];
+    // written out, like the strip does: ALL here and ANY in the workbench would
+    // otherwise make a bare ?tags= mean different things
+    return { tags: tags.join(','), tagMode: params?.get('tagMode') ?? 'ALL' };
+  }
 
   @Output() changed = new EventEmitter<Tag[]>();
 

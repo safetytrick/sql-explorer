@@ -85,6 +85,9 @@ export class TableListComponent {
    */
   @Input() showSchema = true;
 
+  /** Tag chips filter this page by their tag rather than leaving it; for a page with a tag strip (sqlx-c8w.9). */
+  @Input() tagFilterInPlace = false;
+
   @Input() selectable = false;
   @Input() excluded: ReadonlySet<string> = new Set();
   /** The new exclusion set, whole; the page owns it (and puts it in the URL). */
