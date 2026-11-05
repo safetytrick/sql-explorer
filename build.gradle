@@ -5,7 +5,7 @@ plugins {
     id 'jacoco'
     id "org.springframework.boot" version "4.0.6"
     id "org.owasp.dependencycheck" version "7.1.0.1"
-    id "com.gorylenko.gradle-git-properties" version "2.4.1"
+    id "com.gorylenko.gradle-git-properties" version "4.0.1"
     id "com.github.spotbugs" version "6.1.3"
     id "com.github.davidmc24.gradle.plugin.avro" version "1.9.1"
     // todo, get this working, it depends on being able to startup the application within the build process
