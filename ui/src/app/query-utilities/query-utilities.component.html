@@ -1,14 +1,37 @@
+<div class="view-header">
+  <span class="view-title">Query utilities</span>
+  <span class="view-sub">see how a statement is cleaned and normalized — what the corpus groups it by</span>
+</div>
 
-@if (result) {
-  <pre><code highlight="{{result}}"></code></pre>
-}
-<form id="query-utility">
-  <div>
-    <div>
-      <label for="input">Query:</label>
-    </div>
-    <textarea id="input" [formControl]="inputControl"></textarea>
+<div class="lens-card">
+  <div class="card-head">
+    <span class="card-head-title">Statement</span>
+    <span class="card-head-note">paste SQL, then clean or normalize it</span>
   </div>
-  <button class="btn" id="clean" (click)="doClean()">Clean</button>
-  <button class="btn" id="normalize" (click)="doNormalize()">Normalize</button>
-</form>
+  <div class="util-body">
+    <textarea class="util-input" [formControl]="inputControl" spellcheck="false"
+              placeholder="SELECT … FROM … WHERE id = 42"></textarea>
+    <div class="util-actions">
+      <button type="button" class="btn" id="clean" [disabled]="!inputControl.value || busy" (click)="doClean()"
+              title="strip what MySQL accepts but the parser does not, as the import does before parsing">Clean</button>
+      <button type="button" class="btn primary" id="normalize" [disabled]="!inputControl.value || busy" (click)="doNormalize()"
+              title="the pattern the corpus groups this statement by: literals replaced, repeats folded, formatted">Normalize</button>
+    </div>
+  </div>
+</div>
+
+@if (result !== null) {
+  <div class="lens-card">
+    <div class="card-head">
+      <span class="card-head-title">{{resultLabel}}</span>
+      @if (parseError) {
+        <span class="card-head-note warn">the parser could not read this statement, so it is shown unnormalized</span>
+      }
+      <button type="button" class="btn copy" (click)="copy()">{{copied ? 'copied' : 'copy'}}</button>
+    </div>
+    <pre class="util-result"><code highlight="{{result}}"></code></pre>
+  </div>
+}
+@if (failed) {
+  <div class="lens-card"><div class="card-empty">the request failed, so there is no result</div></div>
+}

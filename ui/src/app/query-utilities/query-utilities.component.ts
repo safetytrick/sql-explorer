@@ -1,40 +1,65 @@
-import { Component, OnInit } from '@angular/core';
-import { UntypedFormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import {Component} from '@angular/core';
+import {FormsModule, ReactiveFormsModule, UntypedFormControl} from '@angular/forms';
+import {Highlight} from 'ngx-highlightjs';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import { Highlight } from 'ngx-highlightjs';
+
+/** What the backend prefixes when it could not parse the statement it was asked to normalize. */
+const PARSE_ERROR_PREFIX = '/* parse error */\n';
 
 @Component({
-    selector: 'app-query-utilities',
-    templateUrl: './query-utilities.component.html',
-    styleUrls: ['./query-utilities.component.scss'],
-    imports: [Highlight, FormsModule, ReactiveFormsModule]
+  selector: 'app-query-utilities',
+  templateUrl: './query-utilities.component.html',
+  styleUrls: ['./query-utilities.component.scss'],
+  imports: [Highlight, FormsModule, ReactiveFormsModule]
 })
-export class QueryUtilitiesComponent implements OnInit {
-  result!: string;
+export class QueryUtilitiesComponent {
   inputControl = new UntypedFormControl('');
+  /** Null until something has run; the result card is not drawn before then. */
+  result: string | null = null;
+  resultLabel = '';
+  parseError = false;
+  busy = false;
+  failed = false;
+  copied = false;
 
   constructor(public sqlService: AnalyzedSqlService) { }
 
-  ngOnInit() {
-  }
-
   doNormalize() {
-    if (this.inputControl.value) {
-      this.sqlService.normalizeQuery(this.inputControl.value).subscribe(
-        response => {
-          this.result = response.text;
-        }
-      );
-    }
+    this.run('Normalized', () => this.sqlService.normalizeQuery(this.inputControl.value), response => {
+      const text = response.text ?? '';
+      this.parseError = text.startsWith(PARSE_ERROR_PREFIX);
+      return this.parseError ? text.slice(PARSE_ERROR_PREFIX.length) : text;
+    });
   }
 
   doClean() {
-    if (this.inputControl.value) {
-      this.sqlService.cleanQuery(this.inputControl.value).subscribe(
-        response => {
-          this.result = response.sql;
-        }
-      );
-    }
+    this.run('Cleaned', () => this.sqlService.cleanQuery(this.inputControl.value), response => response.sql);
+  }
+
+  copy() {
+    if (this.result === null) { return; }
+    navigator.clipboard?.writeText(this.result).then(() => {
+      this.copied = true;
+      setTimeout(() => this.copied = false, 1500);
+    });
+  }
+
+  private run<T>(label: string, request: () => import('rxjs').Observable<T>, read: (response: T) => string) {
+    if (!this.inputControl.value || this.busy) { return; }
+    this.busy = true;
+    this.failed = false;
+    this.parseError = false;
+    request().subscribe({
+      next: response => {
+        this.result = read(response);
+        this.resultLabel = label;
+        this.busy = false;
+      },
+      error: () => {
+        this.result = null;
+        this.failed = true;
+        this.busy = false;
+      }
+    });
   }
 }
