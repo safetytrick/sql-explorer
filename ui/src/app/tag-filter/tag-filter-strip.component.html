@@ -28,9 +28,11 @@
       <span class="strip-mode">
         <span class="mode-label">match</span>
         <button type="button" class="tri-btn" [class.on]="state.mode === 'ALL'"
-                title="a row must carry every selected tag" (click)="setMode('ALL')">all</button>
+                title="rows carrying every selected tag" (click)="setMode('ALL')">all
+          @if (modeCounts) { <span class="mode-count">{{modeCounts.ALL}}</span> }</button>
         <button type="button" class="tri-btn" [class.on]="state.mode === 'ANY'"
-                title="a row must carry at least one selected tag" (click)="setMode('ANY')">any</button>
+                title="rows carrying at least one selected tag" (click)="setMode('ANY')">any
+          @if (modeCounts) { <span class="mode-count">{{modeCounts.ANY}}</span> }</button>
       </span>
     }
 

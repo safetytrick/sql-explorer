@@ -82,6 +82,19 @@ describe('TagFilterStripComponent', () => {
     expect(component.matched).toBe(2);
   });
 
+  // the two modes, as the rows they would keep (sqlx-c8w.10)
+  it('shows how many rows each match mode keeps, once two tags are picked', () => {
+    component.toggle('core');
+    expect(component.modeCounts).toBeNull();
+
+    component.toggle('pii');
+    fixture.detectChanges();
+    expect(component.modeCounts).toEqual({ALL: 1, ANY: 2});
+    const modeText = (fixture.nativeElement as HTMLElement).querySelector('.strip-mode')?.textContent ?? '';
+    expect(modeText.replace(/\s+/g, ' ')).toContain('all 1');
+    expect(modeText.replace(/\s+/g, ' ')).toContain('any 2');
+  });
+
   it('treats the strip as active when only an exclusion is set', () => {
     component.toggle('system');
     component.toggle('system');

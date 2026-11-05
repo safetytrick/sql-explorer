@@ -185,5 +185,21 @@ export class TagFilterStripComponent implements OnInit, OnDestroy {
     this.matched = this.allRows.filter(row =>
       matchesTagFilter((row.tags ?? []).map(tag => tag.name), this.state,
         row.inheritedTags ?? [])).length;
+    this.modeCounts = this.state.tags.length > 1
+      ? {ALL: this.countUnder('ALL'), ANY: this.countUnder('ANY')}
+      : null;
+  }
+
+  /**
+   * How many rows each match mode would keep, shown on its button
+   * (sqlx-c8w.10). "all" and "any" are abstract; "all 3 · any 40" is a choice
+   * between two visible outcomes.
+   */
+  modeCounts: {ALL: number, ANY: number} | null = null;
+
+  private countUnder(mode: 'ALL' | 'ANY'): number {
+    const state = {...this.state, mode};
+    return this.allRows.filter(row =>
+      matchesTagFilter((row.tags ?? []).map(tag => tag.name), state, row.inheritedTags ?? [])).length;
   }
 }
