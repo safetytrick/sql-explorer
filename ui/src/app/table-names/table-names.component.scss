@@ -41,7 +41,51 @@
   &:focus { border-color: var(--blue); }
 }
 
-.columns-box { width: 230px; }
+.columns-box {
+  // a chip input that looks like the name box beside it (sqlx-c8w.7)
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-width: 170px;
+  max-width: 360px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 2px 4px;
+  &:focus-within { border-color: var(--blue); }
+}
+.column-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  padding: 0 2px 0 6px;
+  border-radius: 8px;
+  background: var(--blue-dim);
+  color: var(--text);
+}
+.chip-x {
+  border: none;
+  background: none;
+  color: var(--text3);
+  cursor: pointer;
+  padding: 0 3px;
+  font-size: 12px;
+  &:hover { color: var(--red); }
+}
+.column-input {
+  flex: 1;
+  min-width: 70px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 2px;
+  &::placeholder { color: var(--text3); font-family: inherit; }
+}
 
 .unqueried-link {
   text-decoration: none;

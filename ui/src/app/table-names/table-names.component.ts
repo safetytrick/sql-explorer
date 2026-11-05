@@ -1,3 +1,4 @@
+import {FormsModule} from '@angular/forms';
 import {Component, Input, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
@@ -16,7 +17,7 @@ import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
     selector: 'app-table-names',
     templateUrl: './table-names.component.html',
     styleUrls: ['./table-names.component.scss'],
-    imports: [TableListComponent, TagFilterStripComponent, BulkTagBarComponent, RouterLink]
+    imports: [TableListComponent, TagFilterStripComponent, BulkTagBarComponent, RouterLink, FormsModule]
 })
 export class TableNamesComponent implements OnInit {
 
@@ -224,6 +225,36 @@ export class TableNamesComponent implements OnInit {
     const columns = parseColumns(text);
     if (columns.join(',') === this.search.columns.join(',')) { return; }
     this.writeSearch({ ...this.search, columns, exclude: [] });
+  }
+
+  /**
+   * The columns box is a chip input (sqlx-c8w.7): each name becomes a chip as
+   * soon as it is finished — Enter, comma or space — and applies straight
+   * away, so the space-separated syntax no longer has to be known. Backspace
+   * in an empty box takes the last chip back off.
+   */
+  columnDraft = '';
+
+  onColumnKey(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ',' || event.key === ' ') {
+      event.preventDefault();
+      this.commitColumnDraft();
+    } else if (event.key === 'Backspace' && !this.columnDraft && this.search.columns.length) {
+      this.removeColumn(this.search.columns[this.search.columns.length - 1]);
+    }
+  }
+
+  /** Whatever was typed (or pasted, possibly several names) joins the chips. */
+  commitColumnDraft() {
+    const added = parseColumns(this.columnDraft);
+    this.columnDraft = '';
+    if (added.length) {
+      this.setColumns([...this.search.columns, ...added].join(' '));
+    }
+  }
+
+  removeColumn(column: string) {
+    this.setColumns(this.search.columns.filter(candidate => candidate !== column).join(' '));
   }
 
   setExcluded(excluded: Set<string>) {

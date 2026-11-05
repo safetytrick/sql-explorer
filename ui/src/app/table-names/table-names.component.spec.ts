@@ -144,6 +144,39 @@ describe('TableNamesComponent', () => {
       expect(component.displayed.length).toBe(0);
     });
   });
+  // a chip input: names commit on Enter, comma or space; backspace takes one back (sqlx-c8w.7)
+  describe('the columns chip input', () => {
+    let written: string[][];
+    beforeEach(() => {
+      written = [];
+      spyOn(component, 'setColumns').and.callFake((text: string) => {
+        written.push(text.split(' ').filter(Boolean));
+        component.search = {...component.search, columns: text.split(' ').filter(Boolean)};
+      });
+    });
+
+    it('turns a finished name into a chip and applies it', () => {
+      component.columnDraft = 'Entity_Id';
+      component.onColumnKey(new KeyboardEvent('keydown', {key: 'Enter'}));
+      component.columnDraft = 'entity_type';
+      component.onColumnKey(new KeyboardEvent('keydown', {key: ','}));
+
+      expect(written.at(-1)).toEqual(['entity_id', 'entity_type']);
+      expect(component.columnDraft).toBe('');
+    });
+
+    it('takes several pasted names at once', () => {
+      component.columnDraft = 'a, b c';
+      component.commitColumnDraft();
+      expect(written.at(-1)).toEqual(['a', 'b', 'c']);
+    });
+
+    it('removes the last chip on backspace in an empty box', () => {
+      component.search = {...component.search, columns: ['a', 'b']};
+      component.onColumnKey(new KeyboardEvent('keydown', {key: 'Backspace'}));
+      expect(written.at(-1)).toEqual(['a']);
+    });
+  });
 });
 
 /** The search lives in the URL, and columns are answered by the server (sqlx-v86). */
@@ -181,4 +214,5 @@ describe('TableNamesComponent search', () => {
     expect(url).not.toContain('var-exclude');
     expect(component.excluded.size).toBe(0);
   });
+
 });

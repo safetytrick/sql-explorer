@@ -33,10 +33,15 @@
     <input class="search-box" placeholder="name… or /regex/" [value]="search.name"
            (input)="setName($any($event.target).value)"
            title="text matches anywhere in schema.table; /^invoice_/ is a regular expression">
-    <input class="search-box columns-box" placeholder="has columns… (entity_id entity_type)"
-           [value]="search.columns.join(' ')"
-           (change)="setColumns($any($event.target).value)"
-           title="tables having every listed column; separate names with spaces or commas, then press Enter">
+    <span class="columns-box" title="tables having every one of these columns">
+      @for (column of search.columns; track column) {
+        <span class="column-chip mono">{{column}}<button type="button" class="chip-x" (click)="removeColumn(column)"
+              [attr.aria-label]="'remove column ' + column">×</button></span>
+      }
+      <input class="column-input" [placeholder]="search.columns.length ? 'and…' : 'has column…'"
+             [(ngModel)]="columnDraft" (keydown)="onColumnKey($event)" (blur)="commitColumnDraft()"
+             aria-label="add a column the table must have">
+    </span>
   </span>
 
   <app-tag-filter-strip [rows]="stripRows" (filterChange)="onFilter($event)"></app-tag-filter-strip>
