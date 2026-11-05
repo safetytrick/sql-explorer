@@ -44,6 +44,7 @@
 <div class="lens-card">
   <div class="table-scroll ledger-scroll">
     <app-table-list-component [tables]="visible"
+                              [showSchema]="!schema"
                               [typeFilter]="typeFilter"
                               [showTypeFilter]="false"
                               [selectable]="searching"

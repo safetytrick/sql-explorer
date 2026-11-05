@@ -75,6 +75,12 @@ export class TableListComponent {
    * not the selection, so "all of these but two" stays a short list — and a
    * row arriving with a new search starts checked.
    */
+  /**
+   * The Schema column. A list of one schema's tables says which schema in its
+   * header, so the column only repeats it on every row (sqlx-c8w.4).
+   */
+  @Input() showSchema = true;
+
   @Input() selectable = false;
   @Input() excluded: ReadonlySet<string> = new Set();
   /** The new exclusion set, whole; the page owns it (and puts it in the URL). */

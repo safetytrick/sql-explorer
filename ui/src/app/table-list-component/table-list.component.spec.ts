@@ -25,6 +25,18 @@ describe('TableListComponentComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  // one schema's list names the schema in its header (sqlx-c8w.4)
+  it('draws the Schema column unless told the list is one schema', () => {
+    component.tables = [{schema: 'app', name: 'orders', view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1}];
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('.schema-col').length).toBe(2);
+
+    fixture.componentRef.setInput('showSchema', false);
+    fixture.detectChanges();
+    expect(el.querySelectorAll('.schema-col').length).toBe(0);
+  });
+
   /** The checkboxes report exceptions; the page that owns them decides what they mean (sqlx-v86). */
   describe('when selectable', () => {
     const table = (name: string) => ({schema: 'app', name, view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1});

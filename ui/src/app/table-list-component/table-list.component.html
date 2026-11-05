@@ -16,7 +16,7 @@
         </th>
       }
       <th class="rank-col">#</th>
-      <th class="schema-col">Schema</th>
+      @if (showSchema) { <th class="schema-col">Schema</th> }
       <th class="table-col">Name</th>
       <th class="table-tags">Tags</th>
       <th class="query-count num"># of Queries</th>
@@ -33,7 +33,9 @@
           </td>
         }
         <td class="rank-col">{{i + 1}}</td>
-        <td class="schema-col"><a class="schema-name" routerLink="/tables/{{table.schema}}">{{table.schema}}</a></td>
+        @if (showSchema) {
+          <td class="schema-col"><a class="schema-name" routerLink="/tables/{{table.schema}}">{{table.schema}}</a></td>
+        }
         <td class="table-col"><a class="tbl-name" routerLink="/table/{{table.schema}}/{{table.name}}">{{table.name}}</a>@if (table.view) {
           <span class="type-badge" title="this is a view, not a base table">view</span>
         }</td>
