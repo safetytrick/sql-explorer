@@ -276,10 +276,8 @@ In practice:
 - Reflect *derived* view state too — an open drill-down, a selected row, an
   expanded panel — not just the text in filter boxes.
 
-Known gap: the `/tables` all/tables/views type filter is *not* URL-backed. It
-predates the rule and now sits in the same control strip as `?tags=`, which
-makes the asymmetry conspicuous — you can share "tagged clickhouse" but not
-"views only". Worth closing.
+The `/tables` all/tables/views type filter is URL-backed as `var-type` (it
+once was not, and this file said so for a while after it was fixed).
 
 #### The lens vocabulary is global — use it, don't re-transcribe it
 

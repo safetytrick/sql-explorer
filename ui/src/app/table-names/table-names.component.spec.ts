@@ -145,6 +145,16 @@ describe('TableNamesComponent', () => {
     });
   });
   // a chip input: names commit on Enter, comma or space; backspace takes one back (sqlx-c8w.7)
+  it('counts each type choice over the filtered rows (sqlx-c8w.8)', () => {
+    component.tables = [
+      {schema: 'app', name: 'account', view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1},
+      {schema: 'app', name: 'site', view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1},
+      {schema: 'app', name: 'account_summary', view: true, tags: [], numberOfQueries: 1, totalQueryTime: 1}
+    ] as never;
+    component.onRowTagsChanged();
+    expect(component.typeCounts).toEqual({all: 3, tables: 2, views: 1});
+  });
+
   describe('the columns chip input', () => {
     let written: string[][];
     beforeEach(() => {

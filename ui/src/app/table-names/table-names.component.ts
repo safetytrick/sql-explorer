@@ -40,6 +40,8 @@ export class TableNamesComponent implements OnInit {
    * omitted, so an untouched page keeps a clean URL.
    */
   typeFilter: TypeFilter = 'all';
+  /** How many of the filtered rows each type choice would show, on its button (sqlx-c8w.8). */
+  typeCounts = {all: 0, tables: 0, views: 0};
   /** `tables` narrowed by the tag strip; the type filter still applies inside. */
   visible: TableRollup[] = [];
 
@@ -206,6 +208,8 @@ export class TableNamesComponent implements OnInit {
       && matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter,
         this.inherited(table)));
     this.displayed = this.visible.filter(table => matchesTypeFilter(this.typeFilter, table.view));
+    const views = this.visible.filter(table => table.view).length;
+    this.typeCounts = {all: this.visible.length, tables: this.visible.length - views, views};
     this.searching = !!this.search.name.trim() || this.search.columns.length > 0;
   }
 

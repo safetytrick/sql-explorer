@@ -21,11 +21,12 @@
     <span class="type-scope">
       <span class="scope-label">show</span>
       <button type="button" class="tri-btn" [class.on]="typeFilter === 'all'"
-              (click)="setTypeFilter('all')">all</button>
+              (click)="setTypeFilter('all')">all <span class="type-count">{{typeCounts.all}}</span></button>
       <button type="button" class="tri-btn" [class.on]="typeFilter === 'tables'"
-              (click)="setTypeFilter('tables')">tables</button>
+              (click)="setTypeFilter('tables')">tables <span class="type-count">{{typeCounts.tables}}</span></button>
       <button type="button" class="tri-btn" [class.on]="typeFilter === 'views'"
-              (click)="setTypeFilter('views')">views</button>
+              (click)="setTypeFilter('views')"
+              title="views: queries against a view also reach the tables it is built on">views <span class="type-count">{{typeCounts.views}}</span></button>
     </span>
   }
 
