@@ -277,6 +277,47 @@ describe('GraphLensComponent — scope legibility', () => {
       || main.y + main.h <= other.y || other.y + other.h <= main.y).toBeTrue();
   });
 
+  // routes through the gutters (sqlx-aoy.14)
+  it('routes lines on the grid around tables, re-routing when a layer is toggled, and keeps them straight otherwise', () => {
+    const node = (schema: string, table: string) =>
+      ({schema, table, columnCount: 2, queryCount: 1, warn: false, selfJoin: false, view: false});
+    const graph = {
+      nodes: ['account', 'invoice', 'invoice_item', 'note', 'site'].map(table => node('app_main', table)),
+      fkEdges: [{fromSchema: 'app_main', fromTable: 'invoice_item', toSchema: 'app_main', toTable: 'invoice',
+        label: 'invoice_id→id', mismatch: false, joined: true}],
+      coQueryEdges: [{aSchema: 'app_main', aTable: 'account', bSchema: 'app_main', bTable: 'site', queries: 1, executions: 5}],
+      viewEdges: [],
+      joinEdges: [{aSchema: 'app_main', aTable: 'invoice_item', bSchema: 'app_main', bTable: 'note',
+        columns: ['note_id=id'], queries: 2, executions: 40}]
+    };
+    const internals = component as unknown as {buildLayout(graph: unknown): void;
+      nodes: {table: string; x: number; y: number}[]};
+    internals.buildLayout(graph);
+    expect(component.routesForTest()).toBeNull();
+
+    component.layout = 'grid';
+    internals.buildLayout(graph);
+    const routes = component.routesForTest()!;
+    // fk and join are on by default, co is not
+    expect(routes.size).toBe(2);
+    for (const [edge, path] of routes) {
+      for (let i = 1; i < path.length; i++) {
+        expect(path[i].x === path[i - 1].x || path[i].y === path[i - 1].y).toBeTrue();
+      }
+      for (const other of internals.nodes.filter(n => n !== edge.from && n !== edge.to)) {
+        for (let i = 1; i < path.length; i++) {
+          const left = Math.min(path[i].x, path[i - 1].x), right = Math.max(path[i].x, path[i - 1].x);
+          const top = Math.min(path[i].y, path[i - 1].y), bottom = Math.max(path[i].y, path[i - 1].y);
+          expect(left < other.x + 130 - 0.5 && right > other.x + 0.5 && top < other.y + 44 - 0.5 && bottom > other.y + 0.5)
+            .withContext(`${edge.from.table}→${edge.to.table} through ${other.table}`).toBeFalse();
+        }
+      }
+    }
+
+    component.toggle('co');
+    expect(component.routesForTest()!.size).toBe(3);
+  });
+
   it('switches layout without refetching, and writes var-layout', () => {
     const internals = component as unknown as {buildLayout(graph: unknown): void};
     internals.buildLayout({nodes: [{schema: 'app_main', table: 'account', columnCount: 1, queryCount: 1,

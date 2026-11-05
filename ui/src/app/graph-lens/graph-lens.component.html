@@ -119,11 +119,21 @@
   <div class="graph-legend" [class.open]="legendOpen">
     <button type="button" class="leg-toggle" (click)="toggleLegend()" [attr.aria-expanded]="legendOpen">
       {{legendOpen ? '▾' : '▸'}} legend</button>
-    <div class="leg-row"><div class="leg-line blue"></div> foreign key</div>
-    <div class="leg-row"><div class="leg-dot blue"></div> foreign key no query joins on</div>
-    <div class="leg-row"><div class="leg-line green"></div> joined in a query</div>
-    <div class="leg-row"><div class="leg-dash"></div> queried together, never joined</div>
-    <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>
+    @if (layout === 'grid') {
+      <!-- on the grid, colour is the aggregate, so the kind of line is in its style (sqlx-aoy.14) -->
+      <div class="leg-row"><div class="leg-line"></div><span class="leg-head">▸</span> foreign key</div>
+      <div class="leg-row"><div class="leg-dot"></div><span class="leg-head">▸</span> foreign key no query joins on</div>
+      <div class="leg-row"><div class="leg-line thick"></div> joined in a query</div>
+      <div class="leg-row"><div class="leg-dash"></div> queried together, never joined</div>
+      <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>
+      <div class="leg-row"><div class="leg-swatches"><i></i><i></i><i></i></div> colour: the aggregate the line belongs to; grey, none</div>
+    } @else {
+      <div class="leg-row"><div class="leg-line blue"></div> foreign key</div>
+      <div class="leg-row"><div class="leg-dot blue"></div> foreign key no query joins on</div>
+      <div class="leg-row"><div class="leg-line green"></div> joined in a query</div>
+      <div class="leg-row"><div class="leg-dash"></div> queried together, never joined</div>
+      <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>
+    }
     @if (hasViewEdges()) {
       <div class="leg-row"><div class="leg-dash purple"></div> view → its base table</div>
     }
@@ -136,6 +146,11 @@
       <div class="leg-row"><span class="leg-sample mono">site_id</span> on an FK: its first column pair</div>
       <div class="leg-row"><div class="leg-loop"></div> loop: the table is joined to itself</div>
       <div class="leg-row"><div class="leg-region"></div> shaded area: one schema</div>
+      @if (layout === 'grid') {
+        <div class="leg-row"><div class="leg-node aggregate"></div> outlined block: an aggregate, its root named at the top</div>
+        <div class="leg-hint">lines run in the gaps between tables and share them where they head the same way;
+          hover a table or a line to follow its whole route</div>
+      }
       <div class="leg-row"><div class="leg-node selected"></div> blue: the selected table</div>
       <div class="leg-hint">click a line for the queries behind it; click a table twice to open it</div>
     }

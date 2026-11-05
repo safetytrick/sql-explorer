@@ -104,6 +104,14 @@ canvas {
   .leg-line.blue { background: var(--blue); }
   .leg-line.amber { background: var(--amber); }
   .leg-line.green { background: var(--green); }
+  .leg-line:not(.blue):not(.amber):not(.green) { background: var(--text3); }
+  .leg-line.thick { height: 3px; }
+  .leg-head { color: var(--text3); font-size: 9px; margin-left: -6px; }
+  .leg-swatches { display: flex; gap: 2px; width: 22px;
+    i { flex: 1; height: 3px; border-radius: 1px; }
+    i:nth-child(1) { background: hsl(200 65% 55%); }
+    i:nth-child(2) { background: hsl(338 65% 55%); }
+    i:nth-child(3) { background: hsl(115 65% 45%); } }
   .leg-dot { border-top: 2px dotted var(--text3); width: 22px; }
   .leg-dot.blue { border-top-color: var(--blue); }
   .leg-dash { border-top: 2px dashed var(--text3); width: 22px; }
@@ -114,6 +122,7 @@ canvas {
   .leg-sep { border-top: 1px solid var(--border); margin: 4px 0; }
   .leg-node { width: 22px; height: 12px; border-radius: 3px; border: 1px solid var(--border2); background: var(--bg3); flex-shrink: 0; }
   .leg-node.warn { border: 1.5px solid var(--amber); }
+  .leg-node.aggregate { background: none; border-color: hsl(200 65% 55%); border-radius: 4px; }
   .leg-node.selected { border: 1.5px solid var(--blue); background: var(--blue-dim); }
   .leg-loop { width: 12px; height: 12px; border: 1.5px dashed var(--text3); border-radius: 50%; margin: 0 5px; flex-shrink: 0; }
   .leg-region { width: 22px; height: 12px; border-radius: 3px; background: var(--blue-dim); flex-shrink: 0; }

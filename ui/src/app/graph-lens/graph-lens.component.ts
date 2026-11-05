@@ -9,7 +9,8 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
 import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, GraphLayout, graphOwnedParamPatch, GraphSource} from './graph-url';
 import {buildAggregates} from './aggregates';
-import {GridNode, GridSpacing, layoutGrid} from './grid-layout';
+import {GridNode, GridSpacing, layoutGrid, LayoutBox} from './grid-layout';
+import {Point, routeEdges} from './routing';
 import {SchemaTagScope, tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
@@ -66,8 +67,20 @@ interface SchemaRegion {
 /** Padding between a region's outermost node and its drawn edge. */
 const REGION_PAD = 46;
 
-/** An aggregate's drawn block on the grid layout: its root and members, outlined. */
-interface AggregateBox { schema: string; root: string; x: number; y: number; w: number; h: number; }
+/** An aggregate's drawn block on the grid layout: its root and members, outlined in its hue. */
+interface AggregateBox { schema: string; root: string; hue: number; x: number; y: number; w: number; h: number; }
+
+/** A table's aggregate on the grid: its hue, and whether the table is the root. */
+interface Membership { hue: number; root: boolean; }
+
+/**
+ * An aggregate's hue, by its place in the sorted aggregate list. Successive
+ * golden-angle steps keep neighbouring aggregates far apart on the wheel
+ * however many there are, where a fixed palette would run out and repeat.
+ */
+function aggregateHue(index: number): number {
+  return (200 + index * 137.508) % 360;
+}
 
 /**
  * Grid spacing by depth (sqlx-aoy.13): between schemas, then a schema's
@@ -103,6 +116,16 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   /** The graph last laid out, so switching layout re-places it without a fetch. */
   private lastGraph: GraphV2 | null = null;
   private aggregateBoxes: AggregateBox[] = [];
+  /** The grid's boxes, which the routes run between. */
+  private gridBoxes: LayoutBox[] = [];
+  /** Each table's aggregate, for tables in one of more than one table. */
+  private membership = new Map<LayoutNode, Membership>();
+  /** Routes by the layer set they were found for; routing is per visible set, so lanes leave no gaps. */
+  private routeCache = new Map<string, Map<Edge, Point[]>>();
+  /** The line under the pointer, highlighted end to end. */
+  private hoveredEdge: Edge | null = null;
+  /** Whether the theme is dark, which sets how light the aggregate hues are. */
+  private darkTheme = true;
   loading = false;
 
   /** What scopes the graph: a schema, a tag's queries, or a workbench search snapshot. */
@@ -610,6 +633,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private buildLayout(graph: GraphV2) {
     this.lastGraph = graph;
     this.aggregateBoxes = [];
+    this.gridBoxes = [];
+    this.membership.clear();
+    this.routeCache.clear();
+    this.hoveredEdge = null;
     const byId = new Map<string, LayoutNode>();
     // sorted, so a schema's colour and position do not move between loads
     const schemas = [...new Set(graph.nodes.map(node => node.schema))].sort();
@@ -708,14 +735,20 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }));
 
     const nodeAt = new Map(this.nodes.map(node => [`t:${node.id}`.toLowerCase(), node]));
-    const rootOf = new Map(aggregates.map(aggregate =>
-      [`a:${aggregate.schema}.${aggregate.root}`.toLowerCase(), aggregate.root]));
+    const blocks = aggregates.filter(aggregate => aggregate.tables.length > 1);
+    const blockOf = new Map(blocks.map((aggregate, index) =>
+      [`a:${aggregate.schema}.${aggregate.root}`.toLowerCase(), { root: aggregate.root, hue: aggregateHue(index) }]));
+    blocks.forEach((aggregate, index) => aggregate.tables.forEach(table => {
+      const node = nodeAt.get(`t:${aggregate.schema}.${table}`.toLowerCase());
+      if (node) { this.membership.set(node, { hue: aggregateHue(index), root: table === aggregate.root }); }
+    }));
     const regionOf = new Map(this.regions.map(region => [region.schema, region]));
     const place = (box: { key: string; x: number; y: number }) => {
       const node = nodeAt.get(box.key);
       if (node) { node.x = box.x; node.y = box.y; }
     };
-    for (const schemaBox of layoutGrid(tree, GRID_SPACING)) {
+    this.gridBoxes = layoutGrid(tree, GRID_SPACING);
+    for (const schemaBox of this.gridBoxes) {
       const region = regionOf.get(schemaBox.key.slice(2));
       if (region) {
         Object.assign(region, { x: schemaBox.x, y: schemaBox.y, w: schemaBox.w, h: schemaBox.h,
@@ -724,12 +757,92 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       for (const cell of schemaBox.children) {
         place(cell);
         if (cell.key.startsWith('a:')) {
-          this.aggregateBoxes.push({ schema: schemaBox.key.slice(2), root: rootOf.get(cell.key) ?? '',
+          const block = blockOf.get(cell.key);
+          this.aggregateBoxes.push({ schema: schemaBox.key.slice(2), root: block?.root ?? '', hue: block?.hue ?? 0,
             x: cell.x, y: cell.y, w: cell.w, h: cell.h });
           cell.children.forEach(place);
         }
       }
     }
+  }
+
+  /**
+   * The routed path of every visible line, on the grid layout (sqlx-aoy.14);
+   * null on the force layout, where lines stay straight.
+   *
+   * <p>Routed per set of visible layers and cached, so toggling a layer
+   * re-routes once and a redraw never does. Routing what is visible, rather
+   * than everything, keeps hidden lines from holding lanes open. Foreign keys
+   * go first and then the busiest joins, since earlier routes pull later ones
+   * onto their channels.
+   */
+  private currentRoutes(): Map<Edge, Point[]> | null {
+    if (this.layout !== 'grid' || !this.gridBoxes.length) { return null; }
+    const key = JSON.stringify(this.layers);
+    let routes = this.routeCache.get(key);
+    if (!routes) {
+      const busiest = (edges: Edge[]) => [...edges].sort((a, b) => (b.execs ?? 0) - (a.execs ?? 0));
+      const edges = [
+        ...(this.layers.fk ? this.fkEdges : []),
+        ...(this.layers.join ? busiest(this.joinEdges) : []),
+        ...(this.layers.view ? this.viewEdges : []),
+        ...(this.layers.co ? busiest(this.coEdges) : [])
+      ];
+      const leaf = (node: LayoutNode) => `t:${node.id}`.toLowerCase();
+      const found = routeEdges(this.gridBoxes,
+        edges.map((edge, index) => ({ id: String(index), from: leaf(edge.from), to: leaf(edge.to) })));
+      routes = new Map<Edge, Point[]>();
+      edges.forEach((edge, index) => {
+        const path = found.get(String(index));
+        if (path) { routes!.set(edge, path); }
+      });
+      this.routeCache.set(key, routes);
+    }
+    return routes;
+  }
+
+  /** Routed paths, for asserting the grid draws lines through its gutters. */
+  routesForTest(): ReadonlyMap<Edge, Point[]> | null {
+    return this.currentRoutes();
+  }
+
+  /** The line as drawn: its route on the grid, else straight between the tables' borders. */
+  private pathOf(edge: Edge, routes: Map<Edge, Point[]> | null): Point[] {
+    const routed = routes?.get(edge);
+    if (routed) { return routed; }
+    const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
+    return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+  }
+
+  /**
+   * The lines to bring forward: the one under the pointer, or every line of
+   * the table under the pointer or else the selected one. Null when nothing
+   * is in focus, and every line draws as usual.
+   */
+  private focusEdges(): Set<Edge> | null {
+    if (this.hoveredEdge) { return new Set([this.hoveredEdge]); }
+    const node = this.hovered ?? this.selectedNode();
+    if (!node) { return null; }
+    const touches = (edge: Edge) => edge.from === node || edge.to === node;
+    return new Set([...this.fkEdges, ...this.joinEdges, ...this.coEdges, ...this.viewEdges].filter(touches));
+  }
+
+  /**
+   * A line's colour on the grid: the aggregate of its child end
+   * (sqlx-aoy.14). A foreign key's child is the table holding the key; for a
+   * join or a co-query, which have no direction, it is the end that is a
+   * member rather than a root. A line touching no aggregate is grey.
+   */
+  private aggregateColor(edge: Edge, directed: boolean, alpha: number): string {
+    const from = this.membership.get(edge.from);
+    const to = this.membership.get(edge.to);
+    const owner = directed ? from ?? to
+      : from && !from.root ? from : to && !to.root ? to : from ?? to;
+    return owner ? this.hueColor(owner.hue, alpha) : this.alpha(this.palette.text2, alpha);
+  }
+
+  private hueColor(hue: number, alpha: number): string {
+    return `hsla(${hue.toFixed(1)}, 65%, ${this.darkTheme ? 62 : 40}%, ${alpha})`;
   }
 
   private runForceLayout() {
@@ -862,8 +975,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /**
    * The drawn edge nearest the pointer, within a few screen pixels (sqlx-aoy.4).
-   * Edges are straight segments between the two nodes' borders (edgePorts), so
-   * this is a point-to-segment distance; only layers on screen are hit.
+   * A line is a polyline: straight between the borders on the force layout,
+   * its route on the grid. Only layers on screen are hit.
    */
   private edgeAt(event: MouseEvent): Edge | null {
     const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
@@ -876,18 +989,22 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ...(this.layers.co ? this.coEdges : []),
       ...(this.layers.view ? this.viewEdges : [])
     ];
+    const routes = this.currentRoutes();
     let best: Edge | null = null;
     let bestDistance = tolerance;
     for (const edge of candidates) {
-      const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const length = dx * dx + dy * dy;
-      const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / length));
-      const distance = Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
-      if (distance <= bestDistance) {
-        best = edge;
-        bestDistance = distance;
+      const path = this.pathOf(edge, routes);
+      for (let i = 1; i < path.length; i++) {
+        const { x: x1, y: y1 } = path[i - 1];
+        const dx = path[i].x - x1;
+        const dy = path[i].y - y1;
+        const length = dx * dx + dy * dy;
+        const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / length));
+        const distance = Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+        if (distance <= bestDistance) {
+          best = edge;
+          bestDistance = distance;
+        }
       }
     }
     return best;
@@ -943,8 +1060,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const mx = this.worldX(event.clientX - rect.left);
     const my = this.worldY(event.clientY - rect.top);
     const found = this.nodes.find(node => mx >= node.x && mx <= node.x + NW && my >= node.y && my <= node.y + NH) || null;
-    if (found !== this.hovered) {
+    const edgeUnder = found ? null : this.edgeAt(event);
+    if (found !== this.hovered || edgeUnder !== this.hoveredEdge) {
       this.hovered = found;
+      this.hoveredEdge = edgeUnder;
       this.draw();
     }
     const tooltip = this.tooltip.nativeElement;
@@ -960,7 +1079,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         + (fkIn.length ? `<div class="tt-line">FK ← ${fkIn.join(', ')}</div>` : '')
         + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to pin its details, again to open, ⌘/ctrl-click for a new tab</div>`;
     } else {
-      const edge = this.edgeAt(event);
+      const edge = edgeUnder;
       this.graphCanvas.nativeElement.style.cursor = edge ? 'pointer' : '';
       if (edge) {
         tooltip.style.display = 'block';
@@ -1136,6 +1255,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       teal: read('--teal', '#2dd4bf'),
       red: read('--red', '#f56565'),
     };
+    const background = /^#([0-9a-f]{6})$/i.exec(this.palette.bg);
+    if (background) {
+      const n = parseInt(background[1], 16);
+      this.darkTheme = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) < 128;
+    }
     this.assignRegionColors();
   }
 
@@ -1160,54 +1284,51 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.drawRegions(ctx);
     this.drawAggregates(ctx);
 
+    // On the grid, lines follow their routes and take their aggregate's
+    // colour, so the kind of line is in its style; labels would bury the
+    // routes, so only lines in focus carry them (sqlx-aoy.14).
+    const routes = this.currentRoutes();
+    const focus = this.focusEdges();
+    const tint = (edge: Edge, layerColor: string, directed: boolean) =>
+      routes ? this.aggregateColor(edge, directed, 0.85) : layerColor;
+    const paint = (edge: Edge, color: string, dash: number[] | null, weight: number, head: boolean) => {
+      const path = this.pathOf(edge, routes);
+      this.drawPath(ctx, path, color, dash, weight, head, focus ? focus.has(edge) : null);
+      return path;
+    };
+    const labelled = (edge: Edge) => !routes || !!focus?.has(edge);
+
     if (this.layers.co) {
       for (const edge of this.coEdges) {
-        this.drawArrow(ctx, edge, this.alpha(this.palette.text2, 0.55), DASHED, 1, false);
-        const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
-        ctx.save();
-        ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
-        ctx.fillStyle = this.alpha(this.palette.text2, 0.9);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.fmtExecs(edge.execs || 0), this.wx((x1 + x2) / 2), this.wy((y1 + y2) / 2));
-        ctx.restore();
+        const path = paint(edge, tint(edge, this.alpha(this.palette.text2, 0.55), false), DASHED, 1, false);
+        if (labelled(edge)) {
+          this.drawLabel(ctx, this.fmtExecs(edge.execs || 0), this.labelPoint(path),
+            this.alpha(this.palette.text2, 0.9), false, 0);
+        }
       }
     }
     if (this.layers.join) {
       for (const edge of this.joinEdges) {
-        this.drawArrow(ctx, edge, this.alpha(this.palette.green, 0.75), null, 1.5, false);
-        const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
-        ctx.save();
-        ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
-        ctx.fillStyle = this.alpha(this.palette.green, 0.95);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.fmtExecs(edge.execs || 0), this.wx((x1 + x2) / 2), this.wy((y1 + y2) / 2) + 10 * this.scale);
-        ctx.restore();
+        const path = paint(edge, tint(edge, this.alpha(this.palette.green, 0.75), false), null, routes ? 2.2 : 1.5, false);
+        if (labelled(edge)) {
+          this.drawLabel(ctx, this.fmtExecs(edge.execs || 0), this.labelPoint(path),
+            this.alpha(this.palette.green, 0.95), false, 10);
+        }
       }
     }
     if (this.layers.view) {
       for (const edge of this.viewEdges) {
-        this.drawArrow(ctx, edge, this.alpha(this.palette.purple, 0.75), DASHED, 1.5, true);
+        paint(edge, tint(edge, this.alpha(this.palette.purple, 0.75), true), DASHED, 1.5, true);
       }
     }
     if (this.layers.fk) {
       for (const edge of this.fkEdges) {
-        this.drawArrow(ctx, edge, edge.warn ? this.palette.amber : this.alpha(this.palette.blue, 0.7),
-          edge.neverJoined ? DOTTED : null, 1.5, true);
-        const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
-        const mx = (x1 + x2) / 2;
-        const my = (y1 + y2) / 2;
-        ctx.save();
-        ctx.font = `${Math.round(9 * this.scale)}px monospace`;
-        const width = ctx.measureText(edge.label).width + 6;
-        ctx.fillStyle = this.alpha(this.palette.bg, 0.85);
-        ctx.fillRect(this.wx(mx) - width / 2, this.wy(my) - 8 * this.scale, width, 16 * this.scale);
-        ctx.fillStyle = edge.warn ? this.palette.amber : this.alpha(this.palette.blue, 0.9);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(edge.label, this.wx(mx), this.wy(my));
-        ctx.restore();
+        const color = edge.warn ? this.palette.amber : tint(edge, this.alpha(this.palette.blue, 0.7), true);
+        const path = paint(edge, color, edge.neverJoined ? DOTTED : null, 1.5, true);
+        if (labelled(edge)) {
+          this.drawLabel(ctx, edge.label, this.labelPoint(path),
+            edge.warn ? this.palette.amber : this.alpha(this.palette.blue, 0.9), true, 0);
+        }
       }
     }
     if (this.layers.self) {
@@ -1249,30 +1370,74 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     return [ax + ex, ay + ey, bx + fx, by + fy];
   }
 
-  private drawArrow(ctx: CanvasRenderingContext2D, edge: Edge, color: string, dash: number[] | null, weight: number, head: boolean) {
-    const [x1, y1, x2, y2] = this.edgePorts(edge.from, edge.to);
+  /**
+   * A line along a path, with an arrowhead at its end if asked. `focused` is
+   * null when nothing is in focus; otherwise a line in focus is drawn heavier
+   * and every other line fades back, so a route can be followed end to end
+   * through a crowded channel.
+   */
+  private drawPath(ctx: CanvasRenderingContext2D, path: Point[], color: string, dash: number[] | null,
+                   weight: number, head: boolean, focused: boolean | null) {
+    if (path.length < 2) { return; }
     ctx.save();
     ctx.strokeStyle = color;
-    ctx.lineWidth = weight * this.scale;
-    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = weight * (focused ? 1.7 : 1) * this.scale;
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = focused === null ? 0.8 : focused ? 1 : 0.12;
     if (dash) { ctx.setLineDash(dash.map(length => length * this.scale)); }
     ctx.beginPath();
-    ctx.moveTo(this.wx(x1), this.wy(y1));
-    ctx.lineTo(this.wx(x2), this.wy(y2));
+    ctx.moveTo(this.wx(path[0].x), this.wy(path[0].y));
+    for (const point of path.slice(1)) { ctx.lineTo(this.wx(point.x), this.wy(point.y)); }
     ctx.stroke();
     ctx.setLineDash([]);
     if (head) {
-      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const end = path[path.length - 1];
+      const before = path[path.length - 2];
+      const angle = Math.atan2(end.y - before.y, end.x - before.x);
       const size = 8 * this.scale;
+      const x = this.wx(end.x);
+      const y = this.wy(end.y);
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = focused === null ? 0.9 : focused ? 1 : 0.12;
       ctx.beginPath();
-      ctx.moveTo(this.wx(x2), this.wy(y2));
-      ctx.lineTo(this.wx(x2) - size * Math.cos(angle - 0.4), this.wy(y2) - size * Math.sin(angle - 0.4));
-      ctx.lineTo(this.wx(x2) - size * Math.cos(angle + 0.4), this.wy(y2) - size * Math.sin(angle + 0.4));
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - size * Math.cos(angle - 0.4), y - size * Math.sin(angle - 0.4));
+      ctx.lineTo(x - size * Math.cos(angle + 0.4), y - size * Math.sin(angle + 0.4));
       ctx.closePath();
       ctx.fill();
     }
+    ctx.restore();
+  }
+
+  /** Where a line's label goes: the middle of its longest stretch. */
+  private labelPoint(path: Point[]): Point {
+    let best = { x: (path[0].x + path[path.length - 1].x) / 2, y: (path[0].y + path[path.length - 1].y) / 2 };
+    let longest = -1;
+    for (let i = 1; i < path.length; i++) {
+      const length = Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+      if (length > longest) {
+        longest = length;
+        best = { x: (path[i].x + path[i - 1].x) / 2, y: (path[i].y + path[i - 1].y) / 2 };
+      }
+    }
+    return best;
+  }
+
+  /** A line's label: plain, or mono on a backing box for foreign keys. `dy` is in world units. */
+  private drawLabel(ctx: CanvasRenderingContext2D, text: string, at: Point, color: string, boxed: boolean, dy: number) {
+    const x = this.wx(at.x);
+    const y = this.wy(at.y) + dy * this.scale;
+    ctx.save();
+    ctx.font = `${Math.round(9 * this.scale)}px ${boxed ? 'monospace' : 'sans-serif'}`;
+    if (boxed) {
+      const width = ctx.measureText(text).width + 6;
+      ctx.fillStyle = this.alpha(this.palette.bg, 0.85);
+      ctx.fillRect(x - width / 2, y - 8 * this.scale, width, 16 * this.scale);
+    }
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y);
     ctx.restore();
   }
 
@@ -1311,7 +1476,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  /** Each aggregate's block on the grid: a quiet outline, its root named in the label strip. */
+  /** Each aggregate's block on the grid: an outline in its hue, which its lines share, and its root named. */
   private drawAggregates(ctx: CanvasRenderingContext2D) {
     for (const box of this.aggregateBoxes) {
       const x = this.wx(box.x);
@@ -1319,13 +1484,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.save();
       ctx.beginPath();
       ctx.roundRect(x, y, box.w * this.scale, box.h * this.scale, 8 * this.scale);
-      ctx.fillStyle = this.alpha(this.palette.text2, 0.04);
+      ctx.fillStyle = this.hueColor(box.hue, 0.05);
       ctx.fill();
-      ctx.strokeStyle = this.alpha(this.palette.text2, 0.35);
+      ctx.strokeStyle = this.hueColor(box.hue, 0.5);
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.font = `${Math.round(10 * this.scale)}px ${this.monoFont()}`;
-      ctx.fillStyle = this.alpha(this.palette.text2, 0.85);
+      ctx.fillStyle = this.hueColor(box.hue, 0.9);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText(box.root, x + 10 * this.scale, y + 12 * this.scale);
