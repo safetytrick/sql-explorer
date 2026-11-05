@@ -21,7 +21,11 @@ nav.navbar {
 
   .nav-item { position: relative; }
 
-  a.navbar-brand { text-decoration: none; }
+  // every nav entry, routed or not: the global `a` rule underlines anything
+  // with an href, which split the nav into underlined and plain halves
+  // depending on whether an entry happened to be a routerLink (sqlx-m6r.2)
+  a.navbar-brand,
+  .nav-link { text-decoration: none; }
 
   .dropdown { position: relative; }
 
