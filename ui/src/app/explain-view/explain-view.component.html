@@ -8,6 +8,16 @@
 
   @if (parsed.rows.length) {
     <div class="parse-note">parsed as {{parsed.format}} · {{parsed.rows.length}} step{{parsed.rows.length === 1 ? '' : 's'}}</div>
+    @if (findings.length) {
+      <ul class="findings">
+        @for (finding of findings; track $index) {
+          <li [class]="'finding ' + finding.severity">
+            @if (finding.table) { <span class="mono finding-table">{{finding.table}}</span> }
+            {{finding.text}}
+          </li>
+        }
+      </ul>
+    }
     <div class="table-scroll">
       <table class="data-table">
         <thead>

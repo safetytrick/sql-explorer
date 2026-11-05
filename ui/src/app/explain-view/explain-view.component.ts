@@ -1,3 +1,4 @@
+import {ExplainFinding, explainFindings} from './explain-findings';
 import {Component, OnInit} from '@angular/core';
 import {DecimalPipe} from '@angular/common';
 import {RouterLink} from '@angular/router';
@@ -21,6 +22,8 @@ export class ExplainViewComponent implements OnInit {
 
   text = '';
   parsed: ParsedExplain = { rows: [], format: 'unknown', error: null };
+  /** The plan read back in words, worst first (sqlx-2ko.8). */
+  findings: ExplainFinding[] = [];
 
   /** lower-cased table name → schemas containing it (for lens links). */
   private schemasByTable = new Map<string, string[]>();
@@ -43,6 +46,7 @@ export class ExplainViewComponent implements OnInit {
   onTextChange(value: string) {
     this.text = value;
     this.parsed = parseExplain(value);
+    this.findings = explainFindings(this.parsed.rows);
   }
 
   /** The lens route for a table name that resolves to exactly one schema. */
