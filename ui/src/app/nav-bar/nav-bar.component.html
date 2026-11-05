@@ -1,26 +1,24 @@
 <nav class="navbar">
+  <!-- Primary: where work starts — the lay of the land, then tuning, then
+       relationships. Everything after is a working page, then the operator
+       and developer pages under Admin (sqlx-m6r.3). -->
   <a class="navbar-brand" routerLink="/schemas">Schemas</a>
   <a class="navbar-brand" routerLink="/tables">Tables</a>
   <a class="navbar-brand" routerLink="/queries">Queries</a>
   <a class="navbar-brand" routerLink="/graph">Graph</a>
-  <a class="navbar-brand" routerLink="/unqueried">Unqueried</a>
   <ul class="navbar-nav">
-    <li class="nav-item">
-      <a class="nav-link" (click)="toggleExplain()">Explain</a>
-    </li>
-    <li>
-      <a class="nav-link" routerLink="/tags">Tags</a>
-    </li>
-    <li>
-      <!-- secondary on purpose: a reference you consult before trusting an
-           absence, not a view you work in -->
-      <a class="nav-link" routerLink="/captured">Captured</a>
-    </li>
     <li class="nav-item">
       <a class="nav-link" routerLink="/unused-indexes">Indexes</a>
     </li>
-    <li>
-      <a class="nav-link" routerLink="/query-utilities">Query Utilities</a>
+    <li class="nav-item">
+      <!-- cleanup candidates; Tables links here for what it leaves out -->
+      <a class="nav-link" routerLink="/unqueried">Unqueried</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" routerLink="/tags">Tags</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" (click)="toggleExplain()">Explain</a>
     </li>
     <li class="nav-item dropdown">
       <!-- was Bootstrap's data-toggle="dropdown"; toggled in the component now
@@ -31,9 +29,13 @@
         Admin
       </a>
       @if (adminOpen) {
+        <!-- Operator and developer pages: consulted, not worked in. Captured
+             is the reference to check before trusting an absence. -->
         <div class="dropdown-menu">
-          <a class="dropdown-item" routerLink="/admin/sources" (click)="closeAdmin()">Sources</a>
+          <a class="dropdown-item" routerLink="/captured" (click)="closeAdmin()">Captured</a>
           <a class="dropdown-item" routerLink="/drift" (click)="closeAdmin()">Schema drift</a>
+          <a class="dropdown-item" routerLink="/admin/sources" (click)="closeAdmin()">Sources</a>
+          <a class="dropdown-item" routerLink="/query-utilities" (click)="closeAdmin()">Query utilities</a>
         </div>
       }
     </li>

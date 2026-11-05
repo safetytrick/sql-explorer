@@ -47,3 +47,15 @@ test('the environment shows what is loaded, and the chooser lists each with its 
   await page.keyboard.press('Escape');
   await expect(page.locator('.env-menu')).toHaveCount(0);
 });
+
+/** Primary pages first, working pages next, operator pages under Admin (sqlx-m6r.3). */
+test('the nav leads with the primary pages and keeps operator pages under Admin', async ({page}) => {
+  await page.goto('/schemas');
+  await expect(page.locator('a.navbar-brand')).toHaveText(['Schemas', 'Tables', 'Queries', 'Graph']);
+  await expect(page.locator('nav.navbar a', {hasText: 'Captured'})).toHaveCount(0);
+
+  await page.locator('.dropdown-toggle', {hasText: 'Admin'}).click();
+  await expect(page.locator('.dropdown-item')).toHaveText(['Captured', 'Schema drift', 'Sources', 'Query utilities']);
+  await page.locator('.dropdown-item', {hasText: 'Captured'}).click();
+  await expect(page).toHaveURL(/\/captured/);
+});
