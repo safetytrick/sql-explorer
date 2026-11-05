@@ -267,7 +267,7 @@
               </div>
             </div>
             @if (isExpanded(hit)) {
-              <pre class="q-full-sql"><code highlight="{{hit.profile.query}}"></code></pre>
+              <pre class="q-full-sql"><code [sqlHighlight]="hit.profile.query"></code></pre>
             }
             <div class="q-meta">
               <span class="qm">impact <span>{{impactOf(hit)}}</span></span>
@@ -306,7 +306,7 @@
           </div>
           <div class="detail-scroll">
             <div class="detail-section sql-section">
-              <pre class="sql-display"><code highlight="{{selected.profile.query}}"></code></pre>
+              <pre class="sql-display"><code [sqlHighlight]="selected.profile.query"></code></pre>
               @if (spreadOf(selected.profile); as spread) {
                 <div class="spread-note">
                   Members of this merge group repeat between <strong>{{spread.min}}</strong> and

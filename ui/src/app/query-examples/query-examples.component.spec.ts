@@ -72,12 +72,6 @@ describe('QueryExamplesComponent', () => {
 
   afterEach(() => http.verify());
 
-  /**
-   * Asserted on the rendered element rather than its text: the statement is
-   * handed to the `highlight` directive, which fills the block in
-   * asynchronously, so the text is not in the DOM synchronously. The SQL card
-   * above renders the same way for the same reason.
-   */
   // ── the form over the query's own placeholders ──
 
   describe('building an example from the query itself', () => {
@@ -277,8 +271,9 @@ describe('QueryExamplesComponent', () => {
   it('renders the statement the way the SQL card above does', () => {
     openWith([example({queryText: 'select id from orders'})]);
 
+    // `sqlHighlight` renders synchronously, so the text is there to assert on
     const block = (fixture.nativeElement as HTMLElement).querySelector('pre.sql-display code');
-    expect(block).toBeTruthy();
+    expect(block?.textContent).toBe('select id from orders');
     expect((fixture.nativeElement as HTMLElement).querySelector('.clamped')).toBeNull();
   });
 

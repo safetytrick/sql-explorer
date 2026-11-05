@@ -22,7 +22,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {EnvironmentService} from '../environment.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 import {QueryScopeService} from '../query-scope.service';
-import {Highlight} from 'ngx-highlightjs';
+import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
 import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from './merge-group';
@@ -79,7 +79,7 @@ type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'tr
   selector: 'app-queries-workbench',
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, NgTemplateOutlet, Highlight, DateRangeSelectorComponent,
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, NgTemplateOutlet, SqlHighlightDirective, DateRangeSelectorComponent,
     BulkTagBarComponent, InViewDirective]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {

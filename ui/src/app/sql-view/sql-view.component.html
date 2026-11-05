@@ -97,7 +97,7 @@
             {{copied === query.query ? '✓' : '⧉'}}
           </button>
         </div>
-        <pre class="sql-display"><code highlight="{{query.query}}"></code></pre>
+        <pre class="sql-display"><code [sqlHighlight]="query.query"></code></pre>
         @if (repeatSpread; as spread) {
           <div class="spread-note">
             Members of this merge group repeat between <strong>{{spread.min}}</strong> and

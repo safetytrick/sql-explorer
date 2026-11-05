@@ -3,7 +3,6 @@ import {provideRouter, Router} from '@angular/router';
 import {provideLocationMocks} from '@angular/common/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
-import {HIGHLIGHT_OPTIONS} from 'ngx-highlightjs';
 import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
 import {droppedScope, SCOPE_PARAMS, scopeOf} from './scope-url';
@@ -59,8 +58,7 @@ describe('carryScope, across real navigations', () => {
         provideLocationMocks(),
         provideHttpClient(),
         provideHttpClientTesting(),
-        AnalyzedSqlService,
-        {provide: HIGHLIGHT_OPTIONS, useValue: {coreLibraryLoader: () => import('highlight.js/lib/core'), languages: {}}}
+        AnalyzedSqlService
       ]
     });
     router = TestBed.inject(Router);

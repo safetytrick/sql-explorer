@@ -41,7 +41,7 @@
     @if (createLoading) {
       <div class="card-empty">loading DDL…</div>
     } @else if (createStatement) {
-      <pre class="sql-display"><code highlight="{{createStatement}}"></code></pre>
+      <pre class="sql-display"><code [sqlHighlight]="createStatement"></code></pre>
     } @else {
       <div class="card-empty">no DDL available for this table</div>
     }
@@ -371,7 +371,7 @@
                     @if (hit.profile.analysisFailed) { <span class="badge b-err">analysis failed</span> }
                     @for (tag of hit.tags; track tag.id) { <span class="q-tag">{{tag.name}}</span> }
                   </div>
-                  <pre class="query-sql"><code highlight="{{hit.profile.query}}"></code></pre>
+                  <pre class="query-sql"><code [sqlHighlight]="hit.profile.query"></code></pre>
                 </div>
                 <!--
                   status / first seen / last seen / executed / impact / avg scanned,

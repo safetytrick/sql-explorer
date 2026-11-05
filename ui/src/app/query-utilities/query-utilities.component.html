@@ -29,7 +29,7 @@
       }
       <button type="button" class="btn copy" (click)="copy()">{{copied ? 'copied' : 'copy'}}</button>
     </div>
-    <pre class="util-result"><code highlight="{{result}}"></code></pre>
+    <pre class="util-result"><code [sqlHighlight]="result"></code></pre>
   </div>
 }
 @if (failed) {

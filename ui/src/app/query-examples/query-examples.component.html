@@ -165,7 +165,7 @@
 
           <!-- the same rendering as the SQL card at the top of the page: an
                example is the same kind of artifact and reads better highlighted -->
-          <pre class="sql-display"><code highlight="{{example.queryText}}"></code></pre>
+          <pre class="sql-display"><code [sqlHighlight]="example.queryText"></code></pre>
 
           @if (explainErrorFor(example); as error) {
             <div class="explain-error">{{error}}</div>

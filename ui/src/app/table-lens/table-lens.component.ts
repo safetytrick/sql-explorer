@@ -2,7 +2,7 @@ import {NotesCardComponent} from '../notes-card/notes-card.component';
 import {Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DecimalPipe} from '@angular/common';
-import {Highlight} from 'ngx-highlightjs';
+import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {
   ColumnUsage,
   CoQueriedTable,
@@ -29,7 +29,7 @@ const QUERY_PAGE_SIZE = 25;
   selector: 'app-table-lens',
   templateUrl: './table-lens.component.html',
   styleUrls: ['./table-lens.component.scss'],
-  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight, SqlSummaryComponent, NotesCardComponent]
+  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, SqlHighlightDirective, SqlSummaryComponent, NotesCardComponent]
 })
 export class TableLensComponent implements OnInit, OnDestroy {
   /**

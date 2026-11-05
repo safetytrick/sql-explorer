@@ -1,7 +1,7 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {RouterLink} from '@angular/router';
-import {Highlight} from 'ngx-highlightjs';
+import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {HttpErrorResponse} from '@angular/common/http';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ExplainResult, QueryExample, QueryExampleRejected} from '../api-types';
@@ -48,7 +48,7 @@ function byRecency(examples: QueryExample[]): QueryExample[] {
   selector: 'app-query-examples',
   templateUrl: './query-examples.component.html',
   styleUrls: ['./query-examples.component.scss'],
-  imports: [FormsModule, RouterLink, Highlight]
+  imports: [FormsModule, RouterLink, SqlHighlightDirective]
 })
 export class QueryExamplesComponent implements OnInit {
 

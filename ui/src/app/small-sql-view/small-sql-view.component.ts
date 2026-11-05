@@ -1,6 +1,6 @@
 import {Component, Input, OnInit} from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Highlight } from 'ngx-highlightjs';
+import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import { SqlSummaryComponent } from '../sql-summary/sql-summary.component';
 import { SqlProfile } from '../api-types';
 
@@ -8,7 +8,7 @@ import { SqlProfile } from '../api-types';
     selector: 'app-small-sql-view',
     templateUrl: './small-sql-view.component.html',
     styleUrls: ['./small-sql-view.component.scss'],
-    imports: [RouterLink, Highlight, SqlSummaryComponent]
+    imports: [RouterLink, SqlHighlightDirective, SqlSummaryComponent]
 })
 export class SmallSqlViewComponent implements OnInit {
 

@@ -65,7 +65,7 @@
   --radius-lg: 10px;
   /* link hover + legacy card surfaces (follow the theme's own surfaces) */
   --link-hover:       #77b8ff;
-  /* syntax highlighting (highlight.js) */
+  /* syntax highlighting (sql-highlight/, hljs-* class names) */
   --hl-keyword: var(--blue);
   --hl-string:  var(--green);
   --hl-number:  var(--amber);
@@ -181,7 +181,8 @@
   --code-bg:    #2f2f2f;
 }
 
-/* ── highlight.js — theme-aware (replaces the static github.css import) ── */
+/* ── SQL lexical colours — theme-aware. The class names are highlight.js's, kept
+ * when it was replaced by the sqlHighlight directive so these rules still apply. ── */
 code.hljs, pre code {
   color: var(--text);
   background: transparent;
@@ -479,3 +480,37 @@ ul.criteria-columns > li {
 
 .tri-btn:hover { border-color: var(--blue); color: var(--blue); }
 .tri-btn.on { background: var(--blue-dim2); border-color: var(--blue); color: var(--blue); }
+
+/* ── Table-instance SQL colours (sql-highlight/) ──
+ * Each table instance in a statement gets one of ten hues; its name, alias and
+ * the columns qualified by it share it. Hues go round the wheel skipping the
+ * keyword blue, and only lightness/chroma change per theme, so a table keeps
+ * its hue when the theme changes.
+ */
+:root {
+  --sqt-l: 0.80;
+  --sqt-c: 0.13;
+}
+[data-theme="solarized-light"] {
+  --sqt-l: 0.52;
+  --sqt-c: 0.15;
+}
+.sqt-c0 { color: oklch(var(--sqt-l) var(--sqt-c) 25); }
+.sqt-c1 { color: oklch(var(--sqt-l) var(--sqt-c) 55); }
+.sqt-c2 { color: oklch(var(--sqt-l) var(--sqt-c) 85); }
+.sqt-c3 { color: oklch(var(--sqt-l) var(--sqt-c) 115); }
+.sqt-c4 { color: oklch(var(--sqt-l) var(--sqt-c) 145); }
+.sqt-c5 { color: oklch(var(--sqt-l) var(--sqt-c) 172); }
+.sqt-c6 { color: oklch(var(--sqt-l) var(--sqt-c) 200); }
+.sqt-c7 { color: oklch(var(--sqt-l) var(--sqt-c) 295); }
+.sqt-c8 { color: oklch(var(--sqt-l) var(--sqt-c) 325); }
+.sqt-c9 { color: oklch(var(--sqt-l) var(--sqt-c) 355); }
+.sqt-table, .sqt-alias { font-weight: 600; }
+.sqt-qual { font-weight: 500; }
+.sqt-virtual.sqt-table, .sqt-virtual.sqt-alias {
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+.sqt-schema { color: var(--text3); }
+.sqt[data-sqt] { cursor: default; border-radius: 2px; }
+.sqt-hot { background: color-mix(in oklch, currentColor 22%, transparent); }

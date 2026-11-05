@@ -1,6 +1,6 @@
 import {Component} from '@angular/core';
 import {FormsModule, ReactiveFormsModule, UntypedFormControl} from '@angular/forms';
-import {Highlight} from 'ngx-highlightjs';
+import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 
 /** What the backend prefixes when it could not parse the statement it was asked to normalize. */
@@ -10,7 +10,7 @@ const PARSE_ERROR_PREFIX = '/* parse error */\n';
   selector: 'app-query-utilities',
   templateUrl: './query-utilities.component.html',
   styleUrls: ['./query-utilities.component.scss'],
-  imports: [Highlight, FormsModule, ReactiveFormsModule]
+  imports: [SqlHighlightDirective, FormsModule, ReactiveFormsModule]
 })
 export class QueryUtilitiesComponent {
   inputControl = new UntypedFormControl('');

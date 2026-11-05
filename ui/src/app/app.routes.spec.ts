@@ -3,7 +3,6 @@ import {Router, provideRouter} from '@angular/router';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideLocationMocks} from '@angular/common/testing';
-import {HIGHLIGHT_OPTIONS} from 'ngx-highlightjs';
 import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
 import {TableLensComponent} from './table-lens/table-lens.component';
@@ -25,8 +24,7 @@ describe('appRoutes: the table drill-downs', () => {
         provideLocationMocks(),
         provideHttpClient(),
         provideHttpClientTesting(),
-        AnalyzedSqlService,
-        { provide: HIGHLIGHT_OPTIONS, useValue: { coreLibraryLoader: () => import('highlight.js/lib/core'), languages: {} } }
+        AnalyzedSqlService
       ]
     });
     router = TestBed.inject(Router);

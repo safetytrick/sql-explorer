@@ -6,7 +6,7 @@ import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
 import {DatePipe, DecimalPipe, SlicePipe} from '@angular/common';
 import {RouterLink} from '@angular/router';
-import {Highlight} from 'ngx-highlightjs';
+import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
@@ -23,7 +23,7 @@ import {queryTarget} from '../tag-path';
   templateUrl: './sql-view.component.html',
   styleUrls: ['./sql-view.component.scss'],
   providers: [AnalyzedSqlService],
-  imports: [RouterLink, DecimalPipe, SlicePipe, Highlight, TagFieldComponent, PicoViewComponent, ColumnLinkComponent,
+  imports: [RouterLink, DecimalPipe, SlicePipe, SqlHighlightDirective, TagFieldComponent, PicoViewComponent, ColumnLinkComponent,
     QueryExamplesComponent, DatePipe]
 })
 export class SqlViewComponent implements OnInit {
