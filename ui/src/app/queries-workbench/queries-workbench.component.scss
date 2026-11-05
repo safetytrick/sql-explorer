@@ -206,6 +206,7 @@
 /* ── results ── */
 .results-pane {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -270,20 +271,17 @@
 
     .result-count { font-size: 10px; color: var(--text3); white-space: nowrap; }
 
-    .graph-results {
-      font-size: 11px;
-      height: 26px;
-      padding: 0 10px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border2);
-      background: var(--bg3);
-      color: var(--text2);
-      cursor: pointer;
-      white-space: nowrap;
-
-      &:hover { border-color: var(--blue); color: var(--blue); }
-    }
   }
+}
+
+.graph-pane {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-top: 1px solid var(--border);
+
+  // absolute, so the canvas is sized by the pane and never the pane by the canvas
+  app-graph-lens { position: absolute; inset: 0; }
 }
 
 .list-and-detail {

@@ -1,69 +1,48 @@
-import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, graphOwnedParamPatch, GraphUrlState, ParamReader} from './graph-url';
+import {decodeGraphParams, DEFAULT_LAYERS, graphOwnedParamPatch, graphRedirectParams, GraphUrlState, ParamReader} from './graph-url';
 
 function reader(params: Record<string, string>): ParamReader {
   return { get: (name: string) => params[name] ?? null };
 }
 
-describe('encodeGraphParams', () => {
-
-  it('emits nothing for the default state (clean URL)', () => {
-    expect(encodeGraphParams({ table: null, layers: { ...DEFAULT_LAYERS }, tag: null, source: null }))
-      .toEqual({});
-  });
-
-  it('prefixes graph-owned params with var-', () => {
-    const params = encodeGraphParams({
-      table: 'member_session',
-      layers: { fk: true, join: true, co: true, self: true, view: true },
-      tag: null, source: null
-    });
-    expect(params['var-table']).toBe('member_session');
-    expect(params['var-layers']).toBe('fk,join,co,self,view');
-  });
-
-  it('keeps scope params unprefixed, tag winning over source', () => {
-    expect(encodeGraphParams({ table: null, layers: { ...DEFAULT_LAYERS }, tag: 'core', source: null }))
-      .toEqual({ tag: 'core' });
-    expect(encodeGraphParams({ table: null, layers: { ...DEFAULT_LAYERS }, tag: null, source: 'search' }))
-      .toEqual({ source: 'search' });
-    expect(encodeGraphParams({ table: null, layers: { ...DEFAULT_LAYERS }, tag: 'core', source: 'search' }))
-      .toEqual({ tag: 'core' });
-  });
-
-  it('encodes all-layers-off as a sentinel instead of an empty param', () => {
-    const params = encodeGraphParams({
-      table: null,
-      layers: { fk: false, join: false, co: false, self: false, view: false },
-      tag: null, source: null
-    });
-    expect(params['var-layers']).toBe('none');
-  });
-});
+function encoded(state: GraphUrlState): Record<string, string> {
+  const params: Record<string, string> = {};
+  for (const [name, value] of Object.entries(graphOwnedParamPatch(state))) {
+    if (value !== null) { params[name] = value; }
+  }
+  return params;
+}
 
 describe('graphOwnedParamPatch (merge writes)', () => {
 
   it('touches only var- params, null-clearing at defaults', () => {
-    expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }))
-      .toEqual({ 'var-table': null, 'var-layers': null, 'var-layout': null });
-    expect(graphOwnedParamPatch('member_session', { fk: true, join: true, co: true, self: true, view: true }))
-      .toEqual({ 'var-table': 'member_session', 'var-layers': 'fk,join,co,self,view', 'var-layout': null });
-    expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }, 'grid')['var-layout']).toBeNull();
-    expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }, 'force')['var-layout']).toBe('force');
-    expect(graphOwnedParamPatch(null, { fk: false, join: false, co: false, self: false, view: false })['var-layers'])
+    expect(graphOwnedParamPatch({ table: null, layers: { ...DEFAULT_LAYERS } })).toEqual(
+      { 'var-table': null, 'var-layers': null, 'var-layout': null, 'var-tables': null });
+    expect(graphOwnedParamPatch({ table: 'account_site', layers: { fk: true, join: true, co: true, self: true, view: true } }))
+      .toEqual({ 'var-table': 'account_site', 'var-layers': 'fk,join,co,self,view', 'var-layout': null, 'var-tables': null });
+  });
+
+  it('writes the force layout and all tables, since the grid and queried tables are the defaults', () => {
+    const patch = graphOwnedParamPatch({ table: null, layers: { ...DEFAULT_LAYERS }, layout: 'force', allTables: true });
+    expect(patch['var-layout']).toBe('force');
+    expect(patch['var-tables']).toBe('all');
+    expect(graphOwnedParamPatch({ table: null, layers: { ...DEFAULT_LAYERS }, layout: 'grid' })['var-layout']).toBeNull();
+  });
+
+  it('spells every layer off as none, since an empty param would be dropped', () => {
+    expect(graphOwnedParamPatch({ table: null, layers: { fk: false, join: false, co: false, self: false, view: false } })['var-layers'])
       .toBe('none');
   });
 });
 
 describe('decodeGraphParams', () => {
 
-  it('falls back to defaults on a bare URL', () => {
+  it('falls back to defaults on a bare URL: the grid, joins and views, queried tables', () => {
     const state = decodeGraphParams(reader({}));
     expect(state.table).toBeNull();
     expect(state.layers).toEqual(DEFAULT_LAYERS);
     expect(state.layers).toEqual({ fk: false, join: true, co: false, self: false, view: true });
     expect(state.layout).toBe('grid');
-    expect(state.tag).toBeNull();
-    expect(state.source).toBeNull();
+    expect(state.allTables).toBeFalse();
   });
 
   it('reads var-layout=force as the simulation, and a link from when grid was opt-in as the grid', () => {
@@ -72,9 +51,9 @@ describe('decodeGraphParams', () => {
   });
 
   it('still reads the legacy ?table= highlight param', () => {
-    expect(decodeGraphParams(reader({ table: 'branch' })).table).toBe('branch');
+    expect(decodeGraphParams(reader({ table: 'site' })).table).toBe('site');
     // …but var-table wins when both are present
-    expect(decodeGraphParams(reader({ table: 'branch', 'var-table': 'member' })).table).toBe('member');
+    expect(decodeGraphParams(reader({ table: 'site', 'var-table': 'account' })).table).toBe('account');
   });
 
   it('ignores unknown layer names and honours the none sentinel', () => {
@@ -86,13 +65,41 @@ describe('decodeGraphParams', () => {
 
   it('round-trips every non-default state', () => {
     const states: GraphUrlState[] = [
-      { table: 'member_session', layers: { fk: false, join: false, co: true, self: false, view: true }, layout: 'force', tag: null, source: null },
-      { table: null, layers: { ...DEFAULT_LAYERS }, layout: 'grid', tag: 'core', source: null },
-      { table: 'branch', layers: { fk: true, join: true, co: true, self: true, view: true }, layout: 'force', tag: null, source: 'search' },
-      { table: null, layers: { fk: false, join: false, co: false, self: false, view: false }, layout: 'grid', tag: null, source: null }
+      { table: 'account_site', layers: { fk: false, join: false, co: true, self: false, view: true }, layout: 'force', allTables: false },
+      { table: null, layers: { ...DEFAULT_LAYERS }, layout: 'grid', allTables: true },
+      { table: 'site', layers: { fk: true, join: true, co: true, self: true, view: true }, layout: 'force', allTables: true },
+      { table: null, layers: { fk: false, join: false, co: false, self: false, view: false }, layout: 'grid', allTables: false }
     ];
     for (const state of states) {
-      expect(decodeGraphParams(reader(encodeGraphParams(state)))).toEqual(state);
+      expect(decodeGraphParams(reader(encoded(state)))).toEqual(state);
     }
+  });
+});
+
+describe('graphRedirectParams (old /graph links)', () => {
+
+  it('turns a schema graph into a search scoped to the schema, with every table drawn', () => {
+    expect(graphRedirectParams('app_main', { 'var-layers': 'fk,join' })).toEqual(
+      { 'var-layers': 'fk,join', schemas: 'app_main', 'var-tables': 'all', view: 'graph' });
+    // a scope already on the link is kept beside it, once
+    expect(graphRedirectParams('app_main', { schemas: 'app_billing,app_main' })['schemas']).toBe('app_billing,app_main');
+  });
+
+  it('turns a tag graph into a search for the queries carrying the tag', () => {
+    expect(graphRedirectParams(null, { tag: 'billing', 'var-table': 'invoice' })).toEqual(
+      { tags: 'billing', 'var-table': 'invoice', view: 'graph' });
+  });
+
+  it('keeps a search graph\'s search as it is and drops the source marker', () => {
+    expect(graphRedirectParams(null, { source: 'search', q: 'invoice', fullScan: 'YES', env: 'local' })).toEqual(
+      { q: 'invoice', fullScan: 'YES', env: 'local', view: 'graph' });
+  });
+
+  it('carries the legacy ?table= highlight as var-table', () => {
+    expect(graphRedirectParams(null, { table: 'site' })).toEqual({ 'var-table': 'site', view: 'graph' });
+  });
+
+  it('sends a bare /graph to the graph of every query', () => {
+    expect(graphRedirectParams(null, {})).toEqual({ view: 'graph' });
   });
 });

@@ -8,7 +8,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Tag(name = "Graph")
 @RestController
@@ -36,9 +39,15 @@ class GraphV2Resource {
         return graphV2Service.getGraphForProfiles(sqlTagsService.getSqlByTag(tag).toList());
     }
 
-    /** Graph over the queries matching a workbench search (limit/offset are ignored). */
+    /**
+     * Graph over the queries matching a workbench search (limit/offset are
+     * ignored). With {@code allTables}, every table of the schemas the search
+     * is scoped to is drawn too, queried or not; unscoped, it adds nothing.
+     */
     @PostMapping("/graph/v2/search")
-    public GraphV2 getSearchGraph(@RequestBody(required = false) QuerySearchRequest request) {
-        return graphV2Service.getGraphForProfiles(querySearchService.matchingProfiles(request));
+    public GraphV2 getSearchGraph(@RequestBody(required = false) QuerySearchRequest request,
+                                  @RequestParam(defaultValue = "false") boolean allTables) {
+        List<String> schemas = allTables && request != null && request.schemas() != null ? request.schemas() : List.of();
+        return graphV2Service.getGraphForProfiles(querySearchService.matchingProfiles(request), schemas);
     }
 }

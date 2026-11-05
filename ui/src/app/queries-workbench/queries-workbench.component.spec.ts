@@ -8,9 +8,9 @@ import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
 import type {QueryHit} from '../query-search.service';
 
 /**
- * The workbench must seed the schema-tree scope from a shared URL and
- * translate the whole search into a shareable /graph link (see
- * search-url.ts for the shared vocabulary).
+ * The workbench must seed the schema-tree scope from a shared URL, and show
+ * the graph of its search in place of the list (see search-url.ts for the
+ * shared vocabulary).
  */
 describe('QueriesWorkbenchComponent URL state', () => {
 
@@ -52,25 +52,46 @@ describe('QueriesWorkbenchComponent URL state', () => {
     expect(TestBed.inject(Router).url).toContain('schemas=tdb');
   });
 
-  it('graph results is a pure URL translation carrying the full search', async () => {
-    const { component } = await open('/queries?q=select&tables=tdb.member_session&schemaTags=core');
+  it('shows the graph in place of the list, keeping the search in the URL', async () => {
+    const { component, harness } = await open('/queries?q=select&tables=app_main.account');
+    component.setGraphView(true);
+    await harness.fixture.whenStable();
+    harness.fixture.detectChanges();
     const router = TestBed.inject(Router);
-    const navigate = spyOn(router, 'navigate');
-    component.graphResults();
-    // Asserted against the recorded args rather than with
-    // `jasmine.objectContaining` — that matcher throws
-    // "ReferenceError: i is not defined" under this Karma/Jasmine build.
-    // Exact equality is the stronger check anyway: defaults must not leak
-    // into the link, so these four params are the whole query string.
-    expect(navigate).toHaveBeenCalledTimes(1);
-    const [commands, extras] = navigate.calls.mostRecent().args;
-    expect(commands).toEqual(['/graph']);
-    expect(extras!.queryParams).toEqual({
-      source: 'search',
-      q: 'select',
-      tables: 'tdb.member_session',
-      schemaTags: 'core'
-    });
+    const params = router.parseUrl(router.url).queryParams;
+    expect(params['view']).toBe('graph');
+    expect(params['q']).toBe('select');
+    expect(params['tables']).toBe('app_main.account');
+    expect(harness.routeNativeElement!.querySelector('app-graph-lens')).not.toBeNull();
+    expect(harness.routeNativeElement!.querySelector('.query-list')).toBeNull();
+  });
+
+  it('keeps the graph\'s own params while it shows, and drops them with it', async () => {
+    const { component, harness } = await open('/queries?q=select&view=graph&var-layers=fk&var-table=account');
+    expect(component.graphView).toBeTrue();
+    component.queryRegex = 'insert';
+    component.filtersChanged();
+    await harness.fixture.whenStable();
+    const router = TestBed.inject(Router);
+    let params = router.parseUrl(router.url).queryParams;
+    expect(params['q']).toBe('insert');
+    expect(params['var-layers']).toBe('fk');
+    expect(params['var-table']).toBe('account');
+
+    component.setGraphView(false);
+    await harness.fixture.whenStable();
+    params = router.parseUrl(router.url).queryParams;
+    expect(params['view']).toBeUndefined();
+    expect(params['var-layers']).toBeUndefined();
+  });
+
+  it('reads the filters again when a link lands on the page it is already on', async () => {
+    // the graph links an edge to the queries joining its two tables: this page, other filters
+    const { component, harness } = await open('/queries?q=select&view=graph');
+    await harness.navigateByUrl('/queries?tables=app_main.account,app_main.site&tableMode=ALL');
+    expect(component.queryRegex).toBe('');
+    expect(component.graphView).toBeFalse();
+    expect(TestBed.inject(QueryScopeService).scope.tables).toEqual(['app_main.account', 'app_main.site']);
   });
 
   /** A hit as far as expansion reads it: the digest is its identity in the URL. */
@@ -209,13 +230,5 @@ describe('QueriesWorkbenchComponent URL state', () => {
     component.setHinted(null);
     await harness.fixture.whenStable();
     expect(router.parseUrl(router.url).queryParams['hinted']).toBeUndefined();
-  });
-
-  it('keeps expansion out of the graph link, which speaks only the search vocabulary', async () => {
-    const { component } = await open('/queries?q=select&var-expanded=v3:aaa');
-    const navigate = spyOn(TestBed.inject(Router), 'navigate');
-    component.graphResults();
-    const [, extras] = navigate.calls.mostRecent().args;
-    expect(extras!.queryParams).toEqual({ source: 'search', q: 'select' });
   });
 });

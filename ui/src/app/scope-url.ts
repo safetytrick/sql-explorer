@@ -20,9 +20,10 @@ import {CanActivateFn, Params, Router} from '@angular/router';
  * filter queries on `/queries` and tables on `/tables`, with different
  * defaults, so carrying them would silently ask a different question.
  *
- * <p>Deliberately absent: the graph's `tag` and `source`. They name a corpus
- * set but act as <em>selectors</em> — they choose what the graph <b>is</b>,
- * not a stance held while you do something else.
+ * <p>Deliberately absent: the old graph page's `tag` and `source`, which
+ * old `/graph` links still carry into its redirect. They named a corpus set
+ * but acted as <em>selectors</em>, choosing what the graph <b>was</b>, not a
+ * stance held while you do something else.
  */
 export const SCOPE_PARAMS = [
   'schemas',

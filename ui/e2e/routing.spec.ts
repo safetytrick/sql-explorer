@@ -88,3 +88,35 @@ test('clicking a tag on a tables row filters the list in place', async ({page}) 
   await expect(page).toHaveURL(/\/tables\?.*tags=system/);
   await expect(page.locator('.data-table tbody tr')).toHaveCount(1);
 });
+
+/**
+ * The graph is a view of the workbench (sqlx-aoy.16). Links to the old graph
+ * page have been shared, so they must open the same question there: a schema
+ * graph is a search scoped to the schema with every table drawn.
+ */
+test('an old schema graph link opens the workbench graph of that schema', async ({page}) => {
+  await page.goto('/graph/app?var-layers=fk,join');
+
+  await expect(page).toHaveURL(/\/queries\?/);
+  const url = new URL(page.url());
+  expect(url.searchParams.get('view')).toBe('graph');
+  expect(url.searchParams.get('schemas')).toBe('app');
+  expect(url.searchParams.get('var-tables')).toBe('all');
+  expect(url.searchParams.get('var-layers')).toBe('fk,join');
+  await expect(page.locator('app-graph-lens canvas').first()).toBeVisible();
+  await expect(page.locator('.q-row')).toHaveCount(0);
+});
+
+/** Switching back to the list keeps the search and drops the graph's own params. */
+test('the workbench switches between the list and the graph of the same search', async ({page}) => {
+  await page.goto('/queries');
+  await expect(page.locator('.q-row')).toHaveCount(3);
+
+  await page.locator('.bar-right').getByText('graph', {exact: true}).click();
+  await expect(page).toHaveURL(/view=graph/);
+  await expect(page.locator('app-graph-lens canvas').first()).toBeVisible();
+
+  await page.locator('.bar-right').getByText('list', {exact: true}).click();
+  await expect(page).not.toHaveURL(/view=graph/);
+  await expect(page.locator('.q-row')).toHaveCount(3);
+});

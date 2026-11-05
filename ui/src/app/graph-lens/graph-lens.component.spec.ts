@@ -6,12 +6,9 @@ import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
 import {GraphLensComponent} from './graph-lens.component';
 
 /**
- * What is tested here is the toolbar's honesty about scope, which is where
- * sqlx-p7u lived: a tag or search graph used to render a schema select
- * defaulted to a schema it was not showing, and changing it discarded the
- * scope as a side effect of what read like a narrowing control.
- *
- * The graph drawing itself is canvas work and is not exercised.
+ * The graph is a view of the workbench (sqlx-aoy.16): the search in the URL
+ * decides what it fetches, and its own `var-` params how it is drawn. The
+ * canvas itself is exercised through the laid-out nodes and routes.
  */
 describe('GraphLensComponent — scope legibility', () => {
 
@@ -64,20 +61,6 @@ describe('GraphLensComponent — scope legibility', () => {
     spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
     fixture.detectChanges();
   });
-
-  /**
-   * Resolve the schema-tree request that the environment subscription fires.
-   * Deliberately per-test and *after* navigating: flushing it up front would
-   * default the schema while the mode is still 'schema', which is exactly the
-   * ordering the fix depends on.
-   */
-  function loadSchemaTree(): void {
-    // `schema-tree` exactly — `graph/v2/schema/...` also contains "schema",
-    // and answering that with a tree body reaches buildLayout
-    TestBed.inject(HttpTestingController).match(req => req.url.endsWith('schema-tree'))
-      .forEach(req => req.flush({schemas: [{name: 'app'}, {name: 'archive'}]}));
-    fixture.detectChanges();
-  }
 
   /** Whatever graph the current scope asked for. Empty is enough here. */
   function answerGraph(): void {
@@ -419,85 +402,46 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(navigate.calls.mostRecent().args[1].queryParams['var-layout']).toBeNull();
   });
 
-  // scoping by tag from the toolbar (sqlx-aoy.7)
-  it('scopes to a query tag as a tag graph, and a schema tag as a search graph', () => {
-    component.tagChoices = [
-      {name: 'billing', kind: 'queries', label: '4 queries', why: ''},
-      {name: 'core', kind: 'schemas', label: '2 schemas', why: ''},
-      {name: 'pii', kind: null, label: '3 tables', why: ''}
-    ];
-    const navigate = router.navigate as jasmine.Spy;
-    navigate.calls.reset();
+  // ── what the graph shows is the workbench search (sqlx-aoy.16) ──
 
-    component.scopeToTag('billing');
-    expect(navigate.calls.mostRecent().args[1].queryParams['tag']).toBe('billing');
+  function graphRequests() {
+    return TestBed.inject(HttpTestingController).match(req => req.url.includes('graph/v2'));
+  }
 
-    component.scopeToTag('core');
-    const search = navigate.calls.mostRecent().args[1].queryParams;
-    expect(search['source']).toBe('search');
-    expect(search['schemaTags']).toBe('core');
+  it('posts the workbench search, and asks for every table of the scoped schemas only when told to', () => {
+    navigateTo({}, {schemas: 'app_main', q: 'invoice'});
+    const queried = graphRequests();
+    expect(queried.length).toBeGreaterThan(0);
+    const last = queried[queried.length - 1];
+    expect(last.request.url).toContain('graph/v2/search');
+    expect(last.request.url).not.toContain('allTables');
+    expect(last.request.body.schemas).toEqual(['app_main']);
 
-    navigate.calls.reset();
-    component.scopeToTag('pii');
-    expect(navigate).not.toHaveBeenCalled();
+    component.toggleAllTables();
+    expect((router.navigate as jasmine.Spy).calls.mostRecent().args[1].queryParams['var-tables']).toBe('all');
+
+    navigateTo({}, {schemas: 'app_main', q: 'invoice', 'var-tables': 'all'});
+    const all = graphRequests();
+    expect(all.length).toBe(1);
+    expect(all[0].request.url).toContain('allTables=true');
   });
 
-  it('offers the schema select on a schema graph', () => {
-    navigateTo({schema: 'app'}, {});
-    loadSchemaTree();
-    answerGraph();
+  it('offers all tables only when the search is scoped to schemas', () => {
+    navigateTo({}, {q: 'invoice'});
+    const button = () => [...toolbar().querySelectorAll('button')]
+      .find(candidate => candidate.textContent?.trim() === 'all tables') as HTMLButtonElement;
+    expect(button().disabled).toBeTrue();
 
-    expect(toolbar().querySelector('.schema-select')).toBeTruthy();
+    navigateTo({}, {schemas: 'app_main'});
+    expect(button().disabled).toBeFalse();
   });
 
-  it('hides the schema select on a tag graph', () => {
-    navigateTo({}, {tag: 'system'});
-    loadSchemaTree();
-    answerGraph();
-
-    expect(component.mode).toBe('tag');
-    expect(toolbar().querySelector('.schema-select')).toBeNull();
+  it('redraws rather than refetching when only the selection or a layer changes', () => {
+    navigateTo({}, {q: 'invoice'});
+    graphRequests();
+    navigateTo({}, {q: 'invoice', 'var-table': 'invoice', 'var-layers': 'fk,join'});
+    expect(graphRequests().length).toBe(0);
   });
-
-  it('hides the schema select on a search graph', () => {
-    navigateTo({}, {source: 'search'});
-    loadSchemaTree();
-    answerGraph();
-
-    expect(component.mode).toBe('search');
-    expect(toolbar().querySelector('.schema-select')).toBeNull();
-  });
-
-  /**
-   * The root of the bug: loadSchemas() defaulted `schema` regardless of mode,
-   * so a tag graph acquired the first schema alphabetically — a name nobody
-   * chose, describing nothing on screen.
-   */
-  it('does not adopt a default schema behind a scoped graph', () => {
-    navigateTo({}, {tag: 'system'});
-    loadSchemaTree();
-    answerGraph();
-
-    expect(component.schema).toBe('');
-  });
-
-  /**
-   * A schema you *did* choose is remembered, so leaving the scope returns you
-   * to it. That is fine precisely because the select is hidden meanwhile —
-   * the defect was displaying it, not holding it.
-   */
-  it('remembers a chosen schema while scoped, without showing it', () => {
-    navigateTo({schema: 'archive'}, {});
-    loadSchemaTree();
-    answerGraph();
-
-    navigateTo({}, {tag: 'system'});
-
-    expect(component.schema).toBe('archive');
-    expect(toolbar().querySelector('.schema-select')).toBeNull();
-  });
-
-
 
   // ── per-schema regions (sqlx-70t) ──
 
@@ -525,8 +469,7 @@ describe('GraphLensComponent — scope legibility', () => {
     }
 
     it('makes one region per schema', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       graphAcross({app: 2, del: 2, search: 2});
 
       expect(component.regionSchemas).toEqual(['app', 'del', 'search']);
@@ -537,16 +480,14 @@ describe('GraphLensComponent — scope legibility', () => {
      * no information, and arrival order changes whenever the query does.
      */
     it('orders schemas so a colour is stable across loads', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       graphAcross({search: 1, app: 1, del: 1});
 
       expect(component.regionSchemas).toEqual(['app', 'del', 'search']);
     });
 
     it('gives every region a box that contains its own nodes', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       graphAcross({app: 4, del: 3});
 
       for (const region of component.regionsForTest) {
@@ -561,8 +502,7 @@ describe('GraphLensComponent — scope legibility', () => {
      * grow the boxes, and a cross-schema join actively pulls them together.
      */
     it('keeps regions apart, even densely populated and joined across', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       graphAcross({app: 6, del: 5, search: 4, app_main: 3}, true);
 
       const boxes = component.regionsForTest;
@@ -579,8 +519,7 @@ describe('GraphLensComponent — scope legibility', () => {
 
     /** Well past anything the corpus produces, to find the breaking point. */
     it('holds with many schemas of very different sizes', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       graphAcross({a: 24, b: 2, c: 11, d: 3, e: 18, f: 1, g: 7, h: 9}, true);
 
       const boxes = component.regionsForTest;
@@ -596,8 +535,7 @@ describe('GraphLensComponent — scope legibility', () => {
     });
 
     it('takes its colours from the theme rather than hard-coding them', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       graphAcross({app: 2, del: 2});
 
       const colors = component.regionsForTest.map(region => region.color);
@@ -610,43 +548,29 @@ describe('GraphLensComponent — scope legibility', () => {
 
   describe('the working scope', () => {
 
-    /** One graph payload spanning two schemas, one of which is tagged `system`. */
-    function answerScopedGraph() {
+    /**
+     * The gap this closed: excluding `system` on /tables and clicking through
+     * to the graph used to bring the system tables straight back, so one
+     * parameter had two answers depending on where you read it. The search
+     * carries the resolved exclusion now, so the server leaves them out.
+     */
+    it('sends the excluded schema with the search', () => {
+      navigateTo({}, {schemaTagsExclude: 'system'});
       const http = TestBed.inject(HttpTestingController);
       http.match(req => req.url.endsWith('schema-tree'))
         .forEach(req => req.flush({schemas: [{name: 'app'}, {name: 'mysql'}]}));
-      // Positional, in the order the schemas were sent: app then mysql
-      // (sqlx-3ai).
       http.match(req => req.url.endsWith('tags/targets'))
         .forEach(req => req.flush([[], [{name: 'system'}]]));
-      // tables carrying an excluded tag; none here, the schema tag is enough
       http.match(req => req.url.includes('table/by-tag') || req.url.includes('tables/tag'))
         .forEach(req => req.flush([]));
-      http.match(req => req.url.includes('graph/v2')).forEach(req => req.flush({
-        nodes: [
-          {schema: 'app', table: 'orders', columnCount: 3, queryCount: 9, warn: false, selfJoin: false, view: false},
-          {schema: 'mysql', table: 'user', columnCount: 3, queryCount: 1, warn: false, selfJoin: false, view: false}
-        ],
-        fkEdges: [], coQueryEdges: [], viewEdges: []
-      }));
-      fixture.detectChanges();
-    }
-
-    /**
-     * The gap this closed: excluding `system` on /tables and clicking through
-     * to a schema graph used to bring the system tables straight back, so one
-     * parameter had two answers depending on where you read it.
-     */
-    it('drops a node whose schema is excluded, on a schema graph', () => {
-      navigateTo({schema: 'app'}, {schemaTagsExclude: 'system'});
-      answerScopedGraph();
-
-      expect(component.nodeCount).toBe(1);
+      // the last one: the first was the unscoped graph the page opened on
+      const search = http.match(req => req.url.includes('graph/v2/search'));
+      const body = search[search.length - 1].request.body;
+      expect(body.excludeSchemas).toEqual(['mysql']);
     });
 
     it('draws everything when no scope is set', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       answerGraph();
 
       expect(component.nodeCount).toBe(0);
@@ -654,68 +578,13 @@ describe('GraphLensComponent — scope legibility', () => {
 
     /** A scope change is a scope change — it has to refetch, not redraw stale nodes. */
     it('treats a change to the scope as a new scope', () => {
-      navigateTo({schema: 'app'}, {});
-      loadSchemaTree();
+      navigateTo({}, {});
       answerGraph();
       const before = component.scopeKeyForTest;
 
-      navigateTo({schema: 'app'}, {schemaTagsExclude: 'system'});
+      navigateTo({}, {schemaTagsExclude: 'system'});
 
       expect(component.scopeKeyForTest).not.toEqual(before);
     });
-  });
-
-  // ── the chip says what the graph is, not how it was built ──
-
-  it('names the tag on a tag graph', () => {
-    navigateTo({}, {tag: 'system'});
-
-    expect(toolbar().textContent).toContain('tag: system');
-  });
-
-  it('names the active filters on a search graph rather than saying "workbench results"', () => {
-    navigateTo({}, {source: 'search', q: 'orders', fullScan: 'YES'});
-
-    const rendered = toolbar().textContent || '';
-    expect(rendered).not.toContain('workbench results');
-    expect(rendered).toContain('q');
-    expect(rendered).toContain('fullScan');
-  });
-
-  it('says so plainly when a search graph has no filters at all', () => {
-    navigateTo({}, {source: 'search'});
-
-    expect(component.searchSummary()).toBe('all queries');
-  });
-
-  it('summarizes rather than listing every filter', () => {
-    navigateTo({}, {source: 'search', q: 'a', fullScan: 'YES', tmpDisk: 'YES', errors: 'YES', warnings: 'YES'});
-
-    expect(component.searchSummary()).toMatch(/\+\d+$/);
-  });
-
-  // ── leaving a scope is an act, not a side effect ──
-
-  it('offers a way off a scoped graph', () => {
-    navigateTo({}, {tag: 'system'});
-    loadSchemaTree();
-    answerGraph();
-
-    expect(toolbar().querySelector('.chip-x')).toBeTruthy();
-  });
-
-  it('clears the scope to a whole-schema graph, keeping the layer toggles', () => {
-    navigateTo({}, {tag: 'system'});
-    loadSchemaTree();
-    answerGraph();
-    component.layers = {...component.layers, co: true};
-
-    component.clearScope();
-
-    const [commands, extras] = (router.navigate as jasmine.Spy).calls.mostRecent().args;
-    expect(commands).toEqual(['/graph']);
-    expect(extras.queryParams['tag']).toBeFalsy();
-    expect(extras.queryParams['source']).toBeFalsy();
-    expect(extras.queryParams['var-layers']).toBeTruthy();
   });
 });

@@ -27,7 +27,7 @@
       <a class="btn" [routerLink]="['/tables', schema]">Tables in {{schema}} ↗</a>
     } @else {
       <button type="button" class="btn" (click)="toggleCreate()">{{showCreate ? 'hide DDL' : 'show DDL'}}</button>
-      <a class="btn" [routerLink]="['/graph']" [queryParams]="graphParams()"
+      <a class="btn" [routerLink]="['/queries']" [queryParams]="graphParams()"
          title="the graph of every query touching this table">Graph ↗</a>
     }
   </div>

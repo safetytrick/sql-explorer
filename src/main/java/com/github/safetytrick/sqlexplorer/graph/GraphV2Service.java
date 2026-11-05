@@ -52,7 +52,22 @@ public class GraphV2Service {
 
     /** A graph over an arbitrary profile set (tag results, search results): nodes come from the profiles. */
     public GraphV2 getGraphForProfiles(Collection<SqlProfile> profiles) {
-        return buildGraph(structure -> false, tables -> true, profiles.stream());
+        return getGraphForProfiles(profiles, List.of());
+    }
+
+    /**
+     * A graph over a profile set that also shows every table of these schemas,
+     * queried or not, with the foreign keys between them: the workbench graph's
+     * "all tables" (sqlx-aoy.16). The profiles still decide the joins, the
+     * co-queried pairs and the query counts, so a table no matching query
+     * touches is drawn with none.
+     */
+    public GraphV2 getGraphForProfiles(Collection<SqlProfile> profiles, Collection<String> allTablesOf) {
+        Set<String> schemas = new HashSet<>();
+        allTablesOf.forEach(schema -> schemas.add(schema.toLowerCase(Locale.ROOT)));
+        return buildGraph(
+            structure -> structure.schema() != null && schemas.contains(structure.schema().toLowerCase(Locale.ROOT)),
+            tables -> true, profiles.stream());
     }
 
     private GraphV2 buildGraph(Predicate<TableStructure> seed,

@@ -323,12 +323,12 @@ export class TableLensComponent implements OnInit, OnDestroy {
    * the lens speaks the shared vocabulary, so nothing has to be re-mapped.
    */
   /**
-   * The graph of the queries touching this table: a search-sourced graph
-   * scoped to it, the same URL the workbench's "graph results" writes.
+   * The graph of the queries touching this table: the workbench's graph
+   * view of a search scoped to it.
    */
   graphParams(): Record<string, string> {
     return {
-      source: 'search',
+      view: 'graph',
       ...encodeSearchParams({
         ...defaultSearchState(),
         scope: { schemas: [], tables: [this.selfKey()], tableMode: 'ALL' }

@@ -248,15 +248,11 @@ export class SchemaLensService {
     return this.http.get<TableMeta | null>(`${endpoint}metadata/table/${schema}/${name}`);
   }
 
-  getSchemaGraph(schema: string): Observable<GraphV2> {
-    return this.http.get<GraphV2>(`${endpoint}graph/v2/schema/${schema}`);
-  }
-
-  getTagGraph(tag: string): Observable<GraphV2> {
-    return this.http.get<GraphV2>(`${endpoint}graph/v2/by-tag/${encodeURIComponent(tag)}`);
-  }
-
-  getSearchGraph(request: QuerySearchRequest | null): Observable<GraphV2> {
-    return this.http.post<GraphV2>(`${endpoint}graph/v2/search`, request ?? {});
+  /**
+   * The graph of the queries a search matches. `allTables` also draws every
+   * table of the schemas the search is scoped to, queried or not.
+   */
+  getSearchGraph(request: QuerySearchRequest | null, allTables = false): Observable<GraphV2> {
+    return this.http.post<GraphV2>(`${endpoint}graph/v2/search${allTables ? '?allTables=true' : ''}`, request ?? {});
   }
 }

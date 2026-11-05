@@ -20,13 +20,13 @@ import {AdminSourceListComponent} from './admin-source-list/admin-source-list.co
 import {NoteViewComponent} from './note-view/note-view.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.component';
-import {GraphLensComponent} from './graph-lens/graph-lens.component';
+import {graphRedirectParams} from './graph-lens/graph-url';
 import {TagManagerComponent} from './tag-manager/tag-manager.component';
 import {NotFoundComponent} from './not-found/not-found.component';
 import {UnqueriedTablesComponent} from './unqueried-tables/unqueried-tables.component';
 import {CoverageLensComponent} from './coverage-lens/coverage-lens.component';
 import {UnusedIndexesComponent} from './unused-indexes/unused-indexes.component';
-import {carryScope} from './scope-url';
+import {carryScope, droppedScope} from './scope-url';
 
 /**
  * `/table/{schema}/{table}/{column}` → the table lens with that column drilled
@@ -50,6 +50,22 @@ export const columnDrillRedirect: RedirectFunction = route => {
   return router.createUrlTree(['/table', schema, table], {
     queryParams: {...route.queryParams, columns: `${schema}.${table}.${column}`}
   });
+};
+
+/**
+ * The graph is a view of the workbench now, `/queries?view=graph`
+ * (sqlx-aoy.16). `/graph` and `/graph/:schema` links have been shared, so they
+ * redirect to the same question asked there; {@link graphRedirectParams} says
+ * how each old form translates.
+ */
+export const graphRedirect: RedirectFunction = route => {
+  const router = inject(Router);
+  // A redirect cannot carry the guard, and `/queries` does not re-run it when
+  // the graph link is followed from `/queries` itself, so the scope you were
+  // browsing under is carried here, as carryScope would.
+  const carried = droppedScope(router.routerState.snapshot.root.queryParams, route.queryParams);
+  return router.createUrlTree(['/queries'],
+    { queryParams: {...carried, ...graphRedirectParams(route.params['schema'] ?? null, route.queryParams)} });
 };
 
 /**
@@ -140,14 +156,14 @@ const routes: Routes = [
     title: 'Unused indexes'
   },
   {
+    // full: a prefix match would take `/graph/app_main` too, and lose the schema
     path: 'graph',
-    component: GraphLensComponent,
-    title: 'Graph'
+    pathMatch: 'full',
+    redirectTo: graphRedirect
   },
   {
     path: 'graph/:schema',
-    component: GraphLensComponent,
-    title: paramTitle(p => `Graph · ${p['schema']}`)
+    redirectTo: graphRedirect
   },
   {
     path: 'schemas',

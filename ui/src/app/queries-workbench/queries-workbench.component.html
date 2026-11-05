@@ -201,6 +201,7 @@
         <span class="active-chip">{{chip}}</span>
       }
       <div class="bar-right">
+        @if (!graphView) {
         <span class="tri-btn" [class.on]="detailPane" (click)="toggleDetailPane()"
               title="a detail pane under the list; without it, clicking a query opens its full page">pane</span>
         <span class="bar-label">sql:</span>
@@ -215,9 +216,12 @@
           <option value="SELECTIVITY">selectivity ↓</option>
           <option value="LAST_SEEN">last seen ↓</option>
         </select>
-        <span class="result-count">{{hits.length}}/{{total}}</span>
-        <button type="button" class="graph-results" (click)="graphResults()"
-                title="open the table graph scoped to the queries matching the current filters">graph results ↗</button>
+        }
+        <span class="result-count">{{graphView ? total : hits.length + '/' + total}}</span>
+        <span class="bar-label">view:</span>
+        <span class="tri-btn" [class.on]="!graphView" (click)="setGraphView(false)" title="the matching queries, one per row">list</span>
+        <span class="tri-btn" [class.on]="graphView" (click)="setGraphView(true)"
+              title="the tables the matching queries touch, and how they join">graph</span>
         <!-- Acts on the whole match set, not the loaded page; the server
              resolves it from the same filters the count above came from. -->
         <app-bulk-tag-bar [search]="bulkSearch" [count]="total" [setLabel]="bulkLabel"
@@ -225,6 +229,13 @@
       </div>
     </div>
 
+    @if (graphView) {
+    <!-- The graph is a view of this search (sqlx-aoy.16): the filters on the
+         left decide what it draws, and its own var- params how. -->
+    <div class="graph-pane">
+      <app-graph-lens></app-graph-lens>
+    </div>
+    } @else {
     <div class="list-and-detail">
       <div class="query-list">
         @if (loading) {
@@ -480,6 +491,7 @@
       </div>
       }
     </div>
+    }
   </div>
 </div>
 

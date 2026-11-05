@@ -2,9 +2,9 @@
  * The workbench's own presentation params, beside the shared search
  * vocabulary in search-url.ts.
  *
- * Search params are spoken identically by the workbench and by
- * `/graph?source=search`, so view state that only the workbench has — which
- * rows show their whole SQL — does not belong there. It follows the graph's
+ * Search params are spoken identically by every page that links into a
+ * search, so view state that only the workbench has — which rows show their
+ * whole SQL — does not belong there. It follows the graph's
  * convention instead (graph-url.ts): page-owned params carry a `var-` prefix
  * so they can never collide with the cross-cutting ones.
  */

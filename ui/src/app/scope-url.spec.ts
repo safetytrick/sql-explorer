@@ -165,6 +165,8 @@ describe('carryScope, across real navigations', () => {
     await router.navigateByUrl('/queries?schemaTagsExclude=system');
 
     await expectAsync(router.navigateByUrl('/graph')).toBeResolvedTo(true);
-    expect(url()).toContain('/graph');
+    expect(url()).toContain('/queries');
+    expect(url()).toContain('view=graph');
+    expect(url()).toContain('schemaTagsExclude=system');
   });
 });

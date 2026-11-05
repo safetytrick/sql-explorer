@@ -89,6 +89,22 @@ class GraphV2ServiceTest {
     }
 
     @Test
+    void allTablesOfAScopedSchemaAddsItsUnqueriedTables() {
+        GraphV2 graph = service.getGraphForProfiles(List.of(
+            profile("q1", List.of(SESSIONS, USERS), metrics(100), join(SESSIONS, USERS))), List.of("APP"));
+
+        // every table of the schema, but the counts and joins are still only the profiles'
+        assertThat(graph.nodes())
+            .extracting(GraphV2.Node::table, GraphV2.Node::queryCount)
+            .containsExactlyInAnyOrder(
+                tuple("sessions", 1),
+                tuple("users", 1),
+                tuple("unrelated", 0));
+        assertThat(graph.joinEdges()).hasSize(1);
+        assertThat(service.getGraphForProfiles(List.of(), List.of("other")).nodes()).isEmpty();
+    }
+
+    @Test
     void displayedViewsPullTheirBaseTablesInWithViewEdges() {
         when(sqlSchemaService.getTables()).thenReturn(List.of(
             view("app", "active_sessions", List.of(SESSIONS)),

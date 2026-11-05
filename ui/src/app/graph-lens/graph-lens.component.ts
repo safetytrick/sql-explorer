@@ -1,19 +1,18 @@
-import {TagColorsService} from '../tag-colors.service';
 import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import {forkJoin, map, of, Subscription, switchMap} from 'rxjs';
+import {forkJoin, map, of, skip, Subscription, switchMap} from 'rxjs';
 import {GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
-import {decodeGraphParams, DEFAULT_LAYERS, DEFAULT_LAYOUT, encodeGraphParams, GraphLayers, GraphLayout, graphOwnedParamPatch, GraphSource} from './graph-url';
+import {decodeGraphParams, DEFAULT_LAYERS, DEFAULT_LAYOUT, GraphLayers, GraphLayout, graphOwnedParamPatch} from './graph-url';
 import {buildAggregates} from './aggregates';
 import {GridNode, GridSpacing, layoutGrid, LayoutBox, Slot} from './grid-layout';
 import {Point, routeEdges} from './routing';
 import {LayoutChange, LayoutKind, planMove, SavedLayout, slotAt} from './layout-moves';
 import {GraphLayoutService} from './graph-layout.service';
-import {SchemaTagScope, tableKey} from '../query-scope.service';
+import {tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
 import {ENV_PARAM} from '../environment-url';
@@ -118,8 +117,6 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('wrap') wrap!: ElementRef<HTMLDivElement>;
   @ViewChild('tooltip') tooltip!: ElementRef<HTMLDivElement>;
 
-  schemaNames: string[] = [];
-  schema = '';
   selectedTable: string | null = null;
   layers: GraphLayers = { ...DEFAULT_LAYERS };
   /** Nested grids (the default) or the force simulation, `var-layout=force` (sqlx-aoy.13). */
@@ -146,9 +143,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private darkTheme = true;
   loading = false;
 
-  /** What scopes the graph: a schema, a tag's queries, or a workbench search snapshot. */
-  mode: GraphSource = 'schema';
-  tag: string | null = null;
+  /**
+   * Every table of the scoped schemas, not only the queried ones;
+   * `var-tables=all` (sqlx-aoy.16).
+   */
+  allTables = false;
 
   /** Scope of the last fetch — lets URL writes for selection/layers redraw without refetching. */
   private loadedScope: string | null = null;
@@ -175,77 +174,26 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Settled bounds and colour per schema, drawn behind the nodes. */
   private regions: SchemaRegion[] = [];
 
-  /**
-   * Tags the toolbar can scope the graph to (sqlx-aoy.7), busiest first. A tag
-   * on queries makes a tag graph; a tag on schemas makes a search graph over
-   * those schemas' queries. A tag only on tables has no include scope yet —
-   * the search vocabulary uses table tags only to exclude — so it is listed,
-   * disabled, saying so, rather than silently missing.
-   */
-  tagChoices: {name: string, kind: 'queries' | 'schemas' | null, label: string, why: string}[] = [];
-
-  scopeToTag(name: string) {
-    const choice = this.tagChoices.find(candidate => candidate.name === name);
-    if (!name || !choice?.kind) {
-      if (!name && this.mode === 'tag') { this.clearScope(); }
-      return;
-    }
-    this.selectedTable = null;
-    const env = this.route.snapshot.queryParams[ENV_PARAM];
-    const carry = env ? {[ENV_PARAM]: env} : {};
-    if (choice.kind === 'queries') {
-      this.router.navigate(['/graph'], { queryParams: {
-        ...encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: name, source: null }), ...carry } });
-    } else {
-      this.router.navigate(['/graph'], { queryParams: {
-        ...encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: null, source: 'search' }),
-        schemaTags: name, ...carry } });
-    }
-  }
-
-  private loadTagChoices() {
-    this.tagColors.getSummaries().subscribe(summaries => {
-      this.tagChoices = [...summaries]
-        .sort((a, b) => (b.queries + b.schemas + b.tables) - (a.queries + a.schemas + a.tables) || a.name.localeCompare(b.name))
-        .map(summary => summary.queries > 0
-          ? {name: summary.name, kind: 'queries' as const, label: `${summary.queries} queries`,
-             why: 'graph the tables these queries touch'}
-          : summary.schemas > 0
-            ? {name: summary.name, kind: 'schemas' as const, label: `${summary.schemas} schemas`,
-               why: 'graph the queries in these schemas'}
-            : {name: summary.name, kind: null, label: summary.tables ? `${summary.tables} tables` : 'unused',
-               why: 'tags on tables cannot scope a graph yet; tag the queries or the schema'});
-    });
-  }
-
   constructor(private schemaLensService: SchemaLensService,
               private environmentService: EnvironmentService,
               private analyzedSqlService: AnalyzedSqlService,
               private themeService: ThemeService,
               private route: ActivatedRoute,
               private router: Router,
-              private tagColors: TagColorsService,
               private graphLayoutService: GraphLayoutService) { }
 
   ngOnInit() {
     this.refreshPalette();
-    this.loadTagChoices();
     this.loadArrangement();
     this.subscriptions.add(this.themeService.current$.subscribe(() => {
       this.refreshPalette();
       this.draw();
     }));
-    this.subscriptions.add(this.route.paramMap.subscribe(() => this.applyRoute()));
     this.subscriptions.add(this.route.queryParamMap.subscribe(() => this.applyRoute()));
-    this.subscriptions.add(this.environmentService.current$.subscribe(() => this.loadSchemas()));
+    // a new environment is a new corpus under the same search
+    this.subscriptions.add(this.environmentService.current$.pipe(skip(1)).subscribe(() => this.loadGraph()));
   }
 
-  /**
-   * Route decides the source (?tag= → tag graph, ?source=search → workbench
-   * snapshot, else :schema) and carries graph-owned state (var-table,
-   * var-layers). Only a *scope* change refetches; selection/layer changes —
-   * including our own replaceUrl writes and browser back/forward — redraw.
-   */
   /** The legend's full key is showing; `var-legend=1` (sqlx-aoy.2). */
   legendOpen = false;
 
@@ -254,32 +202,20 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       queryParamsHandling: 'merge', replaceUrl: true });
   }
 
+  /**
+   * The graph is a view of the workbench (sqlx-aoy.16): the search params are
+   * what it shows, and the `var-` params how. Only a change to what it shows
+   * refetches; selection and layer changes, including its own replaceUrl
+   * writes and browser back/forward, redraw.
+   */
   private applyRoute() {
     const state = decodeGraphParams(this.route.snapshot.queryParamMap);
     this.legendOpen = this.route.snapshot.queryParamMap.get('var-legend') === '1';
     this.selectedTable = state.table;
     this.layers = state.layers;
+    this.allTables = state.allTables ?? false;
     const layoutChanged = (state.layout ?? DEFAULT_LAYOUT) !== this.layout;
     this.layout = state.layout ?? DEFAULT_LAYOUT;
-    if (state.tag) {
-      this.mode = 'tag';
-      this.tag = state.tag;
-    } else if (state.source === 'search') {
-      this.mode = 'search';
-      this.tag = null;
-    } else {
-      this.mode = 'schema';
-      this.tag = null;
-      const schema = this.route.snapshot.paramMap.get('schema');
-      if (schema) {
-        this.schema = schema;
-      } else if (!this.schema && this.schemaNames.length) {
-        // bare /graph, or leaving a scoped graph after the tree has loaded —
-        // loadSchemas() only re-runs on an environment change, so the default
-        // has to be applied here too
-        this.schema = this.schemaNames[0];
-      }
-    }
     if (this.scopeKey() === this.loadedScope) {
       if (layoutChanged && this.lastGraph) {
         this.buildLayout(this.lastGraph);
@@ -287,10 +223,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       } else {
         this.draw();
       }
-    } else if (this.mode !== 'schema' || this.schema) {
+    } else {
       this.loadGraph();
     }
-    // schema mode without a schema: loadSchemas() picks a default and loads
   }
 
   /** The schemas that got a region, in drawn order. */
@@ -313,32 +248,41 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.scopeKey();
   }
 
+  /**
+   * What the graph shows: the search, normalized through the codec so `var-`
+   * params and param order cannot cause spurious refetches, and whether every
+   * table of the scoped schemas is drawn.
+   */
   private scopeKey(): string {
-    if (this.mode === 'search') {
-      // the search params are the scope — normalize through the codec so
-      // var- params and param order can't cause spurious refetches
-      const search = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
-      return 'search|' + JSON.stringify(search);
-    }
-    // the travelling scope narrows what is drawn in every mode, so a change to
-    // it is a scope change — leave it out and arriving at the same schema with
-    // `system` newly excluded would redraw the old, unfiltered graph
-    const scope = JSON.stringify(scopeOf(this.route.snapshot.queryParams));
-    return `${this.mode}|${this.tag ?? ''}|${this.mode === 'schema' ? this.schema : ''}|${scope}`;
+    const search = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
+    return `${this.allTables ? 'all' : 'queried'}|${JSON.stringify(search)}`;
   }
 
   /**
-   * Reflect graph-owned state into the URL without a history entry
-   * (workbench pattern). A merge patch: the co-resident search params of
-   * `source=search` links must survive selection/layer clicks.
+   * Reflect graph-owned state into the URL without a history entry. A merge
+   * patch: the workbench's search params beside it must survive selection and
+   * layer clicks.
    */
   private writeUrl() {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: graphOwnedParamPatch(this.selectedTable, this.layers, this.layout),
+      queryParams: graphOwnedParamPatch(
+        { table: this.selectedTable, layers: this.layers, layout: this.layout, allTables: this.allTables }),
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
+  }
+
+  /** Draw every table of the scoped schemas, or only the queried ones. */
+  toggleAllTables() {
+    this.allTables = !this.allTables;
+    this.writeUrl();
+  }
+
+  /** Whether the search is scoped to schemas, which is what "all tables" fills in. */
+  get scopedToSchemas(): boolean {
+    const search = decodeSearchParams(this.route.snapshot.queryParamMap);
+    return search.scope.schemas.length > 0 || search.schemaTagFilter.includeTags.length > 0;
   }
 
   ngAfterViewInit() {
@@ -350,88 +294,15 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.subscriptions.unsubscribe();
   }
 
-  private loadSchemas() {
-    this.schemaLensService.getSchemaTree().subscribe(tree => {
-      this.schemaNames = tree.schemas.map(schema => schema.name);
-      // Only schema mode has a schema. Defaulting it unconditionally is what
-      // put a schema name into the toolbar of a tag or search graph that was
-      // not showing that schema at all (sqlx-p7u).
-      if (this.mode === 'schema' && !this.schema && this.schemaNames.length) {
-        this.schema = this.schemaNames[0];
-      }
-      if (this.schema && this.mode === 'schema') {
-        this.loadGraph();
-      }
-    });
-  }
-
-  /**
-   * Leave a tag or search scope for a whole-schema graph.
-   *
-   * <p>The chip used to be a label with no way off it, so the only exit was
-   * the schema select — which dropped the scope as a side effect of what read
-   * like a narrowing control. Discarding a working set should be something you
-   * did on purpose (sqlx-p7u).
-   */
-  clearScope() {
-    this.selectedTable = null;
-    this.router.navigate(['/graph'], {
-      queryParams: encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: null, source: null })
-    });
-  }
-
-  /**
-   * What the search graph is scoped to, rather than how it was built.
-   *
-   * <p>`encodeSearchParams` omits defaults, so its keys are exactly the
-   * filters that are doing something — no separate list to keep in step with
-   * the search state.
-   */
-  searchSummary(): string {
-    const active = this.activeSearchFilters();
-    if (!active.length) { return 'all queries'; }
-    return active.length <= 3
-      ? active.join(', ')
-      : `${active.slice(0, 3).join(', ')} +${active.length - 3}`;
-  }
-
-  searchScopeTitle(): string {
-    const active = this.activeSearchFilters();
-    const filters = active.length ? active.join(', ') : 'no filters — every query';
-    return `graph scoped to a workbench search (${filters}). The URL carries the full search, so this link is shareable.`;
-  }
-
-  private activeSearchFilters(): string[] {
-    const params = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
-    return Object.keys(params).filter(key => params[key] !== null && params[key] !== undefined);
-  }
-
-  onSchemaChange() {
-    this.selectedTable = null;
-    // layer toggles survive the schema switch; selection does not
-    this.router.navigate(['/graph', this.schema], {
-      queryParams: encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: null, source: null })
-    });
-  }
-
   private loadGraph() {
     this.loadedScope = this.scopeKey();
-    if (this.mode === 'search') {
-      this.loadSearchGraph();
-      return;
-    }
-    const source = this.mode === 'tag' && this.tag
-      ? this.schemaLensService.getTagGraph(this.tag)
-      : this.schema ? this.schemaLensService.getSchemaGraph(this.schema) : null;
-    if (!source) { return; }
+    const state = decodeSearchParams(this.route.snapshot.queryParamMap);
     this.loading = true;
-    // the search path filters server-side; these two do not, so the scope is
-    // applied to what comes back. Without this, excluding `system` on /tables
-    // and clicking through to a graph would bring the system tables straight
-    // back — one parameter, two answers.
-    forkJoin({ graph: source, scope: this.tagScope$() }).subscribe({
-      next: ({ graph, scope }) => {
-        this.buildLayout(this.scoped(graph, scope));
+    this.tagScope$().pipe(switchMap(tagScope =>
+      this.schemaLensService.getSearchGraph(buildSearchRequest(state, tagScope, { limit: null, offset: null }), this.allTables)
+    )).subscribe({
+      next: graph => {
+        this.buildLayout(graph);
         this.loading = false;
         this.resetView();
       },
@@ -439,12 +310,6 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  /**
-   * `source=search`: the URL carries the full workbench search (shared
-   * vocabulary — see search-url.ts). The schema-tag filter arrives as
-   * intent, so resolve it against the live tag map exactly like the tree
-   * does, then post the assembled request.
-   */
   /**
    * The schema-tag filter resolved against live tag data.
    *
@@ -480,45 +345,6 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         return resolveSchemaTagScope(names, tagsBySchema, filter, tablesByTag);
       }));
     }));
-  }
-
-  /**
-   * Drop the nodes the scope puts outside the working set.
-   *
-   * <p>Applied to the drawn graph rather than the request because the schema
-   * and tag endpoints take no filter — and it needs no new endpoint, since
-   * `buildLayout` already discards edges whose endpoints it cannot resolve.
-   * Removing a node removes its edges for free.
-   */
-  private scoped(graph: GraphV2, scope: SchemaTagScope): GraphV2 {
-    const excludedSchemas = new Set(scope.excludedSchemas.map(name => name.toLowerCase()));
-    const excludedTables = new Set(scope.excludedTables);
-    const included = scope.includedSchemas === null
-      ? null : new Set(scope.includedSchemas.map(name => name.toLowerCase()));
-    return {
-      ...graph,
-      nodes: graph.nodes.filter(node => {
-        const schema = (node.schema ?? '').toLowerCase();
-        if (excludedSchemas.has(schema)) { return false; }
-        if (excludedTables.has(tableKey(node.schema, node.table))) { return false; }
-        return included === null || included.has(schema);
-      })
-    };
-  }
-
-  private loadSearchGraph() {
-    const state = decodeSearchParams(this.route.snapshot.queryParamMap);
-    this.loading = true;
-    this.tagScope$().pipe(switchMap(tagScope =>
-      this.schemaLensService.getSearchGraph(buildSearchRequest(state, tagScope, { limit: null, offset: null }))
-    )).subscribe({
-      next: graph => {
-        this.buildLayout(graph);
-        this.loading = false;
-        this.resetView();
-      },
-      error: () => this.loading = false
-    });
   }
 
   // ── layout ──

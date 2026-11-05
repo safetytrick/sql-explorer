@@ -1,7 +1,7 @@
+// Fills whatever holds it: the workbench's graph pane (sqlx-aoy.16).
 :host {
   display: block;
-  margin: -16px -24px;
-  height: calc(100vh - 44px);
+  height: 100%;
 }
 
 .graph-wrap {
@@ -29,47 +29,6 @@ canvas {
   z-index: 10;
   align-items: center;
 
-  .mode-chip {
-    font-size: 10px;
-    padding: 2px 4px 2px 8px;
-    border-radius: 10px;
-    background: var(--purple-dim);
-    color: var(--purple);
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  // The way off a scope. Faint until hovered — it should be findable without
-  // competing with the scope name it sits next to.
-  .chip-x {
-    border: 0;
-    background: none;
-    color: inherit;
-    opacity: 0.55;
-    cursor: pointer;
-    font-size: 12px;
-    line-height: 1;
-    padding: 0 3px;
-    border-radius: 8px;
-
-    &:hover {
-      opacity: 1;
-      background: rgba(255, 255, 255, 0.1);
-    }
-  }
-
-  .schema-select {
-    font-size: 11px;
-    height: 26px;
-    padding: 0 6px;
-    background: var(--bg3);
-    border: 1px solid var(--border2);
-    color: var(--text);
-    border-radius: var(--radius);
-  }
-
   .btn {
     font-size: 11px;
     padding: 4px 10px;
@@ -81,6 +40,7 @@ canvas {
 
     &:hover { border-color: var(--blue); color: var(--blue); }
     &.on { background: var(--blue-dim2); border-color: var(--blue); color: var(--blue); }
+    &:disabled { opacity: 0.45; cursor: default; border-color: var(--border2); color: var(--text2); }
   }
 
   .loading { font-size: 10px; color: var(--text3); }
@@ -192,13 +152,3 @@ canvas {
 .nd-follow { color: var(--blue); cursor: pointer; font-family: var(--mono); &:hover { text-decoration: underline; } }
 .nd-q { margin-left: auto; color: var(--text3); text-decoration: none; &:hover { color: var(--blue); } }
 .nd-more { margin-top: 3px; }
-
-.tag-scope {
-  background: var(--bg3);
-  color: var(--text);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  font-size: 11px;
-  padding: 2px 6px;
-  max-width: 200px;
-}

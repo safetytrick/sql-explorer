@@ -4,9 +4,9 @@
  * (schemas, tables, table mode, schema-tag filter) — encoded to/from
  * query params as pure functions.
  *
- * Both `/queries` and `/graph?source=search` speak this vocabulary with
- * identical param names, so the two URLs differ only in path and a shared
- * link reproduces the full scope for the recipient. Page-local
+ * `/queries` speaks it for the list and for the graph of the same search
+ * (`view=graph`), and other pages link into it with the same names, so a
+ * shared link reproduces the full scope for the recipient. Page-local
  * *presentation* params (the graph's `var-table`/`var-layers`) are the
  * only ones outside it — see graph-lens/graph-url.ts.
  *

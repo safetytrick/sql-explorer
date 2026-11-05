@@ -3,7 +3,7 @@ import {countBadge, CountBadge} from './count-badge';
 import {GLOSSARY} from '../glossary';
 import {InViewDirective} from '../in-view.directive';
 import {Component, OnDestroy, OnInit} from '@angular/core';
-import {ActivatedRoute, Router, RouterLink} from '@angular/router';
+import {ActivatedRoute, ParamMap, Router, RouterLink} from '@angular/router';
 import {DatePipe, DecimalPipe, NgTemplateOutlet, SlicePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {debounceTime, Subject, Subscription} from 'rxjs';
@@ -28,6 +28,8 @@ import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, 
 import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from './merge-group';
 import {decodeWorkbenchParams, encodeWorkbenchParams} from './workbench-url';
 import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
+import {GraphLensComponent} from '../graph-lens/graph-lens.component';
+import {GRAPH_PARAMS, GRAPH_VIEW, VIEW_PARAM} from '../graph-lens/graph-url';
 
 const PAGE_SIZE = 50;
 
@@ -80,7 +82,7 @@ type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'tr
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
   imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, NgTemplateOutlet, SqlHighlightDirective, DateRangeSelectorComponent,
-    BulkTagBarComponent, InViewDirective]
+    BulkTagBarComponent, InViewDirective, GraphLensComponent]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
@@ -196,8 +198,20 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.queryScopeService.schemaTagFilter$.subscribe(() => this.writeFiltersToUrl()));
     this.subscriptions.add(this.queryScopeService.schemaTagScope$.subscribe(() => this.searchTrigger.next()));
     this.queryScopeService.setActive(true);
-    this.readFiltersFromUrl();
+    // Read on arrival, and again whenever the URL changes under us rather than
+    // by our own write: the graph links to the queries on an edge or a table,
+    // which is this page with other filters (sqlx-aoy.16), and back/forward
+    // land here the same way.
+    this.subscriptions.add(this.route.queryParamMap.subscribe(params => {
+      if (urlKey(params) !== this.writtenKey) { this.readFiltersFromUrl(); }
+    }));
   }
+
+  /** The graph in place of the list; `view=graph` (sqlx-aoy.16). */
+  graphView = false;
+
+  /** What this page last wrote to the URL, by {@link urlKey}, so its own writes are not read back. */
+  private writtenKey: string | null = null;
 
   tagStyle(name: string): ChipStyle {
     return this.tagColorsService.chipStyle(name);
@@ -304,12 +318,14 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Open the graph scoped to these results. A pure URL translation — the
-   * graph carries the same search params, so the link is shareable.
+   * Show the graph of these results in place of the list, or the list again
+   * (sqlx-aoy.16). `view=graph`; the graph reads the same search params, so
+   * the link is shareable either way.
    */
-  graphResults() {
-    this.router.navigate(['/graph'],
-      { queryParams: { source: 'search', ...encodeSearchParams(this.currentState()) } });
+  setGraphView(graph: boolean) {
+    if (graph === this.graphView) { return; }
+    this.graphView = graph;
+    this.writeFiltersToUrl();
   }
 
   /**
@@ -725,14 +741,21 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   private writeFiltersToUrl() {
     if (!this.urlReady) { return; }
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: {
-        ...encodeSearchParams(this.currentState()),
-        ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql, detailPane: this.detailPane })
-      },
-      replaceUrl: true
-    });
+    const current = this.route.snapshot.queryParamMap;
+    const queryParams: Record<string, string> = {
+      ...encodeSearchParams(this.currentState()),
+      ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql, detailPane: this.detailPane })
+    };
+    if (this.graphView) {
+      queryParams[VIEW_PARAM] = GRAPH_VIEW;
+      // the graph's own params are its to write; keep them while it shows
+      for (const name of GRAPH_PARAMS) {
+        const value = current.get(name);
+        if (value !== null) { queryParams[name] = value; }
+      }
+    }
+    this.writtenKey = urlKey(paramReader(queryParams));
+    this.router.navigate([], { relativeTo: this.route, queryParams, replaceUrl: true });
   }
 
   private readFiltersFromUrl() {
@@ -769,6 +792,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.columns = state.columns;
     this.indexes = state.indexes;
     this.hinted = state.hinted;
+    this.graphView = this.route.snapshot.queryParamMap.get(VIEW_PARAM) === GRAPH_VIEW;
     const view = decodeWorkbenchParams(this.route.snapshot.queryParamMap);
     this.expanded = new Set(view.expanded);
     this.fullSql = view.fullSql;
@@ -786,6 +810,23 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.writeFiltersToUrl();
     this.searchTrigger.next();
   }
+}
+
+/**
+ * The part of the URL this page reads: the search, its own view params and
+ * which view shows. The graph's `var-` params are left out, so the graph
+ * writing them is not mistaken for a new search.
+ */
+function urlKey(params: Pick<ParamMap, 'get' | 'has'>): string {
+  return JSON.stringify([
+    encodeSearchParams(decodeSearchParams(params)),
+    encodeWorkbenchParams(decodeWorkbenchParams(params)),
+    params.get(VIEW_PARAM) === GRAPH_VIEW
+  ]);
+}
+
+function paramReader(params: Record<string, string>): Pick<ParamMap, 'get' | 'has'> {
+  return { get: name => params[name] ?? null, has: name => name in params };
 }
 
 function flag(value: Flag): Flag | null {

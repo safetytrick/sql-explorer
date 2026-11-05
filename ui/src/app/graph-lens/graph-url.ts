@@ -1,16 +1,16 @@
 /**
- * URL state for the graph page, mirroring the workbench's
- * readFiltersFromUrl/writeFiltersToUrl pattern as pure functions.
+ * URL state for the graph, which is a view of the workbench:
+ * `/queries?view=graph` (sqlx-aoy.16). What the graph shows is the workbench
+ * search, in the shared vocabulary of search-url.ts; this file covers only
+ * how it is drawn.
  *
- * Convention: params the graph *owns* (its own variables) carry a `var-`
- * prefix, grafana-style, so they can never collide with cross-cutting
- * params — scope selectors (`tag`, `source`) and future global ones stay
- * unprefixed. The graph is the first adopter of the convention; the
- * workbench's unprefixed filter params are widely bookmarked and are left
- * as-is until a back-compat migration is worth doing.
+ * Convention: params the graph *owns* carry a `var-` prefix, grafana-style,
+ * so they can never collide with the search params beside them.
  *
- * Back-compat: the graph's old `?table=` highlight param is still read
- * (write side uses `var-table` only).
+ * Back-compat: the graph used to be its own page, `/graph` and
+ * `/graph/:schema`, scoped by `?tag=` or `?source=search`. Those links
+ * redirect here through {@link graphRedirectParams}, and the old `?table=`
+ * highlight param is still read.
  */
 
 export interface GraphLayers {
@@ -23,15 +23,14 @@ export interface GraphLayers {
   view: boolean;
 }
 
-export type GraphSource = 'schema' | 'tag' | 'search';
-
-/**
- * How tables are placed: the force simulation, or nested grids of schema,
- * aggregate and table (sqlx-aoy.13). The grid is the default; `var-layout=force`
- * asks for the simulation. Links from before the switch say `var-layout=grid`,
- * which still reads as the grid.
- */
 export type GraphLayout = 'force' | 'grid';
+
+/** The workbench param that shows the graph in place of the list. */
+export const VIEW_PARAM = 'view';
+export const GRAPH_VIEW = 'graph';
+
+/** The params the graph owns, which the workbench keeps while the graph shows. */
+export const GRAPH_PARAMS = ['var-table', 'var-layers', 'var-layout', 'var-tables', 'var-legend'] as const;
 
 export interface GraphUrlState {
   /** Selected table (name only — matches node labels), null for none. */
@@ -39,10 +38,12 @@ export interface GraphUrlState {
   layers: GraphLayers;
   /** Absent means grid. */
   layout?: GraphLayout;
-  /** Scope: a tag name, … */
-  tag: string | null;
-  /** …or the workbench search snapshot ('search'); both null → schema mode. */
-  source: 'search' | null;
+  /**
+   * Every table of the scoped schemas, queried or not, with the foreign keys
+   * between them, rather than only the tables the matching queries touch.
+   * `var-tables=all`. Does nothing unless the search is scoped to schemas.
+   */
+  allTables?: boolean;
 }
 
 /**
@@ -67,55 +68,56 @@ function sameLayers(a: GraphLayers, b: GraphLayers): boolean {
 }
 
 /**
- * The complete query-param set for the graph page. Defaults are omitted so
- * a fresh page keeps a clean URL; `router.navigate` with this object (no
- * merge) drops params that fall back to defaults.
+ * The graph-owned params, null-cleared at defaults — for
+ * `queryParamsHandling: 'merge'` writes, so selection and layer changes never
+ * disturb the search params beside them.
  */
-export function encodeGraphParams(state: GraphUrlState): Record<string, string> {
-  const params: Record<string, string> = {};
-  if (state.tag) {
-    params['tag'] = state.tag;
-  } else if (state.source === 'search') {
-    params['source'] = 'search';
-  }
-  if (state.table) {
-    params['var-table'] = state.table;
-  }
-  if (!sameLayers(state.layers, DEFAULT_LAYERS)) {
-    const enabled = LAYER_NAMES.filter(name => state.layers[name]);
-    params['var-layers'] = enabled.length ? enabled.join(',') : NO_LAYERS;
-  }
-  if (state.layout === 'force') {
-    params['var-layout'] = 'force';
-  }
-  return params;
-}
-
-/**
- * Just the graph-owned (`var-`) params, null-cleared at defaults — for
- * `queryParamsHandling: 'merge'` writes, so selection/layer changes never
- * disturb the co-resident search params on `/graph?source=search&…`.
- */
-export function graphOwnedParamPatch(table: string | null, layers: GraphLayers,
-                                     layout: GraphLayout = DEFAULT_LAYOUT): Record<string, string | null> {
-  const enabled = LAYER_NAMES.filter(name => layers[name]);
+export function graphOwnedParamPatch(state: GraphUrlState): Record<string, string | null> {
+  const enabled = LAYER_NAMES.filter(name => state.layers[name]);
   return {
-    'var-table': table || null,
-    'var-layers': sameLayers(layers, DEFAULT_LAYERS) ? null : (enabled.length ? enabled.join(',') : NO_LAYERS),
-    'var-layout': layout === 'force' ? 'force' : null
+    'var-table': state.table || null,
+    'var-layers': sameLayers(state.layers, DEFAULT_LAYERS) ? null : (enabled.length ? enabled.join(',') : NO_LAYERS),
+    'var-layout': (state.layout ?? DEFAULT_LAYOUT) === 'force' ? 'force' : null,
+    'var-tables': state.allTables ? 'all' : null
   };
 }
 
 export function decodeGraphParams(params: ParamReader): GraphUrlState {
-  const tag = params.get('tag');
-  const source = params.get('source') === 'search' ? 'search' as const : null;
   return {
     table: params.get('var-table') ?? params.get('table'),
     layers: decodeLayers(params.get('var-layers')),
     layout: params.get('var-layout') === 'force' ? 'force' : 'grid',
-    tag: tag || null,
-    source: tag ? null : source
+    allTables: params.get('var-tables') === 'all'
   };
+}
+
+/**
+ * Where an old `/graph` link goes: the workbench, showing the graph, asking
+ * the same question.
+ *
+ * <ul>
+ *   <li>`/graph/:schema` graphed the whole schema, so it becomes a search
+ *       scoped to that schema with every table drawn (`var-tables=all`).</li>
+ *   <li>`?tag=` graphed the queries carrying a tag: the search `tags`.</li>
+ *   <li>`?source=search` already carried the search; the marker is dropped.</li>
+ * </ul>
+ * Everything else (the search, the scope, the graph's own `var-` params, the
+ * environment) is kept as it is.
+ */
+export function graphRedirectParams(schema: string | null, params: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(params)) {
+    if (name !== 'source' && name !== 'tag' && name !== 'table') { result[name] = value; }
+  }
+  if (params['table'] && !params['var-table']) { result['var-table'] = params['table']; }
+  if (params['tag']) { result['tags'] = params['tag']; }
+  if (schema) {
+    const schemas = String(params['schemas'] ?? '').split(',').filter(Boolean);
+    result['schemas'] = [...new Set([...schemas, schema])].join(',');
+    result['var-tables'] = 'all';
+  }
+  result[VIEW_PARAM] = GRAPH_VIEW;
+  return result;
 }
 
 function decodeLayers(raw: string | null): GraphLayers {

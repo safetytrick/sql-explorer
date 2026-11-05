@@ -265,7 +265,7 @@ Components map directly to the URL hierarchy:
 | URL pattern                          | Component                                       |
 |--------------------------------------|-------------------------------------------------|
 | `/queries`                           | QueriesWorkbenchComponent                       |
-| `/graph`, `/graph/:schema`           | GraphLensComponent                              |
+| `/queries?view=graph`                | GraphLensComponent, inside the workbench; `/graph` and `/graph/:schema` redirect there |
 | `/schemas`                           | SchemaListComponent                             |
 | `/tables`, `/tables/:schema`         | TableNamesComponent                             |
 | `/table/:schema/:name`               | TableLensComponent                              |
