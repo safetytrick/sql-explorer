@@ -172,3 +172,13 @@ export async function stubApi(page: Page) {
   });
   await page.route(`${BASE}/graph/v2/**`, route => route.fulfill(json({nodes: [], edges: []})));
 }
+
+/**
+ * Pick an environment the way a person does: open the status in the nav and
+ * choose from the list (sqlx-m6r.6). Was a <select>; tests name the action,
+ * not the widget, so the next change to it touches only this.
+ */
+export async function chooseEnvironment(page: import('@playwright/test').Page, name: string): Promise<void> {
+  await page.locator('.env-current').click();
+  await page.locator('.env-option', {hasText: name}).click();
+}

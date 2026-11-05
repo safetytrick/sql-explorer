@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {stubApi} from './api';
+import {stubApi, chooseEnvironment} from './api';
 
 /**
  * Switching environments has to change the DATA, not only the address.
@@ -26,7 +26,7 @@ test('switching environments reloads the rows on /schemas', async ({page}) => {
   await page.goto('/schemas');
   await expect(page.locator('.data-table tbody tr')).toHaveCount(2);
 
-  await page.locator('.nav-environment-select').first().selectOption('staging');
+  await chooseEnvironment(page, 'staging');
 
   // the address moves...
   await expect(page).toHaveURL(/env=staging/);
@@ -39,7 +39,7 @@ test('and switching back reloads again', async ({page}) => {
   await page.goto('/schemas?env=staging');
   await expect(page.locator('.data-table tbody tr')).toHaveCount(1);
 
-  await page.locator('.nav-environment-select').first().selectOption('regression');
+  await chooseEnvironment(page, 'regression');
 
   await expect(page).toHaveURL(/env=regression/);
   await expect(page.locator('.data-table tbody tr')).toHaveCount(2);
@@ -54,7 +54,7 @@ test('switching environments reloads the rows on /tables, where the root lands',
   await page.goto('/tables');
   await expect(page.locator('.data-table tbody tr')).toHaveCount(2);
 
-  await page.locator('.nav-environment-select').first().selectOption('staging');
+  await chooseEnvironment(page, 'staging');
 
   await expect(page).toHaveURL(/env=staging/);
   await expect(page.locator('.data-table tbody tr')).toHaveCount(1);

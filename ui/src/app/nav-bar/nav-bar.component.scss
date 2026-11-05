@@ -126,3 +126,62 @@ nav.navbar {
   border-color: var(--red, #a33);
   color: var(--red, #a33);
 }
+
+// ── the environment as a status, and its chooser (sqlx-m6r.6) ──
+.env-picker { position: relative; margin: 0 0.5rem; }
+.env-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  &:hover { border-color: var(--blue); }
+  &.unknown { border-color: var(--red, #a33); color: var(--red, #a33); }
+}
+.env-name { font-family: var(--mono); font-weight: 600; }
+.env-status { color: var(--text3); }
+.env-caret { color: var(--text3); font-size: 9px; }
+.env-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text3);
+  flex-shrink: 0;
+  &.loaded { background: var(--green); }
+}
+.env-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1000;
+  min-width: 420px;
+  padding: 4px 0;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.env-menu-head { padding: 4px 12px 6px; font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.env-option {
+  display: grid;
+  grid-template-columns: 10px auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  color: var(--text2);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  &:hover { background: var(--bg4); color: var(--text); }
+  &.on { color: var(--text); background: var(--blue-dim); }
+}
+.env-option-name { font-family: var(--mono); font-weight: 600; }
+.env-option-status, .env-option-servers { font-size: 11px; color: var(--text3); white-space: nowrap; }

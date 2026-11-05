@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {stubApi} from './api';
+import {stubApi, chooseEnvironment} from './api';
 
 /**
  * Which corpus a page is about belongs in the URL.
@@ -22,7 +22,7 @@ test('a link naming an environment opens on it, whatever was stored', async ({pa
 
   await page.goto('/tables?env=staging');
 
-  await expect(page.locator('.nav-environment-select').first()).toHaveValue('staging');
+  await expect(page.locator('.env-current')).toHaveAttribute('data-env', 'staging');
 });
 
 /**
@@ -32,7 +32,7 @@ test('a link naming an environment opens on it, whatever was stored', async ({pa
  */
 test('picking an environment writes it to the address', async ({page}) => {
   await page.goto('/tables');
-  await page.locator('.nav-environment-select').first().selectOption('staging');
+  await chooseEnvironment(page, 'staging');
 
   await expect(page).toHaveURL(/env=staging/);
 });

@@ -1,3 +1,4 @@
+import {compactCount} from '../compact-count';
 import { Component, HostListener, OnInit } from '@angular/core';
 import {ExplainService} from '../explain.service';
 import { RouterLink } from '@angular/router';
@@ -45,11 +46,13 @@ export class NavBarComponent implements OnInit {
   @HostListener('document:click')
   onDocumentClick() {
     this.adminOpen = false;
+    this.envOpen = false;
   }
 
   @HostListener('document:keydown.escape')
   onEscape() {
     this.adminOpen = false;
+    this.envOpen = false;
   }
 
   ngOnInit() {
@@ -61,6 +64,42 @@ export class NavBarComponent implements OnInit {
       }
     });
     this.environmentService.unknown$.subscribe(name => this.unknownEnvironment = name);
+  }
+
+  /** The environment chooser is open (sqlx-m6r.6). */
+  envOpen = false;
+
+  toggleEnv(event: Event) {
+    event.stopPropagation();
+    this.envOpen = !this.envOpen;
+    this.adminOpen = false;
+    if (this.envOpen) {
+      // statuses change as sources load; read them fresh when the chooser opens
+      this.environmentService.getEnvironments().subscribe(list => this.environments = list.environments);
+    }
+  }
+
+  chooseEnv(name: string) {
+    this.envOpen = false;
+    if (name !== this.current || this.unknownEnvironment) {
+      this.onEnvChange(name);
+    }
+  }
+
+  currentSummary(): EnvironmentSummary | undefined {
+    return this.environments.find(env => env.name === this.current);
+  }
+
+  /** "216k statements · loaded Nov 4, 9:29 PM", or what is missing. */
+  statusLine(env: EnvironmentSummary): string {
+    const sources = env.sources;
+    if (!sources?.loaded) { return 'nothing loaded'; }
+    const count = sources.importStats?.count;
+    const statements = count === null || count === undefined ? `${sources.sourceCount} source${sources.sourceCount === 1 ? '' : 's'}`
+      : `${compactCount(count)} statements`;
+    const when = sources.loadedOn ? ' · loaded ' + new Date(sources.loadedOn).toLocaleString('en-US',
+      {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) : '';
+    return statements + when;
   }
 
   onEnvChange(name: string) {

@@ -33,3 +33,17 @@ test('the schema tree appears on the workbench only', async ({page}) => {
   await page.locator('nav.navbar a', {hasText: 'Queries'}).click();
   await expect(page.locator('app-schema-tree')).toHaveCount(1);
 });
+
+/** The environment reads as a status, and its chooser says the same about each choice (sqlx-m6r.6). */
+test('the environment shows what is loaded, and the chooser lists each with its status', async ({page}) => {
+  await page.goto('/schemas');
+  const current = page.locator('.env-current');
+  await expect(current).toHaveAttribute('data-env', 'regression');
+  await expect(current.locator('.env-dot.loaded')).toHaveCount(1);
+
+  await current.click();
+  await expect(page.locator('.env-option')).toHaveCount(2);
+  await expect(page.locator('.env-option.on')).toContainText('regression');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.env-menu')).toHaveCount(0);
+});
