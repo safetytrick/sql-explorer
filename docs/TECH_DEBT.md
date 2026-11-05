@@ -96,18 +96,12 @@ has what was here. If something below turns out to be already done, delete it.
 
 ### Architecture / coupling
 
-- **MED-HIGH — Two graph stacks.** v1 (`graph/SqlGraphService`, `SqlGraphResource`: `/graph/all`,
-  `/graph/schema/**`, `/graph/by-tag/**`) vs v2 (`graph/GraphV2Service`, `GraphV2Resource`:
-  `/graph/v2/schema/**`). The `*-lens` frontend uses only v2. v1 is a live-mapped controller with no
-  confirmed frontend caller — candidate dead API surface (verify server-side usage before deleting).
-  Retiring `TableGraph*` (frontend §) is what would settle this.
-- **MED — Hardcoded infra URLs in a domain service.** `graph/SqlGraphService.java:32-35` compiles in
-  `http://localhost:4200/...`, a `grafana.local` dashboard URL, and a `rundeck.local` job URL with an
-  embedded UUID + inline SQL (carries its own `// todo refactor`). Belongs in config. Verified
-  2026-08-30 against the production Grafana: dashboard uid `dvUfZxpZk` does not exist and neither
-  does the host, so this is a dead link, not merely a misplaced one. See
-  [plans/grafana-integration.md](plans/grafana-integration.md) — and note it sits on v1 above, so the
-  deletion may take it rather than a refactor.
+- ~~**MED-HIGH — Two graph stacks.**~~ Resolved 2026-11-05 (sqlx-aoy.9): the v1 graph API
+  (`SqlGraphService`, `SqlGraphResource`: `/graph/all`, `/graph/schema/**`, `/graph/by-tag/**`) is
+  deleted with `TableGraph*`, its only caller. v2 (`GraphV2Service`) is the one graph.
+- ~~**MED — Hardcoded infra URLs in a domain service.**~~ Went with the v1 graph service above,
+  which held them; nothing was refactored. The idea lives on in
+  [plans/grafana-integration.md](plans/grafana-integration.md).
 - **MED-HIGH — Triplicated "group-by-digest + merge" logic** (`SqlEvidenceInputService.java:343-374`,
   `AnalyzedSqlRepository.java:67-91`, `CompositeSqlRepository.java:103-110`), and profiles are merged
   **three times** along the pipeline (import → repository ctor → per-read). DRY violation and the root

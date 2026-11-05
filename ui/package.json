@@ -22,13 +22,9 @@
     "@angular/platform-browser": "^21.2.8",
     "@angular/platform-browser-dynamic": "^21.2.8",
     "@angular/router": "^21.2.8",
-    "@swimlane/ngx-graph": "^8.4.0",
     "rxjs": "^7.8.2",
     "tslib": "^2.0.0",
     "zone.js": "~0.15.1"
-  },
-  "overrides": {
-    "d3-selection": "^3.0.0"
   },
   "devDependencies": {
     "@angular/build": "^21.2.7",

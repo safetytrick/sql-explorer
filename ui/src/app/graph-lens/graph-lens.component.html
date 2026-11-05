@@ -21,6 +21,18 @@
             [title]="scopedToSchemas
               ? 'every table of the scoped schemas, queried or not, with the foreign keys between them; off, only the tables the matching queries touch'
               : 'scope the search to a schema to draw all of its tables'">all tables</button>
+    <select class="depth" [ngModel]="depth" (ngModelChange)="setDepth($event)" [disabled]="!selectedTable"
+            [title]="selectedTable
+              ? 'only the tables within this many lines of ' + selectedTable + ', along the kinds of line shown'
+              : 'select a table to show only its neighbourhood'">
+      <option [ngValue]="null">all tables</option>
+      @for (hops of depths; track hops) {
+        <option [ngValue]="hops">{{hops}} {{hops === 1 ? 'hop' : 'hops'}} from {{selectedTable ?? 'selected'}}</option>
+      }
+      @if (depth && !depths.includes($any(depth))) {
+        <option [ngValue]="depth">{{depth}} hops from {{selectedTable ?? 'selected'}}</option>
+      }
+    </select>
     <button class="btn" [class.on]="layers.fk" (click)="toggle('fk')">FK</button>
     <button class="btn" [class.on]="layers.join" (click)="toggle('join')">joins</button>
     <button class="btn" [class.on]="layers.co" (click)="toggle('co')">co-query</button>

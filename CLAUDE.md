@@ -250,7 +250,7 @@ The backend is organized by domain, not by layer. Code that changes together liv
 
 - **`profiles/`** — Aggregates analysis + evidence + tags into per-table/per-query profiles. `SqlProfileResource` is the primary REST API consumed by the frontend.
 
-- **`graph/`** — Builds table relationship graphs (join relationships, "queried with" co-occurrence). `SqlGraphResource` serves graph data.
+- **`graph/`** — Builds table relationship graphs (join relationships, "queried with" co-occurrence). `GraphV2Resource` serves graph data, and `GraphLayoutResource` the shared hand arrangement.
 
 - **`commentary/`** — User tagging (`TagsResource`) and notes (`NotesResource`) for queries and tables.
 
@@ -272,9 +272,9 @@ Components map directly to the URL hierarchy:
 | `/table/:schema/:name/queries` (+ `/join/**`, `/:column`) | TableViewComponent         |
 | `/analyzed-sql/:id`                  | SqlViewComponent                                |
 | `/tags`                              | TagManagerComponent (master/detail)             |
-| `/table-graph/schema/:schema` (+ variants) | TableGraphLoaderComponent → TableGraphComponent |
+| `/table-graph/**`                    | redirects to `/queries?view=graph` (the ngx-graph table graph is retired) |
 
-Note: the `*-lens` components (`TableLensComponent`, `GraphLensComponent`, `SchemaTreeComponent`) are the current UI. `TableViewComponent` and `TableGraph*` are the last legacy components still routed — both have lens replacements, so what remains is a deletion decision, not a restyle (see `docs/plans/legacy-ui.md`). `SchemaListComponent` / `TableNamesComponent` are no longer legacy: they were rebuilt on the Ledger.
+Note: the `*-lens` components (`TableLensComponent`, `GraphLensComponent`, `SchemaTreeComponent`) are the current UI. The legacy `TableViewComponent` and `TableGraph*` are deleted; their old paths redirect (see `docs/plans/legacy-ui.md`). `SchemaListComponent` / `TableNamesComponent` are no longer legacy: they were rebuilt on the Ledger.
 
 An unknown URL hits the `**` catch-all and renders `NotFoundComponent`: a "Not found" heading, the address that was attempted, and links back to Tables, Schemas and Queries. The address bar keeps the bad path, which is right — it is what the page shows you.
 

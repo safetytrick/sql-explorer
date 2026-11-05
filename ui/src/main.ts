@@ -9,7 +9,6 @@ import {PageTitleStrategy} from './app/page-title';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {bootstrapApplication} from '@angular/platform-browser';
 import {provideAnimations} from '@angular/platform-browser/animations';
-import {NgxGraphModule} from '@swimlane/ngx-graph';
 import {AppComponent} from './app/app.component';
 import {appRoutes} from './app/app.routes';
 
@@ -21,7 +20,7 @@ bootstrapApplication(AppComponent, {
     providers: [
         provideZoneChangeDetection({ eventCoalescing: true }),
         provideAnimations(),
-        importProvidersFrom(FormsModule, ReactiveFormsModule, NgxGraphModule),
+        importProvidersFrom(FormsModule, ReactiveFormsModule),
         AnalyzedSqlService,
         { provide: TitleStrategy, useClass: PageTitleStrategy },
         provideHttpClient(withInterceptorsFromDi(), withInterceptors([environmentInterceptor])),

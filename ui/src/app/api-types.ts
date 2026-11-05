@@ -265,27 +265,6 @@ export interface SourceRefRequest {
   sourceRef: string;
 }
 
-export interface TableRelationships {
-  table: TableRef;
-  foreignKeyTables: TableRef[];
-  joinTables: TableRef[];
-  relatedTables: TableRef[];
-}
-
-export interface GroupedTableRelationships extends TableRelationships {
-  group: string;
-}
-
-export interface CrossSchemaTable {
-  query: string;
-  id: string;
-  analysisUrl: string;
-  grafanaUrl: string;
-  rundeckQuery: string;
-  tables: string;
-}
-
-
 /**
  * A stored example: one real statement, parameters intact, for a normalized
  * query group.

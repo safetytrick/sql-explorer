@@ -30,7 +30,7 @@ export const VIEW_PARAM = 'view';
 export const GRAPH_VIEW = 'graph';
 
 /** The params the graph owns, which the workbench keeps while the graph shows. */
-export const GRAPH_PARAMS = ['var-table', 'var-layers', 'var-layout', 'var-tables', 'var-legend'] as const;
+export const GRAPH_PARAMS = ['var-table', 'var-layers', 'var-layout', 'var-tables', 'var-depth', 'var-legend'] as const;
 
 export interface GraphUrlState {
   /** Selected table (name only — matches node labels), null for none. */
@@ -44,7 +44,15 @@ export interface GraphUrlState {
    * `var-tables=all`. Does nothing unless the search is scoped to schemas.
    */
   allTables?: boolean;
+  /**
+   * Only the tables within this many hops of the selected one, `var-depth=n`
+   * (sqlx-aoy.9). Absent or with no table selected, the whole graph.
+   */
+  depth?: number | null;
 }
+
+/** The neighbourhood depths the toolbar offers; a link may ask for more. */
+export const DEPTHS = [1, 2, 3] as const;
 
 /**
  * Joins (and views) alone: what the queries actually do. Foreign keys,
@@ -78,7 +86,8 @@ export function graphOwnedParamPatch(state: GraphUrlState): Record<string, strin
     'var-table': state.table || null,
     'var-layers': sameLayers(state.layers, DEFAULT_LAYERS) ? null : (enabled.length ? enabled.join(',') : NO_LAYERS),
     'var-layout': (state.layout ?? DEFAULT_LAYOUT) === 'force' ? 'force' : null,
-    'var-tables': state.allTables ? 'all' : null
+    'var-tables': state.allTables ? 'all' : null,
+    'var-depth': state.depth ? String(state.depth) : null
   };
 }
 
@@ -87,8 +96,47 @@ export function decodeGraphParams(params: ParamReader): GraphUrlState {
     table: params.get('var-table') ?? params.get('table'),
     layers: decodeLayers(params.get('var-layers')),
     layout: params.get('var-layout') === 'force' ? 'force' : 'grid',
-    allTables: params.get('var-tables') === 'all'
+    allTables: params.get('var-tables') === 'all',
+    depth: decodeDepth(params.get('var-depth'))
   };
+}
+
+function decodeDepth(raw: string | null): number | null {
+  const depth = raw === null ? NaN : Number(raw);
+  return Number.isInteger(depth) && depth > 0 ? depth : null;
+}
+
+/**
+ * Where an old `/table-graph/**` link goes (sqlx-aoy.9): the ngx-graph table
+ * graph it named is gone, and this graph asks the same questions.
+ *
+ * <ul>
+ *   <li>`/table-graph` drew every relationship: the graph of every query.</li>
+ *   <li>`/schema/:schema` drew one schema: scoped to it, every table drawn.</li>
+ *   <li>`/schema/:schema/:table[/depth/:n]` drew the table's relationships and
+ *       theirs, n more hops out: the table selected, `var-depth` n + 1, across
+ *       every schema as it was. FKs are switched on, since it walked them.</li>
+ *   <li>`/by-tag/:tag[/depth/:n]` drew the tables carrying a tag: the queries
+ *       touching them. Its depth has no single table to count from, so it is
+ *       dropped.</li>
+ * </ul>
+ */
+export function tableGraphRedirectParams(route: {schema?: string; table?: string; tag?: string; depth?: string},
+                                         params: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {...params};
+  if (route.tag) {
+    result['tableTags'] = route.tag;
+  } else if (route.table && route.schema) {
+    const depth = Number(route.depth ?? 0);
+    result['var-table'] = route.table;
+    result['var-depth'] = String((Number.isInteger(depth) && depth > 0 ? depth : 0) + 1);
+    result['var-layers'] = 'fk,join,view';
+  } else if (route.schema) {
+    result['schemas'] = route.schema;
+    result['var-tables'] = 'all';
+  }
+  result[VIEW_PARAM] = GRAPH_VIEW;
+  return result;
 }
 
 /**

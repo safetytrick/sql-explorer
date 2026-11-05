@@ -201,6 +201,10 @@ cumulative-counter note above.
 
 ## What this replaces
 
+(2026-11-05: `SqlGraphService` is deleted with the rest of the v1 graph API,
+sqlx-aoy.9, and these constants with it. The line references in this document
+are to the code as it was.)
+
 `SqlGraphService`'s `GRAFANA_URL`, `RUNDECK_QUERY` and `BASE_URL` constants —
 all three hardcoded, all three deployment-specific. Note they sit on the **v1**
 graph service, which `docs/TECH_DEBT.md` lists as candidate dead API surface. So

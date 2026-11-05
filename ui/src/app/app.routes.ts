@@ -15,12 +15,11 @@ import {TablesWithColumnComponent} from './tables-with-column/tables-with-column
 import {SqlViewComponent} from './sql-view/sql-view.component';
 import {ExplainViewComponent} from './explain-view/explain-view.component';
 import {QueryUtilitiesComponent} from './query-utilities/query-utilities.component';
-import {TableGraphLoaderComponent} from './table-graph-loader/table-graph-loader.component';
 import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
 import {NoteViewComponent} from './note-view/note-view.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.component';
-import {graphRedirectParams} from './graph-lens/graph-url';
+import {graphRedirectParams, tableGraphRedirectParams} from './graph-lens/graph-url';
 import {TagManagerComponent} from './tag-manager/tag-manager.component';
 import {NotFoundComponent} from './not-found/not-found.component';
 import {UnqueriedTablesComponent} from './unqueried-tables/unqueried-tables.component';
@@ -66,6 +65,18 @@ export const graphRedirect: RedirectFunction = route => {
   const carried = droppedScope(router.routerState.snapshot.root.queryParams, route.queryParams);
   return router.createUrlTree(['/queries'],
     { queryParams: {...carried, ...graphRedirectParams(route.params['schema'] ?? null, route.queryParams)} });
+};
+
+/**
+ * `/table-graph/**` was the ngx-graph table graph, retired in sqlx-aoy.9. Its
+ * links redirect to the graph view asking the same question; see
+ * {@link tableGraphRedirectParams}. The scope is carried as for `/graph`.
+ */
+export const tableGraphRedirect: RedirectFunction = route => {
+  const router = inject(Router);
+  const carried = droppedScope(router.routerState.snapshot.root.queryParams, route.queryParams);
+  return router.createUrlTree(['/queries'],
+    { queryParams: {...carried, ...tableGraphRedirectParams(route.params, route.queryParams)} });
 };
 
 /**
@@ -242,34 +253,30 @@ const routes: Routes = [
   },
   {
     path: 'table-graph/schema/:schema/:table/depth/:depth',
-    component: TableGraphLoaderComponent,
-    title: 'Table Graph'
+    redirectTo: tableGraphRedirect
   },
   {
     path: 'table-graph/schema/:schema/:table',
-    component: TableGraphLoaderComponent,
-    title: 'Table Graph'
+    redirectTo: tableGraphRedirect
   },
   {
     path: 'table-graph/schema/:schema',
-    component: TableGraphLoaderComponent,
-    title: 'Table Graph'
-  },
-  {
-    path: 'table-graph/by-tag/:tag',
-    component: TableGraphLoaderComponent,
-    title: 'Table Graph'
+    redirectTo: tableGraphRedirect
   },
   {
     path: 'table-graph/by-tag/:tag/depth/:depth',
-    component: TableGraphLoaderComponent,
-    title: 'Table Graph'
+    redirectTo: tableGraphRedirect
+  },
+  {
+    path: 'table-graph/by-tag/:tag',
+    redirectTo: tableGraphRedirect
   },
   {
     path: 'table-graph',
-    component: TableGraphLoaderComponent,
-    title: 'Table Graph'
+    pathMatch: 'full',
+    redirectTo: tableGraphRedirect
   },
+
   {
     path: 'admin/sources',
     component: AdminSourceListComponent,

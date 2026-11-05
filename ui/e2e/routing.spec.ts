@@ -120,3 +120,19 @@ test('the workbench switches between the list and the graph of the same search',
   await expect(page).not.toHaveURL(/view=graph/);
   await expect(page.locator('.q-row')).toHaveCount(3);
 });
+
+/**
+ * The ngx-graph table graph is retired (sqlx-aoy.9). A link to a table's
+ * neighbourhood opens the graph view with the table selected and the same
+ * reach: depth 1 there was the table, its neighbours and theirs.
+ */
+test('an old table-graph link opens the neighbourhood in the graph view', async ({page}) => {
+  await page.goto('/table-graph/schema/app/orders/depth/1');
+
+  await expect(page).toHaveURL(/\/queries\?/);
+  const url = new URL(page.url());
+  expect(url.searchParams.get('view')).toBe('graph');
+  expect(url.searchParams.get('var-table')).toBe('orders');
+  expect(url.searchParams.get('var-depth')).toBe('2');
+  await expect(page.locator('app-graph-lens canvas').first()).toBeVisible();
+});

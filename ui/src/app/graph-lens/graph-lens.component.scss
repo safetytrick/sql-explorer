@@ -43,6 +43,18 @@ canvas {
     &:disabled { opacity: 0.45; cursor: default; border-color: var(--border2); color: var(--text2); }
   }
 
+  .depth {
+    font-size: 11px;
+    height: 26px;
+    padding: 0 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    border-radius: var(--radius);
+    max-width: 200px;
+    &:disabled { opacity: 0.45; }
+  }
+
   .loading { font-size: 10px; color: var(--text3); }
   .layout-error { font-size: 10px; color: var(--red); }
 }

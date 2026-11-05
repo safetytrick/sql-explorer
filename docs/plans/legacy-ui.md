@@ -1,6 +1,13 @@
 # Finish the lens migration: retire the last legacy components
 
-Nearly done. What remains is one deletion decision, not styling work.
+**Done 2026-11-05 (sqlx-aoy.9).** `TableGraph*`, `@swimlane/ngx-graph` and the
+v1 graph API are deleted. The one behaviour the table graph had that the graph
+lens lacked, a table's neighbourhood to a depth, moved into it as `var-depth`,
+and `/table-graph/**` links redirect to `/queries?view=graph` asking the same
+question (`tableGraphRedirectParams` in `graph-lens/graph-url.ts`).
+`TableViewComponent` and `SmallTableViewComponent` had already gone; their
+paths redirect to the table lens. The rest of this page is the record of how
+the decision was reached.
 
 ## What is left
 

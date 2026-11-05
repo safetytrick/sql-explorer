@@ -6,7 +6,8 @@ import {GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
-import {decodeGraphParams, DEFAULT_LAYERS, DEFAULT_LAYOUT, GraphLayers, GraphLayout, graphOwnedParamPatch} from './graph-url';
+import {decodeGraphParams, DEFAULT_LAYERS, DEFAULT_LAYOUT, DEPTHS, GraphLayers, GraphLayout, graphOwnedParamPatch} from './graph-url';
+import {neighbourhood} from './neighbourhood';
 import {buildAggregates} from './aggregates';
 import {GridNode, GridSpacing, layoutGrid, LayoutBox, Slot} from './grid-layout';
 import {Point, routeEdges} from './routing';
@@ -148,6 +149,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * `var-tables=all` (sqlx-aoy.16).
    */
   allTables = false;
+  /** Only the selected table's neighbourhood, this many hops out; `var-depth` (sqlx-aoy.9). */
+  depth: number | null = null;
+  readonly depths = DEPTHS;
+  /** What the drawn neighbourhood was cut for, so a change to it re-lays the graph out. */
+  private focusedFor = '';
 
   /** Scope of the last fetch — lets URL writes for selection/layers redraw without refetching. */
   private loadedScope: string | null = null;
@@ -214,10 +220,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedTable = state.table;
     this.layers = state.layers;
     this.allTables = state.allTables ?? false;
+    this.depth = state.depth ?? null;
     const layoutChanged = (state.layout ?? DEFAULT_LAYOUT) !== this.layout;
     this.layout = state.layout ?? DEFAULT_LAYOUT;
     if (this.scopeKey() === this.loadedScope) {
-      if (layoutChanged && this.lastGraph) {
+      // a new neighbourhood is a new set of tables, so it is laid out afresh
+      if ((layoutChanged || this.focusKey() !== this.focusedFor) && this.lastGraph) {
         this.buildLayout(this.lastGraph);
         this.resetView();
       } else {
@@ -266,11 +274,26 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private writeUrl() {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: graphOwnedParamPatch(
-        { table: this.selectedTable, layers: this.layers, layout: this.layout, allTables: this.allTables }),
+      queryParams: graphOwnedParamPatch({ table: this.selectedTable, layers: this.layers, layout: this.layout,
+        allTables: this.allTables, depth: this.depth }),
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
+  }
+
+  /** Show only the selected table's neighbourhood, this many hops out, or (null) everything. */
+  setDepth(depth: number | null) {
+    this.depth = depth;
+    this.writeUrl();
+  }
+
+  /**
+   * What the neighbourhood depends on: the table at its centre, how far out,
+   * and which kinds of line it walks. Empty when the whole graph shows.
+   */
+  private focusKey(): string {
+    if (!this.depth || !this.selectedTable) { return ''; }
+    return `${this.selectedTable.toLowerCase()}|${this.depth}|${JSON.stringify(this.layers)}`;
   }
 
   /** Draw every table of the scoped schemas, or only the queried ones. */
@@ -476,8 +499,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private buildLayout(graph: GraphV2) {
-    this.lastGraph = graph;
+  private buildLayout(fetched: GraphV2) {
+    this.lastGraph = fetched;
+    this.focusedFor = this.focusKey();
+    const graph = this.depth && this.selectedTable
+      ? neighbourhood(fetched, this.selectedTable, this.depth, this.layers)
+      : fetched;
     this.aggregateBoxes = [];
     this.gridBoxes = [];
     this.gridIndex.clear();

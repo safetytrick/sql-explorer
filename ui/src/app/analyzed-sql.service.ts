@@ -5,13 +5,11 @@ import type {TagTarget} from './tag-path';
 import {
   CleanedSql,
   ExplainResult,
-  GroupedTableRelationships,
   NormalizedQuery,
   QueryExample,
   SchemaRollup,
   SqlProfile,
   Table,
-  TableRelationships,
   TableRollup,
   TableStructure,
   Tag
@@ -109,24 +107,6 @@ export class AnalyzedSqlService {
 
   getSchemasByTag(tag: string): Observable<SchemaRollup[]> {
     return this.http.get<SchemaRollup[]>(endpoint + 'schemas/tag/' + tag);
-  }
-
-  getTableGraph(): Observable<TableRelationships[]> {
-    return this.http.get<TableRelationships[]>(endpoint + 'graph/all');
-  }
-
-  getTableGraphForSchema(schema: string): Observable<TableRelationships[]> {
-    return this.http.get<TableRelationships[]>(endpoint + 'graph/schema/' + schema);
-  }
-
-  getTableGraphForTable(schema: string, table: string, depth: number): Observable<TableRelationships[]> {
-    const params: HttpParams = new HttpParams().set('depth', String(depth));
-    return this.http.get<TableRelationships[]>(endpoint + 'graph/schema/' + schema + '/table/' + table, {params: params});
-  }
-
-  getTableGraphForTag(tag: string, depth: number): Observable<GroupedTableRelationships[]> {
-    const params: HttpParams = new HttpParams().set('depth', String(depth)).set('threshold', '100');
-    return this.http.get<GroupedTableRelationships[]>(endpoint + 'graph/by-tag/' + tag, {params: params});
   }
 
   getTablesForSchema(schema: string, columns: string[] = []): Observable<TableRollup[]> {

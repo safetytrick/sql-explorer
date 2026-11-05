@@ -153,6 +153,34 @@ describe('GraphLensComponent — scope legibility', () => {
     });
   });
 
+  // a table's neighbourhood, as the retired table graph offered (sqlx-aoy.9)
+  it('draws only the selected table\'s neighbourhood at a depth, and the whole graph again without one', () => {
+    const node = (table: string) =>
+      ({schema: 'app_main', table, columnCount: 2, queryCount: 1, warn: false, selfJoin: false, view: false});
+    const join = (a: string, b: string) =>
+      ({aSchema: 'app_main', aTable: a, bSchema: 'app_main', bTable: b, columns: ['x=y'], queries: 1, executions: 1});
+    const respond = () => TestBed.inject(HttpTestingController).match(req => req.url.includes('graph/v2'))
+      .forEach(req => req.flush({
+        nodes: ['account', 'account_site', 'site', 'region'].map(node),
+        joinEdges: [join('account', 'account_site'), join('account_site', 'site'), join('site', 'region')],
+        fkEdges: [], coQueryEdges: [], viewEdges: []
+      }));
+    respond();
+    expect(component.nodeCount).toBe(4);
+
+    navigateTo({}, {'var-table': 'account', 'var-depth': '1'});
+    expect(component.nodeCount).toBe(2);
+    navigateTo({}, {'var-table': 'account', 'var-depth': '2'});
+    expect(component.nodeCount).toBe(3);
+    // following a relationship re-centres the neighbourhood
+    navigateTo({}, {'var-table': 'region', 'var-depth': '1'});
+    expect(component.nodeCount).toBe(2);
+    navigateTo({}, {'var-table': 'region'});
+    expect(component.nodeCount).toBe(4);
+    // no request was made for any of it: the neighbourhood is cut from what was fetched
+    expect(TestBed.inject(HttpTestingController).match(req => req.url.includes('graph/v2')).length).toBe(0);
+  });
+
   // links out of the graph open the queries it counted (sqlx-aoy.8)
   describe('links to the queries behind it', () => {
     const node = (table: string) => ({id: 'app.' + table, schema: 'app', table, columnCount: 3,

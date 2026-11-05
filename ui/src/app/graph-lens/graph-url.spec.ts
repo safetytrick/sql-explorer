@@ -1,4 +1,6 @@
-import {decodeGraphParams, DEFAULT_LAYERS, graphOwnedParamPatch, graphRedirectParams, GraphUrlState, ParamReader} from './graph-url';
+import {
+  decodeGraphParams, DEFAULT_LAYERS, graphOwnedParamPatch, graphRedirectParams, GraphUrlState, ParamReader, tableGraphRedirectParams
+} from './graph-url';
 
 function reader(params: Record<string, string>): ParamReader {
   return { get: (name: string) => params[name] ?? null };
@@ -16,9 +18,10 @@ describe('graphOwnedParamPatch (merge writes)', () => {
 
   it('touches only var- params, null-clearing at defaults', () => {
     expect(graphOwnedParamPatch({ table: null, layers: { ...DEFAULT_LAYERS } })).toEqual(
-      { 'var-table': null, 'var-layers': null, 'var-layout': null, 'var-tables': null });
+      { 'var-table': null, 'var-layers': null, 'var-layout': null, 'var-tables': null, 'var-depth': null });
     expect(graphOwnedParamPatch({ table: 'account_site', layers: { fk: true, join: true, co: true, self: true, view: true } }))
-      .toEqual({ 'var-table': 'account_site', 'var-layers': 'fk,join,co,self,view', 'var-layout': null, 'var-tables': null });
+      .toEqual({ 'var-table': 'account_site', 'var-layers': 'fk,join,co,self,view',
+        'var-layout': null, 'var-tables': null, 'var-depth': null });
   });
 
   it('writes the force layout and all tables, since the grid and queried tables are the defaults', () => {
@@ -43,6 +46,7 @@ describe('decodeGraphParams', () => {
     expect(state.layers).toEqual({ fk: false, join: true, co: false, self: false, view: true });
     expect(state.layout).toBe('grid');
     expect(state.allTables).toBeFalse();
+    expect(state.depth).toBeNull();
   });
 
   it('reads var-layout=force as the simulation, and a link from when grid was opt-in as the grid', () => {
@@ -65,10 +69,12 @@ describe('decodeGraphParams', () => {
 
   it('round-trips every non-default state', () => {
     const states: GraphUrlState[] = [
-      { table: 'account_site', layers: { fk: false, join: false, co: true, self: false, view: true }, layout: 'force', allTables: false },
-      { table: null, layers: { ...DEFAULT_LAYERS }, layout: 'grid', allTables: true },
-      { table: 'site', layers: { fk: true, join: true, co: true, self: true, view: true }, layout: 'force', allTables: true },
-      { table: null, layers: { fk: false, join: false, co: false, self: false, view: false }, layout: 'grid', allTables: false }
+      { table: 'account_site', layers: { fk: false, join: false, co: true, self: false, view: true },
+        layout: 'force', allTables: false, depth: null },
+      { table: null, layers: { ...DEFAULT_LAYERS }, layout: 'grid', allTables: true, depth: 2 },
+      { table: 'site', layers: { fk: true, join: true, co: true, self: true, view: true }, layout: 'force', allTables: true, depth: null },
+      { table: null, layers: { fk: false, join: false, co: false, self: false, view: false },
+        layout: 'grid', allTables: false, depth: null }
     ];
     for (const state of states) {
       expect(decodeGraphParams(reader(encoded(state)))).toEqual(state);
@@ -101,5 +107,40 @@ describe('graphRedirectParams (old /graph links)', () => {
 
   it('sends a bare /graph to the graph of every query', () => {
     expect(graphRedirectParams(null, {})).toEqual({ view: 'graph' });
+  });
+});
+
+describe('neighbourhood depth (sqlx-aoy.9)', () => {
+
+  it('round-trips as var-depth, and ignores what is not a positive whole number', () => {
+    expect(graphOwnedParamPatch({ table: 'account', layers: { ...DEFAULT_LAYERS }, depth: 2 })['var-depth']).toBe('2');
+    expect(graphOwnedParamPatch({ table: 'account', layers: { ...DEFAULT_LAYERS } })['var-depth']).toBeNull();
+    expect(decodeGraphParams(reader({ 'var-depth': '3' })).depth).toBe(3);
+    for (const bad of ['0', '-1', '1.5', 'far']) {
+      expect(decodeGraphParams(reader({ 'var-depth': bad })).depth).withContext(bad).toBeNull();
+    }
+  });
+});
+
+describe('tableGraphRedirectParams (old /table-graph links)', () => {
+
+  it('turns a table at a depth into the table selected, one hop further out, walking foreign keys too', () => {
+    expect(tableGraphRedirectParams({ schema: 'app_main', table: 'account', depth: '2' }, {})).toEqual(
+      { 'var-table': 'account', 'var-depth': '3', 'var-layers': 'fk,join,view', view: 'graph' });
+    // depth 0 was the table and its own relationships: one hop
+    expect(tableGraphRedirectParams({ schema: 'app_main', table: 'account' }, {})['var-depth']).toBe('1');
+  });
+
+  it('turns a schema into the schema with every table drawn', () => {
+    expect(tableGraphRedirectParams({ schema: 'app_main' }, { env: 'local' })).toEqual(
+      { env: 'local', schemas: 'app_main', 'var-tables': 'all', view: 'graph' });
+  });
+
+  it('turns a tag into the queries touching the tables carrying it', () => {
+    expect(tableGraphRedirectParams({ tag: 'billing', depth: '1' }, {})).toEqual({ tableTags: 'billing', view: 'graph' });
+  });
+
+  it('sends the whole table graph to the graph of every query', () => {
+    expect(tableGraphRedirectParams({}, {})).toEqual({ view: 'graph' });
   });
 });
