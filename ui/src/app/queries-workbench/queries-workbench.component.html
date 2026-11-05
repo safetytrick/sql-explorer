@@ -167,12 +167,12 @@
 
       <div class="section-hdr">Analyzer</div>
       <div class="fg checks">
-        <label class="check-row"><input type="checkbox" [(ngModel)]="analyzerWarnings" (change)="filtersChanged()"> has analyzer warnings</label>
-        <label class="check-row"><input type="checkbox" [(ngModel)]="analysisFailed" (change)="filtersChanged()"> analysis failed</label>
-        <label class="check-row"><input type="checkbox" [(ngModel)]="cleanAnalysis" (change)="filtersChanged()"> clean analysis</label>
-        <label class="check-row"><input type="checkbox" [(ngModel)]="analysisSkipped" (change)="filtersChanged()"> analysis skipped</label>
-        <label class="check-row"><input type="checkbox" [checked]="failureKind === 'ANALYZER'" (change)="toggleFailureKind('ANALYZER')"> analyzer failure</label>
-        <label class="check-row"><input type="checkbox" [checked]="failureKind === 'PARSE'" (change)="toggleFailureKind('PARSE')"> parse failure</label>
+        <label class="check-row" [title]="glossary.analyzerWarnings"><input type="checkbox" [(ngModel)]="analyzerWarnings" (change)="filtersChanged()"> <span class="term">has analyzer warnings</span></label>
+        <label class="check-row" [title]="glossary.analysisFailed"><input type="checkbox" [(ngModel)]="analysisFailed" (change)="filtersChanged()"> <span class="term">analysis failed</span></label>
+        <label class="check-row" [title]="glossary.cleanAnalysis"><input type="checkbox" [(ngModel)]="cleanAnalysis" (change)="filtersChanged()"> <span class="term">clean analysis</span></label>
+        <label class="check-row" [title]="glossary.analysisSkipped"><input type="checkbox" [(ngModel)]="analysisSkipped" (change)="filtersChanged()"> <span class="term">analysis skipped</span></label>
+        <label class="check-row" [title]="glossary.analyzerFailure"><input type="checkbox" [checked]="failureKind === 'ANALYZER'" (change)="toggleFailureKind('ANALYZER')"> <span class="term">analyzer failure</span></label>
+        <label class="check-row" [title]="glossary.parseFailure"><input type="checkbox" [checked]="failureKind === 'PARSE'" (change)="toggleFailureKind('PARSE')"> <span class="term">parse failure</span></label>
       </div>
     </div>
   </div>

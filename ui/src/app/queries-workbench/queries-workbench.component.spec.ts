@@ -163,6 +163,14 @@ describe('QueriesWorkbenchComponent URL state', () => {
     });
   });
 
+  it('explains every analyzer filter on hover (sqlx-ywy.4)', async () => {
+    const { harness } = await open('/queries');
+    const labels = Array.from((harness.routeNativeElement as HTMLElement).querySelectorAll('.check-row'))
+      .filter(label => /analy|failure/.test(label.textContent ?? ''));
+    expect(labels.length).toBe(6);
+    labels.forEach(label => expect(label.getAttribute('title')?.length).toBeGreaterThan(20));
+  });
+
   it('expanding a row does not also select it', async () => {
     const { component } = await open('/queries');
     const event = new Event('click');

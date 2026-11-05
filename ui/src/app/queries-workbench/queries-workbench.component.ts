@@ -1,3 +1,4 @@
+import {GLOSSARY} from '../glossary';
 import {InViewDirective} from '../in-view.directive';
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
@@ -85,6 +86,9 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   cleanAnalysis = false;
   analysisSkipped = false;
   failureKind: 'ANALYZER' | 'PARSE' | null = null;
+  /** Hover definitions (glossary.ts). */
+  readonly glossary = GLOSSARY;
+
   /** Index-hint filter; null = unconstrained (sqlx-yj0.5). */
   hinted: HintAction | null = null;
   readonly hintOptions: { value: HintAction | null; label: string }[] = [
