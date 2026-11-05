@@ -386,3 +386,27 @@ tr.drillable {
   max-width: 42ch;
   line-height: 1.35;
 }
+
+// ── the Queries card says when a click above filtered it (sqlx-rw2.3) ──
+.queries-card { scroll-margin-top: 12px; }
+.queries-card.flash { animation: queries-flash 1.2s ease-out; }
+@keyframes queries-flash {
+  0%   { box-shadow: 0 0 0 2px var(--blue); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+.drill-notice {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 7px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--blue);
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.drill-notice-go { color: var(--blue); margin-left: 8px; }

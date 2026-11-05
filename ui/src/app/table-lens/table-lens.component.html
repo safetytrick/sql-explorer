@@ -299,7 +299,7 @@
         </div>
       </div>
       <!-- Queries -->
-      <div class="lens-card">
+      <div class="lens-card queries-card" #queriesCard [class.flash]="queriesFlash">
         <div class="card-head">
           <span class="card-head-title">Queries</span>
           <span class="card-head-note">
@@ -429,4 +429,11 @@
     </div>
   </div>
 </div>
+}
+
+@if (drillNotice) {
+  <!-- the Queries card is below the fold; say what the click did (sqlx-rw2.3) -->
+  <button type="button" class="drill-notice" (click)="showQueries()">
+    Queries filtered to {{drillNotice}} <span class="drill-notice-go">show ↓</span>
+  </button>
 }

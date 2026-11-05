@@ -98,6 +98,46 @@ describe('TableLensComponent drill-downs', () => {
     expect(component.isDrillable(column('unused', []))).toBe(false);
   });
 
+  // The Queries card is usually below the fold, so a drill click has to say
+  // what it did (sqlx-rw2.3).
+  describe('saying that a click filtered the Queries card', () => {
+    function offScreen(component: TableLensComponent, off: boolean) {
+      spyOn(component as unknown as {queriesCardInView: () => boolean}, 'queriesCardInView')
+        .and.returnValue(!off);
+    }
+
+    it('names the filter when the Queries card is out of sight', async () => {
+      const component = await open('/table/app_main/account');
+      offScreen(component, true);
+
+      component.drillIntoColumn(column('site_id', ['join']));
+      expect(component.drillNotice).toBe('column site_id');
+
+      component.drillIntoJoin('app_main', 'site');
+      expect(component.drillNotice).toBe('queries that also touch site');
+    });
+
+    it('stays quiet when the card is already on screen', async () => {
+      const component = await open('/table/app_main/account');
+      offScreen(component, false);
+
+      component.drillIntoColumn(column('site_id', ['join']));
+      expect(component.drillNotice).toBeNull();
+    });
+
+    it('clears the notice when the filter is removed, and when asked to show the card', async () => {
+      const component = await open('/table/app_main/account?columns=app_main.account.site_id');
+      offScreen(component, true);
+
+      component.drillIntoColumn(column('site_id', ['join']));   // toggles it off
+      expect(component.drillNotice).toBeNull();
+
+      component.drillIntoColumn(column('status', ['criteria']));
+      component.showQueries();
+      expect(component.drillNotice).toBeNull();
+    });
+  });
+
   it('translates the view into workbench params without re-mapping anything', async () => {
     const component = await open('/table/app_other/user_profile?columns=app_other.user_profile.user_id');
     const params = component.workbenchParams();

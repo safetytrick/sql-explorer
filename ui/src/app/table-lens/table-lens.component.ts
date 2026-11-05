@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DecimalPipe} from '@angular/common';
 import {Highlight} from 'ngx-highlightjs';
@@ -30,7 +30,21 @@ const QUERY_PAGE_SIZE = 25;
   styleUrls: ['./table-lens.component.scss'],
   imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, Highlight, SqlSummaryComponent]
 })
-export class TableLensComponent implements OnInit {
+export class TableLensComponent implements OnInit, OnDestroy {
+  /**
+   * A column, index or relationship click filters the Queries card, which
+   * usually sits below the fold — so the click looked like it did nothing
+   * (sqlx-rw2.3). The card flashes when its filter changes, and when it is
+   * off-screen a notice says what happened and offers to scroll to it. It does
+   * not scroll by itself: picking several columns in a row would keep yanking
+   * the page away from them.
+   */
+  @ViewChild('queriesCard') queriesCard?: ElementRef<HTMLElement>;
+  drillNotice: string | null = null;
+  queriesFlash = false;
+  private noticeTimer?: ReturnType<typeof setTimeout>;
+  private flashTimer?: ReturnType<typeof setTimeout>;
+
   protected readonly tableTarget = tableTarget;
 
   schema = '';
@@ -181,7 +195,9 @@ export class TableLensComponent implements OnInit {
   drillIntoColumn(column: ColumnUsage) {
     if (!this.isDrillable(column)) { return; }
     const reference = `${this.selfKey()}.${column.name}`;
-    this.patchUrl({ columns: this.drillColumn === reference ? null : reference });
+    const clearing = this.drillColumn === reference;
+    this.patchUrl({ columns: clearing ? null : reference });
+    this.announceDrill(clearing ? null : `column ${column.name}`);
   }
 
   /** Only an index some query hints has queries to show. */
@@ -196,7 +212,9 @@ export class TableLensComponent implements OnInit {
   drillIntoIndex(index: IndexUsage) {
     if (!this.isIndexDrillable(index)) { return; }
     const reference = this.indexReference(index);
-    this.patchUrl({ indexes: this.drillIndex === reference ? null : reference });
+    const clearing = this.drillIndex === reference;
+    this.patchUrl({ indexes: clearing ? null : reference });
+    this.announceDrill(clearing ? null : `index ${index.name}`);
   }
 
   /** The active index drill-down names a hinted index this table does not have. */
@@ -212,6 +230,41 @@ export class TableLensComponent implements OnInit {
       tables: active ? null : [this.selfKey(), other].join(','),
       tableMode: active ? null : 'ALL'
     });
+    this.announceDrill(active ? null : `queries that also touch ${otherTable}`);
+  }
+
+  /** Flash the Queries card, and say so when it is out of sight. Null: the filter was removed. */
+  private announceDrill(label: string | null) {
+    clearTimeout(this.flashTimer);
+    this.queriesFlash = false;
+    // restart the animation even when the previous flash has not finished
+    setTimeout(() => {
+      this.queriesFlash = true;
+      this.flashTimer = setTimeout(() => this.queriesFlash = false, 1200);
+    });
+    clearTimeout(this.noticeTimer);
+    this.drillNotice = label && !this.queriesCardInView() ? label : null;
+    if (this.drillNotice) {
+      this.noticeTimer = setTimeout(() => this.drillNotice = null, 6000);
+    }
+  }
+
+  private queriesCardInView(): boolean {
+    const card = this.queriesCard?.nativeElement;
+    if (!card) { return true; }
+    const rect = card.getBoundingClientRect();
+    return rect.top < window.innerHeight - 40 && rect.bottom > 0;
+  }
+
+  showQueries() {
+    this.queriesCard?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    clearTimeout(this.noticeTimer);
+    this.drillNotice = null;
+  }
+
+  ngOnDestroy() {
+    clearTimeout(this.noticeTimer);
+    clearTimeout(this.flashTimer);
   }
 
   clearDrillDown() {
