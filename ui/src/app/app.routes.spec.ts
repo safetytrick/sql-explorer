@@ -101,11 +101,11 @@ describe('appRoutes: the table drill-downs', () => {
       expect(matched()).toBe(TableLensComponent);
     });
 
-    it('still sends the bare root to /tables', async () => {
+    it('still sends the bare root to the starting page, /schemas', async () => {
       await router.navigateByUrl('/');
 
       expect(matched()).not.toBe(NotFoundComponent);
-      expect(router.url).toBe('/tables');
+      expect(router.url).toBe('/schemas');
     });
   });
 
