@@ -1,4 +1,3 @@
-import {Title} from '@angular/platform-browser';
 import {CoverageLensComponent} from './coverage-lens.component';
 import {CoverageService} from '../coverage.service';
 import {EnvironmentService} from '../environment.service';
@@ -11,8 +10,7 @@ describe('CoverageLensComponent', () => {
   beforeEach(() => {
     component = new CoverageLensComponent(
       jasmine.createSpyObj<CoverageService>('CoverageService', ['getCoverage']),
-      {} as EnvironmentService,
-      jasmine.createSpyObj<Title>('Title', ['setTitle']));
+      {} as EnvironmentService);
   });
 
   // ARCHIVED_HISTORY reached the server without a label here, and the

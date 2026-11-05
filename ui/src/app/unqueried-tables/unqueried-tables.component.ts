@@ -2,7 +2,6 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DatePipe} from '@angular/common';
-import {Title} from '@angular/platform-browser';
 import {SchemaLensService} from '../schema-lens.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {CoverageService, findings, sharedWindow, worstVerdict} from '../coverage.service';
@@ -98,9 +97,7 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
               private coverageService: CoverageService,
               private environmentService: EnvironmentService,
               private route: ActivatedRoute,
-              private router: Router,
-              titleService: Title) {
-    titleService.setTitle('::: unqueried tables :::');
+              private router: Router) {
   }
 
   ngOnInit() {

@@ -1,7 +1,6 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {DatePipe} from '@angular/common';
-import {Title} from '@angular/platform-browser';
 import {CoverageService, groupByCluster, showsClusterHeading, usedVariant} from '../coverage.service';
 import {EnvironmentService} from '../environment.service';
 import {SEEN_FORMAT} from '../seen-format';
@@ -69,9 +68,7 @@ export class CoverageLensComponent implements OnInit, OnDestroy {
   private readonly subscriptions = new Subscription();
 
   constructor(private coverageService: CoverageService,
-              private environmentService: EnvironmentService,
-              titleService: Title) {
-    titleService.setTitle('::: what was captured :::');
+              private environmentService: EnvironmentService) {
   }
 
   ngOnInit() {

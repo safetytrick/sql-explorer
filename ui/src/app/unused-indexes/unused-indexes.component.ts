@@ -1,7 +1,6 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {RouterLink} from '@angular/router';
-import {Title} from '@angular/platform-browser';
 import {EnvironmentService} from '../environment.service';
 import {IndexConnection, UnusedIndexReport, UnusedIndexService} from './unused-indexes.service';
 
@@ -28,9 +27,7 @@ export class UnusedIndexesComponent implements OnInit, OnDestroy {
   private readonly subscriptions = new Subscription();
 
   constructor(private service: UnusedIndexService,
-              private environmentService: EnvironmentService,
-              titleService: Title) {
-    titleService.setTitle('::: unused indexes :::');
+              private environmentService: EnvironmentService) {
   }
 
   ngOnInit() {

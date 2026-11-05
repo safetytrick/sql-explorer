@@ -1,3 +1,4 @@
+import {formatPageTitle} from '../page-title';
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
@@ -43,7 +44,7 @@ export class TableGraphLoaderComponent implements OnInit {
         title = 'all';
       }
 
-      this.titleService.setTitle('graph: ' + title);
+      this.titleService.setTitle(formatPageTitle('Table graph · ' + title));
 
       this.query = this.loadGraph();
     });

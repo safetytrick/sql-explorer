@@ -1,7 +1,6 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router} from '@angular/router';
-import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
 import { TagFilterStripComponent, TaggedRow } from '../tag-filter/tag-filter-strip.component';
 import { emptyTagFilter, matchesTagFilter, sameTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
@@ -108,7 +107,7 @@ export class TableNamesComponent implements OnInit {
   private schemaTags = new Map<string, string[]>();
 
   constructor(public sqlService: AnalyzedSqlService, private route: ActivatedRoute,
-              private router: Router, private titleService: Title) { }
+              private router: Router) { }
 
   ngOnInit() {
     // seeded from the snapshot, then kept current — /tables and /tables/:schema
@@ -117,7 +116,6 @@ export class TableNamesComponent implements OnInit {
     this.readSearch(decodeTableSearch(this.route.snapshot.queryParamMap));
     this.route.params.subscribe(params => {
         this.schema = params['schema'];
-        this.titleService.setTitle(this.schema ? `::: schema ${this.schema} :::` : '::: sql explorer :::');
         this.load();
     });
     this.route.queryParamMap.subscribe(params => {

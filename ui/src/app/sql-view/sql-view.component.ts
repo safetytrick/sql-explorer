@@ -1,3 +1,4 @@
+import {formatPageTitle} from '../page-title';
 import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
@@ -58,12 +59,12 @@ export class SqlViewComponent implements OnInit {
         this.query = data;
         this.loading = false;
         this.loadTableStructures(data);
-        this.titleService.setTitle('sql: ' + data.tables.map(ref => parseTableRef(ref).table).join(', '));
+        this.titleService.setTitle(formatPageTitle('Query · ' + data.tables.map(ref => parseTableRef(ref).table).join(', ')));
       },
       error: () => {
         this.loading = false;
         this.notFound = true;
-        this.titleService.setTitle('sql: not found');
+        this.titleService.setTitle(formatPageTitle('Query not found'));
       }
     });
   }

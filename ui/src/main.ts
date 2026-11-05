@@ -5,7 +5,8 @@ import {AnalyzedSqlService} from './app/analyzed-sql.service';
 import {HIGHLIGHT_OPTIONS, HighlightModule} from 'ngx-highlightjs';
 import {provideHttpClient, withInterceptors, withInterceptorsFromDi} from '@angular/common/http';
 import {environmentInterceptor} from './app/environment.interceptor';
-import {provideRouter, withInMemoryScrolling} from '@angular/router';
+import {provideRouter, TitleStrategy, withInMemoryScrolling} from '@angular/router';
+import {PageTitleStrategy} from './app/page-title';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {bootstrapApplication} from '@angular/platform-browser';
 import {provideAnimations} from '@angular/platform-browser/animations';
@@ -23,6 +24,7 @@ bootstrapApplication(AppComponent, {
         provideAnimations(),
         importProvidersFrom(FormsModule, ReactiveFormsModule, HighlightModule, NgxGraphModule),
         AnalyzedSqlService,
+        { provide: TitleStrategy, useClass: PageTitleStrategy },
         {
             provide: HIGHLIGHT_OPTIONS,
             useValue: {

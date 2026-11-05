@@ -1,6 +1,5 @@
 import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
-import {Title} from '@angular/platform-browser';
 import { SchemaListTableComponent } from '../schema-list-table/schema-list-table.component';
 import { TagFilterStripComponent } from '../tag-filter/tag-filter-strip.component';
 import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/tag-filter-url';
@@ -22,9 +21,7 @@ export class SchemaListComponent implements OnInit {
 
   private filter: TagFilterState = emptyTagFilter();
 
-  constructor(public sqlService: AnalyzedSqlService,
-              private titleService: Title) {
-    titleService.setTitle('::: schemas :::');
+  constructor(public sqlService: AnalyzedSqlService) {
   }
 
   ngOnInit() {

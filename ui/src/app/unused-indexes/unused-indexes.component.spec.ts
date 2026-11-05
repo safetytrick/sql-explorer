@@ -12,7 +12,7 @@ describe('UnusedIndexesComponent', () => {
     ({connection: name, verdict, problem: null, upSeconds, unusedHere: 1, readHere: 1});
 
   const component = () => new UnusedIndexesComponent(
-    {} as never, {} as never, {setTitle: () => undefined} as never);
+    {} as never, {} as never);
 
   const withReport = (connections: IndexConnection[]) => {
     const it = component();

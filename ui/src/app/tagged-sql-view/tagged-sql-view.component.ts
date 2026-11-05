@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router} from '@angular/router';
-import {Title} from '@angular/platform-browser';
 import { SmallSqlViewComponent } from '../small-sql-view/small-sql-view.component';
 import { SqlProfile } from '../api-types';
 
@@ -17,14 +16,12 @@ export class TaggedSqlViewComponent implements OnInit {
 
   constructor(public sqlService: AnalyzedSqlService,
               private route: ActivatedRoute,
-              private router: Router,
-              private titleService: Title) { }
+              private router: Router) { }
 
   ngOnInit() {
     this.route.params.subscribe(params => {
       this.tag = params['tag'];
       this.getSqlByTag(this.tag);
-      this.titleService.setTitle('tag: ' + this.tag);
     });
 
   }

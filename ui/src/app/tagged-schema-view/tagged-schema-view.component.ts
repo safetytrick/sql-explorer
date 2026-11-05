@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import { ActivatedRoute } from '@angular/router';
-import {Title} from '@angular/platform-browser';
 import { SchemaListTableComponent } from '../schema-list-table/schema-list-table.component';
 import { SchemaRollup } from '../api-types';
 
@@ -16,8 +15,7 @@ export class TaggedSchemaViewComponent implements OnInit {
   taggedSchemas!: SchemaRollup[];
 
   constructor(public sqlService: AnalyzedSqlService,
-              private route: ActivatedRoute,
-              private titleService: Title) { }
+              private route: ActivatedRoute) { }
 
   ngOnInit() {
     this.route.params.subscribe(params => {
@@ -28,7 +26,6 @@ export class TaggedSchemaViewComponent implements OnInit {
   private applyTag(tag: string) {
     this.tag = tag;
     this.getSchemasByTag(this.tag);
-    this.titleService.setTitle('tag: ' + this.tag);
   }
 
   private getSchemasByTag(tag: string) {

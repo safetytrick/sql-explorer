@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
 import { TableRollup } from '../api-types';
 
@@ -18,8 +17,7 @@ export class TaggedTableViewComponent implements OnInit {
 
   constructor(public sqlService: AnalyzedSqlService,
               private route: ActivatedRoute,
-              private router: Router,
-              private titleService: Title) { }
+              private router: Router) { }
 
   ngOnInit() {
     this.route.params.subscribe(params => {
@@ -30,7 +28,6 @@ export class TaggedTableViewComponent implements OnInit {
   private applyTag(tag: string) {
     this.tag = tag;
     this.getTablesByTag(this.tag);
-    this.titleService.setTitle('tag: ' + this.tag);
   }
 
   private getTablesByTag(tag: string) {

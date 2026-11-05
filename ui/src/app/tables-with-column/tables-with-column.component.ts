@@ -1,7 +1,6 @@
 import {Component, OnInit} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
-import {Title} from '@angular/platform-browser';
 import { TableListComponent } from '../table-list-component/table-list.component';
 import { TableRollup } from '../api-types';
 
@@ -18,13 +17,11 @@ export class TablesWithColumnComponent implements OnInit {
 
 
     constructor(public sqlService: AnalyzedSqlService,
-                private route: ActivatedRoute,
-                private titleService: Title) { }
+                private route: ActivatedRoute) { }
 
     ngOnInit() {
         this.column = this.route.snapshot.params['column'];
         this.getTablesWithColumn(this.column);
-        this.titleService.setTitle('tables with: ' + this.column);
     }
 
     private getTablesWithColumn(tag: string) {

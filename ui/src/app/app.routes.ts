@@ -1,3 +1,4 @@
+import {paramTitle} from './page-title';
 /**
  * The application's route table, kept out of `main.ts` so it can be exercised
  * in a spec — route *ordering* is load-bearing here (see the column drill-down
@@ -93,72 +94,72 @@ const routes: Routes = [
   {
     path: 'queries',
     component: QueriesWorkbenchComponent,
-    data: { title: 'Queries' }
+    title: 'Queries'
   },
   {
     path: 'unqueried',
     component: UnqueriedTablesComponent,
-    data: { title: 'Unqueried tables' }
+    title: 'Unqueried tables'
   },
   {
     path: 'coverage',
     component: CoverageLensComponent,
-    data: { title: 'What was captured' }
+    title: 'Captured'
   },
   {
     path: 'unused-indexes',
     component: UnusedIndexesComponent,
-    data: { title: 'Unused indexes' }
+    title: 'Unused indexes'
   },
   {
     path: 'graph',
     component: GraphLensComponent,
-    data: { title: 'Graph' }
+    title: 'Graph'
   },
   {
     path: 'graph/:schema',
     component: GraphLensComponent,
-    data: { title: 'Graph' }
+    title: paramTitle(p => `Graph · ${p['schema']}`)
   },
   {
     path: 'schemas',
     component: SchemaListComponent,
-    data: { title: 'Schemas' }
+    title: 'Schemas'
   },
   {
     path: 'schemas/by-tag/:tag',
     component: TaggedSchemaViewComponent,
-    data: { title: 'Tagged Schemas' }
+    title: paramTitle(p => `Schemas tagged ${p['tag']}`)
   },
   {
     path: 'tables/:schema',
     component: TableNamesComponent,
-    data: { title: 'Table Names' }
+    title: paramTitle(p => `Tables · ${p['schema']}`)
   },
   {
     path: 'tables',
     component: TableNamesComponent,
-    data: { title: 'Table Names' }
+    title: 'Tables'
   },
   {
     path: 'tags',
     component: TagManagerComponent,
-    data: { title: 'Tags' }
+    title: 'Tags'
   },
   {
     path: 'tables/with-column/:column',
     component: TablesWithColumnComponent,
-    data: { title: 'Tables with Column' }
+    title: paramTitle(p => `Tables with ${p['column']}`)
   },
   {
     path: 'tables/by-tag/:tag',
     component: TaggedTableViewComponent,
-    data: { title: 'Tagged Tables' }
+    title: paramTitle(p => `Tables tagged ${p['tag']}`)
   },
   {
     path: 'table/:schema/:name',
     component: TableLensComponent,
-    data: { title: 'Table View'}
+    title: paramTitle(p => `${p['schema']}.${p['name']}`)
   },
   // `table/:schema/:name/:column` matches these two as well, so they have to
   // stay ahead of it — `queries` and `join` would otherwise be read as column
@@ -181,61 +182,62 @@ const routes: Routes = [
   {
     path: 'analyzed-sql/:id',
     component: SqlViewComponent,
-    data: { title: 'Query View' }
+    title: 'Query'
   },
   {
     path: 'analyzed-sql/by-tag/:tag',
     component: TaggedSqlViewComponent,
-    data: { title: 'Tagged Sql' }
+    title: paramTitle(p => `Queries tagged ${p['tag']}`)
   },
   {
     path: 'explain/from-tsv',
     component: ExplainViewComponent,
-    data: { title: 'Explain View' }
+    title: 'Explain'
   },
   {
     path: 'query-utilities',
     component: QueryUtilitiesComponent,
-    data: { title: 'Query Utilities' }
+    title: 'Query Utilities'
   },
   {
     path: 'table-graph/schema/:schema/:table/depth/:depth',
     component: TableGraphLoaderComponent,
-    data: { title: 'Table Graph' }
+    title: 'Table Graph'
   },
   {
     path: 'table-graph/schema/:schema/:table',
     component: TableGraphLoaderComponent,
-    data: { title: 'Table Graph' }
+    title: 'Table Graph'
   },
   {
     path: 'table-graph/schema/:schema',
     component: TableGraphLoaderComponent,
-    data: { title: 'Table Graph' }
+    title: 'Table Graph'
   },
   {
     path: 'table-graph/by-tag/:tag',
     component: TableGraphLoaderComponent,
-    data: { title: 'Table Graph' }
+    title: 'Table Graph'
   },
   {
     path: 'table-graph/by-tag/:tag/depth/:depth',
     component: TableGraphLoaderComponent,
-    data: { title: 'Table Graph' }
+    title: 'Table Graph'
   },
   {
     path: 'table-graph',
     component: TableGraphLoaderComponent,
-    data: { title: 'Table Graph' }
+    title: 'Table Graph'
   },
   {
     path: 'admin/sources',
     component: AdminSourceListComponent,
-    data: { title: 'Sources' }
+    title: 'Sources'
   },
   {
     path: 'note',
     component: NoteViewComponent,
+    title: 'Note',
     data: { note: `### Some Note
 1. This is the numbered list
 1. And more
@@ -266,7 +268,7 @@ const routes: Routes = [
   {
     path: '**',
     component: NotFoundComponent,
-    data: { title: 'Not found' }
+    title: 'Not found'
   }
 
 ];
