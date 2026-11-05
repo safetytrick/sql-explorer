@@ -1,4 +1,5 @@
 import {TestBed} from '@angular/core/testing';
+import {HttpTestingController} from '@angular/common/http/testing';
 import {provideRouter, Router} from '@angular/router';
 import {RouterTestingHarness} from '@angular/router/testing';
 import {QueriesWorkbenchComponent} from './queries-workbench.component';
@@ -116,6 +117,50 @@ describe('QueriesWorkbenchComponent URL state', () => {
     const params = router.parseUrl(router.url).queryParams;
     expect(params['var-sql']).toBeUndefined();
     expect(params['var-expanded']).toBeUndefined();
+  });
+
+  // The next page loads as the list end scrolls near, so it must not be asked
+  // for twice, and a page for a superseded search must not be appended (sqlx-ywy.6).
+  describe('loading the next page', () => {
+    const page = (from: number, count: number, total: number) => ({
+      total, facets: {tables: {}, schemas: {}},
+      results: Array.from({length: count}, (_, at) => ({profile: {id: `q${from + at}`, digest: `v3:${from + at}`}, tags: []}))
+    });
+    // the first search is debounced (250ms); let it go out before answering it
+    const firstSearch = () => new Promise(resolve => setTimeout(resolve, 300));
+
+    it('asks once however often the end comes into view', async () => {
+      const { component } = await open('/queries');
+      await firstSearch();
+      const http = TestBed.inject(HttpTestingController);
+      http.match(r => r.url.endsWith('queries/search')).forEach(r => r.flush(page(0, 50, 120)));
+
+      component.loadMore();
+      component.loadMore();
+      const more = http.match(r => r.url.endsWith('queries/search'));
+      expect(more.length).toBe(1);
+      expect(more[0].request.body.offset).toBe(50);
+      more[0].flush(page(50, 50, 120));
+      expect(component.hits.length).toBe(100);
+    });
+
+    it('drops a page that arrives after the search changed', async () => {
+      const { component } = await open('/queries');
+      await firstSearch();
+      const http = TestBed.inject(HttpTestingController);
+      http.match(r => r.url.endsWith('queries/search')).forEach(r => r.flush(page(0, 50, 120)));
+
+      component.loadMore();
+      const stale = http.match(r => r.url.endsWith('queries/search'));
+      expect(stale.length).toBe(1);
+      (component as unknown as {runSearch: () => void}).runSearch();
+      const fresh = http.match(r => r.url.endsWith('queries/search'));
+      fresh.forEach(r => r.flush(page(0, 10, 10)));
+      stale.forEach(r => r.flush(page(50, 50, 120)));
+
+      expect(component.hits.length).toBe(10);
+      expect(component.total).toBe(10);
+    });
   });
 
   it('expanding a row does not also select it', async () => {

@@ -1,3 +1,4 @@
+import {InViewDirective} from '../in-view.directive';
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DatePipe, DecimalPipe, SlicePipe} from '@angular/common';
@@ -42,7 +43,7 @@ type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'tr
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
   imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, Highlight, DateRangeSelectorComponent,
-    BulkTagBarComponent]
+    BulkTagBarComponent, InViewDirective]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
@@ -291,8 +292,15 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.searchTrigger.next();
   }
 
+  /** Bumped by each new search, so a page requested for the previous one is dropped, not appended. */
+  private searchGeneration = 0;
+  /** A next page is in flight; scrolling must not ask for it twice. */
+  loadingMore = false;
+
   private runSearch() {
     this.loading = true;
+    this.loadingMore = false;
+    this.searchGeneration++;
     this.querySearchService.search(this.buildRequest(0)).subscribe({
       next: result => {
         this.hits = result.results;
@@ -310,10 +318,23 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * The next page. Called when the end of the list scrolls near (sqlx-ywy.6)
+   * or from the fallback line under it. A no-op while a page is in flight,
+   * while the first page is loading, or when everything is already shown.
+   */
   loadMore() {
-    this.querySearchService.search(this.buildRequest(this.hits.length)).subscribe(result => {
-      this.hits = [...this.hits, ...result.results];
-      this.total = result.total;
+    if (this.loadingMore || this.loading || this.hits.length >= this.total) { return; }
+    this.loadingMore = true;
+    const generation = this.searchGeneration;
+    this.querySearchService.search(this.buildRequest(this.hits.length)).subscribe({
+      next: result => {
+        if (generation !== this.searchGeneration) { return; }
+        this.hits = [...this.hits, ...result.results];
+        this.total = result.total;
+        this.loadingMore = false;
+      },
+      error: () => { if (generation === this.searchGeneration) { this.loadingMore = false; } }
     });
   }
 

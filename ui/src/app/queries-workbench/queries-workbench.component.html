@@ -276,7 +276,9 @@
           </div>
         }
         @if (!loading && hits.length < total) {
-          <div class="load-more" (click)="loadMore()">load more ({{total - hits.length}} remaining)</div>
+          <!-- loads on its own as it scrolls near; clicking is the fallback (sqlx-ywy.6) -->
+          <div class="load-more" (appInView)="loadMore()" (click)="loadMore()">
+            {{loadingMore ? 'loading more…' : 'more below'}} ({{total - hits.length}} remaining)</div>
         }
       </div>
 
