@@ -80,6 +80,14 @@ public class SqlRepositoryManager {
      */
     private final Map<String, ReentrantLock> rehydrationLocks = new ConcurrentHashMap<>();
 
+    /**
+     * When each served source's data was captured, per environment, kept
+     * through eviction. What the environment status reports, read without
+     * touching the corpus: asking for the repositories would rehydrate an
+     * evicted environment just to say how old it is (sqlx-nbi.8).
+     */
+    private final Map<String, Map<String, Instant>> servedCaptures = new ConcurrentHashMap<>();
+
     public SqlRepositoryManager(SqlEvidenceInputService sqlEvidenceInputService,
                                 EnvironmentRegistry environmentRegistry,
                                 CaptureRehydrator captureRehydrator,
@@ -207,20 +215,33 @@ public class SqlRepositoryManager {
             }
         }).toList();
 
-        List<SqlRepository> repositories = results.stream()
+        List<SqlRepository> repositories = new java.util.ArrayList<>(results.stream()
             .map(SourceResult::repository)
             .filter(java.util.Objects::nonNull)
-            .toList();
+            .toList());
         List<SourceFailure> failures = results.stream()
             .map(SourceResult::failure)
             .filter(java.util.Objects::nonNull)
             .toList();
         if (repositories.isEmpty() && !failures.isEmpty()) {
+            // Nothing could be read: keep serving what was, and say why.
+            failedSources.put(environmentName, failures);
             throw results.stream().map(SourceResult::cause).filter(java.util.Objects::nonNull)
                 .findFirst().orElseThrow();
         }
+        // A source that could not be read live keeps the data it was already
+        // served from, rather than vanishing from the corpus because one
+        // server was unreachable this time (sqlx-nbi.8). Its failure is still
+        // listed, so the environment reports itself as stale, not as fine.
+        for (SourceFailure failure : failures) {
+            SqlRepository previous = previouslyServed(environmentName, failure.sourceRef());
+            if (previous != null) {
+                repositories.add(previous);
+            }
+        }
         failedSources.put(environmentName, failures);
 
+        recordServed(environmentName, repositories);
         byEnvironment.put(environmentName, new EnvironmentRepositories(List.copyOf(repositories),
             new CompositeSqlRepository(repositories), clock.instant()));
         lastAccess.put(environmentName, clock.instant());
@@ -264,6 +285,7 @@ public class SqlRepositoryManager {
             }
             repositories.add(repository);
         }
+        recordServed(environmentName, repositories);
         byEnvironment.put(environmentName, new EnvironmentRepositories(List.copyOf(repositories),
             new CompositeSqlRepository(repositories), clock.instant()));
         lastAccess.put(environmentName, clock.instant());
@@ -342,6 +364,7 @@ public class SqlRepositoryManager {
         if (repositories.isEmpty()) {
             return 0;
         }
+        recordServed(environmentName, repositories);
         byEnvironment.put(environmentName, new EnvironmentRepositories(List.copyOf(repositories),
             new CompositeSqlRepository(repositories), clock.instant()));
         failedSources.put(environmentName, List.copyOf(missing));
@@ -433,6 +456,43 @@ public class SqlRepositoryManager {
     }
 
     /** The sources the environment's latest load left out because they could not be read. */
+    /** The repository the environment served for this source before this load, or its capture. */
+    private SqlRepository previouslyServed(String environmentName, String sourceRef) {
+        EnvironmentRepositories resident = byEnvironment.get(environmentName);
+        if (resident != null) {
+            for (SqlRepository repository : resident.repositories()) {
+                if (repository.getSource() != null && sourceRef.equals(repository.getSource().getSourceRef())) {
+                    return repository;
+                }
+            }
+        }
+        return captureRehydrator == null ? null : captureRehydrator.rehydrate(sourceRef);
+    }
+
+    private void recordServed(String environmentName, List<SqlRepository> repositories) {
+        Map<String, Instant> captured = new java.util.LinkedHashMap<>();
+        for (SqlRepository repository : repositories) {
+            SqlSource source = repository.getSource();
+            if (source == null || source.getSourceRef() == null) {
+                continue;
+            }
+            Instant at = repository.getCaptureContext() != null && repository.getCaptureContext().capturedAt() != null
+                ? repository.getCaptureContext().capturedAt()
+                : source.getCapturedAt() != null ? source.getCapturedAt() : source.getCreatedOn();
+            captured.put(source.getSourceRef(), at);
+        }
+        servedCaptures.put(environmentName, java.util.Collections.unmodifiableMap(captured));
+    }
+
+    /**
+     * Each source the environment serves, with when its data was captured
+     * (null when unknown). Empty when nothing is served. Never loads or
+     * rehydrates anything.
+     */
+    public Map<String, Instant> servedCaptures(String environmentName) {
+        return environmentName == null ? Map.of() : servedCaptures.getOrDefault(environmentName, Map.of());
+    }
+
     public List<SourceFailure> getFailedSources(String environmentName) {
         return environmentName == null ? List.of() : failedSources.getOrDefault(environmentName, List.of());
     }
@@ -455,7 +515,12 @@ public class SqlRepositoryManager {
             while (root.getCause() != null && root.getCause() != root) {
                 root = root.getCause();
             }
-            return root.getMessage() != null ? root.getMessage() : root.toString();
+            if (root.getMessage() == null) {
+                return root.toString();
+            }
+            // "db.example.com" alone says nothing; "UnknownHostException: db.example.com" does
+            return root instanceof java.io.IOException && root.getClass().getName().startsWith("java.net.")
+                ? root.getClass().getSimpleName() + ": " + root.getMessage() : root.getMessage();
         }
     }
 

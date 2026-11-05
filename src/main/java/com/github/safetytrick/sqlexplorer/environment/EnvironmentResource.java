@@ -55,7 +55,8 @@ class EnvironmentResource {
             ? SourcesSummary.NOT_LOADED
             : new SourcesSummary(true, state.sourceCount(), state.loadedOn(), state.importStats(),
                 state.resident());
-        return new EnvironmentSummary(environment.getName(), servers, sources);
+        return new EnvironmentSummary(environment.getName(), servers, sources, environment.isCached(),
+            environmentLoader.health(environment.getName()));
     }
 
     /**
@@ -104,7 +105,13 @@ class EnvironmentResource {
 
     record EnvironmentList(String defaultEnvironment, List<EnvironmentSummary> environments) { }
 
-    record EnvironmentSummary(String name, List<ServerSummary> servers, SourcesSummary sources) { }
+    /**
+     * @param cached whether it is served from its cache with no server
+     *               connected; a pull takes it live (sqlx-nbi)
+     * @param health its state and anything wrong with it, for the selector (sqlx-nbi.8)
+     */
+    record EnvironmentSummary(String name, List<ServerSummary> servers, SourcesSummary sources, boolean cached,
+                              com.github.safetytrick.sqlexplorer.evidence.EnvironmentHealth health) { }
 
     record ServerSummary(String name, boolean schemaLoaded) { }
 

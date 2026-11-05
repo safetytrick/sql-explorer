@@ -49,4 +49,15 @@ sql-explorer:
   # count- or age-based policy would eventually delete exactly that one, which is
   # the only record of which queries ran before the reset.
   prune-redundant-captures: false
+  # Offline restarts (sqlx-nbi). At startup an environment whose cache is fresh
+  # is served from it with every server disconnected: no startup pull, schemas
+  # from their snapshots, and nothing opens a connection until someone pulls
+  # it. Fresh means every source has a usable capture no older than max-age and
+  # every cluster has a schema snapshot; one stale or missing source and the
+  # whole environment is pulled as before. 0 turns this off. offline: true
+  # serves every environment from its cache whatever its age and pulls nothing
+  # at startup. Scheduled pulls (pullCron) still run either way.
+  cache:
+    max-age: 24h
+    offline: false
 

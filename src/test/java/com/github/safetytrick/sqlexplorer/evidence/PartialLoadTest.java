@@ -107,7 +107,30 @@ class PartialLoadTest {
         assertThat(manager.getRepositories("production"))
             .extracting(repository -> repository.getSource().getSourceRef())
             .containsExactly("shard1");
-        assertThat(manager.getFailedSources("production")).isEmpty();
+        // recorded, so the environment reports itself stale rather than fine (sqlx-nbi.8)
+        assertThat(manager.getFailedSources("production")).extracting(SqlRepositoryManager.SourceFailure::sourceRef)
+            .containsExactly("shard1");
+    }
+
+    /**
+     * A source unreachable on this pull keeps what it was served from, instead
+     * of dropping out of the corpus because one server could not be reached
+     * this time (sqlx-nbi.8).
+     */
+    @Test
+    void aSourceThatFailsKeepsWhatItWasServedFrom() {
+        manager.loadFromSqlSources("production", Stream.of(readable("shard1"), readable("sharing")));
+        SqlRepository before = manager.getRepositories("production").stream()
+            .filter(repository -> repository.getSource().getSourceRef().equals("sharing")).findFirst().orElseThrow();
+
+        manager.loadFromSqlSources("production", Stream.of(readable("shard1"), refusing("sharing")));
+
+        assertThat(manager.getRepositories("production")).contains(before)
+            .extracting(repository -> repository.getSource().getSourceRef())
+            .containsExactlyInAnyOrder("shard1", "sharing");
+        assertThat(manager.getFailedSources("production")).extracting(SqlRepositoryManager.SourceFailure::sourceRef)
+            .containsExactly("sharing");
+        assertThat(manager.servedCaptures("production")).containsOnlyKeys("shard1", "sharing");
     }
 
     /** A later load that reaches the server again clears what the earlier one recorded. */
