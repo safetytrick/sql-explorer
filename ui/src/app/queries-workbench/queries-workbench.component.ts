@@ -1,3 +1,4 @@
+import {countBadge, CountBadge} from './count-badge';
 import {GLOSSARY} from '../glossary';
 import {InViewDirective} from '../in-view.directive';
 import {Component, OnDestroy, OnInit} from '@angular/core';
@@ -502,6 +503,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   // ── slow/chatty shortcuts over the avg-time range ──
 
   readonly rangePresets = RANGE_PRESETS;
+
+  /** A row's error or warning badge: compact label, exact count and rate on hover. */
+  badge(word: 'err' | 'warn', hit: QueryHit): CountBadge {
+    const metrics = hit.profile.runtimeMetrics;
+    return countBadge(word, (word === 'err' ? metrics?.errors : metrics?.warnings) ?? 0, metrics?.executed ?? 0);
+  }
 
   presetOn(key: RangeKey, preset: RangePreset): boolean {
     return this[key].min === preset.min && this[key].max === preset.max;

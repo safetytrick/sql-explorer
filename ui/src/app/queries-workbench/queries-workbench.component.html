@@ -246,8 +246,12 @@
                 @if (hit.profile.runtimeMetrics?.fullTableScan) { <span class="badge b-scan">full scan</span> }
                 @if ((hit.profile.runtimeMetrics?.tempDiskTables ?? 0) > 0) { <span class="badge b-disk">tmp disk</span> }
                 @else if ((hit.profile.runtimeMetrics?.tempTables ?? 0) > 0) { <span class="badge b-warn">tmp table</span> }
-                @if ((hit.profile.runtimeMetrics?.errors ?? 0) > 0) { <span class="badge b-err">{{hit.profile.runtimeMetrics?.errors}}err</span> }
-                @if ((hit.profile.runtimeMetrics?.warnings ?? 0) > 0) { <span class="badge b-warn">{{hit.profile.runtimeMetrics?.warnings}}warn</span> }
+                @if ((hit.profile.runtimeMetrics?.errors ?? 0) > 0) {
+                  @let errors = badge('err', hit); <span class="badge b-err" [title]="errors.title">{{errors.label}}</span>
+                }
+                @if ((hit.profile.runtimeMetrics?.warnings ?? 0) > 0) {
+                  @let warnings = badge('warn', hit); <span class="badge b-warn" [title]="warnings.title">{{warnings.label}}</span>
+                }
                 @if (hit.profile.indexHints?.length) { <span class="badge b-hint" title="carries an index hint">{{hintActions(hit.profile).join('/')}} index</span> }
                 @if (hit.profile.mismatchedJoins.length > 0) { <span class="badge b-anal">analyzer!</span> }
                 @if (hit.profile.analysisFailed) { <span class="badge b-err">failed</span> }
