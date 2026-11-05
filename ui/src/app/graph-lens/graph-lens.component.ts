@@ -7,7 +7,9 @@ import {GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
-import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, graphOwnedParamPatch, GraphSource} from './graph-url';
+import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, GraphLayout, graphOwnedParamPatch, GraphSource} from './graph-url';
+import {buildAggregates} from './aggregates';
+import {GridNode, GridSpacing, layoutGrid} from './grid-layout';
 import {SchemaTagScope, tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
@@ -64,6 +66,21 @@ interface SchemaRegion {
 /** Padding between a region's outermost node and its drawn edge. */
 const REGION_PAD = 46;
 
+/** An aggregate's drawn block on the grid layout: its root and members, outlined. */
+interface AggregateBox { schema: string; root: string; x: number; y: number; w: number; h: number; }
+
+/**
+ * Grid spacing by depth (sqlx-aoy.13): between schemas, then a schema's
+ * padding and the gap between its cells, then an aggregate's padding, its
+ * label strip and the gap between its tables. The gap between schemas leaves
+ * room for the schema label drawn above each region.
+ */
+const GRID_SPACING: GridSpacing[] = [
+  { gap: 80, pad: 0, header: 0 },
+  { gap: 30, pad: 30, header: 0 },
+  { gap: 14, pad: 12, header: 18 }
+];
+
 @Component({
   selector: 'app-graph-lens',
   templateUrl: './graph-lens.component.html',
@@ -81,6 +98,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   schema = '';
   selectedTable: string | null = null;
   layers: GraphLayers = { ...DEFAULT_LAYERS };
+  /** Force simulation or nested grids; `var-layout=grid` (sqlx-aoy.13). */
+  layout: GraphLayout = 'force';
+  /** The graph last laid out, so switching layout re-places it without a fetch. */
+  private lastGraph: GraphV2 | null = null;
+  private aggregateBoxes: AggregateBox[] = [];
   loading = false;
 
   /** What scopes the graph: a schema, a tag's queries, or a workbench search snapshot. */
@@ -132,10 +154,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const carry = env ? {[ENV_PARAM]: env} : {};
     if (choice.kind === 'queries') {
       this.router.navigate(['/graph'], { queryParams: {
-        ...encodeGraphParams({ table: null, layers: this.layers, tag: name, source: null }), ...carry } });
+        ...encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: name, source: null }), ...carry } });
     } else {
       this.router.navigate(['/graph'], { queryParams: {
-        ...encodeGraphParams({ table: null, layers: this.layers, tag: null, source: 'search' }),
+        ...encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: null, source: 'search' }),
         schemaTags: name, ...carry } });
     }
   }
@@ -194,6 +216,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.legendOpen = this.route.snapshot.queryParamMap.get('var-legend') === '1';
     this.selectedTable = state.table;
     this.layers = state.layers;
+    const layoutChanged = (state.layout ?? 'force') !== this.layout;
+    this.layout = state.layout ?? 'force';
     if (state.tag) {
       this.mode = 'tag';
       this.tag = state.tag;
@@ -214,7 +238,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
     if (this.scopeKey() === this.loadedScope) {
-      this.draw();
+      if (layoutChanged && this.lastGraph) {
+        this.buildLayout(this.lastGraph);
+        this.resetView();
+      } else {
+        this.draw();
+      }
     } else if (this.mode !== 'schema' || this.schema) {
       this.loadGraph();
     }
@@ -263,7 +292,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private writeUrl() {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: graphOwnedParamPatch(this.selectedTable, this.layers),
+      queryParams: graphOwnedParamPatch(this.selectedTable, this.layers, this.layout),
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
@@ -304,7 +333,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   clearScope() {
     this.selectedTable = null;
     this.router.navigate(['/graph'], {
-      queryParams: encodeGraphParams({ table: null, layers: this.layers, tag: null, source: null })
+      queryParams: encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: null, source: null })
     });
   }
 
@@ -338,7 +367,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedTable = null;
     // layer toggles survive the schema switch; selection does not
     this.router.navigate(['/graph', this.schema], {
-      queryParams: encodeGraphParams({ table: null, layers: this.layers, tag: null, source: null })
+      queryParams: encodeGraphParams({ table: null, layers: this.layers, layout: this.layout, tag: null, source: null })
     });
   }
 
@@ -579,6 +608,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private buildLayout(graph: GraphV2) {
+    this.lastGraph = graph;
+    this.aggregateBoxes = [];
     const byId = new Map<string, LayoutNode>();
     // sorted, so a schema's colour and position do not move between loads
     const schemas = [...new Set(graph.nodes.map(node => node.schema))].sort();
@@ -627,9 +658,78 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.viewEdges = (graph.viewEdges || [])
       .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable), label: 'over' }))
       .filter(edge => edge.from && edge.to) as Edge[];
+    if (this.layout === 'grid') {
+      this.placeOnGrid();
+      return;
+    }
     this.runForceLayout();
     this.measureRegions();
     this.separateRegions();
+  }
+
+  toggleLayout() {
+    this.layout = this.layout === 'grid' ? 'force' : 'grid';
+    if (this.lastGraph) {
+      this.buildLayout(this.lastGraph);
+      this.resetView();
+    }
+    this.writeUrl();
+  }
+
+  /**
+   * Place every table on nested grids: schema, then aggregate, then table
+   * (sqlx-aoy.13). Aggregates come from names plus foreign keys and joins
+   * (aoy.12); a table in no aggregate sits in its schema's grid on its own.
+   * Nothing here is saved yet, so every slot is auto-placed: aggregates
+   * first, then lone tables, each in name order, roots at their block's
+   * top-left (aoy.15 adds hand placement).
+   */
+  private placeOnGrid() {
+    const relations = [...this.fkEdges, ...this.joinEdges].map(edge => ({
+      a: { schema: edge.from.schema, table: edge.from.table },
+      b: { schema: edge.to.schema, table: edge.to.table }
+    }));
+    const aggregates = buildAggregates(
+      this.nodes.map(node => ({ schema: node.schema, table: node.table })), relations);
+    const leaf = (schema: string, table: string): GridNode =>
+      ({ key: `t:${schema}.${table}`.toLowerCase(), size: { w: NW, h: NH } });
+    const schemas = [...new Set(this.nodes.map(node => node.schema))].sort();
+    const tree: GridNode[] = schemas.map(schema => ({
+      key: `s:${schema}`,
+      children: aggregates.filter(aggregate => aggregate.schema === schema).map(aggregate =>
+        aggregate.tables.length === 1
+          // keyed so lone tables sort after the aggregates in their schema
+          ? leaf(schema, aggregate.root)
+          : {
+              key: `a:${schema}.${aggregate.root}`.toLowerCase(),
+              children: aggregate.tables.map((table, index) =>
+                ({ ...leaf(schema, table), slot: index === 0 ? { col: 0, row: 0 } : undefined }))
+            })
+    }));
+
+    const nodeAt = new Map(this.nodes.map(node => [`t:${node.id}`.toLowerCase(), node]));
+    const rootOf = new Map(aggregates.map(aggregate =>
+      [`a:${aggregate.schema}.${aggregate.root}`.toLowerCase(), aggregate.root]));
+    const regionOf = new Map(this.regions.map(region => [region.schema, region]));
+    const place = (box: { key: string; x: number; y: number }) => {
+      const node = nodeAt.get(box.key);
+      if (node) { node.x = box.x; node.y = box.y; }
+    };
+    for (const schemaBox of layoutGrid(tree, GRID_SPACING)) {
+      const region = regionOf.get(schemaBox.key.slice(2));
+      if (region) {
+        Object.assign(region, { x: schemaBox.x, y: schemaBox.y, w: schemaBox.w, h: schemaBox.h,
+          cx: schemaBox.x + schemaBox.w / 2, cy: schemaBox.y + schemaBox.h / 2 });
+      }
+      for (const cell of schemaBox.children) {
+        place(cell);
+        if (cell.key.startsWith('a:')) {
+          this.aggregateBoxes.push({ schema: schemaBox.key.slice(2), root: rootOf.get(cell.key) ?? '',
+            x: cell.x, y: cell.y, w: cell.w, h: cell.h });
+          cell.children.forEach(place);
+        }
+      }
+    }
   }
 
   private runForceLayout() {
@@ -1058,6 +1158,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     // exactly like a local one; drawn this way it is visibly a line leaving
     // one area for another.
     this.drawRegions(ctx);
+    this.drawAggregates(ctx);
 
     if (this.layers.co) {
       for (const edge of this.coEdges) {
@@ -1208,6 +1309,33 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.fillText(region.schema, x + 14 * this.scale, y - 5 * this.scale);
       ctx.restore();
     }
+  }
+
+  /** Each aggregate's block on the grid: a quiet outline, its root named in the label strip. */
+  private drawAggregates(ctx: CanvasRenderingContext2D) {
+    for (const box of this.aggregateBoxes) {
+      const x = this.wx(box.x);
+      const y = this.wy(box.y);
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(x, y, box.w * this.scale, box.h * this.scale, 8 * this.scale);
+      ctx.fillStyle = this.alpha(this.palette.text2, 0.04);
+      ctx.fill();
+      ctx.strokeStyle = this.alpha(this.palette.text2, 0.35);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.font = `${Math.round(10 * this.scale)}px ${this.monoFont()}`;
+      ctx.fillStyle = this.alpha(this.palette.text2, 0.85);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(box.root, x + 10 * this.scale, y + 12 * this.scale);
+      ctx.restore();
+    }
+  }
+
+  /** Aggregate blocks, for asserting the grid layout's structure. */
+  get aggregatesForTest(): readonly AggregateBox[] {
+    return this.aggregateBoxes;
   }
 
   /**

@@ -44,9 +44,10 @@ describe('graphOwnedParamPatch (merge writes)', () => {
 
   it('touches only var- params, null-clearing at defaults', () => {
     expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }))
-      .toEqual({ 'var-table': null, 'var-layers': null });
+      .toEqual({ 'var-table': null, 'var-layers': null, 'var-layout': null });
     expect(graphOwnedParamPatch('member_session', { fk: true, join: true, co: true, self: true, view: true }))
-      .toEqual({ 'var-table': 'member_session', 'var-layers': 'fk,join,co,self,view' });
+      .toEqual({ 'var-table': 'member_session', 'var-layers': 'fk,join,co,self,view', 'var-layout': null });
+    expect(graphOwnedParamPatch(null, { ...DEFAULT_LAYERS }, 'grid')['var-layout']).toBe('grid');
     expect(graphOwnedParamPatch(null, { fk: false, join: false, co: false, self: false, view: false })['var-layers'])
       .toBe('none');
   });
@@ -77,10 +78,10 @@ describe('decodeGraphParams', () => {
 
   it('round-trips every non-default state', () => {
     const states: GraphUrlState[] = [
-      { table: 'member_session', layers: { fk: false, join: false, co: true, self: false, view: true }, tag: null, source: null },
-      { table: null, layers: { ...DEFAULT_LAYERS }, tag: 'core', source: null },
-      { table: 'branch', layers: { fk: true, join: true, co: true, self: true, view: true }, tag: null, source: 'search' },
-      { table: null, layers: { fk: false, join: false, co: false, self: false, view: false }, tag: null, source: null }
+      { table: 'member_session', layers: { fk: false, join: false, co: true, self: false, view: true }, layout: 'force', tag: null, source: null },
+      { table: null, layers: { ...DEFAULT_LAYERS }, layout: 'grid', tag: 'core', source: null },
+      { table: 'branch', layers: { fk: true, join: true, co: true, self: true, view: true }, layout: 'force', tag: null, source: 'search' },
+      { table: null, layers: { fk: false, join: false, co: false, self: false, view: false }, layout: 'grid', tag: null, source: null }
     ];
     for (const state of states) {
       expect(decodeGraphParams(reader(encodeGraphParams(state)))).toEqual(state);

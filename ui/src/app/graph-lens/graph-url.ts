@@ -25,10 +25,19 @@ export interface GraphLayers {
 
 export type GraphSource = 'schema' | 'tag' | 'search';
 
+/**
+ * How tables are placed: the force simulation, or nested grids of schema,
+ * aggregate and table (sqlx-aoy.13). `var-layout=grid`; force is the default
+ * until the grid has earned it.
+ */
+export type GraphLayout = 'force' | 'grid';
+
 export interface GraphUrlState {
   /** Selected table (name only — matches node labels), null for none. */
   table: string | null;
   layers: GraphLayers;
+  /** Absent means force. */
+  layout?: GraphLayout;
   /** Scope: a tag name, … */
   tag: string | null;
   /** …or the workbench search snapshot ('search'); both null → schema mode. */
@@ -68,6 +77,9 @@ export function encodeGraphParams(state: GraphUrlState): Record<string, string> 
     const enabled = LAYER_NAMES.filter(name => state.layers[name]);
     params['var-layers'] = enabled.length ? enabled.join(',') : NO_LAYERS;
   }
+  if (state.layout === 'grid') {
+    params['var-layout'] = 'grid';
+  }
   return params;
 }
 
@@ -76,11 +88,13 @@ export function encodeGraphParams(state: GraphUrlState): Record<string, string> 
  * `queryParamsHandling: 'merge'` writes, so selection/layer changes never
  * disturb the co-resident search params on `/graph?source=search&…`.
  */
-export function graphOwnedParamPatch(table: string | null, layers: GraphLayers): Record<string, string | null> {
+export function graphOwnedParamPatch(table: string | null, layers: GraphLayers,
+                                     layout: GraphLayout = 'force'): Record<string, string | null> {
   const enabled = LAYER_NAMES.filter(name => layers[name]);
   return {
     'var-table': table || null,
-    'var-layers': sameLayers(layers, DEFAULT_LAYERS) ? null : (enabled.length ? enabled.join(',') : NO_LAYERS)
+    'var-layers': sameLayers(layers, DEFAULT_LAYERS) ? null : (enabled.length ? enabled.join(',') : NO_LAYERS),
+    'var-layout': layout === 'grid' ? 'grid' : null
   };
 }
 
@@ -90,6 +104,7 @@ export function decodeGraphParams(params: ParamReader): GraphUrlState {
   return {
     table: params.get('var-table') ?? params.get('table'),
     layers: decodeLayers(params.get('var-layers')),
+    layout: params.get('var-layout') === 'grid' ? 'grid' : 'force',
     tag: tag || null,
     source: tag ? null : source
   };

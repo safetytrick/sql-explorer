@@ -237,6 +237,60 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(detail.co.map(partner => partner.other.table)).toEqual(['note']);
   });
 
+  // the grid layout: schemas, then aggregates, then tables (sqlx-aoy.13)
+  it('lays a graph out on grids, with an aggregate block and no overlapping tables', () => {
+    const node = (schema: string, table: string) =>
+      ({schema, table, columnCount: 2, queryCount: 1, warn: false, selfJoin: false, view: false});
+    const graph = {
+      nodes: [node('app_main', 'invoice'), node('app_main', 'invoice_item'), node('app_main', 'account'),
+        node('app_main', 'account_note'), node('app_other', 'site')],
+      fkEdges: [{fromSchema: 'app_main', fromTable: 'invoice_item', toSchema: 'app_main', toTable: 'invoice',
+        label: 'invoice_id→id', mismatch: false, joined: true}],
+      coQueryEdges: [],
+      viewEdges: [],
+      // account_note matches account by name but nothing relates them: no aggregate
+      joinEdges: []
+    };
+    const internals = component as unknown as {buildLayout(graph: unknown): void;
+      nodes: {table: string; x: number; y: number}[]};
+    component.layout = 'grid';
+    internals.buildLayout(graph);
+
+    expect(component.aggregatesForTest.map(box => box.root)).toEqual(['invoice']);
+    const block = component.aggregatesForTest[0];
+    const invoice = internals.nodes.find(n => n.table === 'invoice')!;
+    const item = internals.nodes.find(n => n.table === 'invoice_item')!;
+    for (const member of [invoice, item]) {
+      expect(member.x >= block.x && member.y >= block.y && member.x < block.x + block.w && member.y < block.y + block.h)
+        .toBeTrue();
+    }
+    const boxes = internals.nodes;
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const apart = Math.abs(boxes[i].x - boxes[j].x) >= 130 || Math.abs(boxes[i].y - boxes[j].y) >= 44;
+        expect(apart).withContext(`${boxes[i].table} and ${boxes[j].table}`).toBeTrue();
+      }
+    }
+    // each schema's region holds its tables, and the two regions do not overlap
+    const [main, other] = component.regionsForTest;
+    expect(main.x + main.w <= other.x || other.x + other.w <= main.x
+      || main.y + main.h <= other.y || other.y + other.h <= main.y).toBeTrue();
+  });
+
+  it('switches layout without refetching, and writes var-layout', () => {
+    const internals = component as unknown as {buildLayout(graph: unknown): void};
+    internals.buildLayout({nodes: [{schema: 'app_main', table: 'account', columnCount: 1, queryCount: 1,
+      warn: false, selfJoin: false, view: false}], fkEdges: [], coQueryEdges: [], viewEdges: []});
+    const navigate = router.navigate as jasmine.Spy;
+    navigate.calls.reset();
+
+    component.toggleLayout();
+    expect(component.layout).toBe('grid');
+    expect(navigate.calls.mostRecent().args[1].queryParams['var-layout']).toBe('grid');
+    component.toggleLayout();
+    expect(navigate.calls.mostRecent().args[1].queryParams['var-layout']).toBeNull();
+  });
+
   // scoping by tag from the toolbar (sqlx-aoy.7)
   it('scopes to a query tag as a tag graph, and a schema tag as a search graph', () => {
     component.tagChoices = [
