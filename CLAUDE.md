@@ -290,7 +290,7 @@ own copy — five stylesheets each defined `.tag-chip`, four defined
 `.view-header` (+ `.view-title`, `.view-sub`, `.view-actions`), `.lens-card`,
 `.card-head` (+ `.card-head-title`, `.card-head-note`), `.card-empty`,
 `.table-scroll`, `.data-table` (+ `.num`, `.ctr`), `.tag-chip`, `.tri-btn`,
-`.btn`, `.ref-pill`, and the density modifier `.data-table.ledger` with
+`.btn`, `.ref-pill`, `.note-card` (a prose caveat in a card; amber edge by default), and the density modifier `.data-table.ledger` with
 `.ledger-scroll` and `.dur-bar`.
 
 A new page should reach for these first. Component SCSS is for what is

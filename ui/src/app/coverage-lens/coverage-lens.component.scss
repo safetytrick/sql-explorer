@@ -1,12 +1,5 @@
-.note-card {
-  padding: 12px 16px;
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--text2);
-  border-left: 2px solid var(--border2);
-
-  code { font-family: var(--mono); color: var(--text); }
-}
+// .note-card is global (styles.css); here it is reference, not warning
+.note-card { border-left-color: var(--border2); }
 
 .origin-chip {
   font-family: var(--mono);

@@ -1,15 +1,7 @@
 .tally { font-family: var(--mono); }
 .sep { margin: 0 6px; opacity: 0.45; }
 
-.note-card {
-  padding: 12px 16px;
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--text2);
-  border-left: 2px solid var(--amber);
-
-  strong { color: var(--text); font-weight: 600; }
-}
+// .note-card is global (styles.css)
 
 // A schema with no traffic at all is not a list of dead tables, and the chip
 // has to be readable as a caveat rather than as a severity.
