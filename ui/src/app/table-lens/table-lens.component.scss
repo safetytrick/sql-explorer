@@ -410,3 +410,10 @@ tr.drillable {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 .drill-notice-go { color: var(--blue); margin-left: 8px; }
+
+// a column that is in an index (sqlx-rw2.1); dimmed when it never leads one
+.badge.b-in-idx {
+  background: var(--green-dim);
+  color: var(--green);
+  &.trailing { opacity: 0.5; }
+}

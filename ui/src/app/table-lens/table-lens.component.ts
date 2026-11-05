@@ -203,6 +203,42 @@ export class TableLensComponent implements OnInit, OnDestroy {
     this.announceDrill(clearing ? null : `column ${column.name}`);
   }
 
+  /**
+   * Column name (lower-cased) → the real indexes containing it, with its
+   * 1-based position. Built once per load, not per change-detection pass.
+   */
+  private columnIndexes = new Map<string, {name: string, position: number}[]>();
+
+  private setIndexUsage(indexes: IndexUsage[]) {
+    this.indexUsage = indexes;
+    this.columnIndexes = new Map();
+    for (const index of indexes.filter(candidate => candidate.exists)) {
+      index.columns.forEach((column, at) => {
+        const key = column.toLowerCase();
+        this.columnIndexes.set(key, [...(this.columnIndexes.get(key) ?? []), {name: index.name, position: at + 1}]);
+      });
+    }
+  }
+
+  /**
+   * The indexes a column is in (sqlx-rw2.1), so an unindexed criteria or join
+   * column stands out. Position matters: only a leading column can be used
+   * on its own, so the badge says when a column only ever comes later.
+   */
+  indexesFor(column: ColumnUsage): {name: string, position: number}[] {
+    return this.columnIndexes.get(column.name.toLowerCase()) ?? [];
+  }
+
+  indexBadgeTitle(column: ColumnUsage): string {
+    return 'in ' + this.indexesFor(column)
+      .map(entry => entry.position === 1 ? `${entry.name} (leading)` : `${entry.name} (column ${entry.position})`)
+      .join(', ');
+  }
+
+  leadsAnIndex(column: ColumnUsage): boolean {
+    return this.indexesFor(column).some(entry => entry.position === 1);
+  }
+
   /** Only an index some query hints has queries to show. */
   isIndexDrillable(index: IndexUsage): boolean {
     return index.queries > 0;
@@ -320,7 +356,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
     this.columns = [];
     this.coQueried = [];
     this.foreignKeys = [];
-    this.indexUsage = [];
+    this.setIndexUsage([]);
     this.isView = false;
     this.underlyingTables = [];
     this.viewLineage = new Map();
@@ -336,8 +372,8 @@ export class TableLensComponent implements OnInit, OnDestroy {
     });
     this.schemaLensService.getTableColumns(this.schema, this.table).subscribe(columns => this.columns = columns);
     this.schemaLensService.getTableIndexes(this.schema, this.table).subscribe({
-      next: indexes => this.indexUsage = indexes || [],
-      error: () => { this.indexUsage = []; }
+      next: indexes => this.setIndexUsage(indexes || []),
+      error: () => this.setIndexUsage([])
     });
     this.schemaLensService.getCoQueried(this.schema, this.table).subscribe(coQueried => this.coQueried = coQueried);
     this.schemaLensService.getForeignKeys(this.schema, this.table).subscribe(fks => this.foreignKeys = fks);

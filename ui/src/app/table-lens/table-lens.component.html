@@ -274,6 +274,12 @@
                     @if (column.primaryKey) { <span class="badge b-pk">PK</span> }
                     @if (column.foreignKey) { <span class="badge b-fk">FK</span> }
                     @if (column.autoIncrement) { <span class="badge b-idx">AI</span> }
+                    @if (indexesFor(column).length) {
+                      <!-- in an index; dimmed when it never leads one, since a
+                           non-leading column cannot be used on its own -->
+                      <span class="badge b-in-idx" [class.trailing]="!leadsAnIndex(column)"
+                            [title]="indexBadgeTitle(column)">IDX</span>
+                    }
                   </td>
                   <td>
                     @if (column.characterSet) {

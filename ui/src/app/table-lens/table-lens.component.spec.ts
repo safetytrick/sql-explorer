@@ -574,3 +574,44 @@ describe('TableLensComponent — index hints', () => {
     expect(router.url).not.toContain('columns=');
   });
 });
+
+/** The Columns card marks a column that is in an index, and whether it leads one (sqlx-rw2.1). */
+describe('TableLensComponent — columns in an index', () => {
+
+  const usage = (name: string) => ({
+    name, type: 'int', size: 11, nullable: false, autoIncrement: false,
+    primaryKey: false, foreignKey: false, characterSet: null, collation: null,
+    roles: [], queries: 0
+  });
+  const index = (name: string, columns: string[], exists = true) =>
+    ({name, primary: name === 'PRIMARY', unique: false, columns, exists, hints: [], queries: 0});
+
+  function lensWith(indexes: ReturnType<typeof index>[]) {
+    const component = Object.create(TableLensComponent.prototype) as TableLensComponent;
+    (component as unknown as {setIndexUsage: (i: unknown[]) => void}).setIndexUsage.call(component, indexes);
+    return component;
+  }
+
+  it('lists every real index a column is in, with its position', () => {
+    const lens = lensWith([index('PRIMARY', ['id']), index('account_site_idx', ['account_id', 'site_id']),
+                           index('site_idx', ['site_id'])]);
+
+    expect(lens.indexesFor(usage('site_id')).map(entry => entry.name)).toEqual(['account_site_idx', 'site_idx']);
+    expect(lens.indexBadgeTitle(usage('site_id'))).toBe('in account_site_idx (column 2), site_idx (leading)');
+    expect(lens.leadsAnIndex(usage('site_id'))).toBe(true);
+  });
+
+  it('knows a column that only ever trails an index', () => {
+    const lens = lensWith([index('account_site_idx', ['account_id', 'site_id'])]);
+
+    expect(lens.leadsAnIndex(usage('site_id'))).toBe(false);
+    expect(lens.indexesFor(usage('Account_Id')).length).toBe(1);
+  });
+
+  it('ignores a hinted index the table does not have, and unindexed columns', () => {
+    const lens = lensWith([index('gone_idx', ['status'], false)]);
+
+    expect(lens.indexesFor(usage('status'))).toEqual([]);
+    expect(lens.indexesFor(usage('total'))).toEqual([]);
+  });
+});
