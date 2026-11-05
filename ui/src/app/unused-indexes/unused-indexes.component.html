@@ -6,6 +6,25 @@
   }
 </div>
 
+@if (window || capacity) {
+  <!-- what the captured corpus covers, at a glance (sqlx-1bo.4) -->
+  <div class="coverage-strip">
+    @if (window) {
+      <span>capture covers <strong>{{window.days}} days</strong>,
+        {{window.from | date: SEEN_FORMAT}} – {{window.to | date: SEEN_FORMAT}}</span>
+    } @else {
+      <span title="the environment's sources observed different periods, so there is no one window to state">capture windows differ by source</span>
+    }
+    @if (capacity) {
+      <span class="sep">·</span>
+      <span [class.bad]="capacity === 'IMPAIRED'" [class.unknown]="capacity === 'UNKNOWN'"
+            title="whether Performance Schema kept every statement digest, or had to drop some for lack of room">digests {{capacity === 'OK' ? 'all kept' : capacity === 'IMPAIRED' ? 'some dropped' : 'unknown'}}</span>
+    }
+    <span class="sep">·</span>
+    <a routerLink="/captured">Captured ›</a>
+  </div>
+}
+
 @if (loading) {
   <div class="view-note">reading each connection…</div>
 } @else if (failed || !report) {

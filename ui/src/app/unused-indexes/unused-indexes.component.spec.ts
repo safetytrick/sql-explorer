@@ -1,3 +1,4 @@
+import {of} from 'rxjs';
 import {UnusedIndexesComponent} from './unused-indexes.component';
 import type {IndexConnection, UnusedIndexReport} from './unused-indexes.service';
 
@@ -46,5 +47,18 @@ describe('UnusedIndexesComponent', () => {
 
   it('counts none when nothing answered', () => {
     expect(withReport([connection('replica', 'UNKNOWN', null)]).connectionsRead).toBe(0);
+  });
+
+  // a glance at what the capture covers, from the coverage report (sqlx-1bo.4)
+  it('summarises the captured window and digest capacity', () => {
+    const window = {from: '2026-10-01T00:00:00', to: '2026-11-01T00:00:00', days: 31};
+    const coverage = {getCoverage: () => of({sources: [
+      {window, findings: [{signal: 'DIGEST_CAPACITY', verdict: 'IMPAIRED'}]}
+    ]})};
+    const it = new UnusedIndexesComponent({} as never, {} as never, coverage as never);
+    (it as unknown as {loadCoverage(): void}).loadCoverage();
+
+    expect(it.window).toEqual(window as never);
+    expect(it.capacity).toBe('IMPAIRED');
   });
 });

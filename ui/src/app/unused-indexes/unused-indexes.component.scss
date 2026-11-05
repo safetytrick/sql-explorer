@@ -26,3 +26,14 @@
   &.v-IMPAIRED { color: var(--yellow, #b83); }
   &.v-UNKNOWN { color: var(--red, #a33); }
 }
+
+.coverage-strip {
+  margin: -4px 0 12px;
+  font-size: 11px;
+  color: var(--text3);
+  strong { color: var(--text2); font-weight: 600; }
+  .sep { margin: 0 6px; opacity: 0.6; }
+  .bad { color: var(--red); }
+  .unknown { color: var(--amber); }
+  a { color: var(--text3); text-decoration: none; &:hover { color: var(--blue); } }
+}
