@@ -1,3 +1,4 @@
+import {HttpTestingController} from '@angular/common/http/testing';
 import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
 import {TestBed, waitForAsync} from '@angular/core/testing';
 
@@ -102,5 +103,30 @@ describe('UnqueriedTablesComponent scope', () => {
     scopeTo(['system'], {app: ['system']});
 
     expect(component.visible.map(u => u.schema)).toEqual(['mysql', 'sys']);
+  });
+
+  // rows are tagged in place, from one batched request (sqlx-0d8.4)
+  describe('row tags', () => {
+    it('asks for every listed table in one request and keys the answers by table', () => {
+      const http = TestBed.inject(HttpTestingController);
+      (component as unknown as {loadTableTags(): void}).loadTableTags();
+
+      const requests = http.match(r => r.url.endsWith('tags/targets'));
+      expect(requests.length).toBe(1);
+      expect((requests[0].request.body as unknown[]).length).toBe(50);
+      const answers = Array.from({length: 50}, (_, at) => at === 0 ? [{name: 'audit'}] : []);
+      requests[0].flush(answers);
+
+      expect(component.rowTags('app', 'table0').map(tag => tag.name)).toEqual(['audit']);
+      expect(component.rowTags('app', 'table1')).toEqual([]);
+    });
+
+    it('hands a row the same array every time, so a tag just added is not overwritten', () => {
+      const http = TestBed.inject(HttpTestingController);
+      (component as unknown as {loadTableTags(): void}).loadTableTags();
+      http.match(r => r.url.endsWith('tags/targets'))[0].flush(Array.from({length: 50}, () => []));
+
+      expect(component.rowTags('app', 'table1')).toBe(component.rowTags('app', 'table1'));
+    });
   });
 });

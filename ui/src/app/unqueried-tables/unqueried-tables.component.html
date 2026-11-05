@@ -101,6 +101,13 @@
                     <a class="tbl-name" [routerLink]="['/table', usage.schema, table.name]">{{table.name}}</a>
                     @if (table.view) { <span class="view-flag" title="a view">v</span> }
                   </td>
+                  <td class="tags-col">
+                    @if (tableTags) {
+                      <app-tag-field dense [target]="tableTarget(usage.schema, table.name)"
+                                     [tags]="rowTags(usage.schema, table.name)"
+                                     (changed)="onRowTagsChanged(usage.schema, table.name, $event)"></app-tag-field>
+                    }
+                  </td>
                   <td class="num">{{table.columnCount ?? '—'}}<span class="unit">c</span></td>
                 </tr>
               }
@@ -120,6 +127,13 @@
                     @if (table.view) { <span class="view-flag" title="a view">v</span> }
                   </td>
                   <td class="last-seen" title="last touched by a query, per an archived capture">{{table.lastSeen | date: SEEN_FORMAT}}</td>
+                  <td class="tags-col">
+                    @if (tableTags) {
+                      <app-tag-field dense [target]="tableTarget(usage.schema, table.name)"
+                                     [tags]="rowTags(usage.schema, table.name)"
+                                     (changed)="onRowTagsChanged(usage.schema, table.name, $event)"></app-tag-field>
+                    }
+                  </td>
                   <td class="num">{{table.columnCount ?? '—'}}<span class="unit">c</span></td>
                 </tr>
               }

@@ -1,3 +1,7 @@
+import {TagFieldComponent} from '../tag-field/tag-field.component';
+import {tableTarget} from '../tag-path';
+import {tableKey} from '../table-names/table-search-url';
+import type {Tag} from '../api-types';
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
@@ -42,7 +46,7 @@ const EXCLUDED_PARAM = 'var-excluded';
   selector: 'app-unqueried-tables',
   templateUrl: './unqueried-tables.component.html',
   styleUrls: ['./unqueried-tables.component.scss'],
-  imports: [RouterLink, DatePipe]
+  imports: [RouterLink, DatePipe, TagFieldComponent]
 })
 export class UnqueriedTablesComponent implements OnInit, OnDestroy {
 
@@ -120,6 +124,44 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
     this.subscriptions.unsubscribe();
   }
 
+  /**
+   * Each listed table's tags, keyed `schema.table`, so rows can be tagged in
+   * place (sqlx-0d8.4). One batched request for every row: a tag field left to
+   * fetch its own would fire one request per row, and this list can be long.
+   * Null until it answers; the fields render only then, so none fetches.
+   * Every row gets its own array, kept stable: a fresh `[]` per render would
+   * overwrite a tag a field had just added.
+   */
+  tableTags: Map<string, Tag[]> | null = null;
+
+  protected readonly tableTarget = tableTarget;
+
+  /** A row's tags; a row the batch did not cover gets its own array, stored, so it stays stable. */
+  rowTags(schema: string, table: string): Tag[] {
+    const key = tableKey(schema, table);
+    let tags = this.tableTags?.get(key);
+    if (!tags) {
+      tags = [];
+      this.tableTags?.set(key, tags);
+    }
+    return tags;
+  }
+
+  onRowTagsChanged(schema: string, table: string, tags: Tag[]) {
+    this.tableTags?.set(tableKey(schema, table), tags);
+  }
+
+  private loadTableTags() {
+    this.tableTags = null;
+    const rows = this.all.flatMap(usage =>
+      [...usage.unqueried, ...usage.dormant].map(table => ({schema: usage.schema, table: table.name})));
+    if (!rows.length) { this.tableTags = new Map(); return; }
+    this.sqlService.getTagsForTargets(rows.map(row => tableTarget(row.schema, row.table))).subscribe({
+      next: answers => this.tableTags = new Map(rows.map((row, at) => [tableKey(row.schema, row.table), answers[at] ?? []])),
+      error: () => this.tableTags = new Map(rows.map(row => [tableKey(row.schema, row.table), []]))
+    });
+  }
+
   private load() {
     this.loading = true;
     this.failed = false;
@@ -129,6 +171,7 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
         this.loading = false;
         this.applyScope();
         this.loadSchemaTags();
+        this.loadTableTags();
       },
       // an empty list would read as "nothing is unqueried", which is a strong
       // and probably wrong claim to make out of a failed request
