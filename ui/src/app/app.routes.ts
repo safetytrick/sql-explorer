@@ -250,9 +250,10 @@ const routes: Routes = [
       }
     }
   },
+  /** Schemas is the starting page: the lay of the land (sqlx-m6r.4). */
   {
     path: '',
-    redirectTo: '/tables',
+    redirectTo: '/schemas',
     pathMatch: 'full'
   },
   /**

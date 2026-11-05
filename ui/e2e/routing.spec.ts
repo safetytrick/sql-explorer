@@ -5,10 +5,10 @@ test.beforeEach(async ({page}) => {
   await stubApi(page);
 });
 
-test('the root redirects to the tables list', async ({page}) => {
+test('the root opens on the schemas list, the starting page', async ({page}) => {
   await page.goto('/');
 
-  await expect(page).toHaveURL(/\/tables$/);
+  await expect(page).toHaveURL(/\/schemas$/);
 });
 
 /**

@@ -60,7 +60,7 @@ test('an environment that does not exist is called out', async ({page}) => {
  * the page it names, with the stored environment written onto it. It used to
  * land on /tables: the stamp ran before the router's first navigation had
  * finished, so it re-navigated from the router's initial empty URL, `/`, which
- * redirects to /tables (sqlx-dkq).
+ * redirected to /tables then (/schemas now) (sqlx-dkq).
  */
 test('a link without an environment opens its own page, naming the stored one', async ({page}) => {
   await page.goto('/');
