@@ -10,6 +10,7 @@ import {decodeGraphParams, DEFAULT_LAYERS, encodeGraphParams, GraphLayers, graph
 import {SchemaTagScope, tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
+import {ENV_PARAM} from '../environment-url';
 import {schemaTarget} from '../tag-path';
 
 const NW = 130;
@@ -706,17 +707,50 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         `<div class="tt-name">${found.table}</div>`
         + (fkOut.length ? `<div class="tt-line">FK → ${fkOut.join(', ')}</div>` : '')
         + (fkIn.length ? `<div class="tt-line">FK ← ${fkIn.join(', ')}</div>` : '')
-        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to select, again to open</div>`;
+        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to select, again to open, ⌘/ctrl-click for a new tab</div>`;
     } else {
       tooltip.style.display = 'none';
     }
   }
 
-  onClick(event: MouseEvent) {
+  /** The node under a pointer event, if any. */
+  private nodeAt(event: MouseEvent): LayoutNode | undefined {
     const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
     const mx = this.worldX(event.clientX - rect.left);
     const my = this.worldY(event.clientY - rect.top);
-    const found = this.nodes.find(node => mx >= node.x && mx <= node.x + NW && my >= node.y && my <= node.y + NH);
+    return this.nodes.find(node => mx >= node.x && mx <= node.x + NW && my >= node.y && my <= node.y + NH);
+  }
+
+  /**
+   * The canvas has no links for the browser to open, so the gestures a link
+   * gets for free are handled here: cmd/ctrl-click and middle-click open the
+   * table in a new tab (sqlx-aoy.5). The new tab carries the scope the
+   * current page is under, as an in-app navigation would (carryScope), and
+   * the environment: a fresh tab has no state to fall back on but the URL.
+   */
+  private openInNewTab(node: LayoutNode) {
+    const params = this.route.snapshot.queryParams;
+    const env = params[ENV_PARAM];
+    const tree = this.router.createUrlTree(['/table', node.schema, node.table],
+      { queryParams: {...scopeOf(params), ...(env ? {[ENV_PARAM]: env} : {})} });
+    window.open(this.router.serializeUrl(tree), '_blank', 'noopener');
+  }
+
+  /** Middle-click: fires as auxclick, not click. */
+  onAuxClick(event: MouseEvent) {
+    const found = event.button === 1 ? this.nodeAt(event) : undefined;
+    if (found) {
+      event.preventDefault();
+      this.openInNewTab(found);
+    }
+  }
+
+  onClick(event: MouseEvent) {
+    const found = this.nodeAt(event);
+    if (found && (event.metaKey || event.ctrlKey)) {
+      this.openInNewTab(found);
+      return;
+    }
     if (found && found.table === this.selectedTable) {
       // second click on the selected node opens it
       this.router.navigate(['/table', found.schema, found.table]);

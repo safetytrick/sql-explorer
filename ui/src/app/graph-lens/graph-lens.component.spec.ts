@@ -88,6 +88,42 @@ describe('GraphLensComponent — scope legibility', () => {
 
   // ── the select must not describe a graph it is not showing ──
 
+  // ── a node opens in a new tab the way a link would (sqlx-aoy.5) ──
+
+  describe('opening a node in a new tab', () => {
+    const node = {id: 'app.orders', schema: 'app', table: 'orders', columnCount: 3, queryCount: 2,
+      warn: false, selfJoin: false, view: false, x: 0, y: 0};
+    let open: jasmine.Spy;
+
+    beforeEach(() => {
+      navigateTo({}, {schemas: 'app', env: 'staging'});
+      // the hit test is canvas geometry; what is under test is what a hit does
+      spyOn(component as unknown as {nodeAt: () => unknown}, 'nodeAt').and.returnValue(node);
+      open = spyOn(window, 'open');
+    });
+
+    it('cmd-click and ctrl-click open the table lens in a new tab, with scope and environment', () => {
+      component.onClick(new MouseEvent('click', {metaKey: true}));
+      component.onClick(new MouseEvent('click', {ctrlKey: true}));
+
+      expect(open).toHaveBeenCalledTimes(2);
+      const [url, target] = open.calls.mostRecent().args;
+      expect(target).toBe('_blank');
+      expect(url).toBe('/table/app/orders?schemas=app&env=staging');
+      expect(router.navigate).not.toHaveBeenCalledWith(['/table', 'app', 'orders']);
+    });
+
+    it('middle-click opens a new tab too', () => {
+      component.onAuxClick(new MouseEvent('auxclick', {button: 1}));
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    it('a plain click still selects rather than opening anything', () => {
+      component.onClick(new MouseEvent('click'));
+      expect(open).not.toHaveBeenCalled();
+    });
+  });
+
   it('offers the schema select on a schema graph', () => {
     navigateTo({schema: 'app'}, {});
     loadSchemaTree();
