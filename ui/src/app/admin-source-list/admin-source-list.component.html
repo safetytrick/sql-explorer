@@ -1,30 +1,42 @@
-@if (environment) {
-  <div class="env-status">
-    <p>Managing sources for environment: <strong>{{environment.name}}</strong></p>
-    <ul class="server-list">
-      @for (server of environment.servers; track server.name) {
-        <li>
-          {{server.name}} &mdash;
-          <span [class.state-loaded]="server.schemaLoaded" [class.state-unloaded]="!server.schemaLoaded">
-            schema {{server.schemaLoaded ? 'loaded' : 'not loaded'}}
-          </span>
-        </li>
-      }
-    </ul>
-    @if (environment.sources?.loaded) {
-      <p class="state-loaded">
-        {{environment.sources.sourceCount}} source(s) loaded at {{environment.sources.loadedOn | date: 'short'}}
-        &mdash; {{environment.sources.importStats?.count}} statements imported
-      </p>
-    } @else {
-      <p class="state-unloaded">No sources loaded</p>
-    }
-    <button class="btn primary" [disabled]="pulling" (click)="pullNow()"
-      title="Read the servers' performance_schema now and write a capture."> {{pulling ? 'Pulling…' : 'Pull now'}} </button>
-    <button class="btn" (click)="refreshSchema()"
-      title="Drops the cached schema so it reloads from the servers on next use. Re-apply sources afterwards to re-analyze queries against the refreshed schema."> Refresh Schema </button>
-    <p class="refresh-hint">Picks up DDL changes from the servers. Already-loaded sources keep their old analysis until re-applied.</p>
+<!-- Restyled onto the lens vocabulary (sqlx-om1.3); an operator page, so it
+     says plainly what is loaded and what each action will do. -->
+<div class="view-header">
+  <span class="view-title">Sources</span>
+  <span class="view-sub">what this environment's corpus is loaded from</span>
+</div>
 
+@if (environment) {
+  <div class="lens-card">
+    <div class="card-head">
+      <span class="card-head-title">Environment <span class="mono">{{environment.name}}</span></span>
+      @if (environment.sources?.loaded) {
+        <span class="card-head-note state-loaded">{{environment.sources.sourceCount}} source(s) loaded
+          {{environment.sources.loadedOn | date: 'short'}} · {{environment.sources.importStats?.count | number}} statements</span>
+      } @else {
+        <span class="card-head-note state-unloaded">no sources loaded</span>
+      }
+    </div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>server</th><th>schema</th></tr></thead>
+        <tbody>
+          @for (server of environment.servers; track server.name) {
+            <tr>
+              <td class="mono">{{server.name}}</td>
+              <td [class.state-loaded]="server.schemaLoaded" [class.state-unloaded]="!server.schemaLoaded">
+                {{server.schemaLoaded ? 'loaded' : 'not loaded'}}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="ops">
+      <button class="btn primary" [disabled]="pulling" (click)="pullNow()"
+        title="Read the servers' performance_schema now and write a capture."> {{pulling ? 'Pulling…' : 'Pull now'}} </button>
+      <button class="btn" (click)="refreshSchema()"
+        title="Drops the cached schema so it reloads from the servers on next use. Re-apply sources afterwards to re-analyze queries against the refreshed schema."> Refresh schema </button>
+      <span class="refresh-hint">Refresh picks up DDL changes from the servers; loaded sources keep their old analysis until re-applied.</span>
+    </div>
     <!-- A pull that merely succeeded says nothing about whether the capture is
          worth having, so it reports what it got (sqlx-ijz). -->
     @if (pullResult) {
@@ -44,19 +56,32 @@
     }
   </div>
 } @else if (currentEnvironment) {
-  <p>Managing sources for environment: <strong>{{currentEnvironment}}</strong></p>
+  <div class="view-note">Managing sources for environment: <strong>{{currentEnvironment}}</strong></div>
 }
-<ul class="source-list">
-  @for (item of all; track item.source.sourceRef) {
-    <li>
-      <label class="source-row">
-        <input type="checkbox" [checked]="selected.has(item.source.sourceRef)" [disabled]="loading"
-               (change)="toggle(item.source.sourceRef)">
-        <span>{{item.source.sourceRef}} - Last Updated: {{item.source.createdOn | date: 'short'}}</span>
-        <span class="env-badge" [class.foreign]="item.environmentName !== currentEnvironment">{{item.environmentName}}</span>
-      </label>
-    </li>
+
+<div class="lens-card">
+  <div class="card-head">
+    <span class="card-head-title">Captures</span>
+    <span class="card-head-note">check the ones to load, then apply</span>
+  </div>
+  @if (!all?.length) {
+    <div class="card-empty">no captures are listed for this environment</div>
   }
-</ul>
-<button class="btn primary" [disabled]="loading" (click)="applyChange()"> {{loading ? 'Loading…' : 'Apply'}} </button>
-<button class="btn" [disabled]="loading" (click)="cancelChange()"> Cancel </button>
+  <ul class="source-list">
+    @for (item of all; track item.source.sourceRef) {
+      <li>
+        <label class="source-row">
+          <input type="checkbox" [checked]="selected.has(item.source.sourceRef)" [disabled]="loading"
+                 (change)="toggle(item.source.sourceRef)">
+          <span class="mono">{{item.source.sourceRef}}</span>
+          <span class="dim">updated {{item.source.createdOn | date: 'short'}}</span>
+          <span class="env-badge" [class.foreign]="item.environmentName !== currentEnvironment">{{item.environmentName}}</span>
+        </label>
+      </li>
+    }
+  </ul>
+  <div class="ops">
+    <button class="btn primary" [disabled]="loading" (click)="applyChange()"> {{loading ? 'Loading…' : 'Apply'}} </button>
+    <button class="btn" [disabled]="loading" (click)="cancelChange()"> Cancel </button>
+  </div>
+</div>

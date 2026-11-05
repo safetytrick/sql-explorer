@@ -1,14 +1,14 @@
 import {Component, OnInit} from '@angular/core';
 import {SourceService} from '../source.service';
 import {PullResult, EnvironmentService, EnvironmentSummary} from '../environment.service';
-import {DatePipe} from '@angular/common';
+import {DatePipe, DecimalPipe} from '@angular/common';
 import {ImportedSqlSource, PersistedSource} from '../api-types';
 
 @Component({
     selector: 'app-admin-source-list',
     templateUrl: './admin-source-list.component.html',
     styleUrls: ['./admin-source-list.component.scss'],
-    imports: [DatePipe]
+    imports: [DatePipe, DecimalPipe]
 })
 export class AdminSourceListComponent implements OnInit {
 
