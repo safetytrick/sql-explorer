@@ -106,8 +106,13 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   loading = false;
   selected: QueryHit | null = null;
   mergeGroupOpen = false;
-  /** Rows showing their whole formatted SQL, by digest; in the URL as `var-expanded`. */
+  /**
+   * The exceptions to {@link fullSql}, by digest: rows expanded while it is
+   * off, rows collapsed while it is on. In the URL as `var-expanded`.
+   */
   expanded = new Set<string>();
+  /** Every row shows its whole SQL, for reading down the list without clicking (sqlx-ywy.1). `var-sql=full`. */
+  fullSql = false;
   /** Digest most recently copied, for the transient "copied" affordance. */
   copied: string | null = null;
 
@@ -495,7 +500,15 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   }
 
   isExpanded(hit: QueryHit): boolean {
-    return this.expanded.has(hit.profile.digest);
+    return this.fullSql !== this.expanded.has(hit.profile.digest);
+  }
+
+  /** Switch every row between one line and its whole SQL; the per-row exceptions start over. */
+  setFullSql(full: boolean) {
+    if (full === this.fullSql) { return; }
+    this.fullSql = full;
+    this.expanded = new Set();
+    this.writeFiltersToUrl();
   }
 
   /**
@@ -609,7 +622,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       relativeTo: this.route,
       queryParams: {
         ...encodeSearchParams(this.currentState()),
-        ...encodeWorkbenchParams({ expanded: [...this.expanded] })
+        ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql })
       },
       replaceUrl: true
     });
@@ -649,7 +662,9 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.columns = state.columns;
     this.indexes = state.indexes;
     this.hinted = state.hinted;
-    this.expanded = new Set(decodeWorkbenchParams(this.route.snapshot.queryParamMap).expanded);
+    const view = decodeWorkbenchParams(this.route.snapshot.queryParamMap);
+    this.expanded = new Set(view.expanded);
+    this.fullSql = view.fullSql;
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically
     if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY') {

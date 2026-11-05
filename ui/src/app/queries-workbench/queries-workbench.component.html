@@ -200,6 +200,9 @@
         <span class="active-chip">{{chip}}</span>
       }
       <div class="bar-right">
+        <span class="bar-label">sql:</span>
+        <span class="tri-btn" [class.on]="!fullSql" (click)="setFullSql(false)" title="one line per query; expand a row with its caret">line</span>
+        <span class="tri-btn" [class.on]="fullSql" (click)="setFullSql(true)" title="every query's whole formatted SQL, to read down the list without clicking">full</span>
         <span class="bar-label">sort:</span>
         <select [(ngModel)]="sort" (change)="filtersChanged()">
           <option value="IMPACT">impact ↓</option>

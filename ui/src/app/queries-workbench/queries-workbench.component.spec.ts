@@ -99,6 +99,25 @@ describe('QueriesWorkbenchComponent URL state', () => {
     expect(router.parseUrl(router.url).queryParams['var-expanded']).toBeUndefined();
   });
 
+  it('full-SQL mode expands every row, and a caret then collapses one', async () => {
+    const { component, harness } = await open('/queries?q=select&var-sql=full');
+    const router = TestBed.inject(Router);
+    expect(component.isExpanded(hit('v3:aaa'))).toBeTrue();
+    expect(component.isExpanded(hit('v3:bbb'))).toBeTrue();
+
+    component.toggleExpanded(hit('v3:aaa'));
+    await harness.fixture.whenStable();
+    expect(component.isExpanded(hit('v3:aaa'))).toBeFalse();
+    expect(router.parseUrl(router.url).queryParams['var-expanded']).toBe('v3:aaa');
+
+    component.setFullSql(false);
+    await harness.fixture.whenStable();
+    expect(component.isExpanded(hit('v3:bbb'))).toBeFalse();
+    const params = router.parseUrl(router.url).queryParams;
+    expect(params['var-sql']).toBeUndefined();
+    expect(params['var-expanded']).toBeUndefined();
+  });
+
   it('expanding a row does not also select it', async () => {
     const { component } = await open('/queries');
     const event = new Event('click');
