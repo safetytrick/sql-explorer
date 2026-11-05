@@ -149,3 +149,13 @@
 
   &.absent { color: var(--text3); }
 }
+
+// the checks, once each across sources (sqlx-om1.5)
+.passed-toggle { margin-left: auto; padding: 1px 8px; font-size: 11px; }
+.data-table.summary td { font-size: 12px; }
+.sum-title { color: var(--text); white-space: nowrap; }
+.sum-counts { white-space: nowrap; .verdict-chip { margin-right: 6px; } }
+.verdict-chip.bad { color: var(--red); }
+.verdict-chip.unk { color: var(--amber); }
+.sum-where { color: var(--text2); }
+.passed-line { padding: 6px 14px 10px; font-size: 11px; color: var(--text3); }

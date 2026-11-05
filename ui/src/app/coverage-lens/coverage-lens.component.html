@@ -19,6 +19,38 @@
     whether an absence means "nothing uses this" or "nothing recorded it".
   </div>
 
+  <!-- Each check once, across every source, worst first (sqlx-om1.5). -->
+  @if (summary.length) {
+    <div class="lens-card">
+      <div class="card-head">
+        <span class="card-head-title">Checks across {{report!.sources.length}} sources</span>
+        <button type="button" class="btn passed-toggle" (click)="togglePassed()">
+          {{showPassed ? 'hide' : 'show'}} passed checks in full</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table summary">
+          <tbody>
+            @for (row of summary; track row.signal) {
+              <tr [class.impaired]="row.impaired" [class.unknown]="!row.impaired && row.unknown">
+                <td class="sum-title" [title]="label(row.signal).question">{{label(row.signal).title}}</td>
+                <td class="sum-counts">
+                  @if (row.impaired) { <span class="verdict-chip bad">{{row.impaired}} incomplete</span> }
+                  @if (row.unknown) { <span class="verdict-chip unk">{{row.unknown}} unknown</span> }
+                  @if (row.ok) { <span class="dim">{{row.ok}} fine</span> }
+                </td>
+                <td class="sum-where">
+                  @if (row.problems.length) {
+                    {{row.problems.slice(0, 4).join(', ')}}@if (row.problems.length > 4) { and {{row.problems.length - 4}} more }
+                  } @else { <span class="dim">every source</span> }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
   @if (report!.drift.length) {
     <div class="lens-card drift-card">
       <div class="card-head">
@@ -80,7 +112,7 @@
         </div>
 
         <div class="findings">
-          @for (finding of source.findings; track finding.signal) {
+          @for (finding of (showPassed ? source.findings : problemFindings(source)); track finding.signal) {
             <div class="finding" [class.impaired]="finding.verdict === 'IMPAIRED'"
                  [class.unknown]="finding.verdict === 'UNKNOWN'">
               <div class="finding-head">
@@ -92,6 +124,10 @@
               <p class="finding-why">{{finding.explanation}}</p>
               <div class="finding-basis">judged against {{finding.basis}}</div>
             </div>
+          }
+          @if (!showPassed && passedFindings(source).length) {
+            <div class="passed-line" [title]="passedTitles(source)">
+              {{passedFindings(source).length}} checks passed: {{passedTitles(source)}}</div>
           }
         </div>
       </div>
