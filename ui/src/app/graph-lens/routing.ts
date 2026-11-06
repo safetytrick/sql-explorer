@@ -49,11 +49,17 @@ export interface RoutingOptions {
   shareFactor?: number;
   /** Space between neighbouring lanes in a channel, at most. */
   laneSpacing?: number;
+  /**
+   * Space between lanes on a table's own centre lines, where routes arrive,
+   * at most. Wider than in the channels, so arrowheads side by side on one
+   * edge of a table do not overlap (sqlx-l4q).
+   */
+  arrivalSpacing?: number;
   /** Clear space around the outermost boxes, for the outer ring road. */
   margin?: number;
 }
 
-const DEFAULTS: Required<RoutingOptions> = { bendCost: 28, shareFactor: 0.6, laneSpacing: 4, margin: 40 };
+const DEFAULTS: Required<RoutingOptions> = { bendCost: 28, shareFactor: 0.6, laneSpacing: 4, arrivalSpacing: 9, margin: 40 };
 
 /** A straight channel: vertical at x = c from a to b, or horizontal at y = c. */
 interface Segment {
@@ -63,6 +69,8 @@ interface Segment {
   b: number;
   /** How wide the clear space around the channel is, which bounds its lanes. */
   width: number;
+  /** A table's centre line, where routes arrive, rather than a channel between boxes. */
+  stub?: boolean;
 }
 
 /** Directions, indexed so that the opposite of d is d ^ 1. */
@@ -104,7 +112,8 @@ export function routeEdges(boxes: LayoutBox[], requests: RouteRequest[],
 
   // Runs: the straight stretches of each path, which is what lanes attach to.
   const runsOf = paths.map(({ path }) => runs(network, path));
-  const offsets = assignLanes(runsOf, network.widthAt, settings.laneSpacing);
+  const offsets = assignLanes(runsOf, network.widthAt, settings.laneSpacing,
+    network.stubLines, settings.arrivalSpacing);
   paths.forEach(({ id, from, to }, index) => {
     routes.set(id, polyline(runsOf[index], offsets[index], from, to));
   });
@@ -124,6 +133,8 @@ interface Network {
   leaves: Map<string, LayoutBox>;
   /** Clear width of the channel at a coordinate, keyed `v:x` or `h:y`. */
   widthAt: Map<string, number>;
+  /** The lines, keyed as `widthAt`, that are only tables' centre lines. */
+  stubLines: Set<string>;
 }
 
 interface ContainerLines {
@@ -197,9 +208,12 @@ function buildNetwork(boxes: LayoutBox[], margin: number): Network {
     if (current < 0 || distance(from, to) < distance(from, current)) { next[from * 4 + dir] = to; }
   };
   const widthAt = new Map<string, number>();
+  const channelLines = new Set<string>();
+  const stubLines = new Set<string>();
   for (const segment of segments) {
     const key = `${segment.vertical ? 'v' : 'h'}:${coord(segment.c)}`;
     widthAt.set(key, Math.min(widthAt.get(key) ?? Infinity, segment.width));
+    (segment.stub ? stubLines : channelLines).add(key);
     const along = [...new Set(onSegment.get(segment)!)]
       .sort((a, b) => segment.vertical ? ys[a] - ys[b] : xs[a] - xs[b]);
     for (let i = 1; i < along.length; i++) {
@@ -220,7 +234,10 @@ function buildNetwork(boxes: LayoutBox[], margin: number): Network {
   for (const key of [...leaves.keys()]) {
     if (!terminalOf.has(key)) { leaves.delete(key); }
   }
-  return { count, xs: Float64Array.from(xs), ys: Float64Array.from(ys), next, terminals, terminalOf, leaves, widthAt };
+  // a line shared with a channel keeps the channel's spacing
+  channelLines.forEach(key => stubLines.delete(key));
+  return { count, xs: Float64Array.from(xs), ys: Float64Array.from(ys), next, terminals, terminalOf, leaves, widthAt,
+    stubLines };
 }
 
 /**
@@ -302,8 +319,8 @@ function leafStubs(leaf: LayoutBox, lines: ContainerLines, segments: Segment[]):
   const after = Math.min(...lines.vertical.filter(x => x >= leaf.x + leaf.w));
   const above = Math.max(...lines.horizontal.filter(y => y <= leaf.y));
   const below = Math.min(...lines.horizontal.filter(y => y >= leaf.y + leaf.h));
-  segments.push({ vertical: false, c: cy, a: before, b: after, width: leaf.h });
-  segments.push({ vertical: true, c: cx, a: above, b: below, width: leaf.w });
+  segments.push({ vertical: false, c: cy, a: before, b: after, width: leaf.h, stub: true });
+  segments.push({ vertical: true, c: cx, a: above, b: below, width: leaf.w, stub: true });
   return { key: leaf.key, x: cx, y: cy };
 }
 
@@ -432,7 +449,7 @@ class MinHeap {
 // ── lanes ──
 
 /** A straight stretch of a route: along x = c (vertical) or y = c, from `a` to `b` in travel order. */
-interface Run {
+export interface Run {
   vertical: boolean;
   c: number;
   a: number;
@@ -461,8 +478,16 @@ function runs(network: Network, path: number[]): Run[] {
  * different lanes (interval partitioning, as in channel routing), and lanes
  * are centred on the channel and spaced to fit its width. A route keeps its
  * lane for the whole run, so it never jogs mid-channel.
+ *
+ * <p>THE ORDER OF THE LANES IS BY SIDE, NOT BY START (sqlx-l4q). Partitioning
+ * decides how many lanes a line needs and which runs share one; the lanes are
+ * then laid side by side by where their routes come from and go to. A route
+ * that turns west at the end of a vertical run takes a lane on the west, so it
+ * does not cut across a neighbour's lane to get there; ordered by start, as
+ * this first was, bundled routes crossed at the turns.
  */
-function assignLanes(runsOf: Run[][], widthAt: Map<string, number>, spacing: number): number[][] {
+export function assignLanes(runsOf: Run[][], widthAt: Map<string, number>, spacing: number,
+                            stubLines: Set<string> = new Set(), arrivalSpacing = spacing): number[][] {
   const byLine = new Map<string, { route: number; index: number; low: number; high: number }[]>();
   runsOf.forEach((routeRuns, route) => routeRuns.forEach((run, index) => {
     const key = `${run.vertical ? 'v' : 'h'}:${coord(run.c)}`;
@@ -480,13 +505,39 @@ function assignLanes(runsOf: Run[][], widthAt: Map<string, number>, spacing: num
     });
     const lanes = laneEnds.length;
     if (lanes < 2) { continue; }
-    const width = widthAt.get(key) ?? 0;
-    const gap = width > 0 ? Math.min(spacing, (width * 0.8) / lanes) : spacing;
+    // lay the lanes out by the mean side their runs turn to, ties kept in partition order
+    const sides = Array.from({ length: lanes }, () => ({ sum: 0, count: 0 }));
     entries.forEach((entry, i) => {
-      offsets[entry.route][entry.index] = (laneOf[i] - (lanes - 1) / 2) * gap;
+      sides[laneOf[i]].sum += sideOf(runsOf[entry.route], entry.index);
+      sides[laneOf[i]].count++;
+    });
+    const order = sides.map((side, lane) => ({ lane, side: side.sum / side.count }))
+      .sort((a, b) => a.side - b.side || a.lane - b.lane);
+    const position = new Map(order.map((entry, place) => [entry.lane, place]));
+    const width = widthAt.get(key) ?? 0;
+    const most = stubLines.has(key) ? arrivalSpacing : spacing;
+    const gap = width > 0 ? Math.min(most, (width * 0.8) / lanes) : most;
+    entries.forEach((entry, i) => {
+      offsets[entry.route][entry.index] = (position.get(laneOf[i])! - (lanes - 1) / 2) * gap;
     });
   }
   return offsets;
+}
+
+/**
+ * Which side of its line a run's route keeps to: -1 for west (or north), +1
+ * for east (or south), summed over the two turns at its ends. A turn is
+ * toward the side the neighbouring run lies on; an end at a table has none.
+ * Positive is the side a positive lane offset moves to.
+ */
+function sideOf(routeRuns: Run[], index: number): number {
+  const run = routeRuns[index];
+  let side = 0;
+  const before = routeRuns[index - 1];
+  if (before) { side += Math.sign(before.a - run.c); }
+  const after = routeRuns[index + 1];
+  if (after) { side += Math.sign(after.b - run.c); }
+  return side;
 }
 
 /** The drawn line: corners where consecutive lanes meet, ends on the tables' borders. */

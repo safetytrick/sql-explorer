@@ -1,5 +1,5 @@
 import {GridNode, GridSpacing, layoutGrid, LayoutBox} from './grid-layout';
-import {Point, routeEdges} from './routing';
+import {assignLanes, Point, routeEdges, Run} from './routing';
 
 const SIZE = { w: 130, h: 44 };
 const leaf = (key: string, col: number, row: number): GridNode => ({ key, size: SIZE, slot: { col, row } });
@@ -123,5 +123,39 @@ describe('routeEdges', () => {
     const boxes = layoutGrid([schema('s:a', [leaf('a', 0, 0), leaf('b', 1, 1), leaf('c', 2, 0)])], SPACING);
     const requests = [{ id: 'ab', from: 'a', to: 'b' }, { id: 'bc', from: 'b', to: 'c' }];
     expect(routeEdges(boxes, requests)).toEqual(routeEdges(boxes, requests));
+  });
+
+  // the lanes of a channel go side by side by where their routes turn (sqlx-l4q)
+  describe('lane order', () => {
+    const vertical = (a: number, b: number): Run => ({ vertical: true, c: 100, a, b });
+    const horizontal = (c: number, a: number, b: number): Run => ({ vertical: false, c, a, b });
+    const widths = new Map([['v:100', 40]]);
+
+    it('puts a route that turns west in the west lane, though it started later', () => {
+      // both run down x = 100; the one that starts first turns east at the bottom
+      const east = [vertical(-10, 100), horizontal(100, 100, 300)];
+      const west = [vertical(0, 100), horizontal(140, 100, -100)];
+      const offsets = assignLanes([east, west], widths, 4);
+      expect(offsets[1][0]).toBeLessThan(offsets[0][0]);
+    });
+
+    it('counts where a route came from as well as where it goes', () => {
+      // one comes in from the east and leaves east; the other passes through from the west
+      const fromEast = [horizontal(-20, 300, 100), vertical(-20, 100), horizontal(100, 100, 300)];
+      const fromWest = [horizontal(-40, -200, 100), vertical(-40, 120)];
+      const offsets = assignLanes([fromEast, fromWest], widths, 4);
+      expect(offsets[1][1]).toBeLessThan(offsets[0][1]);
+    });
+
+    it('spreads arrivals on a table\'s own centre line wider than lanes in a channel', () => {
+      const one = [vertical(0, 100)];
+      const two = [vertical(0, 100)];
+      const spread = (lines: Set<string>) => {
+        const offsets = assignLanes([one, two], new Map([['v:100', 130]]), 4, lines, 9);
+        return Math.abs(offsets[0][0] - offsets[1][0]);
+      };
+      expect(spread(new Set())).toBe(4);
+      expect(spread(new Set(['v:100']))).toBe(9);
+    });
   });
 });
