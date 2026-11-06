@@ -181,6 +181,43 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(TestBed.inject(HttpTestingController).match(req => req.url.includes('graph/v2')).length).toBe(0);
   });
 
+  // the tooltip leaves the line it describes in view (sqlx-l4q)
+  it('puts an edge\'s tooltip below a horizontal line and beside a vertical one, clear of it', () => {
+    const node = (table: string, x: number, y: number) => ({id: 'app.' + table, schema: 'app', table, columnCount: 1,
+      queryCount: 1, warn: false, selfJoin: false, view: false, x, y});
+    const internals = component as unknown as {tx: number; ty: number; scale: number;
+      currentRoutes(): Map<unknown, {x: number; y: number}[]> | null};
+    internals.tx = 0;
+    internals.ty = 0;
+    internals.scale = 1;
+    const edge = {from: node('a', 0, 0), to: node('b', 400, 300), label: ''};
+    // an L: along y = 50, then down x = 300
+    spyOn(internals, 'currentRoutes').and.returnValue(new Map([[edge, [{x: 0, y: 50}, {x: 300, y: 50}, {x: 300, y: 300}]]]));
+
+    const onHorizontal = component.tooltipBeside(edge as never, 100, 52);
+    expect(onHorizontal.top).toBeGreaterThan(50 + 10);
+    const onVertical = component.tooltipBeside(edge as never, 298, 200);
+    expect(onVertical.left).toBeGreaterThan(300 + 10);
+    expect(onVertical.top).toBe(192);
+  });
+
+  // sharp on a high-DPI screen (sqlx-9r5)
+  it('backs the canvases with devicePixelRatio times the pixels, drawing and hit-testing in CSS pixels', () => {
+    spyOnProperty(window, 'devicePixelRatio', 'get').and.returnValue(2);
+    const wrap = (fixture.nativeElement as HTMLElement).querySelector('.graph-wrap') as HTMLElement;
+    wrap.style.width = '400px';
+    wrap.style.height = '300px';
+    component.resetView();
+    const canvas = (fixture.nativeElement as HTMLElement).querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.width).toBe(800);
+    expect(canvas.height).toBe(600);
+    expect(canvas.style.width).toBe('400px');
+    expect(canvas.getBoundingClientRect().width).toBe(400);
+    const minimap = (fixture.nativeElement as HTMLElement).querySelector('.minimap canvas') as HTMLCanvasElement;
+    expect(minimap.width).toBe(300);
+    expect(minimap.style.width).toBe('150px');
+  });
+
   // links out of the graph open the queries it counted (sqlx-aoy.8)
   describe('links to the queries behind it', () => {
     const node = (table: string) => ({id: 'app.' + table, schema: 'app', table, columnCount: 3,
@@ -405,13 +442,44 @@ describe('GraphLensComponent — scope legibility', () => {
     it('makes a new aggregate when a table is dropped on one that is in none', () => {
       const changes = internals.dropChanges('t:app_main.account', at('site').x + 5, at('site').y + 5)!;
       expect(changes.find(change => change.name === 'account')!.parent).toBe('site');
-      expect(changes.find(change => change.kind === 'aggregate')!.name).toBe('site');
+      // the aggregate is placed where there is room, not saved into the lone table's cell
+      expect(changes.find(change => change.kind === 'aggregate')).toBeUndefined();
     });
 
-    it('takes a member out of its aggregate when dropped on the open schema', () => {
-      const site = at('site');
-      const changes = internals.dropChanges('t:app_main.invoice_item', site.x + 400, site.y + 5)!;
+    /** A point in the schema that is in none of its blocks: its bottom padding. */
+    const openSchema = () => {
+      const schema = (component as unknown as {gridBoxes: {x: number; y: number; w: number; h: number}[]}).gridBoxes[0];
+      return {x: schema.x + 8, y: schema.y + schema.h - 8};
+    };
+
+    it('takes a member out of its aggregate when dropped on the open schema, into the loose block', () => {
+      const changes = internals.dropChanges('t:app_main.invoice_item', openSchema().x, openSchema().y)!;
+      expect(changes).toEqual([{kind: 'table', schema: 'app_main', name: 'invoice_item', parent: null, slot: null}]);
+    });
+
+    // tables in no aggregate are packed into a block of their own (sqlx-7a0)
+    it('packs the tables in no aggregate into one block of their own', () => {
+      const loose = component.gridItemsForTest().filter(item => item.key.startsWith('l:'));
+      expect(loose.map(item => item.key)).toEqual(['l:app_main']);
+      const block = (component as unknown as {gridBoxes: {children: {key: string; children: {key: string}[]}[]}[]})
+        .gridBoxes[0].children.find(child => child.key === 'l:app_main')!;
+      expect(block.children.map(child => child.key).sort()).toEqual(['t:app_main.account', 't:app_main.site']);
+    });
+
+    it('moves a lone table within its block, and nothing happens when one is dropped on the open schema', () => {
+      const changes = internals.dropChanges('t:app_main.account', at('account').x + 5, at('account').y + 5)!;
+      expect(changes.every(change => change.parent === undefined)).toBeTrue();
+      expect(changes.map(change => change.name).sort()).toEqual(['account', 'site']);
+      expect(internals.dropChanges('t:app_main.account', openSchema().x, openSchema().y)).toBeNull();
+    });
+
+    it('takes a member out of its aggregate when dropped into the loose block', () => {
+      const block = (component as unknown as {gridBoxes: {children: {key: string; x: number; y: number}[]}[]})
+        .gridBoxes[0].children.find(child => child.key === 'l:app_main')!;
+      // the block's top strip: inside it, on none of its tables
+      const changes = internals.dropChanges('t:app_main.invoice_item', block.x + 20, block.y + 6)!;
       expect(changes[0]).toEqual({kind: 'table', schema: 'app_main', name: 'invoice_item', parent: null});
+      expect(changes.some(change => change.name === 'invoice_item' && change.slot)).toBeTrue();
     });
 
     it('moves nothing across schemas', () => {

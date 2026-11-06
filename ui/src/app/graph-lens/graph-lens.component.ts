@@ -19,6 +19,10 @@ import {scopeOf} from '../scope-url';
 import {ENV_PARAM} from '../environment-url';
 import {schemaTarget} from '../tag-path';
 
+/** The minimap's size in CSS pixels. */
+const MINIMAP_W = 150;
+const MINIMAP_H = 100;
+
 const NW = 130;
 const NH = 44;
 
@@ -80,6 +84,13 @@ interface GridDrag { key: string; box: LayoutBox; startX: number; startY: number
 
 /** Height of an aggregate's label strip, which is where an aggregate is picked up; matches GRID_SPACING. */
 const AGGREGATE_HEADER = 18;
+
+/**
+ * The name a schema's loose block is saved under (sqlx-7a0): the cell that
+ * packs its tables in no aggregate. Saved as an aggregate's slot, under a
+ * name no table has, so its place in the schema survives like any other.
+ */
+const LOOSE = '*';
 
 /** A table's aggregate on the grid: its hue, and whether the table is the root. */
 interface Membership { hue: number; root: boolean; }
@@ -619,6 +630,15 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * first, then lone tables, each in name order, roots at their block's
    * top-left (aoy.15 adds hand placement).
    */
+  /** A schema's loose block, holding its lone tables; none when it has none. */
+  private looseBlock(schema: string, tables: string[], items: Map<string, Omit<GridItem, 'box' | 'parent'>>,
+                     leaf: (schema: string, table: string) => GridNode): GridNode[] {
+    if (!tables.length) { return []; }
+    const key = `l:${schema}`.toLowerCase();
+    items.set(key, { kind: 'aggregate', schema, name: LOOSE });
+    return [{ key, slot: this.savedLayout.slot('aggregate', schema, LOOSE), children: tables.map(table => leaf(schema, table)) }];
+  }
+
   private placeOnGrid() {
     const relations = [...this.fkEdges, ...this.joinEdges].map(edge => ({
       a: { schema: edge.from.schema, table: edge.from.table },
@@ -639,21 +659,24 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       return {
         key: `s:${schema}`,
         slot: saved.slot('schema', schema, ''),
-        children: aggregates.filter(aggregate => aggregate.schema === schema).map(aggregate => {
-          if (aggregate.tables.length === 1) {
-            // keyed so lone tables sort after the aggregates in their schema
-            return leaf(schema, aggregate.root);
-          }
-          const key = `a:${schema}.${aggregate.root}`.toLowerCase();
-          items.set(key, { kind: 'aggregate', schema, name: aggregate.root });
-          return {
-            key,
-            slot: saved.slot('aggregate', schema, aggregate.root),
-            // unarranged, the root takes its block's top-left
-            children: aggregate.tables.map((table, index) =>
-              leaf(schema, table, index === 0 ? { col: 0, row: 0 } : undefined))
-          };
-        })
+        children: [
+          ...aggregates.filter(aggregate => aggregate.schema === schema && aggregate.tables.length > 1).map(aggregate => {
+            const key = `a:${schema}.${aggregate.root}`.toLowerCase();
+            items.set(key, { kind: 'aggregate', schema, name: aggregate.root });
+            return {
+              key,
+              slot: saved.slot('aggregate', schema, aggregate.root),
+              // unarranged, the root takes its block's top-left
+              children: aggregate.tables.map((table, index) =>
+                leaf(schema, table, index === 0 ? { col: 0, row: 0 } : undefined))
+            };
+          }),
+          // The tables in no aggregate, packed into one block of their own
+          // (sqlx-7a0). Among the aggregates they took a cell each, so a wide
+          // aggregate widened a whole column of them and left it mostly empty.
+          ...this.looseBlock(schema, aggregates.filter(aggregate => aggregate.schema === schema
+            && aggregate.tables.length === 1).map(aggregate => aggregate.root), items, leaf)
+        ]
       };
     });
 
@@ -687,6 +710,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       }
       for (const cell of schemaBox.children) {
         place(cell);
+        if (cell.key.startsWith('l:')) { cell.children.forEach(place); }
         if (cell.key.startsWith('a:')) {
           const block = blockOf.get(cell.key);
           this.aggregateBoxes.push({ schema: schemaBox.key.slice(2), root: block?.root ?? '', hue: block?.hue ?? 0,
@@ -738,6 +762,35 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /** The line as drawn: its route on the grid, else straight between the tables' borders. */
+  /**
+   * Where an edge's tooltip goes so it does not cover the line it describes
+   * (sqlx-l4q): below a horizontal stretch, beside a vertical one, a little
+   * past the pointer either way. `sx`/`sy` are the pointer in canvas pixels.
+   */
+  tooltipBeside(edge: Edge, sx: number, sy: number): {left: number; top: number} {
+    const path = this.pathOf(edge, this.currentRoutes());
+    const px = this.worldX(sx);
+    const py = this.worldY(sy);
+    let nearest = {distance: Infinity, horizontal: true, line: 0};
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1];
+      const b = path[i];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const length = dx * dx + dy * dy;
+      const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / length));
+      const distance = Math.hypot(px - (a.x + t * dx), py - (a.y + t * dy));
+      if (distance < nearest.distance) {
+        const horizontal = Math.abs(dx) >= Math.abs(dy);
+        nearest = {distance, horizontal, line: horizontal ? a.y + t * dy : a.x + t * dx};
+      }
+    }
+    if (nearest.horizontal) {
+      return {left: sx + 10, top: this.wy(nearest.line) + 14};
+    }
+    return {left: this.wx(nearest.line) + 14, top: sy - 8};
+  }
+
   private pathOf(edge: Edge, routes: Map<Edge, Point[]> | null): Point[] {
     const routed = routes?.get(edge);
     if (routed) { return routed; }
@@ -809,7 +862,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const item of this.gridIndex.values()) {
       const box = item.box;
       const across = x >= box.x && x <= box.x + box.w;
-      if (item.kind === 'aggregate' && across && y >= box.y && y <= box.y + AGGREGATE_HEADER) { return item; }
+      if (item.kind === 'aggregate' && item.name !== LOOSE && across && y >= box.y && y <= box.y + AGGREGATE_HEADER) {
+        return item;
+      }
       // the name is drawn above the region, and only when there is more than one
       if (item.kind === 'schema' && this.regions.length > 1 && across && y >= box.y - 22 && y <= box.y + 4) {
         return item;
@@ -845,23 +900,29 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       return [{ kind: 'table', schema: item.schema, name: item.name, parent: root },
         ...this.moveWithin(aggregateBox.children, key, x, y)];
     }
-    const lone = schemaBox.children.find(box => box.key.startsWith('t:') && box.key !== key && inside(box));
+    const looseBox = schemaBox.children.find(box => box.key.startsWith('l:'));
+    const lone = looseBox?.children.find(box => box.key !== key && inside(box));
     if (lone) {
-      // a new aggregate, in the lone table's cell, rooted at it
+      // a new aggregate rooted at the lone table, placed in the schema where there is room
       const root = this.gridIndex.get(lone.key)!;
       return [
         { kind: 'table', schema: item.schema, name: item.name, parent: root.name, slot: { col: 1, row: 0 } },
-        { kind: 'table', schema: item.schema, name: root.name, slot: { col: 0, row: 0 } },
-        { kind: 'aggregate', schema: item.schema, name: root.name, slot: lone.slot }
+        { kind: 'table', schema: item.schema, name: root.name, slot: { col: 0, row: 0 } }
       ];
     }
-    if (container === schemaBox) { return this.moveWithin(schemaBox.children, key, x, y); }
     const node = this.nodes.find(candidate => `t:${candidate.id}`.toLowerCase() === key);
     if (node && this.membership.get(node)?.root && container) {
+      // a root carries its aggregate, which moves within the schema
       return this.moveWithin(schemaBox.children, container.key, x, y);
     }
-    return [{ kind: 'table', schema: item.schema, name: item.name, parent: null },
-      ...this.moveWithin(schemaBox.children, key, x, y)];
+    if (looseBox && inside(looseBox)) {
+      if (container === looseBox) { return this.moveWithin(looseBox.children, key, x, y); }
+      return [{ kind: 'table', schema: item.schema, name: item.name, parent: null },
+        ...this.moveWithin(looseBox.children, key, x, y)];
+    }
+    // the open schema: a lone table has nowhere else to be, and a member leaves its aggregate for the loose block
+    if (container === looseBox) { return null; }
+    return [{ kind: 'table', schema: item.schema, name: item.name, parent: null, slot: null }];
   }
 
   /** Slots for every cell of a grid after `key` is dropped at (x, y) in it. */
@@ -976,11 +1037,38 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private worldX(sx: number) { return (sx - this.tx) / this.scale; }
   private worldY(sy: number) { return (sy - this.ty) / this.scale; }
 
+  /** The graph canvas's size in CSS pixels; its backing store is this times the pixel ratio. */
+  private viewW = 0;
+  private viewH = 0;
+
+  /** Device pixels per CSS pixel, read at each resize so moving between screens re-sharpens. */
+  private get pixelRatio(): number {
+    return Math.max(1, window.devicePixelRatio || 1);
+  }
+
+  /**
+   * Size a canvas to `width` × `height` CSS pixels with a backing store
+   * devicePixelRatio times larger, so text and lines are sharp on a high-DPI
+   * screen (sqlx-9r5). Everything is still drawn and hit-tested in CSS pixels:
+   * the draw sets the matching transform.
+   */
+  private sizeCanvas(canvas: HTMLCanvasElement, width: number, height: number, isView = true) {
+    const ratio = this.pixelRatio;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    if (isView) {
+      this.viewW = width;
+      this.viewH = height;
+    }
+  }
+
   resetView() {
     if (!this.viewReady) { return; }
-    const canvas = this.graphCanvas.nativeElement;
-    canvas.width = this.wrap.nativeElement.clientWidth;
-    canvas.height = this.wrap.nativeElement.clientHeight;
+    this.sizeCanvas(this.graphCanvas.nativeElement,
+      this.wrap.nativeElement.clientWidth, this.wrap.nativeElement.clientHeight);
+    const canvas = {width: this.viewW, height: this.viewH};
     if (!this.nodes.length) { this.draw(); return; }
     const xs = this.nodes.map(node => node.x);
     const ys = this.nodes.map(node => node.y);
@@ -1003,7 +1091,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   zoom(factor: number) {
-    const canvas = this.graphCanvas.nativeElement;
+    const canvas = {width: this.viewW, height: this.viewH};
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
     this.tx = cx - (cx - this.tx) * factor;
@@ -1207,9 +1295,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       const edge = edgeUnder;
       this.graphCanvas.nativeElement.style.cursor = edge ? 'pointer' : this.grabAt(mx, my) ? 'grab' : '';
       if (edge) {
+        const place = this.tooltipBeside(edge, event.clientX - rect.left, event.clientY - rect.top);
         tooltip.style.display = 'block';
-        tooltip.style.left = (event.clientX - rect.left + 14) + 'px';
-        tooltip.style.top = (event.clientY - rect.top - 8) + 'px';
+        tooltip.style.left = place.left + 'px';
+        tooltip.style.top = place.top + 'px';
         tooltip.innerHTML = this.edgeTitle(edge);
       } else {
         tooltip.style.display = 'none';
@@ -1354,7 +1443,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const rect = this.minimapCanvas.nativeElement.getBoundingClientRect();
     const wx = (event.clientX - rect.left - (minimap._offX ?? 0)) / scale;
     const wy = (event.clientY - rect.top - (minimap._offY ?? 0)) / scale;
-    const canvas = this.graphCanvas.nativeElement;
+    const canvas = {width: this.viewW, height: this.viewH};
     this.tx = canvas.width / 2 - wx * this.scale;
     this.ty = canvas.height / 2 - wy * this.scale;
     this.draw();
@@ -1397,9 +1486,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private draw() {
     if (!this.viewReady) { return; }
-    const canvas = this.graphCanvas.nativeElement;
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const ctx = this.graphCanvas.nativeElement.getContext('2d')!;
+    // drawn in CSS pixels onto a backing store devicePixelRatio times larger (sqlx-9r5)
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, this.viewW, this.viewH);
 
     // Regions first, so every edge and node draws over them. A cross-schema
     // join is the most valuable thing this graph shows and used to look
@@ -1696,9 +1786,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private drawMinimap() {
     const minimap = this.minimapCanvas.nativeElement as MinimapCanvas;
+    const mmW = MINIMAP_W;
+    const mmH = MINIMAP_H;
+    if (minimap.width !== Math.round(mmW * this.pixelRatio)) {
+      this.sizeCanvas(minimap, mmW, mmH, false);
+    }
     const ctx = minimap.getContext('2d')!;
-    const mmW = minimap.width;
-    const mmH = minimap.height;
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     ctx.clearRect(0, 0, mmW, mmH);
     ctx.fillStyle = this.alpha(this.palette.bg2, 0.95);
     ctx.fillRect(0, 0, mmW, mmH);
@@ -1733,7 +1827,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.fill();
       ctx.stroke();
     }
-    const canvas = this.graphCanvas.nativeElement;
+    const canvas = {width: this.viewW, height: this.viewH};
     ctx.strokeStyle = this.alpha(this.palette.blue, 0.6);
     ctx.lineWidth = 1.5;
     ctx.strokeRect((-this.tx / this.scale) * msc + offX, (-this.ty / this.scale) * msc + offY,
