@@ -91,6 +91,9 @@ nav.navbar {
 
     a.dropdown-item {
       display: block;
+      // the padding inside the width: Bootstrap set border-box globally, and
+      // without it a full-width item ran its hover past the menu's edge
+      box-sizing: border-box;
       width: 100%;
       padding: 0.35rem 1rem;
       white-space: nowrap;

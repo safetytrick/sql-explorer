@@ -99,3 +99,21 @@ test('an environment in a problem state says so on the button and in the chooser
   await broken.locator('.env-pull').click();
   await expect.poll(() => pulled).toContain('/environments/regression/pull');
 });
+
+/**
+ * Each Admin item fits inside the menu, so its hover does too. With Bootstrap
+ * gone nothing set border-box, and a full-width item's padding pushed it 32px
+ * past the menu's edge.
+ */
+test('the Admin menu items stay inside the menu', async ({page}) => {
+  await page.goto('/schemas');
+  await page.locator('nav.navbar .dropdown-toggle').click();
+  const menu = (await page.locator('.dropdown-menu').boundingBox())!;
+  const items = page.locator('.dropdown-menu .dropdown-item');
+  await expect(items.first()).toBeVisible();
+  for (const item of await items.all()) {
+    const box = (await item.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(menu.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(menu.x + menu.width);
+  }
+});
