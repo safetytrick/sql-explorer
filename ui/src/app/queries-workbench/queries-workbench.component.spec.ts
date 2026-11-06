@@ -40,7 +40,7 @@ describe('QueriesWorkbenchComponent URL state', () => {
 
   it('keeps in-session tree scope when the URL carries no scope params', async () => {
     const scopeService = TestBed.inject(QueryScopeService);
-    scopeService.setScope({ schemas: ['tdb'], tables: [], tableMode: 'ANY' });
+    scopeService.setScope({ schemas: ['tdb'], tables: [], tableMode: 'ANY', excludeSchemas: [], excludeTables: [] });
     await open('/queries?q=select');
     expect(scopeService.scope.schemas).toEqual(['tdb']);
   });
@@ -220,7 +220,7 @@ describe('QueriesWorkbenchComponent URL state', () => {
   it('seeds the index-hint filter from a link and writes a change back to the URL', async () => {
     const { component, harness } = await open('/queries?hinted=FORCE');
     expect(component.hinted).toBe('FORCE');
-    expect(component.activeFilterChips()).toContain('index hint: force');
+    expect(component.criteria.map(c => `${c.label}: ${c.value}`)).toContain('index hint: force');
 
     component.setHinted('ANY');
     await harness.fixture.whenStable();
@@ -230,5 +230,58 @@ describe('QueriesWorkbenchComponent URL state', () => {
     component.setHinted(null);
     await harness.fixture.whenStable();
     expect(router.parseUrl(router.url).queryParams['hinted']).toBeUndefined();
+  });
+
+  // every criterion is a pill that can be switched off, flipped or removed (sqlx-fph)
+  describe('the criteria pills', () => {
+    const params = () => {
+      const router = TestBed.inject(Router);
+      return router.parseUrl(router.url).queryParams;
+    };
+
+    it('switches a criterion off into the link, keeping it, and back on', async () => {
+      const { component, harness } = await open('/queries?fullScan=YES&tags=billing');
+      const tag = component.criteria.find(c => c.key === 'tag:billing')!;
+      component.pillToggle(tag);
+      await harness.fixture.whenStable();
+      expect(params()['off']).toBe('tag:billing');
+      expect(params()['tags']).toBe('billing');
+      expect(component.criteria.find(c => c.key === 'tag:billing')!.on).toBeFalse();
+
+      component.pillToggle(component.criteria.find(c => c.key === 'tag:billing')!);
+      await harness.fixture.whenStable();
+      expect(params()['off']).toBeUndefined();
+    });
+
+    it('flips a tag to an exclusion, and removes a criterion', async () => {
+      const { component, harness } = await open('/queries?tags=billing&fullScan=YES');
+      component.pillNegate(component.criteria.find(c => c.key === 'tag:billing')!);
+      await harness.fixture.whenStable();
+      expect(params()['tags']).toBe('-billing');
+
+      component.pillRemove(component.criteria.find(c => c.key === 'fullScan')!);
+      await harness.fixture.whenStable();
+      expect(params()['fullScan']).toBeUndefined();
+    });
+
+    it('excludes a tag typed with a "-", and a query from its row', async () => {
+      const { component, harness } = await open('/queries');
+      component.addTag('-legacy');
+      component.excludeQuery({ profile: { digest: 'v3:aaa', query: 'select * from account' } } as unknown as QueryHit,
+        new MouseEvent('click'));
+      // its pill still says what it was once it has left the list
+      expect(component.pillValue(component.criteria.find(c => c.key === 'query:v3:aaa')!)).toContain('account');
+      await harness.fixture.whenStable();
+      expect(params()['tags']).toBe('-legacy');
+      expect(params()['excludeQueries']).toBe('v3:aaa');
+    });
+
+    it('folds more than two excluded queries into one pill', async () => {
+      const { component } = await open('/queries?excludeQueries=v3:a,v3:b,v3:c&fullScan=YES');
+      const all = component.criteria;
+      expect(component.pillsShown(all).map(c => c.key)).toEqual(['fullScan']);
+      expect(component.excludedQueryGroup(all)).toEqual(
+        { count: 3, on: true, keys: ['query:v3:a', 'query:v3:b', 'query:v3:c'] });
+    });
   });
 });

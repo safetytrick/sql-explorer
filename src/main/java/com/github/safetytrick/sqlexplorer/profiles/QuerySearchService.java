@@ -114,6 +114,7 @@ public class QuerySearchService {
             : Set.of();
         Map<String, List<Tag>> tagsByQueryId = queryTagsById();
         Set<String> taggedTables = taggedTables(criteria.tableTags());
+        Set<String> excludedTaggedTables = taggedTables(criteria.excludeTableTags());
 
         Map<String, Integer> tableFacets = new HashMap<>();
         Map<String, Integer> schemaFacets = new HashMap<>();
@@ -128,6 +129,9 @@ public class QuerySearchService {
             }
             ScopeKeys keys = scopeKeys(profile);
             if (taggedTables != null && keys.tables().stream().noneMatch(taggedTables::contains)) {
+                return;
+            }
+            if (excludedTaggedTables != null && keys.tables().stream().anyMatch(excludedTaggedTables::contains)) {
                 return;
             }
             keys.tables().forEach(key -> tableFacets.merge(key, 1, Integer::sum));
@@ -196,6 +200,9 @@ public class QuerySearchService {
             && profile.getQueryActivityStatus() != QueryActivityStatus.DORMANT) return false;
 
         if (!matchesTypes(r.types(), profile.getType())) return false;
+        if (r.excludeTypes() != null && !r.excludeTypes().isEmpty()
+            && matchesTypes(r.excludeTypes(), profile.getType())) return false;
+        if (isExcludedQuery(r, profile)) return false;
 
         if (!matchesDates(r.firstSeen(), m == null ? null : m.getFirstSeen())) return false;
         if (!matchesDates(r.lastSeen(), m == null ? null : m.getLastSeen())) return false;
@@ -416,7 +423,21 @@ public class QuerySearchService {
         return false;
     }
 
+    /** {@link QuerySearchRequest#excludeQueries()}: by its digest, or any digest it absorbed. */
+    private static boolean isExcludedQuery(QuerySearchRequest r, SqlProfile profile) {
+        if (r.excludeQueries() == null || r.excludeQueries().isEmpty()) {
+            return false;
+        }
+        Set<String> excluded = Set.copyOf(r.excludeQueries());
+        return excluded.contains(profile.getDigest())
+            || profile.getAllIds().stream().anyMatch(excluded::contains);
+    }
+
     private boolean matchesTags(QuerySearchRequest r, List<Tag> tags) {
+        if (r.excludeTags() != null && !r.excludeTags().isEmpty()
+            && tags.stream().map(Tag::getName).anyMatch(r.excludeTags()::contains)) {
+            return false;
+        }
         if (Boolean.TRUE.equals(r.untaggedOnly())) {
             return tags.isEmpty();
         }

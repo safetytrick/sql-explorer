@@ -42,6 +42,22 @@ public record QuerySearchRequest(
      * {@link #tags()}, which match tags on the query itself.
      */
     List<String> tableTags,
+    /*
+     * Exclusions (sqlx-fph): each the twin of an include above, and each
+     * applied whether or not its include narrows the search. A query matching
+     * any of them is left out.
+     */
+    /** Tags on tables: a query touching a table carrying any of these is left out. */
+    List<String> excludeTableTags,
+    /** Statement types to leave out, spelled as {@link #types()}. */
+    List<String> excludeTypes,
+    /** Tags on queries: a query carrying any of these is left out. */
+    List<String> excludeTags,
+    /**
+     * Queries to leave out, by digest: the id {@code /analyzed-sql/{id}} uses,
+     * or any digest a merged profile absorbed.
+     */
+    List<String> excludeQueries,
     /** Normalized schema names; a query in any listed schema matches. */
     List<String> schemas,
     /** Normalized schema names; a query that touches any of these is excluded. */
@@ -166,5 +182,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 }

@@ -162,6 +162,31 @@ class QuerySearchServiceTest {
         assertThat(open.lastSeen().before()).isNull();
     }
 
+    /** Each exclusion leaves its matches out, whether or not the include beside it narrows the search (sqlx-fph). */
+    @Test
+    void exclusionsLeaveTheirMatchesOut() {
+        when(tagsService.findAllByType("query")).thenReturn(List.of(tag("legacy", "update-q-digest")));
+        when(tagsService.findAllByType("table")).thenReturn(List.of(tableTag("audit", "app", "audit_log")));
+        repositoryReturns(
+            typed("select-q", "SELECT"),
+            typed("insert-q", "INSERT"),
+            typed("update-q", "UPDATE"),
+            withTables("audit-q", "app.audit_log"),
+            withTables("orders-q", "app.orders"));
+
+        assertThat(searchIds(request().excludeTypes(List.of("insert")).build())).doesNotContain("insert-q");
+        // the table fixtures are SELECTs too
+        assertThat(searchIds(request().types(List.of("SELECT", "INSERT")).excludeTypes(List.of("INSERT")).build()))
+            .containsExactlyInAnyOrder("select-q", "audit-q", "orders-q");
+        assertThat(searchIds(request().excludeTags(List.of("legacy")).build())).doesNotContain("update-q");
+        assertThat(searchIds(request().excludeTableTags(List.of("audit")).build()))
+            .doesNotContain("audit-q").contains("orders-q");
+        // by the digest a link would carry
+        assertThat(searchIds(request().excludeQueries(List.of("select-q-digest", "orders-q-digest")).build()))
+            .containsExactlyInAnyOrder("insert-q", "update-q", "audit-q");
+        assertThat(searchIds(request().build())).hasSize(5);
+    }
+
     @Test
     void typeFilterMatchesMultipleTypesAndOther() {
         repositoryReturns(
@@ -678,6 +703,7 @@ class QuerySearchServiceTest {
         private DateRange lastSeen;
         private List<String> tags;
         private List<String> tableTags;
+        private List<String> excludeTableTags, excludeTypes, excludeTags, excludeQueries;
         private TagMode tagMode;
         private List<String> schemas, excludeSchemas, tables, excludeTables, columns, indexes;
         private TableMode tableMode;
@@ -696,6 +722,10 @@ class QuerySearchServiceTest {
         RequestBuilder lastSeen(DateRange v) { this.lastSeen = v; return this; }
         RequestBuilder tags(List<String> v) { this.tags = v; return this; }
         RequestBuilder tableTags(List<String> v) { this.tableTags = v; return this; }
+        RequestBuilder excludeTableTags(List<String> v) { this.excludeTableTags = v; return this; }
+        RequestBuilder excludeTypes(List<String> v) { this.excludeTypes = v; return this; }
+        RequestBuilder excludeTags(List<String> v) { this.excludeTags = v; return this; }
+        RequestBuilder excludeQueries(List<String> v) { this.excludeQueries = v; return this; }
         RequestBuilder tagMode(TagMode v) { this.tagMode = v; return this; }
         RequestBuilder schemas(List<String> v) { this.schemas = v; return this; }
         RequestBuilder excludeSchemas(List<String> v) { this.excludeSchemas = v; return this; }
@@ -722,6 +752,7 @@ class QuerySearchServiceTest {
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly, tableTags,
+                excludeTableTags, excludeTypes, excludeTags, excludeQueries,
                 schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,

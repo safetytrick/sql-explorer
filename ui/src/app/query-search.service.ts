@@ -40,6 +40,12 @@ export interface QuerySearchRequest {
   untaggedOnly?: boolean | null;
   /** Tags on tables: queries touching any table carrying one (sqlx-aoy.10). */
   tableTags?: string[] | null;
+  /** Exclusions, each the twin of an include (sqlx-fph). */
+  excludeTableTags?: string[] | null;
+  excludeTypes?: string[] | null;
+  excludeTags?: string[] | null;
+  /** By the digest `/analyzed-sql/:id` uses. */
+  excludeQueries?: string[] | null;
   schemas?: string[] | null;
   excludeSchemas?: string[] | null;
   tables?: string[] | null;        // normalized "schema.table" keys

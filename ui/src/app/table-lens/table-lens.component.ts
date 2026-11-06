@@ -178,8 +178,8 @@ export class TableLensComponent implements OnInit, OnDestroy {
    */
   private queryScope(): SearchUrlState['scope'] {
     return this.joinWith
-      ? { schemas: [], tables: [this.selfKey(), this.joinWith], tableMode: 'ALL' }
-      : { schemas: [], tables: [this.selfKey()], tableMode: 'ANY' };
+      ? { schemas: [], tables: [this.selfKey(), this.joinWith], tableMode: 'ALL', excludeSchemas: [], excludeTables: [] }
+      : { schemas: [], tables: [this.selfKey()], tableMode: 'ANY', excludeSchemas: [], excludeTables: [] };
   }
 
   /** Merge a patch into the URL without a history entry (the workbench pattern). */
@@ -331,7 +331,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
       view: 'graph',
       ...encodeSearchParams({
         ...defaultSearchState(),
-        scope: { schemas: [], tables: [this.selfKey()], tableMode: 'ALL' }
+        scope: { schemas: [], tables: [this.selfKey()], tableMode: 'ALL', excludeSchemas: [], excludeTables: [] }
       })
     };
   }

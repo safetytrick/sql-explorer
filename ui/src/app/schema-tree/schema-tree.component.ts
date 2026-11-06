@@ -62,6 +62,8 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.queryScopeService.active$.subscribe(active => this.active = active));
     this.subscriptions.add(this.queryScopeService.facets$.subscribe(facets => this.facets = facets));
     this.subscriptions.add(this.queryScopeService.scope$.subscribe(() => { /* re-render selection */ }));
+    // a schema tag switched off in the workbench is left out of the scope it resolves (sqlx-fph)
+    this.subscriptions.add(this.queryScopeService.paused$.subscribe(() => this.publishTagScope()));
     // The URL is the source of truth for this filter, not this component.
     // The header strip on /tables and /schemas writes the same parameter, and
     // the workbench seeds itself from it — so the sidebar has to read it too,
@@ -276,10 +278,12 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
    * disagree about what a tag means.
    */
   private publishTagScope() {
+    const paused = new Set(this.queryScopeService.paused$.value);
+    const running = (tags: string[]) => tags.filter(tag => !paused.has('schemaTag:' + tag));
     this.queryScopeService.publishSchemaTagScope(resolveSchemaTagScope(
       this.schemas.map(schema => schema.name.toLowerCase()),
       this.tagsBySchema,
-      { includeTags: this.includeTags, excludeTags: this.excludeTags, tagMode: this.tagMode },
+      { includeTags: running(this.includeTags), excludeTags: running(this.excludeTags), tagMode: this.tagMode },
       this.tablesByTag));
   }
 
@@ -373,11 +377,27 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     return this.queryScopeService.isSchemaSelected(schema);
   }
 
-  toggleTable(schema: string, table: string) {
-    this.queryScopeService.toggleTable(tableKey(schema, table));
+  isTableExcluded(schema: string, table: string): boolean {
+    return this.queryScopeService.isTableExcluded(tableKey(schema, table));
   }
 
-  toggleSchema(schema: string) {
-    this.queryScopeService.toggleSchema(schema);
+  isSchemaExcluded(schema: string): boolean {
+    return this.queryScopeService.isSchemaExcluded(schema);
+  }
+
+  /** Off → include → exclude → off; alt-click excludes at once (sqlx-fph). */
+  cycleTable(schema: string, table: string, event?: MouseEvent) {
+    this.queryScopeService.cycleTable(tableKey(schema, table), !!event?.altKey);
+  }
+
+  cycleSchema(schema: string, event?: MouseEvent) {
+    this.queryScopeService.cycleSchema(schema, !!event?.altKey);
+  }
+
+  /** What a click on the box will do next. */
+  boxTitle(selected: boolean, excluded: boolean): string {
+    if (excluded) { return 'excluded: queries touching it are left out. Click to clear.'; }
+    if (selected) { return 'included. Click to exclude it instead.'; }
+    return 'click to include, again to exclude; alt-click to exclude at once';
   }
 }

@@ -85,9 +85,12 @@
   @for (schema of visibleSchemas(); track schema.name) {
 
     @if (active) {
+      <!-- the box cycles off → include → exclude; alt-click excludes at once (sqlx-fph) -->
       <div class="schema-label filter" [class.selected]="isSchemaSelected(schema.name)"
-           (click)="toggleSchema(schema.name)">
-        <span class="t-box" [class.on]="isSchemaSelected(schema.name)"></span>
+           [class.excluded]="isSchemaExcluded(schema.name)"
+           [title]="boxTitle(isSchemaSelected(schema.name), isSchemaExcluded(schema.name))"
+           (click)="cycleSchema(schema.name, $event)">
+        <span class="t-box" [class.on]="isSchemaSelected(schema.name)" [class.out]="isSchemaExcluded(schema.name)"></span>
         <span class="s-name">{{schema.name}}</span>
         <span class="t-count">{{schemaCount(schema.name)}}</span>
       </div>
@@ -99,9 +102,12 @@
       @if (active) {
         <div class="tree-table filter"
              [class.selected]="isTableSelected(schema.name, table.name)"
+             [class.excluded]="isTableExcluded(schema.name, table.name)"
              [class.dim]="isTableDimmed(schema.name, table.name)"
-             (click)="toggleTable(schema.name, table.name)">
-          <span class="t-box" [class.on]="isTableSelected(schema.name, table.name)"></span>
+             [title]="boxTitle(isTableSelected(schema.name, table.name), isTableExcluded(schema.name, table.name))"
+             (click)="cycleTable(schema.name, table.name, $event)">
+          <span class="t-box" [class.on]="isTableSelected(schema.name, table.name)"
+                [class.out]="isTableExcluded(schema.name, table.name)"></span>
           <span class="t-name">{{table.name}}</span>
           @if (table.view) {
             <span class="t-view" title="view">v</span>

@@ -103,3 +103,31 @@ test('a link with an expanded row opens with it expanded', async ({page}) => {
   await expect(page.locator('.q-full-sql')).toHaveCount(0);
   expect(new URL(page.url()).searchParams.has('var-expanded')).toBe(false);
 });
+
+/**
+ * A query left out from its row is a pill above the list, and in the link
+ * (sqlx-fph). Switching the pill off brings the query back and keeps the
+ * pill; the link says it is paused.
+ */
+test('a query excluded from its row can be switched off and on from its pill', async ({page}) => {
+  await page.goto('/queries');
+  const rows = page.locator('.q-row');
+  await expect(rows).toHaveCount(3);
+
+  await rows.first().hover();
+  await rows.first().locator('.q-exclude').click();
+  await expect(rows).toHaveCount(2);
+  await expect(page).toHaveURL(/excludeQueries=/);
+  const pill = page.locator('.active-filter-bar .pill.ex');
+  await expect(pill).toHaveCount(1);
+
+  await pill.locator('.pill-body').click();
+  await expect(rows).toHaveCount(3);
+  await expect(page.locator('.active-filter-bar .pill.off')).toHaveCount(1);
+  await expect(page).toHaveURL(/off=query/);
+
+  // a reload keeps it paused: the link is the view
+  await page.reload();
+  await expect(rows).toHaveCount(3);
+  await expect(page.locator('.active-filter-bar .pill.off')).toHaveCount(1);
+});

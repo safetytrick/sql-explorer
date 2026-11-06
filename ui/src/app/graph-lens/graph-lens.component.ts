@@ -14,6 +14,7 @@ import {Point, routeEdges} from './routing';
 import {LayoutChange, LayoutItem, LayoutKind, planMove, SavedLayout, slotAt} from './layout-moves';
 import {GraphLayoutService} from './graph-layout.service';
 import {tableKey} from '../query-scope.service';
+import {addCriterion} from '../criteria';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
 import {ENV_PARAM} from '../environment-url';
@@ -1415,6 +1416,21 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   edgeLink(edge: Edge): {path: string, query: Record<string, string>} {
     return {path: '/queries', query: this.edgeQueryParams(edge)};
+  }
+
+  /**
+   * Leave out every query touching this table (sqlx-fph): a search criterion,
+   * written into the search params the workbench beside the graph reads, so
+   * the list loses them too and its pill can undo it.
+   */
+  excludeTable(node: LayoutNode) {
+    const current = decodeSearchParams(this.route.snapshot.queryParamMap);
+    const next = addCriterion(current, 'table', tableKey(node.schema, node.table), true);
+    const patch: Record<string, string | null> = {};
+    for (const key of Object.keys(encodeSearchParams(current))) { patch[key] = null; }
+    Object.assign(patch, encodeSearchParams(next), {'var-table': null});
+    this.selectedTable = null;
+    this.router.navigate([], {relativeTo: this.route, queryParams: patch, queryParamsHandling: 'merge', replaceUrl: true});
   }
 
   /** The selected table's matching queries in the workbench. */

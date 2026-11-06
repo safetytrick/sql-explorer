@@ -210,3 +210,6 @@ canvas {
   padding: 0 4px;
   &:hover { color: var(--red); }
 }
+
+.nd-actions .btn.exclude { padding: 2px 8px; font-size: 11px; }
+.nd-actions .btn.exclude:hover { border-color: var(--red); color: var(--red); }

@@ -214,5 +214,43 @@ describe('SqlViewComponent', () => {
       expect(colorOf(id!)).toBeUndefined();               // both sides do: no single colour…
       expect(id!.querySelectorAll('.inst-dot').length).toBe(2);   // …one swatch each
     });
+
+    describe('pointing at a table in the SQL (sqlx-ee3)', () => {
+      const over = (target: Element) => { target.dispatchEvent(new MouseEvent('mouseover', {bubbles: true})); fixture.detectChanges(); };
+      const sqlSpan = (cls: string, text: string) =>
+        [...el().querySelectorAll(`pre.sql-display code span.${cls}`)].find(x => x.textContent === text)!;
+      const panels = () => [...el().querySelectorAll('.idx-panel .tbl-name')].map(x => x.textContent);
+      const indexes = () => [...el().querySelectorAll('.idx-name')].map(x => x.textContent);
+
+      beforeEach(() => load(
+        'SELECT a.id FROM account a JOIN account p ON p.id = a.parent_id JOIN site s ON s.account_id = a.id WHERE s.region = ?',
+        ['account', 'site'], ['app_core.account.id', 'app_core.account.parent_id', 'app_core.site.region', 'app_core.site.account_id'],
+        [structure('account', ['id', 'parent_id'], [['PRIMARY', ['id']], ['idx_parent', ['parent_id']]]),
+         structure('site', ['id', 'account_id', 'region'], [['idx_region', ['region']], ['idx_account', ['account_id']]])]));
+
+      it('shows every table until something is pointed at', () => {
+        expect(panels()).toEqual(['account', 'site']);
+      });
+
+      it('narrows to the hovered table, and to the indexes its instance reaches', () => {
+        over(sqlSpan('sqt-alias', 'p'));
+        expect(panels()).toEqual(['account']);
+        expect(indexes()).toEqual(['PRIMARY']);           // p constrains only id
+
+        over(sqlSpan('sqt-alias', 'a'));
+        expect(indexes()).toEqual(['idx_parent', 'PRIMARY']);   // a: parent_id and id
+
+        over(sqlSpan('sqt-alias', 's'));
+        expect(panels()).toEqual(['site']);
+        expect(el().querySelector('.card-head-note .sqt-swatch')?.textContent).toBe('s');
+      });
+
+      it('restores the whole pane when the pointer leaves the SQL', () => {
+        over(sqlSpan('sqt-alias', 's'));
+        el().querySelector('pre.sql-display code')!.dispatchEvent(new MouseEvent('mouseleave'));
+        fixture.detectChanges();
+        expect(panels()).toEqual(['account', 'site']);
+      });
+    });
   });
 });

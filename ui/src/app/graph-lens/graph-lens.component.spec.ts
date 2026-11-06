@@ -218,6 +218,25 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(minimap.style.width).toBe('150px');
   });
 
+  // a table's queries can be left out from its pinned detail (sqlx-fph)
+  it('excludes the queries touching a table into the shared search params', () => {
+    navigateTo({}, {q: 'invoice', tables: 'app.account', 'var-table': 'account'});
+    const node = {id: 'app.account', schema: 'app', table: 'account', columnCount: 1, queryCount: 1,
+      warn: false, selfJoin: false, view: false, x: 0, y: 0};
+    const navigate = router.navigate as jasmine.Spy;
+    navigate.calls.reset();
+
+    component.excludeTable(node as never);
+
+    const extras = navigate.calls.mostRecent().args[1];
+    expect(extras.queryParamsHandling).toBe('merge');
+    // moved from the table scope to the exclusions, the rest of the search kept
+    expect(extras.queryParams['excludeTables']).toBe('app.account');
+    expect(extras.queryParams['tables']).toBeNull();
+    expect(extras.queryParams['q']).toBe('invoice');
+    expect(extras.queryParams['var-table']).toBeNull();
+  });
+
   // links out of the graph open the queries it counted (sqlx-aoy.8)
   describe('links to the queries behind it', () => {
     const node = (table: string) => ({id: 'app.' + table, schema: 'app', table, columnCount: 3,

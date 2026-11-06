@@ -512,7 +512,6 @@ ul.criteria-columns > li {
   text-underline-offset: 3px;
 }
 .sqt-schema { color: var(--text3); }
-.sqt[data-sqt] { cursor: default; border-radius: 2px; }
-.sqt-hot { background: color-mix(in oklch, var(--sqt-color, currentColor) 22%, transparent); }
+.sqt[data-sqt] { cursor: default; }
 /* a swatch of a table instance's colour outside the SQL, e.g. the index card */
 .sqt-swatch { color: var(--sqt-color); font-weight: 600; }

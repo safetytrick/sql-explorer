@@ -12,7 +12,7 @@ import {CanActivateFn, Params, Router} from '@angular/router';
  * stays if it is a <b>predicate over the rows this page happens to
  * list</b>.</blockquote>
  *
- * <p>These six name schemas, tables, or tags attached to them, so the
+ * <p>These eight name schemas, tables, or tags attached to them, so the
  * statement they make is identical whatever page reads it. Everything else —
  * how a page draws itself, what it is being asked, what is selected inside it,
  * which of its own rows it keeps — is defined relative to one page and would
@@ -29,6 +29,9 @@ export const SCOPE_PARAMS = [
   'schemas',
   'tables',
   'tableMode',
+  // their exclusion twins name the same objects, so they travel the same way (sqlx-fph)
+  'excludeSchemas',
+  'excludeTables',
   'schemaTags',
   'schemaTagsExclude',
   'schemaTagMode'

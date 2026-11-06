@@ -104,9 +104,11 @@ function search(body: Record<string, unknown>) {
   const regex = typeof body.queryRegex === 'string' && body.queryRegex.trim()
     ? new RegExp(body.queryRegex, 'i') : null;
   const schemas = (body.schemas as string[] | null) ?? [];
+  const excludeQueries = (body.excludeQueries as string[] | null) ?? [];
   const results = ALL
     .filter(p => !regex || regex.test(p.query))
-    .filter(p => !schemas.length || schemas.includes(p.schemaName));
+    .filter(p => !schemas.length || schemas.includes(p.schemaName))
+    .filter(p => !excludeQueries.includes(p.digest));
   return {
     total: results.length,
     results: results.map(profile => ({profile, tags: []})),

@@ -1,13 +1,18 @@
-import {Directive, ElementRef, HostListener, inject, Input, OnChanges} from '@angular/core';
+import {Directive, ElementRef, EventEmitter, HostListener, inject, Input, OnChanges, Output} from '@angular/core';
 import {Mark, Source} from './sql-scopes';
 import {Token} from './sql-tokens';
-import {paintSql, SchemaHint} from './paint';
+import {paintSql, SchemaHint, TableColor} from './paint';
 
 /**
  * `<code [sqlHighlight]="sql">`: highlights a statement with each table
  * instance in its own colour — its name, its alias, and every column
- * qualified by it — so the two sides of a self-join read apart. Hovering any
- * of them lights up the rest of that instance.
+ * qualified by it — so the two sides of a self-join read apart.
+ *
+ * `(sqlTableHover)` reports the table instance under the pointer, for a page
+ * to react to (the analyzed-sql page narrows its index pane). It is sticky
+ * within the block: passing over a keyword or a space between two names keeps
+ * the last instance rather than flickering through null, and only leaving the
+ * block emits null. The directive itself draws nothing on hover.
  *
  * Lexical colours reuse the `hljs-*` class names so the existing theme rules
  * apply unchanged; table colours are `.sqt-c{n}` in styles.css.
@@ -28,6 +33,7 @@ export class SqlHighlightDirective implements OnChanges {
 
   @Input() sqlHighlight: string | null | undefined;
   @Input() sqlSchema: readonly SchemaHint[] | null | undefined;
+  @Output() readonly sqlTableHover = new EventEmitter<TableColor | null>();
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
 
@@ -35,30 +41,31 @@ export class SqlHighlightDirective implements OnChanges {
     this.render(this.sqlHighlight ?? '', this.sqlSchema);
   }
 
+  /** The instances of the current render, by id (`data-sqt`). */
+  private tables: TableColor[] = [];
+  private hovered: TableColor | null = null;
+
   @HostListener('mouseover', ['$event'])
   onOver(e: MouseEvent): void {
     const id = (e.target as HTMLElement | null)?.closest?.('[data-sqt]')?.getAttribute('data-sqt');
-    this.light(id ?? null);
+    const table = id == null ? undefined : this.tables.find(t => String(t.id) === id);
+    if (table) { this.hover(table); }
   }
 
   @HostListener('mouseleave')
   onLeave(): void {
-    this.light(null);
+    this.hover(null);
   }
 
-  private lit: string | null = null;
-
-  private light(id: string | null): void {
-    if (id === this.lit) { return; }
-    this.host.querySelectorAll('.sqt-hot').forEach(el => el.classList.remove('sqt-hot'));
-    if (id !== null) {
-      this.host.querySelectorAll(`[data-sqt="${id}"]`).forEach(el => el.classList.add('sqt-hot'));
-    }
-    this.lit = id;
+  private hover(table: TableColor | null): void {
+    if (table === this.hovered) { return; }
+    this.hovered = table;
+    this.sqlTableHover.emit(table);
   }
 
   private render(sql: string, schema: readonly SchemaHint[] | null | undefined): void {
-    const {analysis: {tokens, marks}, colors} = paintSql(sql, schema);
+    const {analysis: {tokens, marks}, colors, tables} = paintSql(sql, schema);
+    this.tables = tables;
     const doc = this.host.ownerDocument;
     const frag = doc.createDocumentFragment();
     tokens.forEach((t, i) => {
@@ -78,7 +85,18 @@ export class SqlHighlightDirective implements OnChanges {
       frag.appendChild(span);
     });
     this.host.replaceChildren(frag);
-    this.lit = null;
+    if (this.hovered) {
+      // A re-render with a schema keeps the same instances (ids come from
+      // syntax alone), so the hover survives it. Only if the statement changed
+      // underneath is null emitted — deferred, since this runs in ngOnChanges
+      // and the parent must not change state mid change-detection.
+      const same = tables.find(t => t.id === this.hovered!.id && t.name === this.hovered!.name);
+      if (same) {
+        this.hovered = same;
+      } else {
+        queueMicrotask(() => this.hover(null));
+      }
+    }
   }
 }
 

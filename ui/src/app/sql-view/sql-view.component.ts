@@ -7,7 +7,7 @@ import {Title} from '@angular/platform-browser';
 import {DatePipe, DecimalPipe, SlicePipe} from '@angular/common';
 import {RouterLink} from '@angular/router';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
-import {constrainingInstances, instancesOf, paintSql, SchemaHint, TableColor} from '../sql-highlight/paint';
+import {constrainingInstances, instancesOf, Painted, paintSql, SchemaHint, TableColor} from '../sql-highlight/paint';
 import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
@@ -62,6 +62,15 @@ export class SqlViewComponent implements OnInit {
   sqlSchema: SchemaHint[] | null = null;
   /** The SQL's table colours, echoed on the index card (sqlx-l9h). */
   private panelColors = new Map<string, PanelColors>();
+  private painted: Painted | null = null;
+  /**
+   * The table instance last pointed at in the SQL, or null (sqlx-ee3). Not
+   * written to the URL: it follows the pointer and is gone when the pointer
+   * leaves, so there is no view to share.
+   */
+  hovered: TableColor | null = null;
+  /** `indexPanels`, narrowed to `hovered` while there is one. */
+  visiblePanels: TableIndexPanel[] = [];
 
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,
               private changeDetectorRef: ChangeDetectorRef,
@@ -77,6 +86,9 @@ export class SqlViewComponent implements OnInit {
     this.indexPanels = [];
     this.sqlSchema = null;
     this.panelColors = new Map();
+    this.painted = null;
+    this.hovered = null;
+    this.visiblePanels = [];
     this.loading = true;
     this.notFound = false;
     this.sqlService.getSql(id).subscribe({
@@ -133,13 +145,46 @@ export class SqlViewComponent implements OnInit {
     if (!this.query) { return; }
     this.indexPanels = buildIndexPanels(this.tables, this.constrainingColumns(), this.query.schemaName);
     this.sqlSchema = this.tables.map(t => ({schema: t.schema, name: t.name, columns: (t.columns || []).map(c => c.columnName)}));
-    const painted = paintSql(this.query.query, this.sqlSchema);
+    const painted = this.painted = paintSql(this.query.query, this.sqlSchema);
     this.panelColors = new Map(this.indexPanels.map(panel => {
       const instances = instancesOf(painted, panel.schema, panel.table);
       const names = new Set([...panel.queryColumns, ...panel.indexes.flatMap(i => i.matched.map(c => c.toLowerCase()))]);
       const columns = new Map([...names].map(c => [c, constrainingInstances(painted, instances, c)]));
       return [panelKey(panel), {instances, columns}];
     }));
+    this.visiblePanels = this.focusPanels();
+  }
+
+  // ── pointing at a table in the SQL narrows the index pane (sqlx-ee3) ──
+
+  onTableHover(table: TableColor | null) {
+    this.hovered = table;
+    this.visiblePanels = this.focusPanels();
+  }
+
+  /**
+   * Only the hovered instance's table, and within it only the indexes that
+   * one of that instance's constrained columns reaches — in a self-join,
+   * `p`'s indexes are not `a`'s. A CTE, a derived table or a table whose
+   * structure did not load has no panel, so the pane stays whole rather than
+   * going blank; so does a panel the instance constrains nothing in.
+   */
+  private focusPanels(): TableIndexPanel[] {
+    const table = this.hovered;
+    if (!table || table.kind !== 'table' || !this.painted) { return this.indexPanels; }
+    const focused = this.indexPanels.flatMap(panel => {
+      if (!this.instancesFor(panel).some(i => i.id === table.id)) { return []; }
+      const mine = new Set(panel.queryColumns
+        .filter(column => this.columnColors(panel, column).some(i => i.id === table.id)));
+      const indexes = panel.indexes.filter(scored => scored.matched.some(m => mine.has(m.toLowerCase())));
+      return [{...panel, indexes: indexes.length ? indexes : panel.indexes}];
+    });
+    return focused.length ? focused : this.indexPanels;
+  }
+
+  /** True while the pane shows less than every panel and index. */
+  get focused(): boolean {
+    return this.visiblePanels !== this.indexPanels;
   }
 
   // ── the SQL's colours on the index card ──

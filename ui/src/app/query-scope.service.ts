@@ -11,6 +11,9 @@ export interface QueryScope {
   schemas: string[];   // lower-cased normalized schema names
   tables: string[];    // lower-cased "schema.table" keys
   tableMode: TableMode;
+  /** Left out: a query touching any of these is not in the search (sqlx-fph). */
+  excludeSchemas: string[];
+  excludeTables: string[];
 }
 
 /** Schema-tree tag filters that also scope the queries workbench. */
@@ -50,7 +53,13 @@ const EMPTY_TAG_SCOPE: SchemaTagScope = { includedSchemas: null, excludedSchemas
 export class QueryScopeService {
 
   readonly active$ = new BehaviorSubject<boolean>(false);
-  readonly scope$ = new BehaviorSubject<QueryScope>({ schemas: [], tables: [], tableMode: 'ANY' });
+  readonly scope$ = new BehaviorSubject<QueryScope>(emptyScope('ANY'));
+  /**
+   * Criteria switched off in the workbench, by their key in criteria.ts
+   * (sqlx-fph). The tree reads it so a paused schema tag is left out of the
+   * tag scope it resolves, as the search leaves out every paused criterion.
+   */
+  readonly paused$ = new BehaviorSubject<string[]>([]);
   readonly facets$ = new BehaviorSubject<QueryFacets>(EMPTY_FACETS);
   readonly schemaTagFilter$ = new BehaviorSubject<SchemaTagFilter>(EMPTY_TAG_FILTER);
   readonly schemaTagScope$ = new BehaviorSubject<SchemaTagScope>(EMPTY_TAG_SCOPE);
@@ -77,7 +86,37 @@ export class QueryScopeService {
 
   /** Replace the whole selection — seeding from a shared URL. */
   setScope(scope: QueryScope): void {
-    this.scope$.next({ schemas: [...scope.schemas], tables: [...scope.tables], tableMode: scope.tableMode });
+    this.scope$.next({ schemas: [...scope.schemas], tables: [...scope.tables], tableMode: scope.tableMode,
+      excludeSchemas: [...scope.excludeSchemas], excludeTables: [...scope.excludeTables] });
+  }
+
+  setPaused(keys: string[]): void {
+    if (keys.join(',') !== this.paused$.value.join(',')) { this.paused$.next([...keys]); }
+  }
+
+  /**
+   * The tree's box for a table: off → include → exclude → off (sqlx-fph).
+   * `straightToExclude` (alt-click) excludes from off or include, and an
+   * excluded table it clears.
+   */
+  cycleTable(key: string, straightToExclude = false): void {
+    const scope = this.scope;
+    const next = cycle(scope.tables, scope.excludeTables, key, straightToExclude);
+    this.scope$.next({ ...scope, tables: next.include, excludeTables: next.exclude });
+  }
+
+  cycleSchema(name: string, straightToExclude = false): void {
+    const scope = this.scope;
+    const next = cycle(scope.schemas, scope.excludeSchemas, name.toLowerCase(), straightToExclude);
+    this.scope$.next({ ...scope, schemas: next.include, excludeSchemas: next.exclude });
+  }
+
+  isTableExcluded(key: string): boolean {
+    return this.scope.excludeTables.includes(key);
+  }
+
+  isSchemaExcluded(name: string): boolean {
+    return this.scope.excludeSchemas.includes(name.toLowerCase());
   }
 
   toggleTable(key: string): void {
@@ -92,12 +131,14 @@ export class QueryScopeService {
 
   removeTable(key: string): void {
     const scope = this.scope;
-    this.scope$.next({ ...scope, tables: scope.tables.filter(t => t !== key) });
+    this.scope$.next({ ...scope, tables: scope.tables.filter(t => t !== key),
+      excludeTables: scope.excludeTables.filter(t => t !== key) });
   }
 
   removeSchema(key: string): void {
     const scope = this.scope;
-    this.scope$.next({ ...scope, schemas: scope.schemas.filter(s => s !== key) });
+    this.scope$.next({ ...scope, schemas: scope.schemas.filter(s => s !== key),
+      excludeSchemas: scope.excludeSchemas.filter(s => s !== key) });
   }
 
   setTableMode(mode: TableMode): void {
@@ -105,7 +146,7 @@ export class QueryScopeService {
   }
 
   clear(): void {
-    this.scope$.next({ schemas: [], tables: [], tableMode: this.scope.tableMode });
+    this.scope$.next(emptyScope(this.scope.tableMode));
   }
 
   isTableSelected(key: string): boolean {
@@ -140,6 +181,22 @@ export class QueryScopeService {
     this.schemaTagFilter$.next(EMPTY_TAG_FILTER);
     this.schemaTagScope$.next(EMPTY_TAG_SCOPE);
   }
+}
+
+/** A scope selecting nothing and leaving nothing out. */
+export function emptyScope(tableMode: TableMode): QueryScope {
+  return { schemas: [], tables: [], tableMode, excludeSchemas: [], excludeTables: [] };
+}
+
+/** One step of the tree's three-state box over an include list and an exclude list. */
+function cycle(include: string[], exclude: string[], value: string, straightToExclude: boolean):
+  { include: string[]; exclude: string[] } {
+  const included = include.includes(value);
+  const excluded = exclude.includes(value);
+  const drop = (values: string[]) => values.filter(v => v !== value);
+  if (excluded) { return { include: drop(include), exclude: drop(exclude) }; }
+  if (included || straightToExclude) { return { include: drop(include), exclude: [...exclude, value] }; }
+  return { include: [...include, value], exclude };
 }
 
 function toggle(values: string[], value: string): string[] {

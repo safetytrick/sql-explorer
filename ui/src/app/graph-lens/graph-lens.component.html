@@ -91,6 +91,8 @@
       <div class="nd-actions">
         <a class="btn" [routerLink]="['/table', node.schema, node.table]">open table</a>
         <a class="btn" [routerLink]="['/queries']" [queryParams]="tableQueriesLink(node)">its queries</a>
+        <button type="button" class="btn exclude" (click)="excludeTable(node)"
+                title="leave out every query that touches it, here and in the list; undo from its pill">⊘ exclude its queries</button>
       </div>
       @if (detail.fkOut.length) {
         <div class="nd-label">references (FK →)</div>

@@ -20,6 +20,7 @@ import type {Activity, Flag, HintAction, QuerySearchRequest, SortKey, TableMode,
 import type {QueryScope, SchemaTagFilter, SchemaTagScope} from './query-scope.service';
 import type {ColumnRef} from './refs';
 import {resolveDateExpr} from './date-range-selector/date-math';
+import {effectiveState} from './criteria';
 
 export interface RangeState { min: number | null; max: number | null; }
 
@@ -40,6 +41,24 @@ export interface SearchUrlState {
    * server, so the link follows the tag. `tags` is the query's own tags.
    */
   tableTags: string[];
+  /*
+   * Exclusions (sqlx-fph): the twin of an include, spelled in the URL as the
+   * same param with a '-' on the value (`queryTypes=select,-insert`,
+   * `tags=-legacy`), or as a param of their own where the include is a
+   * selection (`excludeTables`, `excludeSchemas`, in `scope`) or there is no
+   * include at all (`excludeQueries`).
+   */
+  excludeTypes: string[];
+  excludeTags: string[];
+  excludeTableTags: string[];
+  /** Queries left out by hand, by the digest `/analyzed-sql/:id` uses. */
+  excludeQueries: string[];
+  /**
+   * Criteria switched off but kept, by their key in criteria.ts: `off=`. A
+   * shared link reproduces "this search, with that one paused", and the
+   * request leaves them out (see effectiveState).
+   */
+  off: string[];
   avgTime: RangeState;
   maxTime: RangeState;
   avgRows: RangeState;
@@ -95,6 +114,7 @@ export function defaultSearchState(): SearchUrlState {
     types: [],
     firstAfter: null, firstBefore: null, lastAfter: null, lastBefore: null,
     tags: [], tagMode: 'ANY', untaggedOnly: false, tableTags: [],
+    excludeTypes: [], excludeTags: [], excludeTableTags: [], excludeQueries: [], off: [],
     avgTime: { min: null, max: null },
     maxTime: { min: null, max: null },
     avgRows: { min: null, max: null },
@@ -106,7 +126,7 @@ export function defaultSearchState(): SearchUrlState {
     analyzerWarnings: false, analysisFailed: false, cleanAnalysis: false, analysisSkipped: false,
     failureKind: null,
     sort: 'IMPACT',
-    scope: { schemas: [], tables: [], tableMode: 'ANY' },
+    scope: { schemas: [], tables: [], tableMode: 'ANY', excludeSchemas: [], excludeTables: [] },
     schemaTagFilter: { includeTags: [], excludeTags: [], tagMode: 'ANY' },
     columns: [],
     indexes: [],
@@ -124,15 +144,19 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   };
   put('q', state.queryRegex.trim() || null);
   if (state.activity !== 'ANY') { params['activity'] = state.activity; }
-  if (state.types.length) { params['queryTypes'] = state.types.join(','); }
+  const signed = (include: string[], exclude: string[]) => [...include, ...exclude.map(value => '-' + value)].join(',');
+  if (state.types.length || state.excludeTypes.length) { params['queryTypes'] = signed(state.types, state.excludeTypes); }
   put('firstAfter', state.firstAfter);
   put('firstBefore', state.firstBefore);
   put('lastAfter', state.lastAfter);
   put('lastBefore', state.lastBefore);
-  if (state.tags.length) { params['tags'] = state.tags.join(','); }
+  if (state.tags.length || state.excludeTags.length) { params['tags'] = signed(state.tags, state.excludeTags); }
   if (state.tagMode !== 'ANY') { params['tagMode'] = state.tagMode; }
   if (state.untaggedOnly) { params['untagged'] = '1'; }
-  if (state.tableTags.length) { params['tableTags'] = state.tableTags.join(','); }
+  if (state.tableTags.length || state.excludeTableTags.length) {
+    params['tableTags'] = signed(state.tableTags, state.excludeTableTags);
+  }
+  if (state.excludeQueries.length) { params['excludeQueries'] = state.excludeQueries.join(','); }
   putRange('avgTime', state.avgTime);
   putRange('maxTime', state.maxTime);
   putRange('avgRows', state.avgRows);
@@ -152,6 +176,8 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   if (state.scope.schemas.length) { params['schemas'] = state.scope.schemas.join(','); }
   if (state.scope.tables.length) { params['tables'] = state.scope.tables.join(','); }
   if (state.scope.tableMode !== 'ANY') { params['tableMode'] = state.scope.tableMode; }
+  if (state.scope.excludeSchemas.length) { params['excludeSchemas'] = state.scope.excludeSchemas.join(','); }
+  if (state.scope.excludeTables.length) { params['excludeTables'] = state.scope.excludeTables.join(','); }
   // the scope vocabulary is spelled in exactly one place — see scope-tags.ts
   for (const [key, value] of Object.entries(encodeScopeTags(state.schemaTagFilter))) {
     if (value !== null) { params[key] = value; }
@@ -159,6 +185,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   if (state.columns.length) { params['columns'] = state.columns.join(','); }
   if (state.indexes.length) { params['indexes'] = state.indexes.join(','); }
   if (state.hinted) { params['hinted'] = state.hinted; }
+  if (state.off.length) { params['off'] = state.off.join(','); }
   return params;
 }
 
@@ -168,18 +195,26 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     max: params.has(key + 'Max') ? Number(params.get(key + 'Max')) : null
   });
   const csv = (key: string): string[] => params.get(key)?.split(',').filter(Boolean) || [];
+  // `a,-b`: the plain values include, the '-' ones exclude
+  const included = (key: string) => csv(key).filter(value => !value.startsWith('-'));
+  const excluded = (key: string) => csv(key).filter(value => value.startsWith('-')).map(value => value.slice(1)).filter(Boolean);
   return {
     queryRegex: params.get('q') || '',
     activity: (params.get('activity') as Activity) || 'ANY',
-    types: csv('queryTypes'),
+    types: included('queryTypes'),
+    excludeTypes: excluded('queryTypes'),
     firstAfter: params.get('firstAfter'),
     firstBefore: params.get('firstBefore'),
     lastAfter: params.get('lastAfter'),
     lastBefore: params.get('lastBefore'),
-    tags: csv('tags'),
+    tags: included('tags'),
+    excludeTags: excluded('tags'),
     tagMode: (params.get('tagMode') as TagMode) || 'ANY',
     untaggedOnly: params.get('untagged') === '1',
-    tableTags: csv('tableTags'),
+    tableTags: included('tableTags'),
+    excludeTableTags: excluded('tableTags'),
+    excludeQueries: csv('excludeQueries'),
+    off: csv('off'),
     avgTime: readRange('avgTime'),
     maxTime: readRange('maxTime'),
     avgRows: readRange('avgRows'),
@@ -202,7 +237,9 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     scope: {
       schemas: csv('schemas'),
       tables: csv('tables'),
-      tableMode: (params.get('tableMode') as TableMode) || 'ANY'
+      tableMode: (params.get('tableMode') as TableMode) || 'ANY',
+      excludeSchemas: csv('excludeSchemas'),
+      excludeTables: csv('excludeTables')
     },
     schemaTagFilter: decodeScopeTags(params),
     columns: csv('columns'),
@@ -282,9 +319,14 @@ export function expandSelectTypes(types: string[]): string[] {
  * scope (the workbench's buildRequest, shared with the graph). Date
  * expressions resolve here so relative ranges stay live.
  */
-export function buildSearchRequest(state: SearchUrlState,
+export function buildSearchRequest(asWritten: SearchUrlState,
                                    tagScope: SchemaTagScope,
                                    paging: { limit: number | null; offset: number | null }): QuerySearchRequest {
+  // switched-off criteria stay in the link but not in the search (sqlx-fph)
+  const state = effectiveState(asWritten);
+  const union = (a: string[], b: string[]) => [...new Set([...a, ...b])];
+  const excludedSchemas = union(tagScope.excludedSchemas, state.scope.excludeSchemas);
+  const excludedTables = union(tagScope.excludedTables, state.scope.excludeTables);
   return {
     queryRegex: state.queryRegex.trim() || null,
     avgTimeMs: range(state.avgTime),
@@ -302,8 +344,12 @@ export function buildSearchRequest(state: SearchUrlState,
     untaggedOnly: state.untaggedOnly || null,
     tableTags: state.tableTags.length ? state.tableTags : null,
     schemas: resolveRequestSchemas(state.scope.schemas, tagScope.includedSchemas),
-    excludeSchemas: tagScope.excludedSchemas.length ? tagScope.excludedSchemas : null,
-    excludeTables: tagScope.excludedTables.length ? tagScope.excludedTables : null,
+    excludeSchemas: excludedSchemas.length ? excludedSchemas : null,
+    excludeTables: excludedTables.length ? excludedTables : null,
+    excludeTypes: state.excludeTypes.length ? expandSelectTypes(state.excludeTypes) : null,
+    excludeTags: state.excludeTags.length ? state.excludeTags : null,
+    excludeTableTags: state.excludeTableTags.length ? state.excludeTableTags : null,
+    excludeQueries: state.excludeQueries.length ? state.excludeQueries : null,
     tables: state.scope.tables.length ? state.scope.tables : null,
     tableMode: state.scope.tableMode,
     columns: state.columns.length ? state.columns : null,

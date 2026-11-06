@@ -46,7 +46,8 @@ describe('search-url codec', () => {
 
   it('encodes the schema-tree scope: schemas, tables, mode, tag filter as intent', () => {
     const state = defaultSearchState();
-    state.scope = { schemas: ['tdb'], tables: ['tdb.member_session', 'tdb.branch'], tableMode: 'ALL' };
+    state.scope = { schemas: ['tdb'], tables: ['tdb.member_session', 'tdb.branch'], tableMode: 'ALL',
+      excludeSchemas: [], excludeTables: [] };
     state.schemaTagFilter = { includeTags: ['core'], excludeTags: ['legacy'], tagMode: 'ALL' };
     expect(encodeSearchParams(state)).toEqual({
       schemas: 'tdb',
@@ -72,7 +73,7 @@ describe('search-url codec', () => {
       fullScan: 'YES', multiSchema: 'NO',
       analyzerWarnings: true, failureKind: 'PARSE',
       sort: 'LAST_SEEN',
-      scope: { schemas: ['tdb', 'app_main'], tables: ['tdb.member_session'], tableMode: 'ALL' },
+      scope: { schemas: ['tdb', 'app_main'], tables: ['tdb.member_session'], tableMode: 'ALL', excludeSchemas: [], excludeTables: [] },
       schemaTagFilter: { includeTags: ['core'], excludeTags: ['legacy'], tagMode: 'ANY' }
     };
     expect(decodeSearchParams(reader(encodeSearchParams(state)))).toEqual(state);
@@ -111,7 +112,7 @@ describe('buildSearchRequest', () => {
 
   it('applies scope ∩ resolved tag scope', () => {
     const state = defaultSearchState();
-    state.scope = { schemas: ['tdb', 'other'], tables: ['tdb.branch'], tableMode: 'ALL' };
+    state.scope = { schemas: ['tdb', 'other'], tables: ['tdb.branch'], tableMode: 'ALL', excludeSchemas: [], excludeTables: [] };
     const request = buildSearchRequest(state,
       { includedSchemas: ['tdb', 'app_main'], excludedSchemas: ['other'], excludedTables: [] },
       { limit: null, offset: null });
@@ -331,7 +332,7 @@ describe('column drill-down param', () => {
   it('travels alongside the table scope, which is how the lens links to the workbench', () => {
     const state = defaultSearchState();
     state.columns = ['app_main.user_profile.user_id'];
-    state.scope = { schemas: [], tables: ['app_main.user_profile'], tableMode: 'ANY' };
+    state.scope = { schemas: [], tables: ['app_main.user_profile'], tableMode: 'ANY', excludeSchemas: [], excludeTables: [] };
 
     const decoded = decodeSearchParams(params(encodeSearchParams(state)));
     const request = buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 });
@@ -342,7 +343,8 @@ describe('column drill-down param', () => {
 
   it('carries the join drill-down as tables + ALL, needing no filter of its own', () => {
     const state = defaultSearchState();
-    state.scope = { schemas: [], tables: ['app_main.group_member', 'app_main.user_group'], tableMode: 'ALL' };
+    state.scope = { schemas: [], tables: ['app_main.group_member', 'app_main.user_group'], tableMode: 'ALL',
+      excludeSchemas: [], excludeTables: [] };
 
     const request = buildSearchRequest(decodeSearchParams(params(encodeSearchParams(state))),
       UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 });
@@ -410,7 +412,7 @@ describe('index drill-down param', () => {
     const state = defaultSearchState();
     state.indexes = ['app.orders.PRIMARY'];
     state.columns = ['app.orders.status'];
-    state.scope = { schemas: [], tables: ['app.orders'], tableMode: 'ANY' };
+    state.scope = { schemas: [], tables: ['app.orders'], tableMode: 'ANY', excludeSchemas: [], excludeTables: [] };
 
     const request = buildSearchRequest(decodeSearchParams(params(encodeSearchParams(state))),
       UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 });
@@ -471,5 +473,61 @@ describe('table tag param (sqlx-aoy.10)', () => {
     expect(buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).tableTags)
       .toBeNull();
     expect(decodeSearchParams(reader({ tags: 'billing' })).tableTags).toEqual([]);
+  });
+});
+
+describe('exclusions and switched-off criteria in the link (sqlx-fph)', () => {
+
+  it('spells an exclusion as a "-" value of its include param, or as its own param', () => {
+    const state = defaultSearchState();
+    state.types = ['SELECT'];
+    state.excludeTypes = ['INSERT'];
+    state.tags = ['billing'];
+    state.excludeTags = ['legacy'];
+    state.excludeTableTags = ['audit'];
+    state.scope.excludeTables = ['app_main.note'];
+    state.scope.excludeSchemas = ['app_audit'];
+    state.excludeQueries = ['v3:aaa', 'v3:bbb'];
+    state.off = ['tag:billing', 'fullScan'];
+
+    const encoded = encodeSearchParams(state);
+    expect(encoded['queryTypes']).toBe('SELECT,-INSERT');
+    expect(encoded['tags']).toBe('billing,-legacy');
+    expect(encoded['tableTags']).toBe('-audit');
+    expect(encoded['excludeTables']).toBe('app_main.note');
+    expect(encoded['excludeSchemas']).toBe('app_audit');
+    expect(encoded['excludeQueries']).toBe('v3:aaa,v3:bbb');
+    expect(encoded['off']).toBe('tag:billing,fullScan');
+    expect(decodeSearchParams(reader(encoded))).toEqual(state);
+  });
+
+  it('sends exclusions with the request, joined with what tags exclude', () => {
+    const state = defaultSearchState();
+    state.excludeTypes = ['SELECT'];
+    state.excludeTags = ['legacy'];
+    state.excludeQueries = ['v3:aaa'];
+    state.scope.excludeTables = ['app_main.note'];
+    state.scope.excludeSchemas = ['app_audit'];
+    const request = buildSearchRequest(state,
+      {includedSchemas: null, excludedSchemas: ['mysql'], excludedTables: ['app_main.audit_log', 'app_main.note']},
+      {limit: 25, offset: 0});
+    // excluding SELECT leaves out CTEs too, as including it takes them in
+    expect(request.excludeTypes).toEqual(['SELECT', 'WITH']);
+    expect(request.excludeTags).toEqual(['legacy']);
+    expect(request.excludeQueries).toEqual(['v3:aaa']);
+    expect(request.excludeSchemas).toEqual(['mysql', 'app_audit']);
+    expect(request.excludeTables).toEqual(['app_main.audit_log', 'app_main.note']);
+  });
+
+  it('leaves switched-off criteria out of the request, whichever side they are on', () => {
+    const state = defaultSearchState();
+    state.tags = ['billing'];
+    state.excludeQueries = ['v3:aaa'];
+    state.fullScan = 'YES';
+    state.off = ['tag:billing', 'query:v3:aaa', 'fullScan'];
+    const request = buildSearchRequest(state, UNCONSTRAINED_TAG_SCOPE, {limit: 25, offset: 0});
+    expect(request.tags).toBeNull();
+    expect(request.excludeQueries).toBeNull();
+    expect(request.fullScan).toBeNull();
   });
 });

@@ -97,7 +97,7 @@
             {{copied === query.query ? '✓' : '⧉'}}
           </button>
         </div>
-        <pre class="sql-display"><code [sqlHighlight]="query.query" [sqlSchema]="sqlSchema"></code></pre>
+        <pre class="sql-display"><code [sqlHighlight]="query.query" [sqlSchema]="sqlSchema" (sqlTableHover)="onTableHover($event)"></code></pre>
         @if (repeatSpread; as spread) {
           <div class="spread-note">
             Members of this merge group repeat between <strong>{{spread.min}}</strong> and
@@ -126,13 +126,18 @@
       <div class="lens-card">
         <div class="card-head">
           <span class="card-head-title">Relevant indexes</span>
+          @if (focused && hovered) {
+            <span class="card-head-note">for <span class="mono sqt-swatch {{hovered.cssClass}}">{{hovered.label}}</span></span>
+          } @else if (indexPanels.length) {
+            <span class="card-head-note" title="point at a table or column in the SQL to see only the indexes it can use">hover the SQL to focus</span>
+          }
         </div>
         @if (indexPanels.length === 0) {
           <div class="card-empty">
             @if (query.tables.length) { resolving table metadata… } @else { no tables resolved for this query }
           </div>
         }
-        @for (panel of indexPanels; track panel.schema + '.' + panel.table) {
+        @for (panel of visiblePanels; track panel.schema + '.' + panel.table) {
           <div class="idx-panel">
             <div class="idx-panel-head">
               @let instances = instancesFor(panel);

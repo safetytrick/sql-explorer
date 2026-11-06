@@ -25,6 +25,7 @@ import {QueryScopeService} from '../query-scope.service';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
+import {addCriterion, Criterion, criteriaOf, negate, removeCriterion, toggleOff} from '../criteria';
 import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from './merge-group';
 import {decodeWorkbenchParams, encodeWorkbenchParams} from './workbench-url';
 import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
@@ -107,6 +108,20 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   tableTagSuggestions: string[] = [];
   /** Tag names in use on tables, busiest first, for the table-tag suggestions. */
   private tableTagNames: string[] = [];
+  /** Exclusions (sqlx-fph): each the twin of an include, edited from the same control. */
+  excludeTypes: string[] = [];
+  excludeTags: string[] = [];
+  excludeTableTags: string[] = [];
+  /** Queries left out by hand, by digest. */
+  excludeQueries: string[] = [];
+  /** Criteria switched off but kept, by key (criteria.ts): `off=`. */
+  off: string[] = [];
+  /**
+   * The SQL of queries excluded from their row this session, by digest, so
+   * their pill can still say what they were once they leave the list. A link
+   * opened fresh has only the digest to show.
+   */
+  private excludedSql = new Map<string, string>();
   avgTime: RangeState = { min: null, max: null };
   maxTime: RangeState = { min: null, max: null };
   avgRows: RangeState = { min: null, max: null };
@@ -282,6 +297,126 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.filtersChanged();
   }
 
+  /** The page's own copy of every non-scope part of a search; the scope lives in the scope service. */
+  private assignFields(state: SearchUrlState) {
+    this.queryRegex = state.queryRegex;
+    this.activity = state.activity;
+    this.types = state.types;
+    this.firstAfter = state.firstAfter;
+    this.firstBefore = state.firstBefore;
+    this.lastAfter = state.lastAfter;
+    this.lastBefore = state.lastBefore;
+    this.tags = state.tags;
+    this.tagMode = state.tagMode;
+    this.untaggedOnly = state.untaggedOnly;
+    this.tableTags = state.tableTags;
+    this.avgTime = state.avgTime;
+    this.maxTime = state.maxTime;
+    this.avgRows = state.avgRows;
+    this.selectivityPct = state.selectivityPct;
+    this.rowsSorted = state.rowsSorted;
+    this.fullScan = state.fullScan;
+    this.tmpTable = state.tmpTable;
+    this.tmpDisk = state.tmpDisk;
+    this.errors = state.errors;
+    this.warnings = state.warnings;
+    this.truncated = state.truncated;
+    this.multiSchema = state.multiSchema;
+    this.analyzerWarnings = state.analyzerWarnings;
+    this.hasExamples = state.hasExamples;
+    this.analysisFailed = state.analysisFailed;
+    this.cleanAnalysis = state.cleanAnalysis;
+    this.analysisSkipped = state.analysisSkipped;
+    this.failureKind = state.failureKind;
+    this.sort = state.sort;
+    this.columns = state.columns;
+    this.indexes = state.indexes;
+    this.hinted = state.hinted;
+    this.excludeTypes = state.excludeTypes;
+    this.excludeTags = state.excludeTags;
+    this.excludeTableTags = state.excludeTableTags;
+    this.excludeQueries = state.excludeQueries;
+    this.off = state.off;
+    this.queryScopeService.setPaused(state.off);
+  }
+
+  /**
+   * Make `next` the search: every pill action, sidebar exclusion and row
+   * exclusion goes through here (sqlx-fph), so they all edit the one state
+   * the URL encodes.
+   */
+  private applyCriteria(next: SearchUrlState) {
+    this.assignFields(next);
+    this.queryScopeService.setSchemaTagFilter(next.schemaTagFilter);
+    this.queryScopeService.setScope(next.scope);
+    this.filtersChanged();
+  }
+
+  // ── active criteria (sqlx-fph) ──
+
+  /** Every criterion of the search, as the bar above the results shows it. */
+  get criteria(): Criterion[] {
+    return criteriaOf(this.currentState());
+  }
+
+  /** The pills to draw one by one: excluded queries fold into one pill when there are more than two. */
+  pillsShown(criteria: Criterion[]): Criterion[] {
+    const queries = criteria.filter(c => c.key.startsWith('query:'));
+    return queries.length > 2 ? criteria.filter(c => !c.key.startsWith('query:')) : criteria;
+  }
+
+  /** The folded pill for many excluded queries, or null. */
+  excludedQueryGroup(criteria: Criterion[]): {count: number; on: boolean; keys: string[]} | null {
+    const queries = criteria.filter(c => c.key.startsWith('query:'));
+    return queries.length > 2
+      ? {count: queries.length, on: queries.some(c => c.on), keys: queries.map(c => c.key)}
+      : null;
+  }
+
+  /** What a pill shows as its value: a query's SQL when it is on the page, its digest otherwise. */
+  pillValue(c: Criterion): string {
+    if (c.key.startsWith('query:')) {
+      const hit = this.hits.find(candidate => candidate.profile.digest === c.value);
+      const sql = hit ? `${this.sqlVerb(hit.profile.query)} ${this.sqlRest(hit.profile.query)}` : this.excludedSql.get(c.value);
+      return sql ? sql.slice(0, 40) : c.value.slice(0, 12);
+    }
+    return c.value;
+  }
+
+  pillToggle(c: Criterion) {
+    this.applyCriteria(toggleOff(this.currentState(), c.key));
+  }
+
+  pillNegate(c: Criterion) {
+    this.applyCriteria(negate(this.currentState(), c.key));
+  }
+
+  pillRemove(c: Criterion) {
+    this.applyCriteria(removeCriterion(this.currentState(), c.key));
+  }
+
+  /** Switch the folded excluded-queries pill: all of them off, or all back on. */
+  toggleQueryGroup(group: {on: boolean; keys: string[]}) {
+    let state = this.currentState();
+    for (const key of group.keys) {
+      if (state.off.includes(key) !== !group.on) { state = toggleOff(state, key); }
+    }
+    this.applyCriteria(state);
+  }
+
+  removeQueryGroup(group: {keys: string[]}) {
+    let state = this.currentState();
+    for (const key of group.keys) { state = removeCriterion(state, key); }
+    this.applyCriteria(state);
+  }
+
+  /** Leave one query out of the list and the graph (sqlx-fph). */
+  excludeQuery(hit: QueryHit, event: Event) {
+    event.stopPropagation();
+    this.excludedSql.set(hit.profile.digest, `${this.sqlVerb(hit.profile.query)} ${this.sqlRest(hit.profile.query)}`);
+    this.applyCriteria(addCriterion(this.currentState(), 'query', hit.profile.digest, true));
+  }
+
   /** Everything the search is made of, in the shared URL vocabulary. */
   private currentState(): SearchUrlState {
     return {
@@ -296,6 +431,11 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       tagMode: this.tagMode,
       untaggedOnly: this.untaggedOnly,
       tableTags: this.tableTags,
+      excludeTypes: this.excludeTypes,
+      excludeTags: this.excludeTags,
+      excludeTableTags: this.excludeTableTags,
+      excludeQueries: this.excludeQueries,
+      off: this.off,
       avgTime: this.avgTime,
       maxTime: this.maxTime,
       avgRows: this.avgRows,
@@ -411,15 +551,21 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Include a type, or take it off; an excluded type (flipped on its pill) is taken off too. */
   toggleType(type: string) {
-    this.types = this.types.includes(type)
-      ? this.types.filter(candidate => candidate !== type)
-      : [...this.types, type];
+    if (this.excludeTypes.includes(type)) {
+      this.excludeTypes = this.excludeTypes.filter(candidate => candidate !== type);
+    } else {
+      this.types = this.types.includes(type)
+        ? this.types.filter(candidate => candidate !== type)
+        : [...this.types, type];
+    }
     this.filtersChanged();
   }
 
   clearTypes() {
     this.types = [];
+    this.excludeTypes = [];
     this.filtersChanged();
   }
 
@@ -432,6 +578,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.tagMode = 'ANY';
     this.untaggedOnly = false;
     this.tableTags = [];
+    this.excludeTypes = [];
+    this.excludeTags = [];
+    this.excludeTableTags = [];
+    this.excludeQueries = [];
+    this.off = [];
+    this.queryScopeService.setPaused([]);
     this.avgTime = { min: null, max: null };
     this.maxTime = { min: null, max: null };
     this.avgRows = { min: null, max: null };
@@ -450,12 +602,9 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   // ── schema/table scope (driven by the schema tree) ──
 
-  get scopeTables(): string[] {
-    return this.queryScopeService.scope.tables;
-  }
-
-  get scopeSchemas(): string[] {
-    return this.queryScopeService.scope.schemas;
+  /** How many tables the scope selects: the any/all choice only means something with two or more. */
+  get scopeTableCount(): number {
+    return this.queryScopeService.scope.tables.length;
   }
 
   get tableMode(): 'ANY' | 'ALL' {
@@ -464,55 +613,6 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   set tableMode(mode: 'ANY' | 'ALL') {
     this.queryScopeService.setTableMode(mode);
-  }
-
-  removeScopeTable(key: string) {
-    this.queryScopeService.removeTable(key);
-  }
-
-  removeScopeSchema(key: string) {
-    this.queryScopeService.removeSchema(key);
-  }
-
-  activeFilterChips(): string[] {
-    const chips: string[] = [];
-    const rangeChip = (label: string, r: RangeState) => {
-      if (r.min !== null || r.max !== null) { chips.push(label); }
-    };
-    if (this.queryRegex.trim()) { chips.push('sql: /' + this.queryRegex.trim() + '/'); }
-    rangeChip('avg time', this.avgTime);
-    rangeChip('max time', this.maxTime);
-    rangeChip('rows scanned', this.avgRows);
-    rangeChip('selectivity', this.selectivityPct);
-    rangeChip('rows sorted', this.rowsSorted);
-    if (this.activity !== 'ANY') { chips.push('activity: ' + this.activity.toLowerCase()); }
-    if (this.types.length) { chips.push('type: ' + this.types.join(', ')); }
-    if (this.firstAfter || this.firstBefore) { chips.push('first seen'); }
-    if (this.lastAfter || this.lastBefore) { chips.push('last seen'); }
-    if (this.tags.length) { chips.push(`tags(${this.tagMode.toLowerCase()}): ${this.tags.join(', ')}`); }
-    if (this.untaggedOnly) { chips.push('untagged'); }
-    if (this.tableTags.length) { chips.push(`tables tagged: ${this.tableTags.join(', ')}`); }
-    const schemaTagFilter = this.queryScopeService.schemaTagFilter;
-    if (schemaTagFilter.includeTags.length) {
-      chips.push(`schema tags(${schemaTagFilter.tagMode.toLowerCase()}): ${schemaTagFilter.includeTags.join(', ')}`);
-    }
-    if (schemaTagFilter.excludeTags.length) {
-      chips.push(`exclude schema tags: ${schemaTagFilter.excludeTags.join(', ')}`);
-    }
-    if (this.fullScan !== 'ANY') { chips.push('full scan: ' + this.fullScan.toLowerCase()); }
-    if (this.tmpTable !== 'ANY') { chips.push('tmp table: ' + this.tmpTable.toLowerCase()); }
-    if (this.tmpDisk !== 'ANY') { chips.push('tmp disk: ' + this.tmpDisk.toLowerCase()); }
-    if (this.errors !== 'ANY') { chips.push('errors: ' + this.errors.toLowerCase()); }
-    if (this.warnings !== 'ANY') { chips.push('warnings: ' + this.warnings.toLowerCase()); }
-    if (this.truncated !== 'ANY') { chips.push('truncated: ' + this.truncated.toLowerCase()); }
-    if (this.multiSchema !== 'ANY') { chips.push('multi-schema: ' + this.multiSchema.toLowerCase()); }
-    if (this.hinted) { chips.push(this.hinted === 'ANY' ? 'index hint: any' : 'index hint: ' + this.hinted.toLowerCase()); }
-    if (this.analyzerWarnings) { chips.push('analyzer: warnings'); }
-    if (this.analysisFailed) { chips.push('analyzer: failed'); }
-    if (this.cleanAnalysis) { chips.push('analyzer: clean'); }
-    if (this.analysisSkipped) { chips.push('analyzer: skipped'); }
-    if (this.failureKind) { chips.push('failure: ' + this.failureKind.toLowerCase()); }
-    return chips;
   }
 
   // ── execution flag tri-states (template helpers) ──
@@ -563,53 +663,66 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   // ── tags ──
 
+  /** A suggestion picked while typing `-…` is added as an exclusion. */
+  addSuggestedTag(name: string) {
+    this.addTag((signed(this.tagInput).exclude ? '-' : '') + name);
+  }
+
+  addSuggestedTableTag(name: string) {
+    this.addTableTag((signed(this.tableTagInput).exclude ? '-' : '') + name);
+  }
+
   onTagInput() {
-    const text = this.tagInput.trim();
+    const text = signed(this.tagInput).value;
     if (!text) {
       this.tagSuggestions = [];
       return;
     }
     this.analyzedSqlService.autoCompleteTags(text).subscribe(names => {
-      this.tagSuggestions = names.filter(name => !this.tags.includes(name)).slice(0, 8);
+      this.tagSuggestions = names.filter(name => !this.tags.includes(name) && !this.excludeTags.includes(name)).slice(0, 8);
     });
   }
 
+  /** `name` includes, `-name` excludes (sqlx-fph). */
   addTag(name: string) {
-    const value = name.trim();
-    if (value && !this.tags.includes(value)) {
-      this.tags = [...this.tags, value];
-      this.filtersChanged();
-    }
+    const {value, exclude} = signed(name);
     this.tagInput = '';
     this.tagSuggestions = [];
+    if (value) { this.applyCriteria(addCriterion(this.currentState(), 'tag', value, exclude)); }
   }
 
   removeTag(name: string) {
-    this.tags = this.tags.filter(tag => tag !== name);
-    this.filtersChanged();
+    this.applyCriteria(removeCriterion(this.currentState(), 'tag:' + name));
+  }
+
+  /** The ± on a tag chip: include ↔ exclude. */
+  flipTag(name: string) {
+    this.applyCriteria(negate(this.currentState(), 'tag:' + name));
   }
 
   /** Suggest tags that are on tables, from the summaries already loaded; no request per keystroke. */
   onTableTagInput() {
-    const text = this.tableTagInput.trim().toLowerCase();
+    const text = signed(this.tableTagInput).value.toLowerCase();
     this.tableTagSuggestions = text
-      ? this.tableTagNames.filter(name => name.toLowerCase().includes(text) && !this.tableTags.includes(name)).slice(0, 8)
+      ? this.tableTagNames.filter(name => name.toLowerCase().includes(text) && !this.tableTags.includes(name)
+        && !this.excludeTableTags.includes(name)).slice(0, 8)
       : [];
   }
 
+  /** `name` includes, `-name` excludes (sqlx-fph). */
   addTableTag(name: string) {
-    const value = name.trim();
-    if (value && !this.tableTags.includes(value)) {
-      this.tableTags = [...this.tableTags, value];
-      this.filtersChanged();
-    }
+    const {value, exclude} = signed(name);
     this.tableTagInput = '';
     this.tableTagSuggestions = [];
+    if (value) { this.applyCriteria(addCriterion(this.currentState(), 'tableTag', value, exclude)); }
   }
 
   removeTableTag(name: string) {
-    this.tableTags = this.tableTags.filter(tag => tag !== name);
-    this.filtersChanged();
+    this.applyCriteria(removeCriterion(this.currentState(), 'tableTag:' + name));
+  }
+
+  flipTableTag(name: string) {
+    this.applyCriteria(negate(this.currentState(), 'tableTag:' + name));
   }
 
   // ── selection & formatting ──
@@ -796,39 +909,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
   private readFiltersFromUrl() {
     const state = decodeSearchParams(this.route.snapshot.queryParamMap);
-    this.queryRegex = state.queryRegex;
-    this.activity = state.activity;
-    this.types = state.types;
-    this.firstAfter = state.firstAfter;
-    this.firstBefore = state.firstBefore;
-    this.lastAfter = state.lastAfter;
-    this.lastBefore = state.lastBefore;
-    this.tags = state.tags;
-    this.tagMode = state.tagMode;
-    this.untaggedOnly = state.untaggedOnly;
-    this.tableTags = state.tableTags;
-    this.avgTime = state.avgTime;
-    this.maxTime = state.maxTime;
-    this.avgRows = state.avgRows;
-    this.selectivityPct = state.selectivityPct;
-    this.rowsSorted = state.rowsSorted;
-    this.fullScan = state.fullScan;
-    this.tmpTable = state.tmpTable;
-    this.tmpDisk = state.tmpDisk;
-    this.errors = state.errors;
-    this.warnings = state.warnings;
-    this.truncated = state.truncated;
-    this.multiSchema = state.multiSchema;
-    this.analyzerWarnings = state.analyzerWarnings;
-    this.hasExamples = state.hasExamples;
-    this.analysisFailed = state.analysisFailed;
-    this.cleanAnalysis = state.cleanAnalysis;
-    this.analysisSkipped = state.analysisSkipped;
-    this.failureKind = state.failureKind;
-    this.sort = state.sort;
-    this.columns = state.columns;
-    this.indexes = state.indexes;
-    this.hinted = state.hinted;
+    this.assignFields(state);
     this.graphView = this.route.snapshot.queryParamMap.get(VIEW_PARAM) === GRAPH_VIEW;
     const view = decodeWorkbenchParams(this.route.snapshot.queryParamMap);
     this.expanded = new Set(view.expanded);
@@ -836,7 +917,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.detailPane = view.detailPane;
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically
-    if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY') {
+    if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY'
+      || state.scope.excludeSchemas.length || state.scope.excludeTables.length) {
       this.queryScopeService.setScope(state.scope);
     }
     if (state.schemaTagFilter.includeTags.length || state.schemaTagFilter.excludeTags.length) {
@@ -864,6 +946,12 @@ function urlKey(params: Pick<ParamMap, 'get' | 'has'>): string {
 
 function paramReader(params: Record<string, string>): Pick<ParamMap, 'get' | 'has'> {
   return { get: name => params[name] ?? null, has: name => name in params };
+}
+
+/** `-name` is an exclusion, `name` an inclusion; either trimmed. */
+function signed(raw: string): {value: string; exclude: boolean} {
+  const text = raw.trim();
+  return text.startsWith('-') ? {value: text.slice(1).trim(), exclude: true} : {value: text, exclude: false};
 }
 
 function flag(value: Flag): Flag | null {
