@@ -10,14 +10,15 @@ describe('UnusedIndexesComponent', () => {
 
   const connection = (name: string, verdict: IndexConnection['verdict'],
                       upSeconds: number | null): IndexConnection =>
-    ({connection: name, verdict, problem: null, upSeconds, unusedHere: 1, readHere: 1});
+    ({connection: name, verdict, problem: null, note: null, upSeconds, unusedHere: 1, readHere: 1});
 
   const component = () => new UnusedIndexesComponent(
     {} as never, {} as never);
 
   const withReport = (connections: IndexConnection[]) => {
     const it = component();
-    it.report = {environment: 'prod', connections, complete: true, unused: [], basis: ''} as UnusedIndexReport;
+    it.report = {environment: 'prod', connections, complete: true, unused: [], basis: '', readAt: '', readMillis: 0,
+      minimumDays: 7} as UnusedIndexReport;
     return it;
   };
 
@@ -60,5 +61,43 @@ describe('UnusedIndexesComponent', () => {
 
     expect(it.window).toEqual(window as never);
     expect(it.capacity).toBe('IMPAIRED');
+  });
+
+  // reading connects to every server, so it waits to be asked (sqlx-1bo.2)
+  describe('reading when asked', () => {
+    const report = {environment: 'prod', connections: [], complete: true, unused: [], basis: '',
+      readAt: '2026-11-05T12:00:00Z', readMillis: 4200, minimumDays: 7} as UnusedIndexReport;
+
+    it('shows the last report without reading, and reads only when asked', () => {
+      const service = {getLatest: jasmine.createSpy().and.returnValue(of(report)),
+                       read: jasmine.createSpy().and.returnValue(of({...report, readAt: '2026-11-06T09:00:00Z'}))};
+      const page = new UnusedIndexesComponent(service as never, {} as never);
+      (page as unknown as {load(): void}).load();
+      expect(page.report).toBe(report);
+      expect(service.read).not.toHaveBeenCalled();
+
+      page.readNow();
+      expect(service.read).toHaveBeenCalledTimes(1);
+      expect(page.report!.readAt).toBe('2026-11-06T09:00:00Z');
+      expect(page.reading).toBeFalse();
+    });
+
+    it('describes the kept report: how old, and what reading took', () => {
+      const page = component();
+      page.report = {...report, readAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString()};
+      expect(page.age).toBe('3h');
+      expect(page.took).toBe('4.2 s');
+      page.report = {...report, readMillis: 850};
+      expect(page.took).toBe('850 ms');
+    });
+
+    it('has no report, rather than an empty one, when nothing has been read', () => {
+      const service = {getLatest: () => of(null), read: jasmine.createSpy()};
+      const page = new UnusedIndexesComponent(service as never, {} as never);
+      (page as unknown as {load(): void}).load();
+      expect(page.report).toBeNull();
+      expect(page.failed).toBeFalse();
+      expect(service.read).not.toHaveBeenCalled();
+    });
   });
 });

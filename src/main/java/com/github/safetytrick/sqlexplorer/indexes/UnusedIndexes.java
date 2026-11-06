@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.indexes;
 
+import java.time.Instant;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.coverage.Coverage;
@@ -29,11 +30,13 @@ public final class UnusedIndexes {
      *                        when the window is too short to support a claim of
      *                        disuse, UNKNOWN when it could not be read at all
      * @param problem         why it could not be read, or null
+     * @param note            how it was read when not the usual way (no sys
+     *                        schema, sqlx-jip), or null
      * @param upSeconds       how long the server has been up, or null
      * @param unusedHere      how many unused indexes it reported
      * @param readHere        how many indexes it has seen reads on
      */
-    public record Connection(String connection, Coverage.Verdict verdict, String problem,
+    public record Connection(String connection, Coverage.Verdict verdict, String problem, String note,
                              Long upSeconds, int unusedHere, int readHere) {
     }
 
@@ -45,8 +48,15 @@ public final class UnusedIndexes {
      *                    about the connections that spoke
      * @param unused      indexes no connection has read
      * @param basis       the sentence a reader needs before acting on this
+     * @param readAt      when the connections were read; the page shows the
+     *                    last report until asked to read again, and it is
+     *                    kept on disk across restarts (sqlx-1bo.2)
+     * @param readMillis  how long reading every connection took, which is
+     *                    what reading again will cost
+     * @param minimumDays the uptime a connection needed for its verdict to be
+     *                    OK when this was read; the setting can change since
      */
     public record Report(String environment, List<Connection> connections, boolean complete,
-                         List<Index> unused, String basis) {
+                         List<Index> unused, String basis, Instant readAt, long readMillis, long minimumDays) {
     }
 }

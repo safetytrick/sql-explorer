@@ -16,6 +16,8 @@ export interface IndexConnection {
   verdict: CoverageVerdict;
   /** Why it could not be read, or null. */
   problem: string | null;
+  /** How it was read when not the usual way, e.g. without the sys schema (sqlx-jip); or null. */
+  note: string | null;
   /** How long it has been up — an UPPER BOUND on how long it has been counting. */
   upSeconds: number | null;
   unusedHere: number;
@@ -36,21 +38,34 @@ export interface UnusedIndexReport {
   unused: UnusedIndex[];
   /** The sentence a reader needs before acting; assembled server-side. */
   basis: string;
+  /** When the connections were read (ISO instant). Kept on disk, so it can predate a restart. */
+  readAt: string;
+  /** How long reading every connection took: what reading again will cost. */
+  readMillis: number;
+  /** The uptime, in days, a connection needed for an OK verdict when this was read. */
+  minimumDays: number;
 }
 
 /**
  * Indexes no connection in the environment has read.
  *
- * <p>Not cached. Every other report here describes a corpus that was loaded
- * once; this one reads live counters, and the whole question is what they say
- * now.
+ * <p>Reading one connects to every server in the environment, so it is done
+ * when asked rather than on every visit (sqlx-1bo.2). The server keeps the
+ * last report per environment on disk, with when it was read, so it outlives
+ * a restart.
  */
 @Injectable({providedIn: 'root'})
 export class UnusedIndexService {
 
   constructor(private http: HttpClient) { }
 
-  getReport(): Observable<UnusedIndexReport> {
-    return this.http.get<UnusedIndexReport>(endpoint + 'unused-indexes');
+  /** The last report read for the current environment, or null when none has been. Connects to nothing. */
+  getLatest(): Observable<UnusedIndexReport | null> {
+    return this.http.get<UnusedIndexReport | null>(endpoint + 'unused-indexes');
+  }
+
+  /** Read every connection of the current environment now. */
+  read(): Observable<UnusedIndexReport> {
+    return this.http.post<UnusedIndexReport>(endpoint + 'unused-indexes/read', {});
   }
 }

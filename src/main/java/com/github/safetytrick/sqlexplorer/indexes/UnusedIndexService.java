@@ -1,11 +1,16 @@
 package com.github.safetytrick.sqlexplorer.indexes;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import com.github.safetytrick.sqlexplorer.coverage.Coverage;
 import com.github.safetytrick.sqlexplorer.environment.DatabaseServer;
@@ -13,7 +18,9 @@ import com.github.safetytrick.sqlexplorer.environment.Environment;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -66,6 +73,25 @@ public class UnusedIndexService {
             + " where object_schema not in ('mysql', 'performance_schema', 'information_schema', 'sys')";
 
     /**
+     * {@link #UNUSED} without the sys schema (sqlx-jip): the view's own
+     * definition, as MySQL 8.4 ships it, read straight from the tables it
+     * selects from. Some servers have no {@code sys} schema, or a user who
+     * cannot see it; without this they could not be read at all. Checked
+     * against the view on a live server: the same rows.
+     */
+    static final String UNUSED_WITHOUT_SYS =
+        "select t.object_schema, t.object_name, t.index_name"
+            + " from performance_schema.table_io_waits_summary_by_index_usage t"
+            + " join information_schema.statistics s on t.object_schema = s.table_schema"
+            + " and t.object_name = s.table_name and t.index_name = s.index_name"
+            + " where t.index_name is not null and t.count_star = 0 and t.index_name <> 'PRIMARY'"
+            + " and s.non_unique = 1 and s.seq_in_index = 1"
+            + " and t.object_schema not in ('mysql', 'performance_schema', 'information_schema', 'sys')";
+
+    static final String WITHOUT_SYS_NOTE =
+        "no sys.schema_unused_indexes here; read from performance_schema directly";
+
+    /**
      * Indexes this server HAS recorded reads against.
      *
      * <p>The veto set, and deliberately not the complement of the query above:
@@ -82,15 +108,50 @@ public class UnusedIndexService {
 
     private final EnvironmentRegistry registry;
     private final long minimumDays;
+    /**
+     * The last report read for each environment (sqlx-1bo.2). Reading connects
+     * to every server in the environment, so the page shows this instead of
+     * reading on every visit, and reads again only when asked. Kept on disk by
+     * {@link UnusedIndexReportStore}, so a restart does not forget it; this is
+     * the copy in hand.
+     */
+    private final Map<String, UnusedIndexes.Report> latest = new ConcurrentHashMap<>();
+    /** Null keeps reports in memory only, as the tests do. */
+    private final UnusedIndexReportStore store;
 
-    public UnusedIndexService(EnvironmentRegistry registry,
+    @Autowired
+    public UnusedIndexService(EnvironmentRegistry registry, UnusedIndexReportStore store,
                               @Value("${sql-explorer.unused-index-minimum-days:7}") long minimumDays) {
         this.registry = registry;
+        this.store = store;
         this.minimumDays = minimumDays;
     }
 
+    UnusedIndexService(EnvironmentRegistry registry, long minimumDays) {
+        this(registry, null, minimumDays);
+    }
+
+    /** The report last read for this environment, from before a restart too; empty if it never has been. */
+    public Optional<UnusedIndexes.Report> latest(String environmentName) {
+        String name = registry.getOrDefault(environmentName).getName();
+        UnusedIndexes.Report report = latest.get(name);
+        if (report == null && store != null) {
+            report = store.read(name).orElse(null);
+            if (report != null) { latest.putIfAbsent(name, report); }
+        }
+        return Optional.ofNullable(report);
+    }
+
+    /** Read every connection of the environment now, and keep the answer as its latest, on disk too. */
     public UnusedIndexes.Report report(String environmentName) {
-        Environment environment = registry.getOrDefault(environmentName);
+        UnusedIndexes.Report report = readEnvironment(registry.getOrDefault(environmentName));
+        latest.put(report.environment(), report);
+        if (store != null) { store.write(report); }
+        return report;
+    }
+
+    private UnusedIndexes.Report readEnvironment(Environment environment) {
+        Instant started = Instant.now();
 
         Set<UnusedIndexes.Index> candidates = new LinkedHashSet<>();
         Set<UnusedIndexes.Index> read = new LinkedHashSet<>();
@@ -104,7 +165,7 @@ public class UnusedIndexService {
                 candidates.addAll(reading.unused());
                 read.addAll(reading.read());
                 connections.add(new UnusedIndexes.Connection(server.getName(),
-                    verdictFor(reading.upSeconds()), null, reading.upSeconds(),
+                    verdictFor(reading.upSeconds()), null, reading.note(), reading.upSeconds(),
                     reading.unused().size(), reading.read().size()));
             } catch (RuntimeException e) {
                 // Named, not counted. Silence from a connection is not evidence
@@ -117,7 +178,7 @@ public class UnusedIndexService {
                     log.warn("could not read index usage from {}: {}", server.getName(), e.toString());
                 }
                 connections.add(new UnusedIndexes.Connection(server.getName(),
-                    Coverage.Verdict.UNKNOWN, e.getMessage(), null, 0, 0));
+                    Coverage.Verdict.UNKNOWN, e.getMessage(), null, null, 0, 0));
             }
         }
 
@@ -128,8 +189,10 @@ public class UnusedIndexService {
                         .thenComparing(UnusedIndexes.Index::name))
             .toList();
 
+        Instant finished = Instant.now();
         return new UnusedIndexes.Report(environment.getName(), List.copyOf(connections),
-            complete, unused, basis(connections, complete, unused.size()));
+            complete, unused, basis(connections, complete, unused.size()), finished,
+            Duration.between(started, finished).toMillis(), minimumDays);
     }
 
     /**
@@ -138,8 +201,31 @@ public class UnusedIndexService {
      * @param unused    what it lists as never read
      * @param read      what it has recorded reads against — the veto set
      * @param upSeconds how long it has been up, an upper bound on the window
+     * @param note      how it was read, when not the usual way, or null
      */
-    record Reading(List<UnusedIndexes.Index> unused, List<UnusedIndexes.Index> read, Long upSeconds) {
+    record Reading(List<UnusedIndexes.Index> unused, List<UnusedIndexes.Index> read, Long upSeconds, String note) {
+        Reading(List<UnusedIndexes.Index> unused, List<UnusedIndexes.Index> read, Long upSeconds) {
+            this(unused, read, upSeconds, null);
+        }
+    }
+
+    /** The unused half of a reading, and how it was read. */
+    record Unused(List<UnusedIndexes.Index> indexes, String note) {
+    }
+
+    /**
+     * The never-read indexes, through the sys view where there is one and
+     * from performance_schema where there is not (sqlx-jip). Only a grammar
+     * error falls back, which is how a missing view or schema answers: a lost
+     * connection or a refused grant must still fail the read, not be retried
+     * as something else.
+     */
+    static Unused unused(Function<String, List<UnusedIndexes.Index>> run) {
+        try {
+            return new Unused(run.apply(UNUSED), null);
+        } catch (BadSqlGrammarException e) {
+            return new Unused(run.apply(UNUSED_WITHOUT_SYS), WITHOUT_SYS_NOTE);
+        }
     }
 
     /**
@@ -153,7 +239,8 @@ public class UnusedIndexService {
      */
     Reading read(DatabaseServer server) {
         JdbcTemplate jdbc = new JdbcTemplate(server.getDataSource());
-        return new Reading(query(jdbc, UNUSED), query(jdbc, READ), uptime(jdbc));
+        Unused unused = unused(sql -> query(jdbc, sql));
+        return new Reading(unused.indexes(), query(jdbc, READ), uptime(jdbc), unused.note());
     }
 
     private static List<UnusedIndexes.Index> query(JdbcTemplate jdbc, String sql) {

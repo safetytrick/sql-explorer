@@ -26,10 +26,37 @@
 }
 
 @if (loading) {
+  <div class="view-note">loading the last report…</div>
+} @else if (reading) {
   <div class="view-note">reading each connection…</div>
-} @else if (failed || !report) {
-  <div class="view-note">the connections could not be read, so this list is unknown rather than empty.</div>
+} @else if (failed) {
+  <div class="view-note">the connections could not be read, so this list is unknown rather than empty.
+    <button type="button" class="btn" (click)="readNow()">try again</button></div>
+} @else if (!report) {
+  <!-- Reading connects to every server, so it waits to be asked (sqlx-1bo.2). -->
+  <div class="lens-card note-card read-prompt">
+    <strong>Not read yet.</strong>
+    Reading index usage connects to every server in {{environment ?? 'this environment'}} and reads its
+    Performance Schema counters. The answer is kept on disk, with when it was read, until you read again,
+    so a restart does not lose it.
+    <div><button type="button" class="btn" (click)="readNow()">read the connections</button></div>
+  </div>
 } @else {
+  <!-- What the kept report is: it may be from before a restart, so when it was
+       read and what it took matter before trusting it or reading again. -->
+  <div class="read-at">
+    <span [title]="report.readAt">read {{report.readAt | date: SEEN_FORMAT}}@if (age) { ({{age}} ago)}</span>
+    <span class="sep">·</span>
+    <span title="how long reading every connection took; reading again costs about this">took {{took}}</span>
+    <span class="sep">·</span>
+    <span>{{connectionsRead}} of {{report.connections.length}} connections answered</span>
+    <span class="sep">·</span>
+    <span title="a connection's verdict is OK only once its server has been up this long">OK at ≥{{report.minimumDays}}d up</span>
+    <span class="sep">·</span>
+    <span title="kept on disk beside the captures, so a restart does not forget it">kept across restarts</span>
+    <button type="button" class="btn" (click)="readNow()"
+            title="connect to every server again and read the counters as they are now">read again</button>
+  </div>
   <!-- Above the list, not below it. This is the one page whose finding is
        acted on by deleting something, so what the finding rests on has to be
        read first (sqlx-vjr). -->
@@ -60,6 +87,7 @@
                   {{connection.problem}}
                 } @else {
                   {{connection.unusedHere}} unused here, {{connection.readHere}} read here
+                  @if (connection.note) { <span class="read-note" [title]="connection.note">· {{connection.note}}</span> }
                 }
               </td>
             </tr>

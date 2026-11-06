@@ -37,3 +37,17 @@
   .unknown { color: var(--amber); }
   a { color: var(--text3); text-decoration: none; &:hover { color: var(--blue); } }
 }
+
+.read-prompt div { margin-top: 8px; }
+.read-at {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: var(--text3);
+}
+.read-note { color: var(--text3); }
+.read-at .sep { color: var(--text3); opacity: 0.6; }
+.read-at .btn { margin-left: 6px; }

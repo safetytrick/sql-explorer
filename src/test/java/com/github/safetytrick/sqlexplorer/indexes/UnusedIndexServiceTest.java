@@ -1,5 +1,7 @@
 package com.github.safetytrick.sqlexplorer.indexes;
 
+import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
@@ -10,8 +12,13 @@ import com.github.safetytrick.sqlexplorer.environment.Environment;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.json.JsonMapper;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.jdbc.BadSqlGrammarException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -167,5 +174,78 @@ class UnusedIndexServiceTest {
         )).report("prod");
 
         assertThat(report.basis()).contains("UPPER BOUND").contains("truncated");
+    }
+
+    /** Reading is what connects, so the page shows the last report and reads only when asked (sqlx-1bo.2). */
+    @Test
+    void keepsTheLastReportPerEnvironmentWithWhenItWasRead() {
+        UnusedIndexService service = serviceOver(Map.of(
+            "primary", new Answers(List.of(index("orders", "idx_old")), List.of(), UP_LONG_ENOUGH)));
+        assertThat(service.latest("prod")).isEmpty();
+
+        UnusedIndexes.Report read = service.report("prod");
+
+        assertThat(read.readAt()).isNotNull();
+        assertThat(service.latest("prod")).contains(read);
+    }
+
+    /** A report read before a restart is what the page shows after it, with when it was read and how long it took. */
+    @Test
+    void theLastReportOutlivesARestart(@TempDir Path directory) {
+        UnusedIndexReportStore store = new UnusedIndexReportStore(directory, JsonMapper.builder().findAndAddModules().build());
+        EnvironmentRegistry registry = mock(EnvironmentRegistry.class);
+        DatabaseServer primary = new DatabaseServer("primary",
+            new ConnectionInfo("jdbc:mysql://nowhere", "u", "p"), List.of(), mock(SchemaRepositoryFactory.class));
+        when(registry.getOrDefault(anyString())).thenReturn(new Environment("prod", List.of(primary)));
+        UnusedIndexService before = new UnusedIndexService(registry, store, 7) {
+            @Override
+            Reading read(DatabaseServer server) {
+                return new Reading(List.of(index("orders", "idx_old")), List.of(), UP_LONG_ENOUGH);
+            }
+        };
+        UnusedIndexes.Report read = before.report("prod");
+        assertThat(read.readMillis()).isNotNegative();
+        assertThat(read.minimumDays()).isEqualTo(7);
+
+        UnusedIndexService after = new UnusedIndexService(registry, store, 7) {
+            @Override
+            Reading read(DatabaseServer server) {
+                throw new AssertionError("showing the kept report must not connect");
+            }
+        };
+        assertThat(after.latest("prod")).contains(read);
+    }
+
+    /**
+     * A server with no sys schema is still read, from performance_schema, and
+     * says so (sqlx-jip). Only a grammar error falls back: that is how a
+     * missing view answers, and anything else is a real failure to read.
+     */
+    @Test
+    void aServerWithoutTheSysViewIsReadFromPerformanceSchemaInstead() {
+        List<UnusedIndexes.Index> found = List.of(index("orders", "idx_old"));
+        UnusedIndexService.Unused unused = UnusedIndexService.unused(sql -> {
+            if (sql.contains("sys.schema_unused_indexes")) {
+                throw new BadSqlGrammarException("unused", sql, new SQLException("Table 'sys.schema_unused_indexes' doesn't exist"));
+            }
+            return found;
+        });
+        assertThat(unused.indexes()).isEqualTo(found);
+        assertThat(unused.note()).contains("performance_schema");
+
+        UnusedIndexService.Unused usual = UnusedIndexService.unused(sql -> found);
+        assertThat(usual.note()).isNull();
+
+        assertThatThrownBy(() -> UnusedIndexService.unused(sql -> {
+            throw new DataAccessResourceFailureException("connection lost");
+        })).isInstanceOf(DataAccessResourceFailureException.class);
+    }
+
+    /** The fallback is the sys view's own definition, filters and all, not an approximation of it. */
+    @Test
+    void theFallbackKeepsTheViewsFilters() {
+        assertThat(UnusedIndexService.UNUSED_WITHOUT_SYS)
+            .contains("count_star = 0").contains("<> 'PRIMARY'").contains("non_unique = 1")
+            .contains("seq_in_index = 1").contains("'performance_schema'");
     }
 }

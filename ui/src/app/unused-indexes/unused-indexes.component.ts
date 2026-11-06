@@ -2,6 +2,7 @@ import {DatePipe} from '@angular/common';
 import {CoverageService, findings, sharedWindow, worstVerdict} from '../coverage.service';
 import type {ObservedWindow} from '../api-types';
 import {SEEN_FORMAT} from '../seen-format';
+import {ageOf} from '../environment-health';
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {RouterLink} from '@angular/router';
@@ -25,8 +26,13 @@ import {IndexConnection, UnusedIndexReport, UnusedIndexService} from './unused-i
 export class UnusedIndexesComponent implements OnInit, OnDestroy {
 
   report: UnusedIndexReport | null = null;
+  /** Fetching the last report, which connects to nothing. */
   loading = true;
+  /** Reading the connections, which connects to every server (sqlx-1bo.2). */
+  reading = false;
   failed = false;
+  /** The environment the page is about, named in the prompt to read. */
+  environment: string | null = null;
 
   private readonly subscriptions = new Subscription();
 
@@ -60,7 +66,8 @@ export class UnusedIndexesComponent implements OnInit, OnDestroy {
   ngOnInit() {
     // Live counters read per connection, so this belongs to the selected
     // environment as much as any corpus-backed page does.
-    this.subscriptions.add(this.environmentService.current$.subscribe(() => {
+    this.subscriptions.add(this.environmentService.current$.subscribe(name => {
+      this.environment = name;
       this.loadCoverage();
       this.load();
     }));
@@ -70,20 +77,44 @@ export class UnusedIndexesComponent implements OnInit, OnDestroy {
     this.subscriptions.unsubscribe();
   }
 
+  /** The last report, if any: no connection is opened to show it. */
   private load() {
     this.loading = true;
     this.failed = false;
-    this.service.getReport().subscribe({
-      next: report => { this.report = report; this.loading = false; },
+    this.report = null;
+    this.service.getLatest().subscribe({
+      next: report => { this.report = report ?? null; this.loading = false; },
       // An empty list would read as "nothing is unused", which is a strong claim
       // to make out of a failed request — and here a wrong one is expensive.
       error: () => { this.failed = true; this.loading = false; }
     });
   }
 
+  /** Connect to every server and read its index usage now, asked for rather than on arrival (sqlx-1bo.2). */
+  readNow() {
+    this.reading = true;
+    this.failed = false;
+    this.service.read().subscribe({
+      next: report => { this.report = report; this.reading = false; },
+      error: () => { this.failed = true; this.reading = false; }
+    });
+  }
+
   /** Days a connection has been up, or null when it did not answer. */
   daysUp(connection: IndexConnection): number | null {
     return connection.upSeconds === null ? null : Math.floor(connection.upSeconds / 86400);
+  }
+
+  /** How old the kept report is, coarsely: "40m", "6h", "3d". */
+  get age(): string | null {
+    return ageOf(this.report?.readAt);
+  }
+
+  /** How long the read took, readably: "850 ms", "4.2 s". */
+  get took(): string | null {
+    const millis = this.report?.readMillis;
+    if (millis === undefined || millis === null) { return null; }
+    return millis < 1000 ? `${millis} ms` : `${(millis / 1000).toFixed(1)} s`;
   }
 
   get connectionsRead(): number {
