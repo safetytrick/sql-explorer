@@ -1595,7 +1595,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * boundary findable.
    */
   private drawRegions(ctx: CanvasRenderingContext2D) {
-    if (this.regions.length < 2) { return; }   // one schema needs no boundary
+    // drawn for a single schema too: the box's label is the only place a
+    // table's schema is named, since the card no longer repeats it
     for (const region of this.regions) {
       const x = this.wx(region.x);
       const y = this.wy(region.y);
@@ -1682,7 +1683,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.fillText(node.table, x + w / 2, y + h * 0.36, w - 8);
     ctx.font = `${Math.round(9 * this.scale)}px sans-serif`;
     ctx.fillStyle = this.alpha(this.palette.text2, 0.8);
-    ctx.fillText(`${node.schema} · ${node.columnCount ?? '?'}c · ${node.queryCount}q`, x + w / 2, y + h * 0.72, w - 8);
+    // the schema is named by the box around the card, not on every card
+    ctx.fillText(`${node.columnCount ?? '?'}c · ${node.queryCount}q`, x + w / 2, y + h * 0.72, w - 8);
     if (node.view) {
       ctx.font = `600 ${Math.round(8 * this.scale)}px sans-serif`;
       ctx.fillStyle = this.palette.purple;
