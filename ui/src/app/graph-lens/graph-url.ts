@@ -30,7 +30,7 @@ export const VIEW_PARAM = 'view';
 export const GRAPH_VIEW = 'graph';
 
 /** The params the graph owns, which the workbench keeps while the graph shows. */
-export const GRAPH_PARAMS = ['var-table', 'var-layers', 'var-layout', 'var-tables', 'var-depth', 'var-legend'] as const;
+export const GRAPH_PARAMS = ['var-table', 'var-layers', 'var-layout', 'var-tables', 'var-depth', 'var-legend', 'var-overrides'] as const;
 
 export interface GraphUrlState {
   /** Selected table (name only — matches node labels), null for none. */

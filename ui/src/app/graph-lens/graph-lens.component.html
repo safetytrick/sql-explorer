@@ -16,6 +16,8 @@
     @if (layout === 'grid') {
       <button class="btn" (click)="resetArrangement()"
               title="put the tables and aggregates of the schemas shown back where they are placed automatically; aggregates chosen by hand are kept. The arrangement is shared, so this is for everyone">auto-place</button>
+      <button class="btn" [class.on]="overridesOpen" (click)="toggleOverrides()"
+              title="the tables whose aggregate was chosen by hand, in every schema, each of which can go back to the inferred one">by hand ({{overrides.length}})</button>
     }
     <button class="btn" [class.on]="allTables" [disabled]="!scopedToSchemas" (click)="toggleAllTables()"
             [title]="scopedToSchemas
@@ -46,6 +48,35 @@
     }
     @if (layoutError) { <span class="layout-error">{{layoutError}}</span> }
   </div>
+
+  <!-- Aggregates chosen by hand, everyone's, each undoable on its own; var-overrides=1. -->
+  @if (overridesOpen && layout === 'grid') {
+    <div class="overrides">
+      <div class="nd-head">
+        <span class="nd-name">aggregates chosen by hand</span>
+        <button type="button" class="nd-close" (click)="toggleOverrides()" aria-label="close">×</button>
+      </div>
+      <div class="nd-sub">shared by everyone, in every schema; × puts a table back in the aggregate its name suggests</div>
+      @if (!overrides.length) {
+        <div class="ov-empty">none: every aggregate is inferred</div>
+      }
+      @for (item of overrides; track item.schema + '.' + item.name) {
+        <div class="ov-row" [class.hidden-row]="!isDrawn(item)"
+             [title]="isDrawn(item) ? '' : 'not drawn by the current search'">
+          <span class="ov-schema">{{item.schema}}</span>
+          <span class="nd-follow" (click)="selectTable(item.name)">{{item.name}}</span>
+          <span class="ov-arrow">→</span>
+          @if (item.parent) {
+            <span class="mono">{{item.parent}}</span>
+          } @else {
+            <span class="dim">its own aggregate</span>
+          }
+          <button type="button" class="ov-x" (click)="clearOverride(item)"
+                  [title]="'put ' + item.name + ' back in the aggregate its name suggests, for everyone'">×</button>
+        </div>
+      }
+    </div>
+  }
 
   <!-- The selected node's detail, pinned: the hover's content, followable (sqlx-aoy.6). -->
   @if (selectedNode(); as node) {

@@ -430,6 +430,36 @@ describe('GraphLensComponent — scope legibility', () => {
       put.flush([]);
     });
 
+    it('lists the aggregates chosen by hand, everyone\'s, and puts one back to the inferred aggregate', () => {
+      http().match(req => req.url.endsWith('graph/layout')).forEach(req => req.flush([
+        {kind: 'table', schema: 'app_main', name: 'account', col: 2, row: 0, override: true, parent: 'site'},
+        {kind: 'table', schema: 'app_billing', name: 'payment', col: null, row: null, override: true, parent: null},
+        {kind: 'table', schema: 'app_main', name: 'site', col: 1, row: 0, override: false, parent: null}
+      ]));
+      expect(component.overrides.map(item => `${item.schema}.${item.name}`))
+        .toEqual(['app_billing.payment', 'app_main.account']);
+      expect(component.isDrawn(component.overrides[1])).toBeTrue();
+      expect(component.isDrawn(component.overrides[0])).toBeFalse();
+      expect(component.aggregatesForTest.map(box => box.root).sort()).toEqual(['invoice', 'site']);
+
+      component.clearOverride(component.overrides[1]);
+      // at once, before the save answers: account is back on its own
+      expect(component.aggregatesForTest.map(box => box.root)).toEqual(['invoice']);
+      expect(component.overrides.map(item => item.name)).toEqual(['payment']);
+      const put = http().expectOne(req => req.method === 'PUT' && req.url.endsWith('graph/layout'));
+      // the position is kept; only the override goes
+      expect(put.request.body).toEqual([
+        {kind: 'table', schema: 'app_main', name: 'account', col: 2, row: 0, override: false, parent: null}]);
+      put.flush([]);
+    });
+
+    it('opens the list from var-overrides, and says so when nothing was chosen by hand', () => {
+      http().match(req => req.url.endsWith('graph/layout')).forEach(req => req.flush([]));
+      navigateTo({}, {'var-overrides': '1'});
+      const panel = (fixture.nativeElement as HTMLElement).querySelector('.overrides');
+      expect(panel?.textContent).toContain('every aggregate is inferred');
+    });
+
     it('says so, and reloads what is saved, when a move cannot be saved', () => {
       http().match(req => req.url.endsWith('graph/layout')).forEach(req => req.flush([]));
       const site = at('site');

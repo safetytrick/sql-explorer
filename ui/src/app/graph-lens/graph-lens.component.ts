@@ -11,7 +11,7 @@ import {neighbourhood} from './neighbourhood';
 import {buildAggregates} from './aggregates';
 import {GridNode, GridSpacing, layoutGrid, LayoutBox, Slot} from './grid-layout';
 import {Point, routeEdges} from './routing';
-import {LayoutChange, LayoutKind, planMove, SavedLayout, slotAt} from './layout-moves';
+import {LayoutChange, LayoutItem, LayoutKind, planMove, SavedLayout, slotAt} from './layout-moves';
 import {GraphLayoutService} from './graph-layout.service';
 import {tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
@@ -203,6 +203,39 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   /** The legend's full key is showing; `var-legend=1` (sqlx-aoy.2). */
   legendOpen = false;
 
+  /** The list of aggregates chosen by hand is showing; `var-overrides=1`. */
+  overridesOpen = false;
+
+  toggleOverrides() {
+    this.router.navigate([], { relativeTo: this.route, queryParams: { 'var-overrides': this.overridesOpen ? null : '1' },
+      queryParamsHandling: 'merge', replaceUrl: true });
+  }
+
+  /**
+   * Every table whose aggregate was chosen by hand, in every schema: the
+   * arrangement is shared and keyed by schema name, so this is everyone's,
+   * not only what the current search draws. Sorted by schema, then table.
+   */
+  get overrides(): LayoutItem[] {
+    return this.savedLayout.all()
+      .filter(item => item.kind === 'table' && item.override)
+      .sort((a, b) => a.schema.localeCompare(b.schema) || a.name.localeCompare(b.name));
+  }
+
+  /** Whether a table is drawn, so the list can say which overrides the graph is showing. */
+  isDrawn(item: LayoutItem): boolean {
+    return this.nodes.some(node => node.schema.toLowerCase() === item.schema && node.table.toLowerCase() === item.name);
+  }
+
+  /**
+   * Drop one table's hand-chosen aggregate: it goes back to the one the
+   * naming rule infers. Its position is kept. Shared, like every move, and
+   * undone the same way, by dragging it back.
+   */
+  clearOverride(item: LayoutItem) {
+    this.arrange([{ kind: 'table', schema: item.schema, name: item.name, inferred: true }]);
+  }
+
   toggleLegend() {
     this.router.navigate([], { relativeTo: this.route, queryParams: { 'var-legend': this.legendOpen ? null : '1' },
       queryParamsHandling: 'merge', replaceUrl: true });
@@ -217,6 +250,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private applyRoute() {
     const state = decodeGraphParams(this.route.snapshot.queryParamMap);
     this.legendOpen = this.route.snapshot.queryParamMap.get('var-legend') === '1';
+    this.overridesOpen = this.route.snapshot.queryParamMap.get('var-overrides') === '1';
     this.selectedTable = state.table;
     this.layers = state.layers;
     this.allTables = state.allTables ?? false;

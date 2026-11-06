@@ -79,6 +79,10 @@ export class SavedLayout {
         merged.override = true;
         merged.parent = change.parent?.toLowerCase() ?? null;
       }
+      if (change.inferred) {
+        merged.override = false;
+        merged.parent = null;
+      }
       written.set(key, merged);
       next.items.set(key, merged);
     }
@@ -101,6 +105,8 @@ export interface LayoutChange {
   name: string;
   slot?: Slot | null;
   parent?: string | null;
+  /** Drop the aggregate chosen by hand, so the table goes back to the inferred one. */
+  inferred?: boolean;
 }
 
 /**

@@ -31,6 +31,13 @@ describe('SavedLayout', () => {
     expect(saved.slot('table', 'app_main', 'account_site')).toEqual({ col: 1, row: 0 });
   });
 
+  it('drops a hand-chosen aggregate on request, keeping the slot', () => {
+    const { written, layout } = saved.apply([{ kind: 'table', schema: 'app_main', name: 'account_site', inferred: true }]);
+    expect(written).toEqual([
+      { kind: 'table', schema: 'app_main', name: 'account_site', col: 1, row: 0, override: false, parent: null }]);
+    expect(layout.overrides().has(tableKey('app_main', 'account_site'))).toBeFalse();
+  });
+
   it('starts an item nothing was saved for', () => {
     const { written } = saved.apply([{ kind: 'schema', schema: 'App_Billing', name: '', slot: { col: 1, row: 0 } }]);
     expect(written).toEqual([
