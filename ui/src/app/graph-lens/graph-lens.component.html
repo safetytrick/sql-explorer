@@ -15,7 +15,7 @@
             title="place tables on a grid of schemas and aggregates instead of the force layout">grid</button>
     @if (layout === 'grid') {
       <button class="btn" (click)="resetArrangement()"
-              title="put the tables and aggregates of the schemas shown back where they are placed automatically; the arrangement is shared, so this is for everyone">auto-place</button>
+              title="put the tables and aggregates of the schemas shown back where they are placed automatically; aggregates chosen by hand are kept. The arrangement is shared, so this is for everyone">auto-place</button>
     }
     <button class="btn" [class.on]="allTables" [disabled]="!scopedToSchemas" (click)="toggleAllTables()"
             [title]="scopedToSchemas

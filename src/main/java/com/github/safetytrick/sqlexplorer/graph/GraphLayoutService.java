@@ -66,10 +66,26 @@ class GraphLayoutService {
         }
     }
 
-    /** Put a schema's tables and aggregates back to automatic placement. Its own cell stays. */
+    /**
+     * Put a schema's tables and aggregates back to automatic placement. Its own
+     * cell stays, and so does every aggregate chosen by hand: a table's
+     * override lives on the same row as its slot, so the row keeps the override
+     * and loses only the slot. Deleting the rows, as this first did, threw the
+     * aggregates away with the positions, which "auto-place" never said.
+     */
     @Transactional
     long reset(String schema) {
-        return repository.deleteBySchemaNameAndKindIn(normalized(schema), List.of("aggregate", "table"));
+        String name = normalized(schema);
+        long changed = repository.deleteBySchemaNameAndKindIn(name, List.of("aggregate"));
+        changed += repository.deleteBySchemaNameAndKindAndAggregateOverrideFalse(name, "table");
+        List<GraphLayoutEntry> overridden = repository.findBySchemaNameAndKindAndAggregateOverrideTrue(name, "table");
+        for (GraphLayoutEntry entry : overridden) {
+            entry.setSlotCol(null);
+            entry.setSlotRow(null);
+            entry.setUpdatedBy(userService.currentUser());
+        }
+        repository.saveAll(overridden);
+        return changed + overridden.size();
     }
 
     /** Lower-cased and validated, or a 400 saying what is wrong. */

@@ -102,7 +102,29 @@ class GraphLayoutServiceTest {
     @Test
     void resetLeavesTheSchemasOwnCell() {
         service.reset("App_Main");
-        verify(repository).deleteBySchemaNameAndKindIn("app_main", List.of("aggregate", "table"));
+        verify(repository).deleteBySchemaNameAndKindIn("app_main", List.of("aggregate"));
+        verify(repository).deleteBySchemaNameAndKindAndAggregateOverrideFalse("app_main", "table");
+    }
+
+    @Test
+    void resetKeepsAggregatesChosenByHand_clearingOnlyWhereTheTableSat() {
+        GraphLayoutEntry moved = new GraphLayoutEntry();
+        moved.setKind("table");
+        moved.setSchemaName("app_main");
+        moved.setItemName("account_site");
+        moved.setSlotCol(3);
+        moved.setSlotRow(1);
+        moved.setAggregateOverride(true);
+        moved.setAggregateParent("site");
+        when(repository.findBySchemaNameAndKindAndAggregateOverrideTrue("app_main", "table")).thenReturn(List.of(moved));
+
+        service.reset("app_main");
+
+        assertThat(moved.getSlotCol()).isNull();
+        assertThat(moved.getSlotRow()).isNull();
+        assertThat(moved.isAggregateOverride()).isTrue();
+        assertThat(moved.getAggregateParent()).isEqualTo("site");
+        verify(repository).saveAll(List.of(moved));
     }
 
     private static void assertRejected(GraphLayoutItem item, String why) {

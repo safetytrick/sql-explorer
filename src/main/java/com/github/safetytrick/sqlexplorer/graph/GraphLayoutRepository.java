@@ -13,4 +13,8 @@ interface GraphLayoutRepository extends CrudRepository<GraphLayoutEntry, Integer
     Optional<GraphLayoutEntry> findByKindAndSchemaNameAndItemName(String kind, String schemaName, String itemName);
 
     long deleteBySchemaNameAndKindIn(String schemaName, Collection<String> kinds);
+
+    long deleteBySchemaNameAndKindAndAggregateOverrideFalse(String schemaName, String kind);
+
+    List<GraphLayoutEntry> findBySchemaNameAndKindAndAggregateOverrideTrue(String schemaName, String kind);
 }

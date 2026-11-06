@@ -862,8 +862,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   resetArrangement() {
     const schemas = [...new Set(this.nodes.map(node => node.schema))].sort();
     if (!schemas.length || !window.confirm(
-      `Put the tables and aggregates of ${schemas.join(', ')} back to automatic placement? `
-      + 'The arrangement is shared, so this resets it for everyone.')) {
+      `Put the tables and aggregates of ${schemas.join(', ')} back where they are placed automatically? `
+      + 'Tables moved into or out of an aggregate stay there; only positions are reset, '
+      + 'including tables the current search hides. The arrangement is shared, so this is for everyone.')) {
       return;
     }
     forkJoin(schemas.map(schema => this.graphLayoutService.reset(schema))).subscribe({
