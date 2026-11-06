@@ -305,6 +305,10 @@ public class EnvironmentLoader {
             target.setCached(false);
         }
         pulling.add(environmentName);
+        // only this thread reads the servers' schemas until the pull ends; requests get the snapshot (sqlx-o7x)
+        if (target != null) {
+            target.setPuller(Thread.currentThread());
+        }
         try {
             SqlImportStats stats = loadLive(environmentName, extraSources);
             lastPull.put(environmentName, new EnvironmentHealth.PullAttempt(clock.instant(), true, null));
@@ -314,6 +318,9 @@ public class EnvironmentLoader {
                 rootMessage(e)));
             throw e;
         } finally {
+            if (target != null) {
+                target.setPuller(null);
+            }
             pulling.remove(environmentName);
         }
     }

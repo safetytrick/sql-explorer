@@ -259,6 +259,16 @@ public final class Environment implements AutoCloseable {
         servers.forEach(DatabaseServer::forgetSchemaFailure);
     }
 
+    /**
+     * The thread pulling this environment, which alone loads its servers'
+     * schemas until the pull ends; null when it has (sqlx-o7x). Meanwhile
+     * every other caller is served the clusters' snapshots, as the
+     * environment is served from its captures until the pull completes.
+     */
+    public void setPuller(Thread thread) {
+        servers.forEach(server -> server.setPuller(thread));
+    }
+
     /** Drop each server's cached schema so the next access reloads it. */
     public void refreshSchema() {
         servers.forEach(DatabaseServer::refreshSchema);

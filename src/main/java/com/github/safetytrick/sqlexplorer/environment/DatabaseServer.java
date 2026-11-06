@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.environment;
 
 import javax.sql.DataSource;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import com.github.safetytrick.sqlexplorer.schema.SchemaSnapshot;
@@ -28,8 +29,31 @@ public final class DatabaseServer implements AutoCloseable {
     /** The cluster whose schema snapshot this server reads and writes; null for no snapshots. */
     private final SchemaSnapshot.Key snapshotKey;
 
-    private HikariDataSource dataSource;
-    private SchemaRepositoryFactory.SchemaLoad schemaLoad;
+    /*
+     * LOCKING (sqlx-o7x). Connecting is slow when a server is unreachable: a
+     * pool that cannot start takes its whole connect timeout, about thirty
+     * seconds, to say so. These fields used to be guarded by the object's own
+     * monitor, held for that whole connect, so the environment list
+     * (isSchemaLoaded) and every request touching the schema queued behind
+     * one unreachable server. Each request also held one of the explorer
+     * database's own connections while it waited (open-in-view), so a startup
+     * pull of an environment whose servers were down took the whole app down
+     * with it.
+     *
+     * Now the state is volatile and read without a lock, creating the pool
+     * has a lock of its own, and so does loading the schema. Only a caller
+     * that has to have the schema waits for a load: the pull. Any other caller
+     * that would wait, or that finds the environment being pulled, is told the
+     * schema is pending, and its cluster serves the snapshot meanwhile, as the
+     * environment's captures are served until its pull completes.
+     */
+    private final Object poolLock = new Object();
+    private final ReentrantLock schemaLock = new ReentrantLock();
+    /** The thread pulling this server's environment, which alone loads its schema meanwhile; null when not pulling. */
+    private volatile Thread puller;
+
+    private volatile HikariDataSource dataSource;
+    private volatile SchemaRepositoryFactory.SchemaLoad schemaLoad;
     /**
      * Why the last schema load failed, kept so the next caller gets the same
      * answer at once. Without it every request touching the environment's
@@ -37,7 +61,7 @@ public final class DatabaseServer implements AutoCloseable {
      * takes seconds to say so (sqlx-jdf). Cleared by {@link #refreshSchema()}
      * and {@link #forgetSchemaFailure()}, which is what a load or pull does.
      */
-    private RuntimeException schemaFailure;
+    private volatile RuntimeException schemaFailure;
     /**
      * The cluster's last snapshot, once read; null until it is. Remembered for
      * the same reason the failure is: while no server of the cluster answers,
@@ -45,7 +69,7 @@ public final class DatabaseServer implements AutoCloseable {
      * cost three seconds a request across five clusters (sqlx-xge). Dropped
      * with the rest whenever a load or pull asks again.
      */
-    private java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnown;
+    private volatile java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnown;
 
     /**
      * The environment this server belongs to while it is served from its
@@ -92,54 +116,102 @@ public final class DatabaseServer implements AutoCloseable {
     }
 
     /**
+     * The thread pulling this server's environment, or null when the pull is
+     * over. While one is set, only it loads the schema; anyone else is served
+     * the snapshot rather than connecting or waiting on the pull's connect.
+     */
+    public void setPuller(Thread thread) {
+        this.puller = thread;
+    }
+
+    /**
      * The server's pool, created on first use.
      *
      * @throws ServerOfflineException while the environment is served from its
      *                                cache: the one place a pool is created is
      *                                the one place the refusal has to live
      */
-    public synchronized DataSource getDataSource() {
+    public DataSource getDataSource() {
         String offline = offlineIn;
         if (offline != null) {
             throw new ServerOfflineException(offline, name);
         }
-        if (dataSource == null) {
-            HikariConfig config = new HikariConfig();
-            config.setPoolName("metadata-" + name);
-            config.setJdbcUrl(connectionInfo.jdbcUrl());
-            config.setUsername(connectionInfo.username());
-            config.setPassword(connectionInfo.password());
-            // schema introspection is bursty: a handful of sequential bulk reads,
-            // then mostly idle until a reload or an on-demand create statement.
-            config.setMinimumIdle(0);
-            config.setMaximumPoolSize(4);
-            dataSource = new HikariDataSource(config);
+        HikariDataSource existing = dataSource;
+        if (existing != null) {
+            return existing;
         }
-        return dataSource;
+        // its own lock: creating a pool connects, and must not hold up readers of the schema state
+        synchronized (poolLock) {
+            if (dataSource == null) {
+                HikariConfig config = new HikariConfig();
+                config.setPoolName("metadata-" + name);
+                config.setJdbcUrl(connectionInfo.jdbcUrl());
+                config.setUsername(connectionInfo.username());
+                config.setPassword(connectionInfo.password());
+                // schema introspection is bursty: a handful of sequential bulk reads,
+                // then mostly idle until a reload or an on-demand create statement.
+                config.setMinimumIdle(0);
+                config.setMaximumPoolSize(4);
+                dataSource = new HikariDataSource(config);
+            }
+            return dataSource;
+        }
     }
 
-    public synchronized SqlSchemaRepository getSchemaRepository() {
+    public SqlSchemaRepository getSchemaRepository() {
         return getSchemaLoad().schema();
     }
 
     /**
      * The schema and how it was obtained — from the cluster's snapshot when the
      * server's fingerprint still matches it, or read in full (sqlx-sqy.4).
+     *
+     * <p>Waits for a load only on the pull's own thread, or when nothing is
+     * pulling and no one else is loading; otherwise throws
+     * {@link SchemaPendingException} at once, and the cluster serves its
+     * snapshot (sqlx-o7x).
      */
-    public synchronized SchemaRepositoryFactory.SchemaLoad getSchemaLoad() {
-        if (schemaFailure != null) {
-            throw schemaFailure;
+    public SchemaRepositoryFactory.SchemaLoad getSchemaLoad() {
+        SchemaRepositoryFactory.SchemaLoad loaded = schemaLoad;
+        if (loaded != null) {
+            return loaded;
+        }
+        RuntimeException failure = schemaFailure;
+        if (failure != null) {
+            throw failure;
         }
         String offline = offlineIn;
-        if (schemaLoad == null && offline != null) {
+        if (offline != null) {
             // Not remembered as a failure and not logged: nothing went wrong,
             // and going live must try the server at once. The cluster falls
             // back to its snapshot (sqlx-nbi.3).
             throw new ServerOfflineException(offline, name);
         }
-        if (schemaLoad == null) {
+        Thread pulling = puller;
+        boolean isPull = pulling == Thread.currentThread();
+        if (pulling != null && !isPull) {
+            throw new SchemaPendingException(name, "its environment is being pulled");
+        }
+        if (isPull) {
+            schemaLock.lock();
+        } else if (!schemaLock.tryLock()) {
+            throw new SchemaPendingException(name, "it is being read");
+        }
+        try {
+            loaded = schemaLoad;
+            if (loaded != null) {
+                return loaded;
+            }
+            failure = schemaFailure;
+            if (failure != null) {
+                throw failure;
+            }
             try {
-                schemaLoad = schemaRepositoryFactory.loadCurrent(getDataSource(), snapshotKey, name);
+                loaded = schemaRepositoryFactory.loadCurrent(getDataSource(), snapshotKey, name);
+                schemaLoad = loaded;
+                return loaded;
+            } catch (SchemaPendingException | ServerOfflineException e) {
+                throw e;
             } catch (RuntimeException e) {
                 // Logged here, once, rather than by every caller that meets the
                 // remembered failure afterwards.
@@ -147,19 +219,24 @@ public final class DatabaseServer implements AutoCloseable {
                 schemaFailure = e;
                 throw e;
             }
+        } finally {
+            schemaLock.unlock();
         }
-        return schemaLoad;
     }
 
     /**
      * The cluster's last snapshot, with no connection to this server — for
      * when no server of the cluster can be reached. Not current.
      */
-    public synchronized java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnownSchema() {
-        if (lastKnown == null) {
-            lastKnown = schemaRepositoryFactory.lastKnown(snapshotKey);
+    public java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnownSchema() {
+        // no lock: this is what a caller falls back to while a load holds one; two
+        // readers racing here read the snapshot twice, which is harmless
+        java.util.Optional<SchemaRepositoryFactory.SchemaLoad> known = lastKnown;
+        if (known == null) {
+            known = schemaRepositoryFactory.lastKnown(snapshotKey);
+            lastKnown = known;
         }
-        return lastKnown;
+        return known;
     }
 
     /**
@@ -169,48 +246,57 @@ public final class DatabaseServer implements AutoCloseable {
      * failure remembered from last time is forgotten either way, so a server
      * that has come back is tried.
      */
-    public synchronized void revalidateSchema() {
+    public void revalidateSchema() {
         schemaFailure = null;
         lastKnown = null;
-        if (schemaLoad == null || offlineIn != null) {
-            return;
-        }
-        boolean current;
+        // connects, so it takes the schema lock, as a load does: the pull calls it, and may wait
+        schemaLock.lock();
         try {
-            current = schemaRepositoryFactory.stillCurrent(getDataSource(), schemaLoad.fingerprint());
-        } catch (RuntimeException e) {
-            current = false;    // a pool that cannot start cannot vouch for anything
-        }
-        if (!current) {
-            schemaLoad = null;
+            SchemaRepositoryFactory.SchemaLoad loaded = schemaLoad;
+            if (loaded == null || offlineIn != null) {
+                return;
+            }
+            boolean current;
+            try {
+                current = schemaRepositoryFactory.stillCurrent(getDataSource(), loaded.fingerprint());
+            } catch (RuntimeException e) {
+                current = false;    // a pool that cannot start cannot vouch for anything
+            }
+            if (!current) {
+                schemaLoad = null;
+            }
+        } finally {
+            schemaLock.unlock();
         }
     }
 
     /** Let the next schema access try this server again, after a failed load. */
-    public synchronized void forgetSchemaFailure() {
+    public void forgetSchemaFailure() {
         schemaFailure = null;
     }
 
     /** Whether the schema has been loaded, without triggering a load. */
-    public synchronized boolean isSchemaLoaded() {
+    public boolean isSchemaLoaded() {
         return schemaLoad != null;
     }
 
     /** Drop the cached schema so the next access reloads it from the server (the pool is kept). */
-    public synchronized void refreshSchema() {
+    public void refreshSchema() {
         schemaLoad = null;
         schemaFailure = null;
         lastKnown = null;
     }
 
     @Override
-    public synchronized void close() {
+    public void close() {
         schemaLoad = null;
         schemaFailure = null;
         lastKnown = null;
-        if (dataSource != null) {
-            dataSource.close();
-            dataSource = null;
+        synchronized (poolLock) {
+            if (dataSource != null) {
+                dataSource.close();
+                dataSource = null;
+            }
         }
     }
 }
