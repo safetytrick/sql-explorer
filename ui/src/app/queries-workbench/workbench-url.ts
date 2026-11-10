@@ -24,11 +24,20 @@ export interface WorkbenchViewState {
   fullSql: boolean;
   /** The detail pane under the list; off by default (sqlx-ywy.5). */
   detailPane: boolean;
+  /**
+   * The side panels folded away, so the results — list or graph — get the
+   * page: `tree` (the schema tree) and `filters`. `var-hide=tree,filters`.
+   */
+  hide: WorkbenchPanel[];
 }
+
+export type WorkbenchPanel = 'tree' | 'filters';
+export const WORKBENCH_PANELS: readonly WorkbenchPanel[] = ['tree', 'filters'];
 
 const EXPANDED = 'var-expanded';
 const SQL = 'var-sql';
 const DETAIL = 'var-detail';
+const HIDE = 'var-hide';
 
 /** The workbench-owned params; defaults are omitted, so an untouched view keeps a clean URL. */
 export function encodeWorkbenchParams(state: WorkbenchViewState): Record<string, string> {
@@ -42,10 +51,21 @@ export function encodeWorkbenchParams(state: WorkbenchViewState): Record<string,
   if (state.detailPane) {
     params[DETAIL] = '1';
   }
+  // in a fixed order, so the same panels always make the same link
+  const hide = WORKBENCH_PANELS.filter(panel => state.hide.includes(panel));
+  if (hide.length) {
+    params[HIDE] = hide.join(',');
+  }
   return params;
 }
 
 export function decodeWorkbenchParams(params: ParamReader): WorkbenchViewState {
   const expanded = (params.get(EXPANDED) ?? '').split(',').map(id => id.trim()).filter(id => id.length);
-  return { expanded: [...new Set(expanded)], fullSql: params.get(SQL) === 'full', detailPane: params.get(DETAIL) === '1' };
+  const hide = (params.get(HIDE) ?? '').split(',').map(panel => panel.trim());
+  return {
+    expanded: [...new Set(expanded)],
+    fullSql: params.get(SQL) === 'full',
+    detailPane: params.get(DETAIL) === '1',
+    hide: WORKBENCH_PANELS.filter(panel => hide.includes(panel))
+  };
 }

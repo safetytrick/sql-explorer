@@ -56,6 +56,11 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
               private route: ActivatedRoute,
               private router: Router) { }
 
+  /** Fold the tree away; the workbench puts it in the link and offers it back on its rail. */
+  fold() {
+    this.queryScopeService.setTreeHidden(true);
+  }
+
   ngOnInit() {
     // the header interceptor scopes the request; reload whenever the selection changes
     this.subscriptions.add(this.environmentService.current$.subscribe(() => this.reload()));

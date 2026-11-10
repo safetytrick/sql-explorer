@@ -27,7 +27,7 @@ import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
 import {addCriterion, Criterion, criteriaOf, negate, removeCriterion, toggleOff} from '../criteria';
 import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from './merge-group';
-import {decodeWorkbenchParams, encodeWorkbenchParams} from './workbench-url';
+import {decodeWorkbenchParams, encodeWorkbenchParams, WorkbenchPanel} from './workbench-url';
 import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
 import {GraphLensComponent} from '../graph-lens/graph-lens.component';
 import {GRAPH_PARAMS, GRAPH_VIEW, VIEW_PARAM} from '../graph-lens/graph-url';
@@ -183,6 +183,12 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
    * instead, so a row click opens that page (sqlx-ywy.5). `var-detail=1`.
    */
   detailPane = false;
+  /**
+   * The side panels folded away so the results get the page: the schema tree
+   * and the filters. `var-hide`; the tree reads its half through
+   * {@link QueryScopeService.treeHidden$}, as it lives in the app shell.
+   */
+  hidden = new Set<WorkbenchPanel>();
   /** Digest most recently copied, for the transient "copied" affordance. */
   copied: string | null = null;
 
@@ -223,6 +229,11 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.queryScopeService.schemaTagFilter$.subscribe(() => this.writeFiltersToUrl()));
     this.subscriptions.add(this.queryScopeService.schemaTagScope$.subscribe(() => this.searchTrigger.next()));
     this.queryScopeService.setActive(true);
+    // the tree folds itself away from its own header; reflect that in the link
+    this.subscriptions.add(this.queryScopeService.treeHidden$.subscribe(hidden => {
+      if (hidden === this.hidden.has('tree')) { return; }
+      this.setHidden('tree', hidden);
+    }));
     // Read on arrival, and again whenever the URL changes under us rather than
     // by our own write: the graph links to the queries on an edge or a table,
     // which is this page with other filters (sqlx-aoy.16), and back/forward
@@ -245,6 +256,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.subscriptions.unsubscribe();
     this.queryScopeService.setActive(false);
+    this.queryScopeService.setTreeHidden(false);
     this.endResize();
   }
 
@@ -731,6 +743,46 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.selected = hit;
   }
 
+  // ── folding the side panels away ──
+
+  isHidden(panel: WorkbenchPanel): boolean {
+    return this.hidden.has(panel);
+  }
+
+  togglePanel(panel: WorkbenchPanel) {
+    this.setHidden(panel, !this.hidden.has(panel));
+  }
+
+  /** Both panels away, or both back: the results alone, or the whole workbench. */
+  get focused(): boolean {
+    return this.hidden.size === 2;
+  }
+
+  toggleFocus() {
+    const hide = !this.focused;
+    this.hidden = new Set(hide ? ['tree', 'filters'] : []);
+    this.queryScopeService.setTreeHidden(hide);
+    this.writeFiltersToUrl();
+  }
+
+  private setHidden(panel: WorkbenchPanel, hide: boolean) {
+    const next = new Set(this.hidden);
+    if (hide) { next.add(panel); } else { next.delete(panel); }
+    this.hidden = next;
+    if (panel === 'tree') { this.queryScopeService.setTreeHidden(hide); }
+    this.writeFiltersToUrl();
+  }
+
+  /** What the folded tree is scoping by, for the badge on its rail. */
+  scopeCount(criteria: Criterion[]): number {
+    return criteria.filter(c => c.on && SCOPE_KINDS.some(kind => c.key.startsWith(kind))).length;
+  }
+
+  /** What the folded filters are filtering by, for the badge on their rail. */
+  filterCount(criteria: Criterion[]): number {
+    return criteria.filter(c => c.on && !SCOPE_KINDS.some(kind => c.key.startsWith(kind))).length;
+  }
+
   toggleDetailPane() {
     this.detailPane = !this.detailPane;
     if (this.detailPane && !this.selected && this.hits.length) {
@@ -893,7 +945,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     const current = this.route.snapshot.queryParamMap;
     const queryParams: Record<string, string> = {
       ...encodeSearchParams(this.currentState()),
-      ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql, detailPane: this.detailPane })
+      ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql, detailPane: this.detailPane,
+        hide: [...this.hidden] })
     };
     if (this.graphView) {
       queryParams[VIEW_PARAM] = GRAPH_VIEW;
@@ -915,6 +968,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.expanded = new Set(view.expanded);
     this.fullSql = view.fullSql;
     this.detailPane = view.detailPane;
+    this.hidden = new Set(view.hide);
+    this.queryScopeService.setTreeHidden(this.hidden.has('tree'));
     // seed the schema-tree scope from a shared link; the tree renders from
     // the service, so its checkboxes and tag chips light up automatically
     if (state.scope.schemas.length || state.scope.tables.length || state.scope.tableMode !== 'ANY'
@@ -947,6 +1002,9 @@ function urlKey(params: Pick<ParamMap, 'get' | 'has'>): string {
 function paramReader(params: Record<string, string>): Pick<ParamMap, 'get' | 'has'> {
   return { get: name => params[name] ?? null, has: name => name in params };
 }
+
+/** The criteria the schema tree sets, by key prefix (criteria.ts); the filters panel sets the rest. */
+const SCOPE_KINDS = ['schema:', 'table:', 'schemaTag:'];
 
 /** `-name` is an exclusion, `name` an inclusion; either trimmed. */
 function signed(raw: string): {value: string; exclude: boolean} {

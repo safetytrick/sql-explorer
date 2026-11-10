@@ -357,10 +357,22 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   ngAfterViewInit() {
     this.viewReady = true;
     this.resetView();
+    // The pane changes size without the window doing so: the workbench folds
+    // its schema tree and filters away to give the graph the page. Refit as a
+    // window resize does, but only on a real change, as the observer also
+    // reports the size it starts with.
+    this.resizeObserver = new ResizeObserver(() => {
+      const wrap = this.wrap.nativeElement;
+      if (wrap.clientWidth !== this.viewW || wrap.clientHeight !== this.viewH) { this.resetView(); }
+    });
+    this.resizeObserver.observe(this.wrap.nativeElement);
   }
+
+  private resizeObserver: ResizeObserver | null = null;
 
   ngOnDestroy() {
     this.subscriptions.unsubscribe();
+    this.resizeObserver?.disconnect();
   }
 
   private loadGraph() {

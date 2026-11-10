@@ -99,6 +99,37 @@ describe('QueriesWorkbenchComponent URL state', () => {
     return { profile: { digest } } as unknown as QueryHit;
   }
 
+  it('folds the side panels away, keeping them in the link and on a rail', async () => {
+    const { component, harness } = await open('/queries?q=select&var-hide=tree');
+    const scopeService = TestBed.inject(QueryScopeService);
+    const router = TestBed.inject(Router);
+    const el = () => harness.routeNativeElement!;
+    harness.fixture.detectChanges();
+    // the tree is folded from the link; the filters still show
+    expect(scopeService.treeHidden$.value).toBeTrue();
+    expect(el().querySelector('.filter-sidebar')).not.toBeNull();
+    expect(el().querySelectorAll('.rail-tab').length).toBe(1);
+
+    // the tree folding itself from its own header lands in the link too
+    scopeService.setTreeHidden(false);
+    await harness.fixture.whenStable();
+    expect(router.parseUrl(router.url).queryParams['var-hide']).toBeUndefined();
+
+    component.toggleFocus();
+    await harness.fixture.whenStable();
+    harness.fixture.detectChanges();
+    expect(router.parseUrl(router.url).queryParams['var-hide']).toBe('tree,filters');
+    expect(scopeService.treeHidden$.value).toBeTrue();
+    expect(el().querySelector('.filter-sidebar')).toBeNull();
+    // the folded filters still say they are filtering
+    expect(el().querySelector('.rail-tab:last-child .rail-badge')?.textContent).toBe('1');
+
+    component.togglePanel('filters');
+    await harness.fixture.whenStable();
+    expect(router.parseUrl(router.url).queryParams['var-hide']).toBe('tree');
+    expect(router.parseUrl(router.url).queryParams['q']).toBe('select');
+  });
+
   it('seeds expanded rows from var-expanded', async () => {
     const { component } = await open('/queries?q=select&var-expanded=v3:aaa,v3:bbb');
     expect(component.isExpanded(hit('v3:aaa'))).toBeTrue();

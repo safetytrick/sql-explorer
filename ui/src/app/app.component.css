@@ -1,1 +1,5 @@
 /* SQL highlighting colours are in global styles.css */
+
+/* folded away from the workbench (var-hide=tree): kept mounted, so its filter
+   text and loaded schemas are still there when it comes back */
+app-schema-tree.folded { display: none; }

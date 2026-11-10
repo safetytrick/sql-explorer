@@ -61,6 +61,12 @@ export class QueryScopeService {
    */
   readonly paused$ = new BehaviorSubject<string[]>([]);
   readonly facets$ = new BehaviorSubject<QueryFacets>(EMPTY_FACETS);
+  /**
+   * The schema tree folded away. The tree sits in the app shell, beside the
+   * workbench rather than inside it, so the workbench owns this (it is
+   * `var-hide=tree` in its link) and the shell and the tree read it here.
+   */
+  readonly treeHidden$ = new BehaviorSubject<boolean>(false);
   readonly schemaTagFilter$ = new BehaviorSubject<SchemaTagFilter>(EMPTY_TAG_FILTER);
   readonly schemaTagScope$ = new BehaviorSubject<SchemaTagScope>(EMPTY_TAG_SCOPE);
 
@@ -78,6 +84,10 @@ export class QueryScopeService {
 
   setActive(active: boolean): void {
     this.active$.next(active);
+  }
+
+  setTreeHidden(hidden: boolean): void {
+    if (hidden !== this.treeHidden$.value) { this.treeHidden$.next(hidden); }
   }
 
   publishFacets(facets: QueryFacets | null | undefined): void {

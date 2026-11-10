@@ -1,7 +1,7 @@
 <app-nav-bar></app-nav-bar>
 <div class="app-body">
   @if (showTree) {
-    <app-schema-tree></app-schema-tree>
+    <app-schema-tree [class.folded]="treeHidden"></app-schema-tree>
   }
   <div class="main-content">
     @if (showExplain) {

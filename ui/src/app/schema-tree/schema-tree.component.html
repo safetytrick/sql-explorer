@@ -1,6 +1,11 @@
 <div class="sidebar-search">
-  <input placeholder="filter schema.table…" title="matches schema.table — '.users' matches table names only"
-         [value]="filter" (input)="filter = $any($event.target).value">
+  <div class="search-row">
+    <input placeholder="filter schema.table…" title="matches schema.table — '.users' matches table names only"
+           [value]="filter" (input)="filter = $any($event.target).value">
+    @if (active) {
+      <button type="button" class="fold" (click)="fold()" title="hide the schema tree">‹</button>
+    }
+  </div>
   <button type="button" class="tag-toggle" [class.on]="tagFiltersOpen || filterPanelActive"
           (click)="toggleTagFilters()">
     filter@if (tagFilterCount > 0) {

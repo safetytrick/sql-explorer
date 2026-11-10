@@ -7,6 +7,7 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { SchemaTreeComponent } from './schema-tree/schema-tree.component';
 import { EnvironmentUrlSync } from './environment-url-sync';
+import { QueryScopeService } from './query-scope.service';
 
 @Component({
     selector: 'app-root',
@@ -26,7 +27,10 @@ export class AppComponent implements OnInit {
    * delayed the page it sat beside, so it renders on /queries alone.
    */
   showTree = false;
+  /** Folded away by the workbench, which owns it as `var-hide=tree`. */
+  treeHidden = false;
   private readonly router = inject(Router);
+  private readonly queryScope = inject(QueryScopeService);
 
   constructor(private explainService: ExplainService) { }
 
@@ -39,6 +43,7 @@ export class AppComponent implements OnInit {
     // injected by the HTTP interceptor, which runs before the router is ready.
     this.environmentUrl.start();
     this.showTree = AppComponent.isTreePage(this.router.url);
+    this.queryScope.treeHidden$.subscribe(hidden => this.treeHidden = hidden);
     this.router.events.pipe(filter(event => event instanceof NavigationEnd))
       .subscribe(event => this.showTree = AppComponent.isTreePage((event as NavigationEnd).urlAfterRedirects));
   }

@@ -35,6 +35,68 @@
 
   .clr { font-size: 10px; color: var(--text3); cursor: pointer; font-weight: 400; }
   .clr:hover { color: var(--red); }
+  .head-acts { display: inline-flex; align-items: center; gap: 8px; }
+}
+
+/* the chevron that folds a side panel away */
+.fold {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text3);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 4px 1px;
+  cursor: pointer;
+
+  &:hover { color: var(--text); border-color: var(--border2); }
+}
+
+/* ── folded panels: one slim rail, a vertical tab per panel ── */
+.panel-rail {
+  width: 24px;
+  flex-shrink: 0;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-top: 6px;
+  gap: 4px;
+}
+
+.rail-tab {
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text3);
+  cursor: pointer;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+
+  &:hover { color: var(--text); background: var(--bg3); border-left-color: var(--blue); }
+
+  .rail-label {
+    writing-mode: vertical-rl;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .rail-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 14px;
+    min-width: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background: var(--blue);
+    color: var(--bg);
+  }
 }
 
 .filter-scroll {
@@ -241,6 +303,21 @@
   flex-shrink: 0;
 
   .bar-label { font-size: 10px; color: var(--text3); }
+
+  // the results alone, or the whole workbench back
+  .focus-btn {
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    color: var(--text3);
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px 5px;
+    cursor: pointer;
+
+    &:hover { color: var(--text); border-color: var(--text3); }
+    &.on { color: var(--blue); border-color: var(--blue); background: var(--blue-dim); }
+  }
   .none-label { font-size: 10px; color: var(--text3); font-style: italic; }
 
   // one criterion (sqlx-fph): include, exclude (red, ≠), or switched off (dashed, struck)
