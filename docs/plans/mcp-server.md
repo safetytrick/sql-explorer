@@ -1,5 +1,27 @@
 # Add an MCP server
 
+> **Update 2026-11-09 — served over HTTP by the backend; the Node sidecar is
+> gone.** `POST /api/sql-explorer/mcp` is MCP's streamable HTTP in its
+> stateless form (MCP Java SDK 2.1, `HttpServletStatelessServerTransport`,
+> Jackson 3). A client is now given a URL, where the sidecar needed `npm
+> install`, the checkout's absolute path and two environment variables in
+> every client's config. The reasons the sidecar won in August no longer
+> hold: Claude Code takes HTTP servers directly (`claude mcp add --transport
+> http`), Claude Desktop reaches one through `mcp-remote`, and the
+> "re-calling REST" concern is gone because the tools now call the
+> resources in-process. The same 18 tools, contributed per domain package
+> (`*McpTools` implementing `McpToolProvider`, beside the package-private
+> resources they call, so a tool cannot drift from its endpoint). Tools run
+> on the request thread, so the environment comes from the request's
+> `X-Sql-Explorer-Environment` header as for REST, and a tool's
+> `environment` argument overrides it — checked, unlike REST, which falls
+> back to the default for an unknown name. A request carrying a foreign
+> `Origin` is refused (DNS rebinding). Covered over real HTTP by
+> `ApplicationContextTest`. Reaching it through the ngrok tunnel needs the
+> Google login, which an MCP client cannot pass; it is for this machine.
+>
+> What follows is the August record, kept for the reasoning.
+
 > **Status: implemented 2026-08-02** as `mcp/` — a read-only stdio MCP
 > server for Claude Desktop / Cowork (the plan's suggested default,
 > recorded). **Architecture choice, resolving the open question:** a Node

@@ -7,6 +7,7 @@ import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {NotFoundComponent} from './not-found/not-found.component';
+import {McpSetupComponent} from './mcp-setup/mcp-setup.component';
 
 /**
  * Route *matching*, asserted without rendering anything: `/table/:schema/:name/:column`
@@ -97,6 +98,9 @@ describe('appRoutes: the table drill-downs', () => {
 
       await router.navigateByUrl('/table/app_main/user_profile');
       expect(matched()).toBe(TableLensComponent);
+
+      await router.navigateByUrl('/admin/mcp');
+      expect(matched()).toBe(McpSetupComponent);
     });
 
     // the by-tag pages became ?tags= on the list pages; their links still land (sqlx-m0j.2)

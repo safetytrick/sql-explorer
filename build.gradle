@@ -39,6 +39,13 @@ allprojects {
 
     test {
         useJUnitPlatform()
+        // Testcontainers mounts the docker socket into its reaper container,
+        // and must name it as the daemon's VM sees it. Colima's host-side
+        // path cannot be mounted; /var/run/docker.sock is right for Colima,
+        // Docker Desktop and CI alike. A value already set wins.
+        if (!System.getenv('TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE')) {
+            environment 'TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE', '/var/run/docker.sock'
+        }
     }
 
     spotbugs {
@@ -86,6 +93,9 @@ dependencies {
     implementation "org.hibernate.validator:hibernate-validator"
 
     implementation 'com.github.jsqlparser:jsqlparser:5.3'
+    // MCP over streamable HTTP, served by this app at /api/sql-explorer/mcp
+    implementation 'io.modelcontextprotocol.sdk:mcp-core:2.1.0'
+    implementation 'io.modelcontextprotocol.sdk:mcp-json-jackson3:2.1.0'
     implementation 'tools.jackson.dataformat:jackson-dataformat-csv'
 
     implementation 'com.google.guava:guava:33.0.0-jre'
@@ -114,6 +124,9 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter"
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation('org.assertj:assertj-core:3.27.7')
+    // the one test that boots the whole application, against a throwaway MySQL
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-mysql'
 
     implementation project(':models')
     implementation 'org.apache.avro:avro:1.12.1'

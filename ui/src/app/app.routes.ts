@@ -26,6 +26,7 @@ import {UnqueriedTablesComponent} from './unqueried-tables/unqueried-tables.comp
 import {CoverageLensComponent} from './coverage-lens/coverage-lens.component';
 import {UnusedIndexesComponent} from './unused-indexes/unused-indexes.component';
 import {carryScope, droppedScope} from './scope-url';
+import {McpSetupComponent} from './mcp-setup/mcp-setup.component';
 
 /**
  * `/table/{schema}/{table}/{column}` → the table lens with that column drilled
@@ -281,6 +282,11 @@ const routes: Routes = [
     path: 'admin/sources',
     component: AdminSourceListComponent,
     title: 'Sources'
+  },
+  {
+    path: 'admin/mcp',
+    component: McpSetupComponent,
+    title: 'MCP'
   },
   {
     path: 'note',

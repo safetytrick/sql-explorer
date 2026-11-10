@@ -17,6 +17,13 @@ public class EnvironmentContext {
 
     public static final String HEADER = "X-Sql-Explorer-Environment";
 
+    /**
+     * A request attribute naming the environment, which wins over the header:
+     * how an MCP tool call that names its own environment selects it, as one
+     * HTTP request to {@code /mcp} carries one tool call.
+     */
+    public static final String OVERRIDE_ATTRIBUTE = EnvironmentContext.class.getName() + ".override";
+
     private final EnvironmentRegistry registry;
     private final HttpServletRequest request;
 
@@ -26,6 +33,7 @@ public class EnvironmentContext {
     }
 
     public Environment current() {
-        return registry.getOrDefault(request.getHeader(HEADER));
+        Object override = request.getAttribute(OVERRIDE_ATTRIBUTE);
+        return registry.getOrDefault(override != null ? override.toString() : request.getHeader(HEADER));
     }
 }

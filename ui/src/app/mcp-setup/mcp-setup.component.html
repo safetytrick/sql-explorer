@@ -1,0 +1,99 @@
+<div class="view-header">
+  <span class="view-title">MCP</span>
+  <span class="view-sub">connect an AI client to this instance</span>
+</div>
+
+<div class="lens-card">
+  <div class="card-head"><span class="card-head-title">What it is</span>
+    @if (tools === null) {
+      <span class="card-head-note">checking the endpoint…</span>
+    } @else if (toolsError) {
+      <span class="card-head-note status bad">endpoint not answering: {{toolsError}}</span>
+    } @else {
+      <span class="card-head-note status ok">endpoint answering · {{tools.length}} tools</span>
+    }
+  </div>
+  <div class="prose">
+    <p>
+      This instance serves an <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a>
+      endpoint at <code class="filled">{{config.url}}</code>, so Claude Code, Claude Desktop or any other MCP
+      client can ask it about schemas, tables and queries. It is the same data as the pages here, through the
+      same API: nothing to install, only the URL to give.
+    </p>
+    <p>
+      Everything reads except <code>add_tag</code> and <code>remove_tag</code>. Notes and source loading are
+      deliberately not exposed.
+    </p>
+  </div>
+</div>
+
+<div class="lens-card">
+  <div class="card-head"><span class="card-head-title">Connect a client</span>
+    <span class="card-head-note">filled in for this page</span></div>
+  <div class="prose">
+    <p>
+      @if (config.environment) {
+        The <code>{{environmentHeader}}</code> header picks the environment, here the one you are viewing,
+        <code class="filled">{{config.environment}}</code>.
+      } @else {
+        No environment is selected, so the <code>{{environmentHeader}}</code> header is left out and the
+        backend's default is used.
+      }
+      Every data tool also takes an <code>environment</code> argument that overrides it for one call.
+    </p>
+  </div>
+  @for (snippet of snippets; track snippet.id) {
+    <div class="snippet" [attr.data-snippet]="snippet.id">
+      <div class="snippet-head">
+        <span class="snippet-title">{{snippet.title}}</span>
+        <span class="snippet-note">{{snippet.note}}</span>
+        <button type="button" class="btn" (click)="copy(snippet)">{{copied === snippet.id ? 'Copied' : 'Copy'}}</button>
+      </div>
+      <pre><code>{{snippet.text}}</code></pre>
+    </div>
+  }
+  <div class="prose">
+    <p>In Claude Code, <code>/mcp</code> shows whether it connected; restart Claude Desktop after editing its config.</p>
+  </div>
+</div>
+
+<div class="lens-card">
+  <div class="card-head"><span class="card-head-title">Tools</span>
+    @if (tools?.length) {
+      <span class="card-head-note">as the endpoint lists them · {{writeCount}} write</span>
+    }
+  </div>
+  @if (tools?.length) {
+    <table class="data-table">
+      <tbody>
+        @for (tool of tools; track tool.name) {
+          <tr>
+            <td class="tool-name"><code>{{tool.name}}</code>
+              @if (!tool.readOnly) { <span class="writes" title="changes data: tags only">writes</span> }</td>
+            <td>{{tool.description}}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else if (tools) {
+    <div class="card-empty">The endpoint did not list its tools{{toolsError ? ' (' + toolsError + ')' : ''}}.</div>
+  }
+</div>
+
+<div class="lens-card">
+  <div class="card-head"><span class="card-head-title">Troubleshooting</span></div>
+  <div class="note-card">
+    <p>
+      <strong>Through the tunnel it will not connect.</strong> A shared address behind a sign-in page asks a
+      browser to log in, which an MCP client cannot do. Use the endpoint from the machine running SQL Explorer.
+    </p>
+    <p>
+      <strong>An environment served from its cache</strong> answers as the pages do: live-only tools such as
+      the DDL ask for a pull first.
+    </p>
+    <p>
+      <strong>Responses are truncated at 60,000 characters</strong>, with a note saying so — narrow the request
+      (a schema, a table, a smaller <code>limit</code>) rather than asking for everything.
+    </p>
+  </div>
+</div>
