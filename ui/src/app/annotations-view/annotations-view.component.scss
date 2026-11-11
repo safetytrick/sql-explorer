@@ -1,0 +1,57 @@
+.annotations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.ann-label {
+  color: var(--text3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ann {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--text2);
+}
+
+// Confidence reads from the dot: amber inferred, blue sampled, green confirmed.
+.ann-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  align-self: center;
+  background: var(--amber);
+}
+.ann.sampled .ann-dot { background: var(--blue); }
+.ann.confirmed .ann-dot { background: var(--green); }
+
+.ann-ns { color: var(--text3); }
+.ann-key { color: var(--text2); }
+.ann-eq { color: var(--text3); }
+.ann-value { color: var(--text); }
+.ann-meta { color: var(--text3); font-size: 11px; }
+
+.ann-confirm {
+  font: inherit;
+  font-size: 11px;
+  padding: 0 6px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+
+  &:hover:not(:disabled) { color: var(--green); border-color: var(--green); }
+  &:disabled { opacity: 0.5; cursor: default; }
+}

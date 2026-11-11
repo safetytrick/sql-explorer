@@ -1,0 +1,43 @@
+<div class="lens-card">
+  <div class="card-head"><span class="card-head-title">Indexes</span>
+    @if (note) { <span class="card-head-note">{{note}}</span> }</div>
+  <div class="index-list">
+    @if (ordered.length === 0) {
+      <div class="card-empty">no indexes</div>
+    }
+    @for (index of ordered; track index.name) {
+      <div class="index-row" [class.drillable]="isClickable(index)"
+           [class.on]="selected === index.name"
+           [class.missing]="!index.exists"
+           (click)="pick(index)"
+           [title]="isClickable(index) ? clickTitle : ''">
+        <div class="index-head">
+          @if (!index.exists) {
+            <span class="badge b-warn">MISSING</span>
+          } @else {
+            <span class="badge" [class.b-pk]="index.primary" [class.b-idx]="!index.primary">
+              {{index.primary ? 'PK' : (index.unique ? 'UNIQ' : 'IDX')}}
+            </span>
+          }
+          <span class="mono dim2">{{index.name}}</span>
+          @if (index.queries > 0) {
+            <span class="index-queries mono" title="distinct queries hinting this index">{{index.queries}}</span>
+          }
+        </div>
+        @if (index.exists) {
+          <span class="mono dim">{{index.columns.join(', ')}}</span>
+        } @else {
+          <span class="warn-note" title="MySQL rejects a hint naming an index the table does not have (error 1176)">not on this table — statements fail</span>
+        }
+        @if (index.hints.length) {
+          <div class="index-hints">
+            @for (hint of index.hints; track hint) {
+              <span class="rp" [class.rp-force]="hint === 'force'" [class.rp-use]="hint === 'use'"
+                    [class.rp-ignore]="hint === 'ignore'">{{hint}}</span>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

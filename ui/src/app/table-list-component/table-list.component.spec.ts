@@ -40,9 +40,26 @@ describe('TableListComponentComponent', () => {
   it('explains what # of Queries and Total Query Time count, on hover', () => {
     const terms = (fixture.nativeElement as HTMLElement).querySelectorAll('th .term');
     const titles = Array.from(terms).map(term => term.getAttribute('title') ?? '');
-    expect(titles.length).toBe(2);
+    expect(titles.length).toBe(4);
     expect(titles[0]).toContain('Distinct query patterns');
     expect(titles[1]).toContain('Time spent executing');
+    // sqlx-n5j.2: the row figure says it is an estimate
+    expect(titles[2]).toContain('an estimate');
+    expect(titles[3]).toContain('DATA_LENGTH + INDEX_LENGTH');
+  });
+
+  it('shows the row estimate as one, and the size, and nothing when unknown', () => {
+    component.tables = [
+      {schema: 'app', name: 'orders', view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1,
+        rowsEstimate: 1583066, sizeBytes: 163840},
+      {schema: 'app', name: 'events', view: false, tags: [], numberOfQueries: 1, totalQueryTime: 1}
+    ];
+    fixture.detectChanges();
+    const cells = (selector: string) => Array.from((fixture.nativeElement as HTMLElement)
+      .querySelectorAll('tbody ' + selector)).map(cell => cell.textContent?.trim());
+
+    expect(cells('.rows-est')).toEqual(['≈1.6M', '']);
+    expect(cells('.table-size')).toEqual(['160 KiB', '']);
   });
 
   // a long list draws in steps; selection still covers every row (sqlx-c8w.11)

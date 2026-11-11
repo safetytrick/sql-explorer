@@ -34,6 +34,21 @@ describe('TableLensComponent drill-downs', () => {
     };
   }
 
+  it('titles criteria with how the column is compared, and order by with its definition', async () => {
+    const component = await open('/table/app_main/user_profile');
+    const searched: ColumnUsage = {
+      ...column('name', ['criteria', 'order by']),
+      comparisons: {like: 2, equality: 1},
+      like: {queries: 2, leadingWildcard: 1, unknownWildcard: 1}
+    };
+
+    expect(component.roleTitle(searched, 'criteria')).toBe('compared by equality (1), like (2)');
+    expect(component.roleTitle(searched, 'order by')).toContain('ORDER BY');
+    expect(component.roleTitle(searched, 'select')).toBeNull();
+    // a backend older than comparisons sends none: no title rather than an empty one
+    expect(component.roleTitle(column('name', ['criteria']), 'criteria')).toBeNull();
+  });
+
   it('starts with no drill-down and both relationship cards collapsed', async () => {
     const component = await open('/table/app_main/user_profile');
 
@@ -374,6 +389,47 @@ describe('TableLensComponent unknown table', () => {
     });
 
     expect(component.drillColumnUnknown()).toBe(false);
+  });
+
+  /** Column tags and note counts come in one request each, not one per row (sqlx-n5j.1). */
+  it('tags columns from one batched lookup and counts their notes', async () => {
+    const {harness, element} = await open('/table/app_main/account', {
+      structure: STRUCTURE, stats: STATS, columns: [column('id'), column('email')]
+    });
+    const http = TestBed.inject(HttpTestingController);
+    // the table's own tag field asks too; this is the one about columns
+    const tags = http.expectOne(request => request.url.endsWith('tags/targets')
+      && (request.body as {type: string}[])[0]?.type === 'column');
+    expect(tags.request.body).toEqual([
+      {type: 'column', schema: 'app_main', table: 'account', digest: '', column: 'id'},
+      {type: 'column', schema: 'app_main', table: 'account', digest: '', column: 'email'}]);
+    tags.flush([[], [{id: 9, name: 'pii', path: '/schema/app_main/table/account/column/email', type: 'column',
+      author: null, createdOn: null}]]);
+    const notes = http.expectOne(request => request.url.endsWith('notes/paths'));
+    expect(notes.request.body).toEqual([
+      '/schema/app_main/table/account/column/id', '/schema/app_main/table/account/column/email']);
+    notes.flush({'/schema/app_main/table/account/column/email': [{id: 1}, {id: 2}]});
+    harness.detectChanges();
+
+    expect(element.querySelectorAll('.col-tags app-tag-field').length).toBe(2);
+    expect(element.querySelectorAll('.col-notes')[1].textContent).toContain('2');
+    expect(element.querySelector('.column-detail')).toBeNull();
+  });
+
+  /** The open column's notes are part of the link, like every other view state. */
+  it('opens a column\'s notes from var-notes and writes the choice back', async () => {
+    const {harness, component, element} = await open('/table/app_main/account?var-notes=email', {
+      structure: STRUCTURE, stats: STATS, columns: [column('id'), column('email')]
+    });
+    harness.detectChanges();
+
+    expect(component.notesColumn).toBe('email');
+    expect(element.querySelector('.column-detail app-notes-card')).toBeTruthy();
+
+    component.toggleColumnNotes('email', new Event('click'));
+    await harness.fixture.whenStable();
+    const router = TestBed.inject(Router);
+    expect(router.parseUrl(router.url).queryParams['var-notes']).toBeUndefined();
   });
 
   /** With no column list there is nothing to check against, so make no claim. */

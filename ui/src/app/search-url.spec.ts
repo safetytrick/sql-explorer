@@ -452,6 +452,29 @@ describe('hinted param', () => {
   });
 });
 
+/** Queries a generator's signatures matched, or none (sqlx-n5j.12). */
+describe('generator param', () => {
+
+  it('round-trips a generator and reaches the request', () => {
+    const state = defaultSearchState();
+    state.generator = 'doctrine-orm';
+
+    const encoded = encodeSearchParams(state);
+    expect(encoded['generator']).toBe('doctrine-orm');
+
+    const decoded = decodeSearchParams(reader(encoded));
+    expect(decoded.generator).toBe('doctrine-orm');
+    expect(buildSearchRequest(decoded, UNCONSTRAINED_TAG_SCOPE, { limit: 25, offset: 0 }).generator)
+      .toBe('doctrine-orm');
+  });
+
+  it('is omitted when unset, and forgives case', () => {
+    expect(encodeSearchParams(defaultSearchState())['generator']).toBeUndefined();
+    expect(decodeSearchParams(reader({ generator: ' Hibernate ' })).generator).toBe('hibernate');
+    expect(decodeSearchParams(reader({ generator: '' })).generator).toBeNull();
+  });
+});
+
 describe('table tag param (sqlx-aoy.10)', () => {
 
   it('round-trips as the tag names and reaches the request unresolved', () => {

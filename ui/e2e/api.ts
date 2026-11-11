@@ -33,7 +33,8 @@ function schemaRollup(name: string) {
 
 /** A row of `/tables`, the list the tables page renders. */
 function tableRollup(name: string, schema: string) {
-  return {name, schema, numberOfQueries: 3, totalQueryTime: 1000, tags: [], view: false};
+  return {name, schema, numberOfQueries: 3, totalQueryTime: 1000, tags: [], view: false,
+    rowsEstimate: 1200, sizeBytes: 163840};
 }
 
 function profile(name: string, schema: string, perfDigest: string, executed = 100) {
@@ -75,10 +76,24 @@ const SCHEMA_TREE = {
   ]
 };
 
-/** `mysql` carries `system`; the others carry nothing. Keyed by schema name. */
-const SCHEMA_TAGS: Record<string, {id: number; name: string; path: string; type: string}[]> = {
-  mysql: [{id: 1, name: 'system', path: '/schema/mysql', type: 'schema'}]
-};
+/**
+ * No schema carries a tag. `system` used to be one, on `mysql`; it is a
+ * schema-role annotation now (sqlx-n5j.14), and the scope specs that exclude
+ * `system` pass against that — which is the point: the link means what it did.
+ */
+const SCHEMA_TAGS: Record<string, {id: number; name: string; path: string; type: string}[]> = {};
+
+/** `mysql` is MySQL's own: the annotation the `system` tag was migrated to. */
+const SCHEMA_ROLES = [{
+  id: 1, target: {type: 'schema', schema: 'mysql', table: '', digest: '', column: ''},
+  namespace: 'schema-role', key: 'role', value: 'system', confidence: 'confirmed', basis: 'migrated from the system tag',
+  sourceKind: 'person', sourceName: null, author: {email: 'admin'}, recordedOn: '2026-08-30T12:00:00Z'
+}];
+
+const GENERATORS = [
+  {name: 'doctrine-orm', description: 'Doctrine ORM (PHP)', rules: [], status: null, confirmation: null},
+  {name: 'hibernate', description: 'Hibernate ORM (Java)', rules: [], status: null, confirmation: null}
+];
 
 const COVERAGE = {
   environment: 'regression', loaded: true, loadedOn: '2026-08-30T12:00:00Z',
@@ -98,6 +113,35 @@ const COVERAGE = {
   }],
   drift: []
 };
+
+/** `/collations`: one table mixing collations, one on a single encoding, one join whose sides differ (sqlx-n5j.5). */
+function encoding(schema: string, table: string, collations: string[]) {
+  return {
+    schema, table, view: false, textColumns: collations.length,
+    predominantCharset: 'utf8mb4', predominantCollation: collations[0],
+    mixedCharsets: false, mixedCollations: new Set(collations).size > 1,
+    encodings: collations.map((collation, i) => ({characterSet: 'utf8mb4', collation, columns: [`c${i}`]})),
+    outliers: collations.slice(1).map((collation, i) => ({column: `c${i + 1}`, characterSet: 'utf8mb4', collation}))
+  };
+}
+
+const COLLATIONS = {
+  tables: [
+    encoding('app', 'orders', ['utf8mb4_0900_ai_ci', 'utf8mb4_bin']),
+    encoding('app', 'users', ['utf8mb4_0900_ai_ci'])
+  ],
+  joins: [{
+    left: {schema: 'app', table: 'orders', column: 'user_code', characterSet: 'utf8mb4', collation: 'utf8mb4_bin'},
+    right: {schema: 'app', table: 'users', column: 'code', characterSet: 'utf8mb4', collation: 'utf8mb4_0900_ai_ci'},
+    charsetDiffers: false, queries: 1, executions: 100, exampleDigest: 'v3:orders'
+  }]
+};
+
+/** The table lens's workload cards (sqlx-n5j.9, .10): answered as zeros, as the server does for a quiet table. */
+const WRITE_RATE = {executions: 0, rowsAffected: 0, executionsPerDay: 0, rowsPerDay: 0, from: null, to: null,
+  byType: [], statements: []};
+const LOCK_RISK = {statementCount: 0, longThresholdMs: 1000, longStatements: 0, longExecutionsPerDay: 0,
+  maxTimeMs: 0, maxAverageTimeMs: 0, quietHoursAvailable: false, statements: []};
 
 /** Matches a search request the way the server does, for the filters we exercise. */
 function search(body: Record<string, unknown>) {
@@ -136,6 +180,15 @@ export async function stubApi(page: Page) {
     return route.fulfill(json(targets.map(target =>
       target.type === 'schema' ? SCHEMA_TAGS[target.schema] ?? [] : [])));
   });
+  // Annotations (sqlx-n5j.13): positional like tags/targets, and nothing is annotated but mysql's role.
+  await page.route(`${BASE}/annotations/targets`, async route => {
+    const targets: unknown[] = JSON.parse(route.request().postData() || '[]');
+    return route.fulfill(json(targets.map(() => [])));
+  });
+  await page.route(`${BASE}/annotations/namespace/*`, route =>
+    route.fulfill(json(route.request().url().endsWith('/schema-role') ? SCHEMA_ROLES : [])));
+  await page.route(`${BASE}/notes/paths`, route => route.fulfill(json({})));
+  await page.route(`${BASE}/generators`, route => route.fulfill(json(GENERATORS)));
   await page.route(`${BASE}/tags`, route => route.fulfill(json([{name: 'system', color: '#f5a623'}])));
   await page.route(`${BASE}/tags/type/*`, route => route.fulfill(json(['system'])));
   await page.route(`${BASE}/environments`, route => route.fulfill(json({
@@ -145,7 +198,7 @@ export async function stubApi(page: Page) {
     environments: [
       {name: 'regression', servers: [], sources: {
         loaded: true, sourceCount: 1, loadedOn: '2026-08-30T12:00:00Z', importStats: null, resident: true
-      }},
+      }, sampling: {server: null, available: false, reason: 'no server with the sampling role'}},
       {name: 'staging', servers: [], sources: {
         loaded: true, sourceCount: 1, loadedOn: '2026-08-30T12:00:00Z', importStats: null, resident: true
       }}
@@ -173,6 +226,9 @@ export async function stubApi(page: Page) {
     return route.fulfill(json(rows));
   });
   await page.route(`${BASE}/graph/v2/**`, route => route.fulfill(json({nodes: [], edges: []})));
+  await page.route(`${BASE}/collations`, route => route.fulfill(json(COLLATIONS)));
+  await page.route(`${BASE}/table/*/*/write-rate`, route => route.fulfill(json(WRITE_RATE)));
+  await page.route(`${BASE}/table/*/*/lock-risk`, route => route.fulfill(json(LOCK_RISK)));
   await page.route(`${BASE}/graph/layout`, route => route.fulfill(json([])));
 }
 

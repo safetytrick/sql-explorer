@@ -248,6 +248,36 @@ describe('QueriesWorkbenchComponent URL state', () => {
     expect(stop).toHaveBeenCalled();
   });
 
+  it('seeds the generator filter from a link and writes a change back to the URL (sqlx-n5j.12)', async () => {
+    const { component, harness } = await open('/queries?generator=doctrine-orm');
+    expect(component.generator).toBe('doctrine-orm');
+
+    component.setGenerator('none');
+    await harness.fixture.whenStable();
+    const router = TestBed.inject(Router);
+    expect(router.parseUrl(router.url).queryParams['generator']).toBe('none');
+
+    component.setGenerator(null);
+    await harness.fixture.whenStable();
+    expect(router.parseUrl(router.url).queryParams['generator']).toBeUndefined();
+  });
+
+  it('labels a match a candidate until the environment confirms the generator', async () => {
+    const { component } = await open('/queries');
+    const http = TestBed.inject(HttpTestingController);
+    http.match(r => r.url.endsWith('/generators')).forEach(r => r.flush([
+      { name: 'doctrine-orm', description: '', rules: [], status: null, confirmation: null },
+      { name: 'hibernate', description: '', rules: [], status: 'used', confirmation: null }]));
+    const profile = (candidates: {generator: string; rule: string}[]) =>
+      ({ generatorCandidates: candidates } as unknown as Parameters<typeof component.originOf>[0]);
+
+    expect(component.originLabel(component.originOf(profile([{generator: 'doctrine-orm', rule: 'dql-walker-alias'}]))))
+      .toBe('candidate: doctrine-orm');
+    expect(component.originLabel(component.originOf(profile([{generator: 'hibernate', rule: 'criteria-root-alias'}]))))
+      .toBe('hibernate');
+    expect(component.generatorOptions.map(option => option.label)).toEqual(['any', 'doctrine-orm', 'hibernate', 'none']);
+  });
+
   it('seeds the index-hint filter from a link and writes a change back to the URL', async () => {
     const { component, harness } = await open('/queries?hinted=FORCE');
     expect(component.hinted).toBe('FORCE');

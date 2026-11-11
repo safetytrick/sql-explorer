@@ -92,7 +92,8 @@ class ApplicationContextTest {
         assertThat(tools.valueStream().map(tool -> tool.path("name").asString()).toList()).containsExactlyInAnyOrder(
             "list_schemas", "list_tables", "schema_tree", "get_table_structure", "get_table_ddl", "get_foreign_keys",
             "get_table_stats", "get_column_usage", "get_graph", "search_queries", "get_query", "run_report",
-            "list_tags", "get_queries_by_tag", "add_tag", "remove_tag", "clean_sql", "normalize_sql");
+            "list_tags", "get_queries_by_tag", "add_tag", "remove_tag", "clean_sql", "normalize_sql",
+            "ddl_preflight");
         JsonNode addTag = tools.valueStream().filter(tool -> tool.path("name").asString().equals("add_tag")).findFirst().orElseThrow();
         assertThat(addTag.path("annotations").path("readOnlyHint").asBoolean()).isFalse();
         assertThat(addTag.path("inputSchema").path("properties").has("environment")).isTrue();

@@ -18,6 +18,9 @@ import {buildIndexPanels, TableIndexPanel} from './index-relevance';
 import {SEEN_FORMAT} from '../seen-format';
 import {QueryExamplesComponent} from '../query-examples/query-examples.component';
 import {queryTarget} from '../tag-path';
+import {AnnotationService} from '../annotation.service';
+import {AnnotationsViewComponent} from '../annotations-view/annotations-view.component';
+import {GeneratorOrigin, generatorOrigin, generatorStatuses, GeneratorStatuses, originLabel, originRules} from '../generator-origin';
 
 /** The SQL's colours for one index panel: the table's instances, and per column which of them constrain it. */
 interface PanelColors {
@@ -34,7 +37,7 @@ const panelKey = (panel: TableIndexPanel) => `${panel.schema}.${panel.table}`.to
   styleUrls: ['./sql-view.component.scss'],
   providers: [AnalyzedSqlService],
   imports: [RouterLink, DecimalPipe, SlicePipe, SqlHighlightDirective, TagFieldComponent, PicoViewComponent, ColumnLinkComponent,
-    QueryExamplesComponent, DatePipe]
+    QueryExamplesComponent, DatePipe, AnnotationsViewComponent]
 })
 export class SqlViewComponent implements OnInit {
   /** Hover definitions for the runtime metrics (glossary.ts, sqlx-tcv.1). */
@@ -72,12 +75,31 @@ export class SqlViewComponent implements OnInit {
   /** `indexPanels`, narrowed to `hovered` while there is one. */
   visiblePanels: TableIndexPanel[] = [];
 
+  /**
+   * Which generator wrote the statement, as far as the environment's confirmed
+   * generators allow (sqlx-n5j.12): asserted, ambiguous or only a candidate.
+   */
+  origin: GeneratorOrigin | null = null;
+  private statuses: GeneratorStatuses = new Map();
+  protected readonly originLabel = originLabel;
+  protected readonly originRules = originRules;
+
   constructor(private sqlService: AnalyzedSqlService, private route: ActivatedRoute,
               private changeDetectorRef: ChangeDetectorRef,
-              private titleService: Title) { }
+              private titleService: Title,
+              private annotationService: AnnotationService) { }
 
   ngOnInit() {
     this.route.params.subscribe(params => this.getSql(params['id']));
+    // the environment's confirmations, applied to the candidates when read
+    this.annotationService.generators().subscribe({
+      next: generators => { this.statuses = generatorStatuses(generators ?? []); this.updateOrigin(); },
+      error: () => { /* without confirmations every match stays a candidate */ }
+    });
+  }
+
+  private updateOrigin() {
+    this.origin = this.query ? generatorOrigin(this.query.generatorCandidates, this.statuses) : null;
   }
 
   getSql(id: string) {
@@ -94,6 +116,7 @@ export class SqlViewComponent implements OnInit {
     this.sqlService.getSql(id).subscribe({
       next: data => {
         this.query = data;
+        this.updateOrigin();
         this.loading = false;
         this.loadTableStructures(data);
         this.titleService.setTitle(formatPageTitle('Query · ' + data.tables.map(ref => parseTableRef(ref).table).join(', ')));
@@ -126,17 +149,33 @@ export class SqlViewComponent implements OnInit {
   // ── what the query constrains ──
 
   /**
-   * Every column the query joins on, filters by, or groups by — the columns an
-   * index could actually serve. Select-list columns are deliberately excluded:
-   * they cannot drive index selection.
+   * How a criteria column is pattern-matched, if it is (sqlx-n5j.7): `like`,
+   * `not like`, either marked `%…` when the pattern is known to lead with a
+   * wildcard. Null for a column no LIKE touches.
+   */
+  likeLabel(column: string): string | null {
+    const likes = (this.query?.criteriaComparisons ?? [])
+      .filter(c => c.column === column && (c.kind === 'like' || c.kind === 'not like'));
+    if (!likes.length) { return null; }
+    const kinds = [...new Set(likes.map(c => c.kind))].sort().join(' / ');
+    return likes.some(c => c.leadingWildcard === true) ? `${kinds} %…` : kinds;
+  }
+
+  /**
+   * Every column the query joins on, filters by, groups by or sorts by — the
+   * columns an index could actually serve. An index on the ORDER BY columns
+   * lets MySQL read rows in order and skip the sort. Select-list columns are
+   * deliberately excluded: they cannot drive index selection.
    */
   private constrainingColumns(): string[] {
     if (!this.query) { return []; }
-    // groupByColumns is null — not empty — when SelectColumnAnalyzer never ran
-    // or threw, which is the case for ~5% of profiles.
+    // groupByColumns and orderByColumns are null — not empty — when
+    // SelectColumnAnalyzer never ran or threw (~5% of profiles), or the
+    // profile predates the field.
     return [
       ...(this.query.criteriaColumns ?? []),
       ...(this.query.groupByColumns ?? []),
+      ...(this.query.orderByColumns ?? []),
       ...(this.query.joinColumns ?? []).flat()
     ];
   }

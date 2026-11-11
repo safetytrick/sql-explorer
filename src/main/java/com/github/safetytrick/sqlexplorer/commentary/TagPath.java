@@ -6,7 +6,8 @@ import java.util.Map;
 /**
  * What a tag points at, parsed from its path.
  *
- * <p>THE ONE PLACE THAT KNOWS THE SHAPES. There are exactly three:
+ * <p>THE ONE PLACE THAT KNOWS THE SHAPES. There were exactly three, and a
+ * fourth, {@code /schema/{s}/table/{t}/column/{c}}, joined them (sqlx-n5j.1):
  * {@code /schema/{s}}, {@code /schema/{s}/table/{t}} and
  * {@code /query/{digest}}. They were previously read back out by two different
  * regexes — one deriving the type from the tail of the string, one collecting
@@ -35,11 +36,11 @@ import java.util.Map;
  * or typed columns (sqlx-11v). Refusing is the correct behaviour until one of
  * those lands, because the alternative is a row nobody can find.
  */
-record TagPath(Target target, String schema, String table, String digest) {
+record TagPath(Target target, String schema, String table, String column, String digest) {
 
     /** The kind of thing a path names. */
     enum Target {
-        SCHEMA("schema"), TABLE("table"), QUERY("query");
+        SCHEMA("schema"), TABLE("table"), COLUMN("column"), QUERY("query");
 
         private final String type;
 
@@ -55,6 +56,7 @@ record TagPath(Target target, String schema, String table, String digest) {
 
     private static final String SCHEMA_PREFIX = "/schema/";
     private static final String TABLE_INFIX = "/table/";
+    private static final String COLUMN_INFIX = "/column/";
     private static final String QUERY_PREFIX = "/query/";
 
     /**
@@ -70,7 +72,7 @@ record TagPath(Target target, String schema, String table, String digest) {
         }
         if (path.startsWith(QUERY_PREFIX)) {
             String digest = path.substring(QUERY_PREFIX.length());
-            return segment(digest) ? new TagPath(Target.QUERY, null, null, digest) : null;
+            return segment(digest) ? new TagPath(Target.QUERY, null, null, null, digest) : null;
         }
         if (!path.startsWith(SCHEMA_PREFIX)) {
             return null;
@@ -78,12 +80,23 @@ record TagPath(Target target, String schema, String table, String digest) {
         String rest = path.substring(SCHEMA_PREFIX.length());
         int infix = rest.indexOf(TABLE_INFIX);
         if (infix < 0) {
-            return segment(rest) ? new TagPath(Target.SCHEMA, rest, null, null) : null;
+            return segment(rest) ? new TagPath(Target.SCHEMA, rest, null, null, null) : null;
         }
         String schema = rest.substring(0, infix);
         String table = rest.substring(infix + TABLE_INFIX.length());
+        // A column path is a table path plus one more segment (sqlx-n5j.1).
+        // The table segment may not contain '/', so the first /column/ is the
+        // only place the split can be.
+        int columnInfix = table.indexOf(COLUMN_INFIX);
+        if (columnInfix >= 0) {
+            String column = table.substring(columnInfix + COLUMN_INFIX.length());
+            table = table.substring(0, columnInfix);
+            return segment(schema) && segment(table) && segment(column)
+                ? new TagPath(Target.COLUMN, schema, table, column, null)
+                : null;
+        }
         return segment(schema) && segment(table)
-            ? new TagPath(Target.TABLE, schema, table, null)
+            ? new TagPath(Target.TABLE, schema, table, null, null)
             : null;
     }
 
@@ -98,7 +111,8 @@ record TagPath(Target target, String schema, String table, String digest) {
         if (parsed == null) {
             throw new IllegalArgumentException(
                 "not a tag path: " + path + " — expected /schema/{schema}, "
-                    + "/schema/{schema}/table/{table} or /query/{digest}, "
+                    + "/schema/{schema}/table/{table}, /schema/{schema}/table/{table}/column/{column} "
+                    + "or /query/{digest}, "
                     + "with no '/' inside a name");
         }
         return parsed;
@@ -116,7 +130,7 @@ record TagPath(Target target, String schema, String table, String digest) {
 
     /** This address as a typed target. */
     TagTarget toTarget() {
-        return new TagTarget(target.type(), schema, table, digest).normalized();
+        return new TagTarget(target.type(), schema, table, digest, column).normalized();
     }
 
     /**
@@ -133,6 +147,9 @@ record TagPath(Target target, String schema, String table, String digest) {
         }
         if (table != null) {
             elements.put(Target.TABLE.type(), table);
+        }
+        if (column != null) {
+            elements.put(Target.COLUMN.type(), column);
         }
         if (digest != null) {
             elements.put(Target.QUERY.type(), digest);

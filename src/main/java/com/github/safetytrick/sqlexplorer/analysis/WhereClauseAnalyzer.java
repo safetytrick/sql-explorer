@@ -1,18 +1,32 @@
 package com.github.safetytrick.sqlexplorer.analysis;
 
+import java.util.Optional;
+
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ColumnTableResolverFactory;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SchemaAwareTableAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.SimpleColumnAliasResolver;
 import com.github.safetytrick.sqlexplorer.analysis.resolver.TableAliasResolver;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.CriteriaComparison;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import jakarta.inject.Inject;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
+import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.operators.relational.Between;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExistsExpression;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
+import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
+import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
+import net.sf.jsqlparser.expression.operators.relational.MinorThan;
+import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.StatementVisitorAdapter;
@@ -56,6 +70,45 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schema) {
         new WhereClauseVisitor(builder, resolverFactory.forSchema(schema)).visit(statement);
+    }
+
+    // The comparison kinds a criteria column is recorded under (CriteriaComparison.kind).
+    static final String KIND_EQUALITY = "equality";
+    static final String KIND_INEQUALITY = "inequality";
+    static final String KIND_RANGE = "range";
+    static final String KIND_IN = "in";
+    static final String KIND_NOT_IN = "not in";
+    static final String KIND_LIKE = "like";
+    static final String KIND_NOT_LIKE = "not like";
+    static final String KIND_NULL_CHECK = "null check";
+
+    /**
+     * Whether a LIKE pattern starts with a wildcard, when that can be read
+     * from the statement: a string literal, or {@code CONCAT} whose first
+     * argument is one ({@code CONCAT('%', ?)}). Anything else — above all
+     * {@code ?}, which is what a digest leaves of every literal — is unknown
+     * and answers empty. The pattern of a parameter is not guessed at.
+     */
+    static Optional<Boolean> leadingWildcard(Expression pattern) {
+        if (pattern instanceof StringValue literal) {
+            return startsWithWildcard(literal.getValue());
+        }
+        if (pattern instanceof Function function
+            && "CONCAT".equalsIgnoreCase(function.getName())
+            && function.getParameters() != null
+            && !function.getParameters().isEmpty()) {
+            return leadingWildcard(function.getParameters().getFirst());
+        }
+        return Optional.empty();
+    }
+
+    /** Empty for the empty string: CONCAT('', ?) starts wherever the next argument does. */
+    private static Optional<Boolean> startsWithWildcard(String value) {
+        if (value == null || value.isEmpty()) {
+            return Optional.empty();
+        }
+        char first = value.charAt(0);
+        return Optional.of(first == '%' || first == '_');
     }
 
     private class WhereClauseVisitor extends StatementVisitorAdapter<Void> {
@@ -192,6 +245,11 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
 
             private class WhereExpressionVisitor extends ExpressionVisitorAdapter<Void> {
 
+                /** The comparison the columns being visited sit under; null for none. */
+                private String kind;
+                /** For a LIKE kind: its pattern's leading wildcard, empty when unknown. */
+                private Optional<Boolean> leadingWildcard = Optional.empty();
+
                 private WhereExpressionVisitor() {
                     super();
                     setSelectVisitor(WhereSelectVisitor.this);
@@ -209,7 +267,93 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                         return null;
                     }
 
-                    builder.criteriaColumn(ColumnReference.fromComponents(null, tableName, column.getColumnName()));
+                    ColumnReference reference = ColumnReference.fromComponents(null, tableName, column.getColumnName());
+                    builder.criteriaColumn(reference);
+                    if (kind != null) {
+                        builder.criteriaComparison(CriteriaComparison.newBuilder()
+                            .setColumn(reference)
+                            .setKind(kind)
+                            .setLeadingWildcard(leadingWildcard.orElse(null))
+                            .build());
+                    }
+                    return null;
+                }
+
+                /**
+                 * Visits {@code expression} with the columns under it compared
+                 * as {@code kind}. Nested comparisons replace it for their own
+                 * operands; a subquery gets a fresh visitor and starts clean.
+                 */
+                private void compare(Expression expression, String kind, Optional<Boolean> leadingWildcard) {
+                    if (expression == null) {
+                        return;
+                    }
+                    String previousKind = this.kind;
+                    Optional<Boolean> previousWildcard = this.leadingWildcard;
+                    this.kind = kind;
+                    this.leadingWildcard = leadingWildcard;
+                    try {
+                        expression.accept(this);
+                    } finally {
+                        this.kind = previousKind;
+                        this.leadingWildcard = previousWildcard;
+                    }
+                }
+
+                private void compareBoth(net.sf.jsqlparser.expression.BinaryExpression expression, String kind) {
+                    compare(expression.getLeftExpression(), kind, Optional.empty());
+                    compare(expression.getRightExpression(), kind, Optional.empty());
+                }
+
+                @Override
+                public <S> Void visit(NotEqualsTo notEqualsTo, S context) {
+                    compareBoth(notEqualsTo, KIND_INEQUALITY);
+                    return null;
+                }
+
+                @Override
+                public <S> Void visit(GreaterThan greaterThan, S context) {
+                    compareBoth(greaterThan, KIND_RANGE);
+                    return null;
+                }
+
+                @Override
+                public <S> Void visit(GreaterThanEquals greaterThanEquals, S context) {
+                    compareBoth(greaterThanEquals, KIND_RANGE);
+                    return null;
+                }
+
+                @Override
+                public <S> Void visit(MinorThan minorThan, S context) {
+                    compareBoth(minorThan, KIND_RANGE);
+                    return null;
+                }
+
+                @Override
+                public <S> Void visit(MinorThanEquals minorThanEquals, S context) {
+                    compareBoth(minorThanEquals, KIND_RANGE);
+                    return null;
+                }
+
+                @Override
+                public <S> Void visit(Between between, S context) {
+                    compare(between.getLeftExpression(), KIND_RANGE, Optional.empty());
+                    compare(between.getBetweenExpressionStart(), KIND_RANGE, Optional.empty());
+                    compare(between.getBetweenExpressionEnd(), KIND_RANGE, Optional.empty());
+                    return null;
+                }
+
+                @Override
+                public <S> Void visit(InExpression in, S context) {
+                    String inKind = in.isNot() ? KIND_NOT_IN : KIND_IN;
+                    compare(in.getLeftExpression(), inKind, Optional.empty());
+                    compare(in.getRightExpression(), inKind, Optional.empty());
+                    return null;
+                }
+
+                @Override
+                public <S> Void visit(IsNullExpression isNull, S context) {
+                    compare(isNull.getLeftExpression(), KIND_NULL_CHECK, Optional.empty());
                     return null;
                 }
 
@@ -220,7 +364,7 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
 
                 @Override
                 public <S> Void visit(EqualsTo equalsTo, S context) {
-                    super.visit(equalsTo, context);
+                    compareBoth(equalsTo, KIND_EQUALITY);
 
                     SimpleColumnAliasResolver visitor = new SimpleColumnAliasResolver(aliasResolver);
                     String leftColumn = visitor.columnReference(equalsTo.getLeftExpression());
@@ -235,6 +379,27 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                 @Override
                 public <S> Void visit(ExistsExpression expr, S context) {
                     return super.visit(expr, context);
+                }
+
+                /**
+                 * LIKE stays criteria, qualified by its kind (sqlx-n5j.7): the
+                 * matched side is a like / not like comparison carrying the
+                 * pattern's leading wildcard where it can be read, and the
+                 * pattern side, if it holds a column, is criteria with no
+                 * comparison. REGEXP, RLIKE and the rest share the expression
+                 * class but not LIKE's index behaviour, so they get no kind.
+                 */
+                @Override
+                public <S> Void visit(LikeExpression like, S context) {
+                    if (like.getLikeKeyWord() != LikeExpression.KeyWord.LIKE) {
+                        compare(like.getLeftExpression(), null, Optional.empty());
+                        compare(like.getRightExpression(), null, Optional.empty());
+                        return null;
+                    }
+                    compare(like.getLeftExpression(), like.isNot() ? KIND_NOT_LIKE : KIND_LIKE,
+                        leadingWildcard(like.getRightExpression()));
+                    compare(like.getRightExpression(), null, Optional.empty());
+                    return null;
                 }
             }
         }

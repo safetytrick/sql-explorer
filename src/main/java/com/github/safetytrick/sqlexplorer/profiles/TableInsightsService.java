@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
+import com.github.safetytrick.sqlexplorer.avro.CriteriaComparison;
 import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
@@ -36,6 +38,10 @@ public class TableInsightsService {
     static final String ROLE_CRITERIA = "criteria";
     static final String ROLE_SELECT = "select";
     static final String ROLE_GROUP_BY = "group by";
+    static final String ROLE_ORDER_BY = "order by";
+
+    private static final String KIND_LIKE = "like";
+    private static final String KIND_NOT_LIKE = "not like";
 
     private final SqlRepositoryService sqlRepositoryService;
     private final SqlSchemaService sqlSchemaService;
@@ -77,7 +83,10 @@ public class TableInsightsService {
                     column.characterSet(),
                     column.collation(),
                     List.copyOf(columnUsage.roles),
-                    columnUsage.queries);
+                    columnUsage.queries,
+                    Map.copyOf(columnUsage.comparisons),
+                    columnUsage.likeQueries == 0 ? null : new LikeUsage(columnUsage.likeQueries,
+                        columnUsage.leadingWildcardQueries, columnUsage.unknownWildcardQueries));
             })
             .toList();
     }
@@ -162,8 +171,49 @@ public class TableInsightsService {
             for (ColumnReference groupBy : nullSafe(profile.getGroupByColumns())) {
                 addUsage(usage, table, groupBy, ROLE_GROUP_BY, countedThisQuery);
             }
+            for (ColumnReference orderBy : nullSafe(profile.getOrderByColumns())) {
+                addUsage(usage, table, orderBy, ROLE_ORDER_BY, countedThisQuery);
+            }
+            addComparisons(usage, table, profile.getCriteriaComparisons());
         });
         return usage;
+    }
+
+    /**
+     * Qualifies the criteria role with how one query compares each column:
+     * per kind, and for LIKE whether the pattern's leading wildcard is known
+     * (sqlx-n5j.7). Every count is of distinct queries.
+     */
+    private static void addComparisons(Map<String, Usage> usage, TableReference table,
+                                       List<CriteriaComparison> comparisons) {
+        if (comparisons == null) {
+            return;
+        }
+        Map<String, Set<String>> kindsThisQuery = new HashMap<>();
+        Set<String> likeThisQuery = new HashSet<>();
+        Set<String> leadingThisQuery = new HashSet<>();
+        Set<String> unknownThisQuery = new HashSet<>();
+        for (CriteriaComparison comparison : comparisons) {
+            String key = columnKey(table, comparison.getColumn());
+            if (key == null) {
+                continue;
+            }
+            Usage columnUsage = usage.computeIfAbsent(key, k -> new Usage());
+            if (kindsThisQuery.computeIfAbsent(key, k -> new HashSet<>()).add(comparison.getKind())) {
+                columnUsage.comparisons.merge(comparison.getKind(), 1, Integer::sum);
+            }
+            if (KIND_LIKE.equals(comparison.getKind()) || KIND_NOT_LIKE.equals(comparison.getKind())) {
+                if (likeThisQuery.add(key)) {
+                    columnUsage.likeQueries++;
+                }
+                if (Boolean.TRUE.equals(comparison.getLeadingWildcard()) && leadingThisQuery.add(key)) {
+                    columnUsage.leadingWildcardQueries++;
+                }
+                if (comparison.getLeadingWildcard() == null && unknownThisQuery.add(key)) {
+                    columnUsage.unknownWildcardQueries++;
+                }
+            }
+        }
     }
 
     /** Per-index hint actions and distinct query counts, in one pass over the table's queries. */
@@ -191,20 +241,25 @@ public class TableInsightsService {
 
     private static void addUsage(Map<String, Usage> usage, TableReference table, ColumnReference column,
                                  String role, Set<String> countedThisQuery) {
-        if (column == null || column.getTable() == null || !column.getTable().equalsNormalized(table)) {
+        String key = columnKey(table, column);
+        if (key == null) {
             return;
         }
-        // analysis keeps raw names (possibly backticked) in column; match on the normalized name
-        String name = column.getNormalizedColumn() != null ? column.getNormalizedColumn() : column.getColumn();
-        if (name == null) {
-            return;
-        }
-        String key = lower(name);
         Usage columnUsage = usage.computeIfAbsent(key, k -> new Usage());
         columnUsage.roles.add(role);
         if (countedThisQuery.add(key)) {
             columnUsage.queries++;
         }
+    }
+
+    /** The usage key of a column of {@code table}; null for another table's column. */
+    private static String columnKey(TableReference table, ColumnReference column) {
+        if (column == null || column.getTable() == null || !column.getTable().equalsNormalized(table)) {
+            return null;
+        }
+        // analysis keeps raw names (possibly backticked) in column; match on the normalized name
+        String name = column.getNormalizedColumn() != null ? column.getNormalizedColumn() : column.getColumn();
+        return name == null ? null : lower(name);
     }
 
     private static String lower(String value) {
@@ -215,9 +270,24 @@ public class TableInsightsService {
         return columns == null ? List.of() : columns;
     }
 
+    /**
+     * One column and how queries use it. {@code comparisons} qualifies the
+     * criteria role: per comparison kind (equality, range, in, like, ...), the
+     * distinct queries comparing the column that way. {@code like} is null
+     * unless some query pattern-matches on it.
+     */
     public record ColumnUsage(String name, String type, int size, boolean nullable, boolean autoIncrement,
                               boolean primaryKey, boolean foreignKey, String characterSet, String collation,
-                              List<String> roles, int queries) { }
+                              List<String> roles, int queries, Map<String, Integer> comparisons,
+                              LikeUsage like) { }
+
+    /**
+     * The criteria role's LIKE qualifier (sqlx-n5j.7): distinct queries
+     * matching the column with LIKE or NOT LIKE, those whose pattern is known
+     * to start with a wildcard (no index prefix can serve them), and those
+     * whose pattern could not be read — usually a {@code ?} parameter.
+     */
+    public record LikeUsage(int queries, int leadingWildcard, int unknownWildcard) { }
 
     /**
      * One index and how queries hint it. {@code hints} holds the actions —
@@ -234,6 +304,10 @@ public class TableInsightsService {
         static final Usage NONE = new Usage();
         private final Set<String> roles = new TreeSet<>();
         private int queries;
+        private final Map<String, Integer> comparisons = new TreeMap<>();
+        private int likeQueries;
+        private int leadingWildcardQueries;
+        private int unknownWildcardQueries;
         /** The first spelling seen, for an index the schema does not name. */
         private String name;
     }

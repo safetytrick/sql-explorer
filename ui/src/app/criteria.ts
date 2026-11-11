@@ -107,7 +107,8 @@ const SCALARS: ScalarKind[] = [
     clear: s => { s.analysisSkipped = false; } },
   { key: 'failKind', label: 'failure', value: s => s.failureKind?.toLowerCase() ?? null,
     clear: s => { s.failureKind = null; } },
-  { key: 'hinted', label: 'index hint', value: s => s.hinted?.toLowerCase() ?? null, clear: s => { s.hinted = null; } }
+  { key: 'hinted', label: 'index hint', value: s => s.hinted?.toLowerCase() ?? null, clear: s => { s.hinted = null; } },
+  { key: 'generator', label: 'generator', value: s => s.generator, clear: s => { s.generator = null; } }
 ];
 
 const listKey = (kind: string, value: string) => `${kind}:${value}`;

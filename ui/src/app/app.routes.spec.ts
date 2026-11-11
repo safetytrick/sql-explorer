@@ -5,6 +5,7 @@ import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideLocationMocks} from '@angular/common/testing';
 import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
+import {TableDdlComponent} from './table-ddl/table-ddl.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {NotFoundComponent} from './not-found/not-found.component';
 import {McpSetupComponent} from './mcp-setup/mcp-setup.component';
@@ -70,6 +71,13 @@ describe('appRoutes: the table drill-downs', () => {
     expect(matched()).toBe(TableLensComponent);
     // ?tables=a,b + tableMode=ALL is what the lens's own join toggle writes
     expect(router.url).toBe('/table/app_main/group_member?tables=app_main.group_member,app_main.user_group&tableMode=ALL');
+  });
+
+  it('opens the change page rather than reading "ddl" as a column', async () => {
+    await router.navigateByUrl('/table/app_main/user_profile/ddl?var-op=add-index');
+
+    expect(matched()).toBe(TableDdlComponent);
+    expect(router.url).toBe('/table/app_main/user_profile/ddl?var-op=add-index');
   });
 
   it('keeps the retired routes ahead of the column drill-down', async () => {

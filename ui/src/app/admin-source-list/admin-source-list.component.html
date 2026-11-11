@@ -18,11 +18,18 @@
     </div>
     <div class="table-scroll">
       <table class="data-table">
-        <thead><tr><th>server</th><th>schema</th></tr></thead>
+        <thead><tr><th>server</th><th><span class="term" [title]="rolesTerm">roles</span></th><th>schema</th></tr></thead>
         <tbody>
           @for (server of environment.servers; track server.name) {
             <tr>
               <td class="mono">{{server.name}}</td>
+              <td class="roles">
+                @for (role of server.roles ?? []; track role) {
+                  <span class="role-chip" [class.sampling]="role === 'sampling'">{{role}}</span>
+                } @empty {
+                  <span class="dim">—</span>
+                }
+              </td>
               <td [class.state-loaded]="server.schemaLoaded" [class.state-unloaded]="!server.schemaLoaded">
                 {{server.schemaLoaded ? 'loaded' : 'not loaded'}}</td>
             </tr>
@@ -30,6 +37,15 @@
         </tbody>
       </table>
     </div>
+    @if (environment.sampling; as sampling) {
+      <p class="sampling-line" [class.unavailable]="!sampling.available">
+        @if (sampling.available) {
+          Sampling queries go to <span class="mono">{{sampling.server}}</span>, read-only and time-limited.
+        } @else {
+          No sampling: {{sampling.reason}}
+        }
+      </p>
+    }
     <div class="ops">
       <button class="btn primary" [disabled]="pulling" (click)="pullNow()"
         title="Read the servers' performance_schema now and write a capture."> {{pulling ? 'Pulling…' : 'Pull now'}} </button>
@@ -85,3 +101,6 @@
     <button class="btn" [disabled]="loading" (click)="cancelChange()"> Cancel </button>
   </div>
 </div>
+
+<!-- Which ORMs this environment uses, confirmed by a person (sqlx-n5j.12). -->
+<app-generators-card></app-generators-card>

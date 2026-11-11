@@ -48,7 +48,8 @@ class EnvironmentResource {
 
     private EnvironmentSummary summarize(Environment environment) {
         List<ServerSummary> servers = environment.getServers().stream()
-            .map(server -> new ServerSummary(server.getName(), server.isSchemaLoaded()))
+            .map(server -> new ServerSummary(server.getName(), server.isSchemaLoaded(),
+                server.getRoles().stream().map(ServerRole::configName).toList()))
             .toList();
         SqlRepositoryManager.LoadState state = sqlRepositoryManager.getLoadState(environment.getName());
         SourcesSummary sources = state == null
@@ -56,7 +57,7 @@ class EnvironmentResource {
             : new SourcesSummary(true, state.sourceCount(), state.loadedOn(), state.importStats(),
                 state.resident());
         return new EnvironmentSummary(environment.getName(), servers, sources, environment.isCached(),
-            environmentLoader.health(environment.getName()));
+            environmentLoader.health(environment.getName()), environment.samplingStatus());
     }
 
     /**
@@ -109,11 +110,14 @@ class EnvironmentResource {
      * @param cached whether it is served from its cache with no server
      *               connected; a pull takes it live (sqlx-nbi)
      * @param health its state and anything wrong with it, for the selector (sqlx-nbi.8)
+     * @param sampling which server sampling queries would go to, or why none (sqlx-n5j.4)
      */
     record EnvironmentSummary(String name, List<ServerSummary> servers, SourcesSummary sources, boolean cached,
-                              com.github.safetytrick.sqlexplorer.evidence.EnvironmentHealth health) { }
+                              com.github.safetytrick.sqlexplorer.evidence.EnvironmentHealth health,
+                              Environment.SamplingStatus sampling) { }
 
-    record ServerSummary(String name, boolean schemaLoaded) { }
+    /** @param roles what config says the server is for, lowercase: primary, replica, analytics, sampling */
+    record ServerSummary(String name, boolean schemaLoaded, List<String> roles) { }
 
     /**
      * @param resident whether the corpus is in heap right now. An environment

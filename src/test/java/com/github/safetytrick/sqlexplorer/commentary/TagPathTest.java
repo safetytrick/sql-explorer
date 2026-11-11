@@ -134,4 +134,36 @@ class TagPathTest {
         assertThatThrownBy(() -> BulkTagService.typeOf("/schema/probe/table/a/b"))
             .isInstanceOf(BulkTagRequestException.class);
     }
+
+    /** A column is a table path plus one segment (sqlx-n5j.1). */
+    @Test
+    void aColumnPathIsAColumnTarget() {
+        TagPath path = TagPath.require("/schema/app/table/account/column/status");
+
+        assertThat(path.type()).isEqualTo("column");
+        assertThat(path.toTarget()).isEqualTo(TagTarget.ofColumn("app", "account", "status"));
+        assertThat(path.elements()).containsOnlyKeys("schema", "table", "column")
+            .containsEntry("column", "status");
+        assertThat(TagTarget.ofColumn("app", "account", "status").path())
+            .isEqualTo("/schema/app/table/account/column/status");
+        assertThat(BulkTagService.typeOf("/schema/app/table/account/column/status")).isEqualTo("column");
+    }
+
+    /** As strict as the table shape: an empty or separated column segment is refused. */
+    @Test
+    void aMalformedColumnPathIsRefused() {
+        assertThat(TagPath.parse("/schema/app/table/account/column/")).isNull();
+        assertThat(TagPath.parse("/schema/app/table/account/column/a/b")).isNull();
+        assertThat(TagPath.parse("/schema/app/table//column/status")).isNull();
+    }
+
+    @Test
+    void aColumnTagHasItsElements() {
+        Tag tag = new Tag();
+        tag.target(TagTarget.ofColumn("app", "account", "status"));
+
+        assertThat(tag.getType()).isEqualTo("column");
+        assertThat(tag.getPathElements()).containsEntry("column", "status").containsEntry("table", "account");
+        assertThat(tag.getTarget()).isEqualTo(TagTarget.ofColumn("app", "account", "status"));
+    }
 }

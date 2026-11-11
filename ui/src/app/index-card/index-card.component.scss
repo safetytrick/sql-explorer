@@ -1,0 +1,49 @@
+:host { display: block; }
+
+.mono { font-family: var(--mono); }
+.dim { color: var(--text3); }
+.dim2 { color: var(--text2); }
+
+.badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &.b-pk   { background: var(--blue-dim); color: var(--blue); }
+  &.b-idx  { background: var(--green-dim); color: var(--green); }
+  &.b-warn { background: var(--amber-dim); color: var(--amber); }
+}
+
+// index hint actions (sqlx-yj0): FORCE overrides the optimizer, so it is the loud one
+.rp {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  margin-right: 3px;
+
+  &.rp-force  { background: var(--amber-dim); color: var(--amber); }
+  &.rp-use    { background: var(--blue-dim); color: var(--blue); }
+  &.rp-ignore { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
+}
+
+.index-list { padding: 8px 12px; display: flex; flex-direction: column; gap: 7px; }
+.index-row {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  &:last-child { border-bottom: none; }
+
+  .index-head { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
+  .index-queries { margin-left: auto; font-size: 10px; color: var(--text2); }
+  .index-hints { margin-top: 3px; }
+  .warn-note { font-size: 10px; color: var(--amber); }
+
+  &.drillable {
+    cursor: pointer;
+    &:hover { background: var(--bg3); }
+  }
+  &.on { background: var(--bg3); box-shadow: inset 2px 0 0 var(--blue); }
+}

@@ -75,6 +75,44 @@ class TableInsightsServiceTest {
         assertThat(columns.get(2).nullable()).isTrue();
     }
 
+    /**
+     * ORDER BY is a role of its own (sqlx-n5j.8); LIKE is not — it qualifies
+     * the criteria role with how the column is compared (sqlx-n5j.7).
+     */
+    @Test
+    void orderByIsARoleAndLikeQualifiesCriteria() {
+        when(sqlSchemaService.getTable(SESSIONS)).thenReturn(structure());
+        SqlProfile leading = profile("q1", null, List.of(criteria(SESSIONS, "token")), List.of());
+        leading.setOrderByColumns(List.of(criteria(SESSIONS, "status")));
+        leading.setCriteriaComparisons(List.of(
+            comparison("token", "like", true),
+            // a second LIKE on the same column in the same query counts the query once
+            comparison("token", "like", false)));
+        SqlProfile unknown = profile("q2", null,
+            List.of(criteria(SESSIONS, "token"), criteria(SESSIONS, "status")), List.of());
+        unknown.setCriteriaComparisons(List.of(
+            comparison("token", "not like", null),
+            comparison("status", "equality", null)));
+        when(sqlRepositoryService.getTableQueries(SESSIONS)).thenAnswer(inv -> Stream.of(leading, unknown));
+
+        List<ColumnUsage> columns = service.getColumns(SESSIONS);
+        ColumnUsage status = columns.get(2);
+        ColumnUsage token = columns.get(3);
+
+        assertThat(status.roles()).containsExactly("criteria", "order by");
+        assertThat(status.comparisons()).isEqualTo(java.util.Map.of("equality", 1));
+        assertThat(status.like()).isNull();
+        assertThat(token.roles()).containsExactly("criteria");
+        assertThat(token.comparisons()).isEqualTo(java.util.Map.of("like", 1, "not like", 1));
+        assertThat(token.like()).isEqualTo(new TableInsightsService.LikeUsage(2, 1, 1));
+    }
+
+    private static com.github.safetytrick.sqlexplorer.avro.CriteriaComparison comparison(
+        String column, String kind, Boolean leadingWildcard) {
+        return new com.github.safetytrick.sqlexplorer.avro.CriteriaComparison(criteria(SESSIONS, column), kind,
+            leadingWildcard);
+    }
+
     @Test
     void mergesIndexMetadataWithHintUsage() {
         TableIndex.Builder byUser = TableIndex.builder().name("sessions_user_idx");

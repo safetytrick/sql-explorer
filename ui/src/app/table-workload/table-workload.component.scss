@@ -1,0 +1,56 @@
+:host { display: block; }
+
+.mono { font-family: var(--mono); }
+.dim { color: var(--text3); }
+.hot { color: var(--amber); }
+
+.workload-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+.summary-val { font-family: var(--mono); font-size: 16px; color: var(--text); margin-top: 2px; }
+
+.summary-types { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.type-total {
+  font-size: 11px;
+  color: var(--text2);
+  padding: 2px 8px;
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.type-name { color: var(--text); margin-right: 3px; }
+
+// bounded, so a table with many writers does not push the queries below the fold
+.workload-scroll { max-height: 320px; overflow: auto; }
+
+.stmt-cell { max-width: 0; width: 60%; }
+.stmt-type { color: var(--blue); text-decoration: none; font-size: 11px; margin-right: 6px; }
+.stmt-type:hover { color: var(--link-hover); }
+.stmt-sql {
+  font-size: 11px;
+  color: var(--text3);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multi {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  border: 1px solid var(--amber-dim);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.lock-note { border-bottom: 1px solid var(--border); }
+.lock-note.calm { border-left-color: var(--green); }

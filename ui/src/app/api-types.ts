@@ -107,6 +107,33 @@ export interface SqlProfile {
    * backend older than the field.
    */
   indexHints?: IndexHint[] | null;
+  /** Columns the statement sorts by (sqlx-n5j.8). Optional like `indexHints`. */
+  orderByColumns?: ColumnRef[] | null;
+  /**
+   * How the criteria columns are compared, LIKE included (sqlx-n5j.7): a
+   * qualifier on `criteriaColumns`, not a role. Optional like `indexHints`.
+   */
+  criteriaComparisons?: CriteriaComparison[] | null;
+  /**
+   * Generator signatures the statement matched, one per rule (sqlx-n5j.12).
+   * Candidates only: see `generator-origin.ts` for when one is the origin.
+   */
+  generatorCandidates?: GeneratorCandidate[] | null;
+}
+
+/** One way a WHERE clause compares one criteria column. */
+export interface CriteriaComparison {
+  column: ColumnRef;
+  /** equality, inequality, range, in, not in, like, not like, null check. */
+  kind: string;
+  /** like / not like only: null when the pattern could not be read (a `?`). */
+  leadingWildcard: boolean | null;
+}
+
+/** One generator signature a statement matched. */
+export interface GeneratorCandidate {
+  generator: string;
+  rule: string;
 }
 
 /** One index named by a MySQL index hint on one table. */
@@ -158,6 +185,12 @@ export interface TableRollup {
   tags: Tag[];
   /** True when the schema metadata knows this "table" is a view. */
   view: boolean;
+  /** INSERT/UPDATE/DELETE/REPLACE executions per day, averaged over each statement's window (sqlx-n5j.10). */
+  writesPerDay?: number;
+  /** information_schema TABLE_ROWS — an estimate — summed over shards; null when unknown (sqlx-n5j.2). */
+  rowsEstimate?: number | null;
+  /** DATA_LENGTH + INDEX_LENGTH bytes, summed over shards; null when unknown. */
+  sizeBytes?: number | null;
 }
 
 export interface TableColumn {
@@ -213,6 +246,26 @@ export interface TableStructure {
   underlyingTables: TableRef[] | null;
   /** Per-column lineage for views; null for base tables. */
   viewColumns: { name: string; computed: boolean; sources: ColumnRef[] }[] | null;
+  /** One entry per server (shard) reporting the table; null when none was read (sqlx-n5j.2). */
+  stats?: TableStorageStats[] | null;
+}
+
+/** One server's information_schema.TABLES figures for a table, as of readAt (sqlx-n5j.2). */
+export interface TableStorageStats {
+  server: string;
+  readAt: string;
+  /** TABLE_ROWS: an estimate, never a count. */
+  rowsEstimate: number | null;
+  dataLength: number | null;
+  indexLength: number | null;
+  dataFree: number | null;
+  avgRowLength: number | null;
+  autoIncrement: number | null;
+  rowFormat: string | null;
+  engine: string | null;
+  createTime: string | null;
+  updateTime: string | null;
+  tableCollation: string | null;
 }
 
 /** Per-table profile view (model/Table). */

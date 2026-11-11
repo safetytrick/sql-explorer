@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import tools.jackson.databind.module.SimpleModule;
 import com.github.safetytrick.sqlexplorer.avro.IndexHint;
+import com.github.safetytrick.sqlexplorer.avro.CriteriaComparison;
 import com.github.safetytrick.sqlexplorer.avro.MergedChild;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
@@ -37,6 +38,9 @@ public class SpecificRecordBaseSerde {
         module.setMixInAnnotation(RepeatedBlock.class, JacksonSpecificRecordBaseMixin.class);
         module.setMixInAnnotation(MergedChild.class, JacksonSpecificRecordBaseMixin.class);
         module.setMixInAnnotation(IndexHint.class, JacksonSpecificRecordBaseMixin.class);
+        module.setMixInAnnotation(CriteriaComparison.class, JacksonSpecificRecordBaseMixin.class);
+        module.setMixInAnnotation(com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate.class,
+            JacksonSpecificRecordBaseMixin.class);
         return module;
     }
 }

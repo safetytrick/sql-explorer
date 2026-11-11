@@ -46,6 +46,22 @@
   &.dormant { background: var(--bg3); color: var(--text3); }
 }
 
+// Which generator wrote it (sqlx-n5j.12). Solid once asserted; a candidate is
+// dashed and dimmer, so an unconfirmed guess never reads as a fact.
+.generator {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+  padding: 1px 8px;
+  border: 1px solid var(--teal);
+  border-radius: 10px;
+  color: var(--teal);
+
+  .term { color: var(--text3); }
+  &.candidate { border-style: dashed; border-color: var(--border2); color: var(--text2); }
+}
+
 .badge {
   font-size: 9px;
   padding: 1px 6px;
@@ -396,6 +412,8 @@
 .join-list { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
 
 .ref-list { flex-direction: row; flex-wrap: wrap; gap: 5px; }
+/* LIKE qualifies a criteria column (sqlx-n5j.7); it sits after the column it describes */
+.like-qual { font-size: 10px; color: var(--amber); align-self: center; margin-left: -2px; }
 
 .ref-list a,
 .join-row a {

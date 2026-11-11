@@ -42,7 +42,7 @@ public class Tag {
         org.hibernate.generator.EventType.UPDATE})
     private String path;
 
-    /** {@code schema}, {@code table} or {@code query} — what this tag addresses. */
+    /** {@code schema}, {@code table}, {@code column} or {@code query} — what this tag addresses. */
     private String type;
 
     /**
@@ -56,6 +56,8 @@ public class Tag {
     private String schemaName = "";
     private String tableName = "";
     private String queryDigest = "";
+    /** The column, for a column tag (sqlx-n5j.1). Empty otherwise, for the same reason. */
+    private String columnName = "";
 
     /**
      * Which environment this association belongs to.
@@ -87,6 +89,9 @@ public class Tag {
         if (tableName != null && !tableName.isEmpty()) {
             elements.put("table", tableName);
         }
+        if (columnName != null && !columnName.isEmpty()) {
+            elements.put("column", columnName);
+        }
         if (queryDigest != null && !queryDigest.isEmpty()) {
             elements.put("query", queryDigest);
         }
@@ -100,11 +105,12 @@ public class Tag {
         this.schemaName = normalized.schema();
         this.tableName = normalized.table();
         this.queryDigest = normalized.digest();
+        this.columnName = normalized.column();
     }
 
     /** What this tag points at. */
     public TagTarget getTarget() {
-        return new TagTarget(type, schemaName, tableName, queryDigest).normalized();
+        return new TagTarget(type, schemaName, tableName, queryDigest, columnName).normalized();
     }
 
 }

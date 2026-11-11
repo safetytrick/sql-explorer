@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.model;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.github.safetytrick.sqlexplorer.avro.IndexHint;
+import com.github.safetytrick.sqlexplorer.avro.CriteriaComparison;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
@@ -156,6 +157,16 @@ public class MergedSqlProfile extends SqlProfile {
     }
 
     @Override
+    public List<ColumnReference> getOrderByColumns() {
+        return first().getOrderByColumns();
+    }
+
+    @Override
+    public List<CriteriaComparison> getCriteriaComparisons() {
+        return first().getCriteriaComparisons();
+    }
+
+    @Override
     public List<String> getSchemas() {
         return first().getSchemas();
     }
@@ -188,6 +199,11 @@ public class MergedSqlProfile extends SqlProfile {
     @Override
     public String getGeneratedSource() {
         return first().getGeneratedSource();
+    }
+
+    @Override
+    public List<com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate> getGeneratorCandidates() {
+        return first().getGeneratorCandidates();
     }
 
     @Override

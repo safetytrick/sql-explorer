@@ -1,0 +1,98 @@
+@if (result; as r) {
+  @if (r.error) {
+    <div class="lens-card"><div class="card-empty">{{r.error}}</div></div>
+  } @else {
+    <div class="lens-card summary">
+      <div class="verdict" [attr.data-algorithm]="r.algorithm">
+        <span class="verdict-label">Predicted</span>
+        <span class="verdict-value">{{algorithmLabel(r.algorithm)}}</span>
+      </div>
+      <div class="facts">
+        <div><span class="k">Table</span>
+          @if (linkTable && r.tableFacts?.known && r.schema) {
+            <a class="mono" [routerLink]="['/table', r.schema, r.table]">{{r.schema}}.{{r.table}}</a>
+          } @else if (r.tableFacts?.known) {
+            <span class="mono">{{r.table}}</span>
+          } @else { <span class="mono">{{r.table}}</span> <span class="muted">not in the snapshot</span> }
+        </div>
+        @if (r.tableFacts; as f) {
+          <div><span class="k">Rows (est.)</span><span class="mono">{{formatRowsEstimate(f.rowsEstimate)}}</span></div>
+          <div><span class="k">Size</span><span class="mono">{{formatBytes(f.sizeBytes)}}</span></div>
+          @if (f.rowFormat) { <div><span class="k">Row format</span><span class="mono">{{f.rowFormat}}</span></div> }
+          @if (f.declaredCollation) { <div><span class="k">Default collation</span><span class="mono">{{f.declaredCollation}}</span></div> }
+        }
+        @if (r.workload; as w) {
+          <div><span class="k">Writes / day</span><span class="mono">{{w.writesPerDay | number:'1.0-0'}}</span></div>
+          <div><span class="k">Long statements</span><span class="mono">{{w.longStatements}} ≥ {{w.longThresholdMs / 1000 | number:'1.0-1'}} s</span></div>
+        }
+      </div>
+    </div>
+
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">Recommendation</span></div>
+      <ul class="recs">
+        @for (rec of r.recommendations; track rec) { <li>{{rec}}</li> }
+      </ul>
+    </div>
+
+    @if (r.choices?.length) {
+      <div class="lens-card">
+        <div class="card-head"><span class="card-head-title">ALGORITHM= choices</span>
+          <span class="card-head-note">what stating each would mean for this change</span></div>
+        <div class="table-scroll">
+          <table class="data-table choices">
+            <tbody>
+              @for (c of r.choices; track c.algorithm) {
+                <tr [class.asked]="c.requested" [attr.data-outcome]="c.outcome">
+                  <td class="mono choice">{{c.algorithm === 'DEFAULT' ? 'none stated' : 'ALGORITHM=' + c.algorithm}}
+                    @if (c.requested) { <span class="asked-tag">this statement</span> }</td>
+                  <td class="outcome">{{choiceOutcomeLabel(c.outcome)}}</td>
+                  <td class="why">{{c.implication}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">Checks</span></div>
+      <ul class="checks">
+        @for (c of checks; track c.title) {
+          <li [attr.data-severity]="c.severity">
+            <span class="sev">{{c.severity.toLowerCase()}}</span>
+            <div><strong>{{c.title}}</strong><p>{{c.detail}}</p></div>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">Clauses</span>
+        <span class="card-head-note">MySQL runs the statement with the costliest</span></div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Clause</th><th>Algorithm</th><th>Writes</th><th>Why</th></tr></thead>
+          <tbody>
+            @for (c of r.clauses; track $index) {
+              <tr>
+                <td class="clause"><code [sqlHighlight]="c.text"></code></td>
+                <td class="mono alg" [attr.data-algorithm]="c.algorithm">{{c.algorithm.replace('_', ' ')}}</td>
+                <td>{{c.concurrentDml ? 'continue' : 'blocked'}}</td>
+                <td class="why">{{c.reason}}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (r.unknowns.length) {
+      <div class="lens-card">
+        <div class="card-head"><span class="card-head-title">Not known from the snapshot</span></div>
+        <ul class="recs muted">@for (u of r.unknowns; track u) { <li>{{u}}</li> }</ul>
+      </div>
+    }
+  }
+}

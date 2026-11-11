@@ -96,6 +96,14 @@ public record QuerySearchRequest(
      * the index rather than the action (sqlx-yj0.5).
      */
     HintAction hinted,
+    /**
+     * Keep only queries a generator's signatures matched: a generator name
+     * (e.g. {@code doctrine-orm}) keeps those with it among their candidates,
+     * {@code none} keeps those matching no generator. Null does not constrain.
+     * Candidates, not confirmed origins: whether the environment uses the
+     * generator is applied when a result is shown, not here (sqlx-n5j.12).
+     */
+    String generator,
     Flag fullScan,
     Flag tmpTable,
     Flag tmpDisk,
@@ -182,5 +190,5 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 }

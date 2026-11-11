@@ -21,7 +21,8 @@ class SchemaMcpTools implements McpToolProvider {
         return List.of(
             McpTool.named("get_table_structure", "Table metadata: columns, indexes, foreign keys, type (TABLE/VIEW) — "
                     + "and for views, the base tables (underlyingTables) and per-column lineage (viewColumns). "
-                    + "null when the table is unknown.")
+                    + "stats: per server, information_schema.TABLES figures (rowsEstimate is an estimate, sizes in bytes) "
+                    + "with when they were read. null when the table is unknown.")
                 .string("schema", null).string("table", null)
                 .handler(args -> {
                     Object structure = schema.getTableStructure(args.string("schema"), args.string("table"));

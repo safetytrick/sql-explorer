@@ -8,6 +8,9 @@ import {Tag, TableRollup} from '../api-types';
 import {matchesTypeFilter, TypeFilter} from '../schema-tree/tree-filter';
 import {tableTarget} from '../tag-path';
 import {tableKey} from '../table-names/table-search-url';
+import {TableSort} from '../table-names/sort-url';
+import {fmtPerDay} from '../table-workload/table-workload.service';
+import {formatBytes, formatRowsEstimate} from '../table-size';
 
 /** Rows drawn at a time in a long table list (sqlx-c8w.11). */
 export const RENDER_STEP = 250;
@@ -23,6 +26,8 @@ export class TableListComponent {
   readonly glossary = GLOSSARY;
 
   protected readonly tableTarget = tableTarget;
+  protected readonly formatBytes = formatBytes;
+  protected readonly formatRowsEstimate = formatRowsEstimate;
 
   private rows: TableRollup[] = [];
   private heaviest = 1;
@@ -107,6 +112,16 @@ export class TableListComponent {
    * header, so the column only repeats it on every row (sqlx-c8w.4).
    */
   @Input() showSchema = true;
+
+  /**
+   * The column the page sorts by, which also draws the Writes / day column
+   * and makes both headers clickable. Null — the default — is a list with no
+   * sort control, ranked as it arrived; the page owns the value (and puts it
+   * in the URL), so a click only asks via {@link sortChange}.
+   */
+  @Input() sort: TableSort | null = null;
+  @Output() sortChange = new EventEmitter<TableSort>();
+  protected readonly fmtPerDay = fmtPerDay;
 
   /** Tag chips filter this page by their tag rather than leaving it; for a page with a tag strip (sqlx-c8w.9). */
   @Input() tagFilterInPlace = false;

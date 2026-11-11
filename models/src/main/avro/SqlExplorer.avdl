@@ -52,6 +52,59 @@ protocol SqlExplorer {
 		 * FROM t FORCE INDEX (a, b) is two (sqlx-yj0).
 		 */
 		array<IndexHint> indexHints = [];
+		/**
+		 * Columns the statement sorts by, through table and select-list
+		 * aliases (sqlx-n5j.8).
+		 */
+		array<ColumnReference> orderByColumns = [];
+		/**
+		 * How the statement compares its criteria columns: one entry per
+		 * distinct (column, kind, leadingWildcard). A qualifier on
+		 * criteriaColumns, not a role of its own — every column here is a
+		 * criteria column too. LIKE lives here (sqlx-n5j.7).
+		 */
+		array<CriteriaComparison> criteriaComparisons = [];
+		/**
+		 * Which generators' signatures the statement matches, one entry per
+		 * matching rule (sqlx-n5j.12). CANDIDATES, not an origin: two generators
+		 * can share a pattern, so a match only becomes an asserted origin once a
+		 * person has confirmed the environment uses that generator, and that is
+		 * applied when read rather than stored here. Supersedes generatedSource.
+		 */
+		array<GeneratorCandidate> generatorCandidates = [];
+	}
+
+	/**
+	 * One way a WHERE clause compares one criteria column.
+	 */
+	record CriteriaComparison {
+		ColumnReference column;
+		/**
+		 * equality (=, <=>), inequality (!=, <>), range (<, <=, >, >=,
+		 * BETWEEN), in, not in, like, not like, null check (IS [NOT] NULL).
+		 * Taken from the nearest comparison above the column, so
+		 * LOWER(name) LIKE ? is a like on name. A criteria column under no
+		 * such comparison (WHERE flag, the pattern side of a LIKE) has no
+		 * entry.
+		 */
+		string kind;
+		/**
+		 * like / not like only: whether the pattern starts with a wildcard
+		 * (% or _), which no index prefix can serve. Known only when the
+		 * pattern literal survived into the analysed text; null — unknown —
+		 * when it is a parameter (the usual case: a digest replaces every
+		 * literal with ?) or any other expression.
+		 */
+		boolean? leadingWildcard = null;
+	}
+
+	/**
+	 * One generator signature a statement matched: the generator (e.g.
+	 * doctrine-orm, hibernate) and the rule within its set that matched.
+	 */
+	record GeneratorCandidate {
+		string generator;
+		string rule;
 	}
 
 	/**
@@ -197,6 +250,31 @@ protocol SqlExplorer {
 		boolean computed;
 	}
 
+	/**
+	 * One server's information_schema.TABLES row for a table, as of readAt
+	 * (sqlx-n5j.2). Every figure is nullable: views have none, and a server
+	 * may withhold any of them.
+	 */
+	record SnapshotTableStats {
+		string server;
+		/** Epoch millis of the read. */
+		long readAt;
+		/** TABLE_ROWS: an estimate for InnoDB, not a count. */
+		long? rowsEstimate = null;
+		long? dataLength = null;
+		long? indexLength = null;
+		long? dataFree = null;
+		long? avgRowLength = null;
+		long? autoIncrement = null;
+		string? rowFormat = null;
+		string? engine = null;
+		/** Epoch millis. */
+		long? createTime = null;
+		/** Epoch millis. */
+		long? updateTime = null;
+		string? tableCollation = null;
+	}
+
 	record SnapshotTable {
 		string? schemaName = null;
 		string name;
@@ -209,5 +287,10 @@ protocol SqlExplorer {
 		union { null, array<TableReference> } underlyingTables = null;
 		/** Per-column lineage for a view; null for a base table. */
 		union { null, array<SnapshotViewColumn> } viewColumns = null;
+		/**
+		 * Size and row estimate from the server the snapshot was last
+		 * refreshed from; null in snapshots written before sqlx-n5j.2.
+		 */
+		union { null, SnapshotTableStats } stats = null;
 	}
 }

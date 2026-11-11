@@ -102,6 +102,13 @@ export interface SearchUrlState {
    * hinted queries anywhere (sqlx-yj0.5).
    */
   hinted: HintAction | null;
+  /**
+   * Only queries whose signatures matched this generator (e.g. `doctrine-orm`),
+   * or `none` for queries matching no generator. Null does not constrain.
+   * Filters on candidates; the environment's confirmation decides only how a
+   * match is labelled (sqlx-n5j.12).
+   */
+  generator: string | null;
 }
 
 /** Minimal read surface of Angular's ParamMap, so specs need no router. */
@@ -130,7 +137,8 @@ export function defaultSearchState(): SearchUrlState {
     schemaTagFilter: { includeTags: [], excludeTags: [], tagMode: 'ANY' },
     columns: [],
     indexes: [],
-    hinted: null
+    hinted: null,
+    generator: null
   };
 }
 
@@ -185,6 +193,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   if (state.columns.length) { params['columns'] = state.columns.join(','); }
   if (state.indexes.length) { params['indexes'] = state.indexes.join(','); }
   if (state.hinted) { params['hinted'] = state.hinted; }
+  if (state.generator) { params['generator'] = state.generator; }
   if (state.off.length) { params['off'] = state.off.join(','); }
   return params;
 }
@@ -244,7 +253,8 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     schemaTagFilter: decodeScopeTags(params),
     columns: csv('columns'),
     indexes: csv('indexes'),
-    hinted: decodeHinted(params.get('hinted'))
+    hinted: decodeHinted(params.get('hinted')),
+    generator: params.get('generator')?.trim().toLowerCase() || null
   };
 }
 
@@ -355,6 +365,7 @@ export function buildSearchRequest(asWritten: SearchUrlState,
     columns: state.columns.length ? state.columns : null,
     indexes: state.indexes.length ? state.indexes : null,
     hinted: state.hinted,
+    generator: state.generator,
     fullScan: flag(state.fullScan),
     tmpTable: flag(state.tmpTable),
     tmpDisk: flag(state.tmpDisk),

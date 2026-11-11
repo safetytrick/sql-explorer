@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.auth.UserService;
 import jakarta.transaction.Transactional;
@@ -27,7 +26,6 @@ class TagsResource {
     private final BulkTagService bulkTagService;
     private final CommentaryEnvironment environment;
     private final TagTargetLookup targetLookup;
-    private final Pattern tagPattern = Pattern.compile("[\\w-]+");
 
     public TagsResource(TagRepository tagRepository, UserService userService, BulkTagService bulkTagService,
                         CommentaryEnvironment environment, TagTargetLookup targetLookup) {
@@ -75,7 +73,7 @@ class TagsResource {
     @PostMapping("/tags/targets")
     public List<List<Tag>> tagsForTargets(@RequestBody List<TagTarget> targets) {
         try {
-            return targetLookup.tagsFor(targets.stream().map(TagTarget::validated).toList());
+            return targetLookup.tagsFor(targets.stream().map(TagTarget::validatedForTags).toList());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
@@ -92,9 +90,9 @@ class TagsResource {
         // fixable request to logs they cannot read — the same defect already
         // corrected on the bulk path (sqlx-agl) and the upload path (sqlx-djj);
         // this was the third instance.
-        if (!tagPattern.matcher(createTag.name).matches()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "name must only contain letters, numbers, underscores and hyphens");
+        String nameProblem = Names.tagNameProblem(createTag.name);
+        if (nameProblem != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, nameProblem);
         }
 
         // Validated before anything is looked up or written: the target is
@@ -117,9 +115,9 @@ class TagsResource {
         }
 
         Optional<Tag> existingTag = tagRepository
-            .findByNameAndEnvironmentNameAndTypeAndSchemaNameAndTableNameAndQueryDigest(
+            .findByNameAndEnvironmentNameAndTypeAndSchemaNameAndTableNameAndColumnNameAndQueryDigest(
                 createTag.name, environment.name(), path.type(),
-                path.schema(), path.table(), path.digest());
+                path.schema(), path.table(), path.column(), path.digest());
         if (existingTag.isPresent()) {
             return existingTag.get();
         }
@@ -202,12 +200,12 @@ class TagsResource {
 
     static TagTarget targetOf(CreateTag createTag) {
         if (createTag.getTarget() != null) {
-            return createTag.getTarget().validated();
+            return createTag.getTarget().validatedForTags();
         }
         if (createTag.getPath() == null) {
             throw new IllegalArgumentException("a tag needs a target or a path");
         }
-        return TagPath.require(createTag.getPath()).toTarget().validated();
+        return TagPath.require(createTag.getPath()).toTarget().validatedForTags();
     }
 
     @Data

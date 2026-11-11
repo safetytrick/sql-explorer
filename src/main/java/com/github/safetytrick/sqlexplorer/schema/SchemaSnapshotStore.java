@@ -18,6 +18,7 @@ import com.github.safetytrick.sqlexplorer.avro.SnapshotColumn;
 import com.github.safetytrick.sqlexplorer.avro.SnapshotForeignKey;
 import com.github.safetytrick.sqlexplorer.avro.SnapshotIndex;
 import com.github.safetytrick.sqlexplorer.avro.SnapshotTable;
+import com.github.safetytrick.sqlexplorer.avro.SnapshotTableStats;
 import com.github.safetytrick.sqlexplorer.avro.SnapshotViewColumn;
 import com.github.safetytrick.sqlexplorer.evidence.sink.ParquetConfig;
 import org.apache.hadoop.conf.Configuration;
@@ -55,6 +56,11 @@ public class SchemaSnapshotStore {
     /**
      * Bump when {@link SchemaSnapshot} or what it holds changes shape; older
      * files are then ignored. 2: Parquet, replacing the JSON of format 1.
+     *
+     * <p>Not bumped for an added nullable field: files are read with the
+     * current {@link SnapshotTable} schema as the reader schema, so a field the
+     * file lacks takes its default. Table stats (sqlx-n5j.2) came that way —
+     * a snapshot written before them loads with {@code stats} null.
      */
     public static final int FORMAT = 2;
 
@@ -102,8 +108,11 @@ public class SchemaSnapshotStore {
                 return Optional.empty();
             }
             List<TableStructure> tables = new ArrayList<>();
+            // the current schema as the reader's, so a file written before a field was added still reads
+            PlainParquetConfiguration conf = new PlainParquetConfiguration();
+            conf.set("parquet.avro.read.schema", SnapshotTable.getClassSchema().toString());
             try (ParquetReader<SnapshotTable> rows = AvroParquetReader.<SnapshotTable>builder(
-                    new LocalInputFile(file), new PlainParquetConfiguration()).build()) {
+                    new LocalInputFile(file), conf).build()) {
                 for (SnapshotTable row = rows.read(); row != null; row = rows.read()) {
                     tables.add(fromRow(row));
                 }
@@ -223,7 +232,42 @@ public class SchemaSnapshotStore {
             .setViewColumns(table.viewColumns() == null ? null : table.viewColumns().stream()
                 .map(view -> SnapshotViewColumn.newBuilder().setName(view.name())
                     .setSources(listOf(view.sources())).setComputed(view.computed()).build()).toList())
+            // a cluster's snapshot holds the one server it was read from: one entry at most
+            .setStats(table.stats() == null || table.stats().isEmpty() ? null : toRow(table.stats().getFirst()))
             .build();
+    }
+
+    private static SnapshotTableStats toRow(TableStats stats) {
+        return SnapshotTableStats.newBuilder()
+            .setServer(stats.server())
+            .setReadAt(stats.readAt().toEpochMilli())
+            .setRowsEstimate(stats.rowsEstimate())
+            .setDataLength(stats.dataLength())
+            .setIndexLength(stats.indexLength())
+            .setDataFree(stats.dataFree())
+            .setAvgRowLength(stats.avgRowLength())
+            .setAutoIncrement(stats.autoIncrement())
+            .setRowFormat(stats.rowFormat())
+            .setEngine(stats.engine())
+            .setCreateTime(millis(stats.createTime()))
+            .setUpdateTime(millis(stats.updateTime()))
+            .setTableCollation(stats.tableCollation())
+            .build();
+    }
+
+    private static TableStats fromRow(SnapshotTableStats row) {
+        return new TableStats(row.getServer(), Instant.ofEpochMilli(row.getReadAt()), row.getRowsEstimate(),
+            row.getDataLength(), row.getIndexLength(), row.getDataFree(), row.getAvgRowLength(),
+            row.getAutoIncrement(), row.getRowFormat(), row.getEngine(), instant(row.getCreateTime()),
+            instant(row.getUpdateTime()), row.getTableCollation());
+    }
+
+    private static Long millis(Instant instant) {
+        return instant == null ? null : instant.toEpochMilli();
+    }
+
+    private static Instant instant(Long millis) {
+        return millis == null ? null : Instant.ofEpochMilli(millis);
     }
 
     static TableStructure fromRow(SnapshotTable row) {
@@ -245,7 +289,8 @@ public class SchemaSnapshotStore {
             row.getUnderlyingTables() == null ? null : List.copyOf(row.getUnderlyingTables()),
             row.getViewColumns() == null ? null : row.getViewColumns().stream()
                 .map(view -> new ViewColumn(view.getName(), List.copyOf(view.getSources()), view.getComputed()))
-                .toList());
+                .toList(),
+            row.getStats() == null ? null : List.of(fromRow(row.getStats())));
     }
 
     private static <T> List<T> listOf(List<T> list) {

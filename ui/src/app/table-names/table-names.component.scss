@@ -87,7 +87,8 @@
   &::placeholder { color: var(--text3); font-family: inherit; }
 }
 
-.unqueried-link {
+.unqueried-link,
+.encodings-link {
   text-decoration: none;
   color: var(--text3);
   &:hover { color: var(--blue); }

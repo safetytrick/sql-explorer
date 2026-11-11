@@ -16,12 +16,15 @@ environments:
     explainEnabled: true
     servers:
       dummy-primary:
+        roles: [primary]
         jdbcUrl: "jdbc:mysql://${OFFLINE_DUMMY_HOST:db.offline-dummy.invalid}:3306?connectTimeout=3000"
         username: root
         password: password
         sources:
           - type: x-statement-analysis
       dummy-replica:
+        # sampling allowed, so the "served from its cache" refusal can be seen
+        roles: [replica, sampling]
         jdbcUrl: "jdbc:mysql://${OFFLINE_DUMMY_HOST:db.offline-dummy.invalid}:3306?connectTimeout=3000"
         username: root
         password: password

@@ -1,0 +1,127 @@
+<!-- Write rate (sqlx-n5j.10) -->
+<div class="lens-card workload-card write-rate">
+  <div class="card-head">
+    <span class="card-head-title"><span class="term" [title]="glossary.writesPerDay">Write rate</span></span>
+    <span class="card-head-note">daily average over the captured window</span>
+  </div>
+  @if (writeFailed) {
+    <div class="card-empty">write rate could not be loaded</div>
+  } @else if (!writeRate) {
+    <div class="card-empty">loading…</div>
+  } @else if (writeRate.statements.length === 0) {
+    <div class="card-empty">no INSERT, UPDATE, DELETE or REPLACE touching this table was captured</div>
+  } @else {
+    <div class="workload-summary">
+      <div class="summary-cell">
+        <div class="summary-label"><span class="term" [title]="glossary.writesPerDay">writes / day</span></div>
+        <div class="summary-val">{{fmtPerDay(writeRate.executionsPerDay)}}</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label"><span class="term" [title]="glossary.rowsPerDay">rows / day</span></div>
+        <div class="summary-val">{{fmtPerDay(writeRate.rowsPerDay)}}</div>
+      </div>
+      <div class="summary-types">
+        @for (type of writeRate.byType; track type.type) {
+          <span class="type-total" [title]="type.statements + ' statement(s) · ' + type.executions + ' executions · ' + type.rowsAffected + ' rows in the capture'">
+            <span class="mono type-name">{{type.type}}</span>
+            {{fmtPerDay(type.executionsPerDay)}}/day · {{fmtPerDay(type.rowsPerDay)}} rows/day
+          </span>
+        }
+      </div>
+    </div>
+    <div class="table-scroll workload-scroll">
+      <table class="data-table">
+        <thead>
+        <tr>
+          <th>statement</th>
+          <th class="num"><span class="term" [title]="glossary.writesPerDay">runs / day</span></th>
+          <th class="num"><span class="term" [title]="glossary.rowsPerDay">rows / day</span></th>
+          <th class="num"><span class="term" [title]="glossary.executed">executed</span></th>
+          <th class="num"><span class="term" [title]="glossary.rowsAffected">rows</span></th>
+          <th class="num"><span class="term" title="days between first and last seen; rates divide by at least one day">window</span></th>
+        </tr>
+        </thead>
+        <tbody>
+          @for (statement of writeRate.statements; track statement.digest) {
+            <tr>
+              <td class="stmt-cell">
+                <a class="mono stmt-type" [routerLink]="['/analyzed-sql', statement.digest]">{{statement.type}}</a>
+                @if (statement.multiTable) {
+                  <span class="multi" [title]="glossary.rowsPerDay">multi-table</span>
+                }
+                <span class="mono stmt-sql" [title]="statement.query">{{snippet(statement.query)}}</span>
+              </td>
+              <td class="num mono">{{fmtPerDay(statement.executionsPerDay)}}</td>
+              <td class="num mono">{{fmtPerDay(statement.rowsPerDay)}}</td>
+              <td class="num mono dim">{{statement.executions}}</td>
+              <td class="num mono dim">{{statement.rowsAffected}}</td>
+              <td class="num mono dim">{{fmtWindow(statement.windowDays)}}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- Lock risk (sqlx-n5j.9) -->
+<div class="lens-card workload-card lock-risk">
+  <div class="card-head">
+    <span class="card-head-title"><span class="term" [title]="glossary.lockRisk">Lock risk for DDL</span></span>
+    @if (lockRisk) {
+      <span class="card-head-note">
+        <span class="term" [title]="glossary.longStatement">{{lockRisk.longStatements}} of {{lockRisk.statementCount}} reach {{threshold()}}</span>
+        @if (lockRisk.longStatements) { · {{fmtPerDay(lockRisk.longExecutionsPerDay)}} runs/day }
+      </span>
+    }
+  </div>
+  @if (lockFailed) {
+    <div class="card-empty">lock risk could not be loaded</div>
+  } @else if (!lockRisk) {
+    <div class="card-empty">loading…</div>
+  } @else if (lockRisk.statements.length === 0) {
+    <div class="card-empty">no captured statement touches this table</div>
+  } @else {
+    <div class="note-card lock-note" [class.calm]="lockRisk.longStatements === 0">
+      @if (lockRisk.longStatements === 0) {
+        No captured statement on this table ran as long as {{threshold()}}; the slowest took
+        <strong>{{fmtTime(lockRisk.maxTimeMs)}}</strong>.
+      } @else {
+        The slowest execution took <strong>{{fmtTime(lockRisk.maxTimeMs)}}</strong>. A DDL that starts while
+        such a statement runs waits for it, and every query on the table arriving after the DDL waits too.
+      }
+      Statement time only: an open transaction holds its locks past the statement.
+      <span class="term" [title]="glossary.quietHours">Quiet hours are not available.</span>
+    </div>
+    <div class="table-scroll workload-scroll">
+      <table class="data-table">
+        <thead>
+        <tr>
+          <th>statement</th>
+          <th class="num"><span class="term" [title]="glossary.lockMaxTime">max</span></th>
+          <th class="num"><span class="term" [title]="glossary.averageTime">avg</span></th>
+          <th class="num"><span class="term" title="executions per day, averaged over the statement's window (at least one day)">runs / day</span></th>
+          <th class="num"><span class="term" [title]="glossary.lockTime">lock wait</span></th>
+        </tr>
+        </thead>
+        <tbody>
+          @for (statement of lockRisk.statements; track statement.digest) {
+            <tr>
+              <td class="stmt-cell">
+                <a class="mono stmt-type" [routerLink]="['/analyzed-sql', statement.digest]">{{statement.type || 'SQL'}}</a>
+                <span class="mono stmt-sql" [title]="statement.query">{{snippet(statement.query)}}</span>
+              </td>
+              <td class="num mono" [class.hot]="isLong(statement.maxTimeMs)">{{fmtTime(statement.maxTimeMs)}}</td>
+              <td class="num mono dim">{{fmtTime(statement.averageTimeMs)}}</td>
+              <td class="num mono">{{fmtPerDay(statement.executionsPerDay)}}</td>
+              <td class="num mono dim">{{fmtTime(statement.lockTimeMs)}}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (lockRisk.statementCount > lockRisk.statements.length) {
+      <div class="card-empty">the {{lockRisk.statements.length}} slowest of {{lockRisk.statementCount}} statements</div>
+    }
+  }
+</div>

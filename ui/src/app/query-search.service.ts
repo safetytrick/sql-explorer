@@ -54,6 +54,7 @@ export interface QuerySearchRequest {
   columns?: string[] | null;       // "schema.table.column"; kept if the column joins or filters
   indexes?: string[] | null;       // "schema.table.index"; kept if an index hint names it
   hinted?: HintAction | null;      // ANY = carries some index hint; otherwise a hint with that action
+  generator?: string | null;       // a generator among the candidates, or 'none' (sqlx-n5j.12)
   fullScan?: Flag | null;
   tmpTable?: Flag | null;
   tmpDisk?: Flag | null;

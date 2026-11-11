@@ -1,0 +1,20 @@
+@if (annotations.length) {
+  <div class="annotations">
+    <span class="ann-label term" [title]="definition">facts</span>
+    @for (annotation of annotations; track annotation.id) {
+      <span [class]="'ann ' + annotation.confidence" [title]="title(annotation)">
+        <span class="ann-dot" aria-hidden="true"></span>
+        <span class="ann-ns">{{annotation.namespace}}</span>
+        <span class="ann-key">{{annotation.key}}</span>
+        <span class="ann-eq">=</span>
+        <span class="ann-value mono">{{annotation.value}}</span>
+        <span class="ann-meta">{{annotation.confidence}} · {{source(annotation)}}
+          @if (annotation.recordedOn) { · {{annotation.recordedOn | date: 'MMM d, y'}} }</span>
+        @if (annotation.confidence !== 'confirmed') {
+          <button type="button" class="ann-confirm" [disabled]="confirming.has(annotation.id)"
+                  (click)="confirm(annotation)" title="confirm: record this value again as yours, confirmed">confirm</button>
+        }
+      </span>
+    }
+  </div>
+}

@@ -1,0 +1,190 @@
+<div class="view-header wrap">
+  <span class="view-title">Charsets &amp; collations</span>
+  @if (report) {
+    <span class="view-sub">{{shownTables}} tables · {{groups.length}} encoding {{groups.length === 1 ? 'set' : 'sets'}}</span>
+  }
+
+  <span class="filters">
+    <input class="search-box" placeholder="name… or /regex/" [value]="filter.name"
+           (input)="setFilter({name: $any($event.target).value})" aria-label="filter by table name"
+           title="text matches anywhere in schema.table; /^invoice_/ is a regular expression">
+    <select class="enc-select" [value]="filter.charset ?? ''" aria-label="character set"
+            (change)="setFilter({charset: $any($event.target).value || null})">
+      <option value="">any charset</option>
+      @for (charset of choices.charsets; track charset) {
+        <option [value]="charset" [selected]="charset === filter.charset">{{charset}}</option>
+      }
+      @if (filter.charset && !choices.charsets.includes(filter.charset)) {
+        <option [value]="filter.charset" selected>{{filter.charset}}</option>
+      }
+    </select>
+    <select class="enc-select" [value]="filter.collation ?? ''" aria-label="collation"
+            (change)="setFilter({collation: $any($event.target).value || null})">
+      <option value="">any collation</option>
+      @for (collation of choices.collations; track collation) {
+        <option [value]="collation" [selected]="collation === filter.collation">{{collation}}</option>
+      }
+      @if (filter.collation && !choices.collations.includes(filter.collation)) {
+        <option [value]="filter.collation" selected>{{filter.collation}}</option>
+      }
+    </select>
+    <button type="button" class="tri-btn" [class.on]="!filter.mixedOnly" (click)="setFilter({mixedOnly: false})">all</button>
+    <button type="button" class="tri-btn" [class.on]="filter.mixedOnly" (click)="setFilter({mixedOnly: true})"
+            [title]="glossary.mixedEncoding">mixed only <span class="count">{{mixedCount}}</span></button>
+    @if (filtered()) {
+      <button type="button" class="tri-btn" (click)="clearFilter()">clear</button>
+    }
+  </span>
+
+  <div class="view-actions">
+    <a class="btn" routerLink="/tables">Tables ↗</a>
+  </div>
+</div>
+
+@if (failed) {
+  <div class="lens-card"><div class="card-empty">the encoding report could not be loaded</div></div>
+} @else if (loading) {
+  <div class="lens-card"><div class="card-empty">loading…</div></div>
+} @else {
+  <div class="lens-card">
+    <div class="note-card neutral">
+      From the schema snapshot's column metadata. Each table is grouped by the exact set of character sets and
+      collations its columns use; a table using more than one is flagged <strong>mixed</strong>. A column is
+      called out when it differs from its table's <span class="term" [title]="glossary.declaredCollation">declared
+      default</span>, or, where that is not known, from the table's
+      <span class="term" [title]="glossary.predominantCollation">predominant collation</span>.
+    </div>
+  </div>
+
+  <!-- Join keys first: they are the ones costing an index today -->
+  <div class="lens-card join-card">
+    <div class="card-head">
+      <span class="card-head-title"><span class="term" [title]="glossary.joinEncodingMismatch">Join keys whose sides differ</span></span>
+      <span class="card-head-note">{{joins.length}} from the captured queries</span>
+    </div>
+    @if (joins.length === 0) {
+      <div class="card-empty">no captured join compares character columns of different charsets or collations</div>
+    } @else {
+      <div class="table-scroll group-scroll">
+        <table class="data-table">
+          <thead>
+          <tr>
+            <th>column</th><th>encoding</th><th></th><th>column</th><th>encoding</th>
+            <th class="num"><span class="term" [title]="glossary.tableQueries">queries</span></th>
+            <th class="num"><span class="term" [title]="glossary.executed">executed</span></th>
+            <th></th>
+          </tr>
+          </thead>
+          <tbody>
+            @for (join of joins; track join.left.schema + join.left.table + join.left.column + join.right.schema + join.right.table + join.right.column) {
+              <tr>
+                <td><a class="mono tbl-link" [routerLink]="['/table', join.left.schema, join.left.table]">{{join.left.schema}}.{{join.left.table}}</a><span class="mono dim">.{{join.left.column}}</span></td>
+                <td class="mono enc">{{join.left.characterSet}} · {{join.left.collation}}</td>
+                <td class="dim ctr">=</td>
+                <td><a class="mono tbl-link" [routerLink]="['/table', join.right.schema, join.right.table]">{{join.right.schema}}.{{join.right.table}}</a><span class="mono dim">.{{join.right.column}}</span></td>
+                <td class="mono enc">{{join.right.characterSet}} · {{join.right.collation}}</td>
+                <td class="num mono">{{join.queries}}</td>
+                <td class="num mono">{{join.executions}}</td>
+                <td>
+                  <span class="flag" [class.warn]="join.charsetDiffers">{{join.charsetDiffers ? 'charset' : 'collation'}}</span>
+                  @if (join.exampleDigest) {
+                    <a class="example" [routerLink]="['/analyzed-sql', join.exampleDigest]" title="the most-executed query joining on it">query ↗</a>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  @if (groups.length === 0) {
+    <div class="lens-card">
+      <div class="card-empty">{{filtered() ? 'no tables match this filter' : 'no tables with character columns in the schema snapshot'}}</div>
+    </div>
+  }
+  @for (group of groups; track group.key) {
+    <div class="lens-card group-card" [class.mixed]="group.mixed">
+      <div class="card-head">
+        @for (encoding of group.encodings; track encoding.characterSet + '/' + encoding.collation; let last = $last) {
+          <button type="button" class="enc-chip mono" (click)="setFilter({collation: encoding.collation})"
+                  [title]="'only tables using ' + encoding.collation">{{encoding.characterSet}} · {{encoding.collation}}</button>
+          @if (!last) { <span class="dim">+</span> }
+        }
+        @if (group.mixed) {
+          <span class="flag warn" [title]="glossary.mixedEncoding">mixed</span>
+        }
+        <span class="card-head-note">{{group.tables.length}} {{group.tables.length === 1 ? 'table' : 'tables'}}</span>
+      </div>
+      <div class="table-scroll group-scroll">
+        <table class="data-table ledger">
+          <thead>
+          <tr>
+            <th>table</th>
+            <th class="num">character columns</th>
+            <th><span class="term" [title]="glossary.declaredCollation">table default</span></th>
+            <th>columns that differ</th>
+          </tr>
+          </thead>
+          <tbody>
+            @for (table of group.tables; track table.schema + '.' + table.table) {
+              <tr class="table-row" [class.open]="isOpen(table)" (click)="toggle(table)">
+                <td>
+                  <button type="button" class="expander" [attr.aria-expanded]="isOpen(table)"
+                          [attr.aria-label]="(isOpen(table) ? 'hide' : 'show') + ' the columns of ' + tableKey(table)"
+                          (click)="toggle(table); $event.stopPropagation()">{{isOpen(table) ? '▾' : '▸'}}</button>
+                  <span class="mono tbl-name">{{table.schema}}.{{table.table}}</span>
+                  <a class="tbl-open" [routerLink]="['/table', table.schema, table.table]" (click)="$event.stopPropagation()"
+                     title="open the table">↗</a>
+                  @if (table.view) { <span class="flag">view</span> }
+                </td>
+                <td class="num mono">{{table.textColumns}}</td>
+                <td class="mono enc">
+                  @if (table.baseline === 'declared') {
+                    {{table.declaredCollation}}
+                  } @else if (table.predominantCollation) {
+                    <span class="term" [title]="glossary.predominantCollation">{{table.predominantCollation}}*</span>
+                  }
+                </td>
+                <td class="mono outliers" [title]="outlierText(table)">{{outlierText(table)}}</td>
+              </tr>
+              @if (isOpen(table)) {
+                <tr class="columns-row">
+                  <td colspan="4">
+                    <table class="data-table columns">
+                      <thead>
+                      <tr>
+                        <th>column</th><th>type</th><th>encoding</th>
+                        <th><span class="term" [title]="glossary.presumedKind">presumed kind</span></th>
+                        <th>why</th>
+                      </tr>
+                      </thead>
+                      <tbody>
+                        @for (column of table.columns ?? []; track column.column) {
+                          <tr>
+                            <td class="mono">{{column.column}}</td>
+                            <td class="mono dim">{{column.type}}</td>
+                            <td class="mono enc" [class.differs]="column.differs">{{column.characterSet}} · {{column.collation}}</td>
+                            <td><span class="kind" [attr.data-kind]="column.kind">{{column.kind}}</span></td>
+                            <td class="dim basis">{{column.basis}}</td>
+                          </tr>
+                        } @empty {
+                          <tr><td colspan="5" class="dim">no column detail in this report</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  @if (noTextCount) {
+    <div class="card-empty">{{noTextCount}} {{noTextCount === 1 ? 'table has' : 'tables have'}} no character columns and {{noTextCount === 1 ? 'is' : 'are'}} not listed.</div>
+  }
+}

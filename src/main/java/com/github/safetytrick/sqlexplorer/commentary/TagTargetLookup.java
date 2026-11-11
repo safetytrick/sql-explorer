@@ -52,6 +52,7 @@ public class TagTargetLookup {
         Map<TagTarget, List<Tag>> found = new HashMap<>();
         collect(found, asked, TagTarget.SCHEMA, environmentName);
         collect(found, asked, TagTarget.TABLE, environmentName);
+        collect(found, asked, TagTarget.COLUMN, environmentName);
         collect(found, asked, TagTarget.QUERY, environmentName);
 
         List<List<Tag>> answer = new ArrayList<>(asked.size());

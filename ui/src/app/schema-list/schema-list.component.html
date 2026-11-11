@@ -5,7 +5,10 @@
   } @else {
     <span class="view-sub">{{visible.length}} of {{schemas.length}}</span>
   }
-  <app-tag-filter-strip [rows]="schemas" (filterChange)="onFilter($event)"></app-tag-filter-strip>
+  <a class="view-sub encodings-link" routerLink="/collations"
+     title="tables grouped by the character sets and collations of their columns, and joins whose two sides differ">
+    charsets &amp; collations ›</a>
+  <app-tag-filter-strip [rows]="stripRows" (filterChange)="onFilter($event)"></app-tag-filter-strip>
 
 </div>
 

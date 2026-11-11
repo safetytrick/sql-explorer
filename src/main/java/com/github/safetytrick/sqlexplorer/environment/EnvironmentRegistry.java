@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.github.safetytrick.sqlexplorer.commentary.Names;
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import com.github.safetytrick.sqlexplorer.schema.SchemaSnapshot;
 import jakarta.annotation.PreDestroy;
@@ -71,6 +72,12 @@ public class EnvironmentRegistry {
 
     private static Environment toEnvironment(String name, EnvironmentDefinition definition,
                                              SchemaRepositoryFactory schemaRepositoryFactory) {
+        // Refused at startup: every commentary row is keyed by this name in a
+        // varchar(48), so a longer one would only fail later, on the first tag.
+        String nameProblem = Names.environmentNameProblem(name);
+        if (nameProblem != null) {
+            throw new IllegalArgumentException(nameProblem);
+        }
         List<Cluster> clusters = new ArrayList<>();
         // Captures are keyed by server name, so two servers sharing one would
         // write into each other's history — a cluster is not a namespace.
@@ -117,7 +124,15 @@ public class EnvironmentRegistry {
                                          SchemaSnapshot.Key snapshotKey) {
         ConnectionInfo connectionInfo = new ConnectionInfo(definition.getJdbcUrl(), definition.getUsername(),
             definition.getPassword());
-        return new DatabaseServer(name, connectionInfo, definition.getSources(), schemaRepositoryFactory, snapshotKey);
+        Set<ServerRole> roles = definition.getRoles() == null ? Set.of() : definition.getRoles();
+        if (roles.contains(ServerRole.PRIMARY) && roles.contains(ServerRole.SAMPLING)) {
+            // the one combination refused outright: sampling reads table data, and a
+            // primary's data is the application's working set
+            throw new IllegalArgumentException("Environment " + snapshotKey.environment() + ", server " + name
+                + ": a primary cannot also have the sampling role; give it to a replica");
+        }
+        return new DatabaseServer(name, connectionInfo, definition.getSources(), schemaRepositoryFactory, snapshotKey,
+            roles);
     }
 
     public Environment getDefault() {

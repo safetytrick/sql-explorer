@@ -3,12 +3,14 @@ import {SourceService} from '../source.service';
 import {PullResult, EnvironmentService, EnvironmentSummary} from '../environment.service';
 import {DatePipe, DecimalPipe} from '@angular/common';
 import {ImportedSqlSource, PersistedSource} from '../api-types';
+import {GLOSSARY} from '../glossary';
+import {GeneratorsCardComponent} from '../generators-card/generators-card.component';
 
 @Component({
     selector: 'app-admin-source-list',
     templateUrl: './admin-source-list.component.html',
     styleUrls: ['./admin-source-list.component.scss'],
-    imports: [DatePipe, DecimalPipe]
+    imports: [DatePipe, DecimalPipe, GeneratorsCardComponent]
 })
 export class AdminSourceListComponent implements OnInit {
 
@@ -17,6 +19,7 @@ export class AdminSourceListComponent implements OnInit {
   currentEnvironment: string | null;
   environment: EnvironmentSummary | null = null;
   loading = false;
+  readonly rolesTerm = GLOSSARY.serverRoles;
 
   /** sourceRefs ticked in the list; seeded from the active sources. */
   selected = new Set<string>();

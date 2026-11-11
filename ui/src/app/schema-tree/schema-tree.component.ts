@@ -1,6 +1,7 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink, RouterLinkActive} from '@angular/router';
-import {forkJoin, Subscription} from 'rxjs';
+import {catchError, forkJoin, of, Subscription} from 'rxjs';
+import {AnnotationService, withSchemaRoles} from '../annotation.service';
 import {SchemaLensService, SchemaNode} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {QueryFacets, TagMode} from '../query-search.service';
@@ -35,6 +36,8 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
   private tagsBySchema = new Map<string, string[]>();
   /** Known schema-type tag names for suggestions. */
   private schemaTagNames: string[] = [];
+  /** Schema roles in use (e.g. `system`), suggested alongside tag names (sqlx-n5j.14). */
+  private schemaRoleNames: string[] = [];
   /** tag → the `schema.table` keys it covers; drives table-tag exclusion. */
   private tablesByTag = new Map<string, string[]>();
   /** Known table-type tag names, also offered as exclusion suggestions. */
@@ -54,7 +57,8 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
               private analyzedSqlService: AnalyzedSqlService,
               private tagColorsService: TagColorsService,
               private route: ActivatedRoute,
-              private router: Router) { }
+              private router: Router,
+              private annotationService: AnnotationService) { }
 
   /** Fold the tree away; the workbench puts it in the link and offers it back on its rail. */
   fold() {
@@ -156,15 +160,20 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
       return;
     }
     const targets = schemas.map(schema => schemaTarget(schema.name));
-    this.analyzedSqlService.getTagsForTargets(targets).subscribe({
-      next: byIndex => {
+    forkJoin({
+      byIndex: this.analyzedSqlService.getTagsForTargets(targets),
+      // a role (e.g. `system`, sqlx-n5j.14) is a term in the same vocabulary
+      roles: this.annotationService.schemaRoles().pipe(catchError(() => of(new Map<string, string[]>())))
+    }).subscribe({
+      next: ({byIndex, roles}) => {
         // Zipped by index: the batched answer is positional (sqlx-3ai).
         const map = new Map<string, string[]>();
         schemas.forEach((schema, index) => {
           const tags = byIndex[index] ?? [];
-          map.set(schema.name.toLowerCase(), tags.map(tag => tag.name));
+          map.set(schema.name.toLowerCase(), withSchemaRoles(schema.name, tags.map(tag => tag.name), roles));
         });
         this.tagsBySchema = map;
+        this.schemaRoleNames = [...new Set([...roles.values()].flat())];
         this.publishTagScope();
       },
       // an empty tag map silently turns include filters into "hide everything"
@@ -303,10 +312,11 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
     this.excludeInput = value;
     // exclusion reaches tables as well as schemas, so offer both tag families
     this.excludeSuggestions = this.suggestTags(
-      value, this.excludeTags, this.includeTags, [...this.schemaTagNames, ...this.tableTagNames]);
+      value, this.excludeTags, this.includeTags, [...this.schemaTagNames, ...this.schemaRoleNames, ...this.tableTagNames]);
   }
 
-  private suggestTags(text: string, already: string[], other: string[], pool = this.schemaTagNames): string[] {
+  private suggestTags(text: string, already: string[], other: string[],
+                      pool = [...this.schemaTagNames, ...this.schemaRoleNames]): string[] {
     const needle = text.trim().toLowerCase();
     if (!needle) {
       return [];

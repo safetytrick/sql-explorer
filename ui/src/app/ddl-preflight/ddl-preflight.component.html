@@ -1,0 +1,26 @@
+<div class="view-header">
+  <span class="view-title">DDL pre-flight</span>
+  <span class="view-sub">advice on a schema change before it runs; nothing is executed. To build a change against
+    one table's columns and indexes, open the table and choose <em>Plan a change</em>.</span>
+</div>
+
+<div class="lens-card">
+  <div class="card-head"><span class="card-head-title">Statement</span>
+    <span class="card-head-note">ALTER TABLE, CREATE INDEX or DROP INDEX</span></div>
+  <div class="form">
+    <textarea id="ddl" rows="6" spellcheck="false" [(ngModel)]="ddl" [placeholder]="example"
+              aria-label="DDL statement" (keydown.control.enter)="check()" (keydown.meta.enter)="check()"></textarea>
+    <div class="row">
+      <label for="long">Long statement from</label>
+      <input id="long" type="number" min="0.1" step="0.5" [(ngModel)]="longSeconds"> <span class="unit">s</span>
+      <button type="button" class="btn" (click)="check()" [disabled]="busy || !ddl.trim()">{{busy ? 'Checking…' : 'Check'}}</button>
+      @if (!ddl.trim()) { <button type="button" class="btn ghost" (click)="useExample()">Use an example</button> }
+    </div>
+  </div>
+</div>
+
+@if (failed) {
+  <div class="lens-card"><div class="card-empty">The check could not run. Is the backend up?</div></div>
+}
+
+<app-preflight-result [result]="result"></app-preflight-result>

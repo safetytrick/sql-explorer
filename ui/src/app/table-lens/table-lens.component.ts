@@ -1,5 +1,9 @@
 import {NotesCardComponent} from '../notes-card/notes-card.component';
-import {Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
+import {TableStorageCardComponent} from '../table-storage-card/table-storage-card.component';
+import {IndexCardComponent} from '../index-card/index-card.component';
+import {TableStorageStats} from '../api-types';
+import {Component, ElementRef, inject, OnDestroy, OnInit, ViewChild} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DecimalPipe} from '@angular/common';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
@@ -20,7 +24,10 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {tableKey} from '../query-scope.service';
 import {buildSearchRequest, decodeSearchParams, defaultSearchState, encodeSearchParams, SearchUrlState, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {SqlSummaryComponent} from '../sql-summary/sql-summary.component';
-import {tablePath, tableTarget} from '../tag-path';
+import {columnPath, columnTarget, tablePath, tableTarget} from '../tag-path';
+import {AnnotationsViewComponent} from '../annotations-view/annotations-view.component';
+import {ColumnCommentary} from './column-commentary';
+import {GLOSSARY} from '../glossary';
 
 /** Queries fetched per page for the table's query list. */
 const QUERY_PAGE_SIZE = 25;
@@ -29,7 +36,9 @@ const QUERY_PAGE_SIZE = 25;
   selector: 'app-table-lens',
   templateUrl: './table-lens.component.html',
   styleUrls: ['./table-lens.component.scss'],
-  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, SqlHighlightDirective, SqlSummaryComponent, NotesCardComponent]
+  imports: [RouterLink, DurationPipe, TagFieldComponent, DecimalPipe, SqlHighlightDirective, SqlSummaryComponent, NotesCardComponent,
+    TableStorageCardComponent, IndexCardComponent,
+    AnnotationsViewComponent]
 })
 export class TableLensComponent implements OnInit, OnDestroy {
   /**
@@ -48,6 +57,16 @@ export class TableLensComponent implements OnInit, OnDestroy {
 
   protected readonly tableTarget = tableTarget;
   protected readonly tablePath = tablePath;
+  protected readonly glossary = GLOSSARY;
+  protected readonly columnTarget = columnTarget;
+  protected readonly columnPath = columnPath;
+
+  /**
+   * Tags and note counts for the column list (sqlx-n5j.1), batched once per
+   * table; the column whose notes and facts are open is `var-notes` in the URL.
+   */
+  readonly columnCommentary = new ColumnCommentary(inject(AnalyzedSqlService), inject(HttpClient));
+  notesColumn: string | null = null;
 
   schema = '';
   table = '';
@@ -104,6 +123,8 @@ export class TableLensComponent implements OnInit, OnDestroy {
 
   // ── parity with the legacy table view ──
   remarks: string | null = null;
+  /** Size and row estimate per server (sqlx-n5j.2); null when none was read. */
+  storage: TableStorageStats[] | null = null;
 
   /** Column name (lower-cased) to its DDL comment, empties already dropped. */
   private columnComments = new Map<string, string>();
@@ -140,6 +161,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
       this.fkOpen = params.get('var-fk') === '1';
       this.columnsOpen = params.get('var-cols') !== '0';
       this.coOpen = params.get('var-co') === '1';
+      this.notesColumn = params.get('var-notes') || null;
       this.runQuerySearch();
     });
   }
@@ -190,6 +212,18 @@ export class TableLensComponent implements OnInit, OnDestroy {
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
+  }
+
+  /**
+   * Hover text for a role chip: ORDER BY's definition, and for criteria how
+   * the column is compared, per kind (sqlx-n5j.7). Null leaves no title.
+   */
+  roleTitle(column: ColumnUsage, role: string): string | null {
+    if (role === 'order by') { return GLOSSARY.orderByRole; }
+    if (role !== 'criteria' || !column.comparisons) { return null; }
+    const kinds = Object.entries(column.comparisons).sort(([a], [b]) => a.localeCompare(b));
+    if (!kinds.length) { return null; }
+    return 'compared by ' + kinds.map(([kind, queries]) => `${kind} (${queries})`).join(', ');
   }
 
   /** Only join/criteria columns can constrain a query, so only those drill. */
@@ -258,6 +292,12 @@ export class TableLensComponent implements OnInit, OnDestroy {
     this.announceDrill(clearing ? null : `index ${index.name}`);
   }
 
+  /** The index the active drill-down names, when it is one of this table's. */
+  drillIndexName(): string | null {
+    const prefix = this.selfKey() + '.';
+    return this.drillIndex?.startsWith(prefix) ? this.drillIndex.slice(prefix.length) : null;
+  }
+
   /** The active index drill-down names a hinted index this table does not have. */
   drillIndexMissing(): boolean {
     return !!this.drillIndex && this.indexUsage.some(index =>
@@ -306,6 +346,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     clearTimeout(this.noticeTimer);
     clearTimeout(this.flashTimer);
+    this.columnCommentary.destroy();
   }
 
   clearDrillDown() {
@@ -313,6 +354,12 @@ export class TableLensComponent implements OnInit, OnDestroy {
   }
 
   toggleColumns() { this.patchUrl({ 'var-cols': this.columnsOpen ? '0' : null }); }
+
+  /** Open or close one column's notes and facts; the open column is part of the link. */
+  toggleColumnNotes(column: string, event: Event) {
+    event.stopPropagation();
+    this.patchUrl({ 'var-notes': this.notesColumn === column ? null : column });
+  }
 
   toggleFk() { this.patchUrl({ 'var-fk': this.fkOpen ? null : '1' }); }
 
@@ -360,6 +407,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
     this.foreignKeys = [];
     this.setIndexUsage([]);
     this.isView = false;
+    this.storage = null;
     this.underlyingTables = [];
     this.viewLineage = new Map();
     // reset the existence verdict too, or navigating table → table renders the
@@ -372,7 +420,10 @@ export class TableLensComponent implements OnInit, OnDestroy {
       next: stats => { this.stats = stats; this.statsResolved = true; },
       error: () => { this.stats = null; }
     });
-    this.schemaLensService.getTableColumns(this.schema, this.table).subscribe(columns => this.columns = columns);
+    this.schemaLensService.getTableColumns(this.schema, this.table).subscribe(columns => {
+      this.columns = columns;
+      this.columnCommentary.load(this.schema, this.table, (columns ?? []).map(column => column.name));
+    });
     this.schemaLensService.getTableIndexes(this.schema, this.table).subscribe({
       next: indexes => this.setIndexUsage(indexes || []),
       error: () => this.setIndexUsage([])
@@ -391,6 +442,7 @@ export class TableLensComponent implements OnInit, OnDestroy {
             .map(ref => parseTableRef(ref))
             .filter((ref): ref is { schema: string; table: string } => !!ref.schema && !!ref.table);
           this.remarks = structure?.remarks?.trim() || null;
+          this.storage = structure?.stats ?? null;
           // Joined by name, because the column table is built from ColumnUsage
           // and the comment lives on the metadata payload. Empty strings are
           // dropped here rather than at render: MySQL returns '' for "no

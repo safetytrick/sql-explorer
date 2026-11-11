@@ -1,0 +1,83 @@
+:host { display: block; }
+
+.mono { font-family: var(--mono); }
+.dim { color: var(--text3); }
+
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.count { opacity: 0.6; margin-left: 2px; }
+
+.search-box,
+.enc-select {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--bg);
+  color: var(--text);
+}
+.search-box { width: 180px; }
+
+.note-card.neutral { border-left-color: var(--border2); }
+
+.group-scroll { max-height: 360px; overflow: auto; }
+
+.tbl-link { color: var(--text); text-decoration: none; font-size: 11px; }
+.tbl-link:hover { color: var(--link-hover); }
+
+.enc { font-size: 11px; color: var(--text2); white-space: nowrap; }
+.outliers { font-size: 11px; color: var(--amber); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.enc-chip {
+  font-size: 11px;
+  color: var(--text2);
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 1px 8px;
+  cursor: pointer;
+  &:hover { color: var(--blue); border-color: var(--blue); }
+}
+
+.flag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: 4px;
+  &.warn { color: var(--amber); border-color: var(--amber-dim); }
+}
+
+.group-card.mixed { border-color: var(--amber-dim); }
+
+.example { font-size: 11px; color: var(--blue); text-decoration: none; margin-left: 6px; white-space: nowrap; }
+
+.table-row { cursor: pointer; }
+.table-row:hover td { background: var(--bg2); }
+.expander {
+  background: none; border: 0; padding: 0 4px 0 0; cursor: pointer;
+  color: var(--text3); font-size: 10px; width: 14px;
+}
+.tbl-name { font-size: 11px; color: var(--text); }
+.tbl-open { font-size: 11px; color: var(--blue); text-decoration: none; margin-left: 6px; }
+
+.columns-row > td { padding: 0 0 8px 22px; background: var(--bg2); }
+.data-table.columns {
+  width: auto;
+  th, td { font-size: 11px; padding: 2px 10px 2px 0; }
+}
+.enc.differs { color: var(--amber); }
+.basis { font-size: 10px; }
+
+.kind {
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 0 5px;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  &[data-kind="identifier"] { color: var(--blue); border-color: var(--blue); }
+  &[data-kind="enum"] { color: var(--green, var(--text2)); border-color: var(--green, var(--border2)); }
+  &[data-kind="text"] { color: var(--amber); border-color: var(--amber-dim); }
+}

@@ -19,14 +19,16 @@ class ProfilesMcpTools implements McpToolProvider {
     private final SqlProfileResource profiles;
     private final SchemaTreeResource schemaTree;
     private final TableInsightsResource tableInsights;
+    private final TableWorkloadResource tableWorkload;
     private final QuerySearchResource search;
     private final SqlProfileReportResource reports;
 
     ProfilesMcpTools(SqlProfileResource profiles, SchemaTreeResource schemaTree, TableInsightsResource tableInsights,
-                     QuerySearchResource search, SqlProfileReportResource reports) {
+                     TableWorkloadResource tableWorkload, QuerySearchResource search, SqlProfileReportResource reports) {
         this.profiles = profiles;
         this.schemaTree = schemaTree;
         this.tableInsights = tableInsights;
+        this.tableWorkload = tableWorkload;
         this.search = search;
         this.reports = reports;
     }
@@ -37,7 +39,8 @@ class ProfilesMcpTools implements McpToolProvider {
             McpTool.named("list_schemas", "Schemas seen in the analyzed queries, with query counts and total query time.")
                 .handler(args -> McpArgs.listOf(profiles.getSchemas())),
             McpTool.named("list_tables", "Tables ranked by total query time. Optionally scoped to one schema. "
-                    + "Each row carries query count, tags, and whether it is a view.")
+                    + "Each row carries query count, tags, whether it is a view, and rowsEstimate (information_schema "
+                    + "TABLE_ROWS: an estimate, not a count) and sizeBytes (data + index), summed over shards.")
                 .optionalString("schema", "scope to this schema")
                 .handler(args -> {
                     String schema = args.optionalString("schema");
@@ -48,11 +51,24 @@ class ProfilesMcpTools implements McpToolProvider {
                     + "query counts, analyzer-warning and view flags.")
                 .handler(args -> schemaTree.getSchemaTree()),
             McpTool.named("get_table_stats",
-                    "Aggregate query stats for one table: distinct queries, executions, total time, read/write split.")
+                    "Aggregate query stats for one table: distinct queries, executions, total time, read/write split; "
+                    + "writeRate (INSERT/UPDATE/DELETE executions and rows affected per day, by type and statement — "
+                    + "daily AVERAGES over each statement's captured window, floored at one day); and lockRisk "
+                    + "(statements ranked by max time, with how often they run: what a DDL would wait behind, "
+                    + "holding every later query on the table behind it). Times in ms. Captured statistics have no "
+                    + "time-of-day distribution, so quiet hours are not available.")
                 .string("schema", null).string("table", null)
-                .handler(args -> tableInsights.getStats(args.string("schema"), args.string("table"))),
+                .handler(args -> {
+                    String schema = args.string("schema");
+                    String table = args.string("table");
+                    TableInsightsService.TableStats stats = tableInsights.getStats(schema, table);
+                    return new TableStatsWithWorkload(stats.distinctQueries(), stats.totalExecutions(),
+                        stats.totalTimeMs(), stats.readExecutions(), stats.writeExecutions(),
+                        tableWorkload.getWriteRate(schema, table), tableWorkload.getLockRisk(schema, table));
+                }),
             McpTool.named("get_column_usage", "Per-column usage for one table: type, PK/FK, query roles "
-                    + "(select/criteria/join/group by), query counts.")
+                    + "(select/criteria/join/group by/order by), query counts, how criteria compare each column "
+                    + "(equality/range/in/like/...), and LIKE usage with leading-wildcard counts.")
                 .string("schema", null).string("table", null)
                 .handler(args -> tableInsights.getColumns(args.string("schema"), args.string("table"))),
             McpTool.named("search_queries", "Search analyzed queries with the workbench's filter engine. All filters "
@@ -89,4 +105,10 @@ class ProfilesMcpTools implements McpToolProvider {
                 })
         );
     }
+
+    /** {@code get_table_stats}: the stat strip, flattened as it always was, plus write rate and lock risk. */
+    public record TableStatsWithWorkload(int distinctQueries, long totalExecutions, double totalTimeMs,
+                                  long readExecutions, long writeExecutions,
+                                  TableWorkloadService.WriteRate writeRate,
+                                  TableWorkloadService.LockRisk lockRisk) { }
 }

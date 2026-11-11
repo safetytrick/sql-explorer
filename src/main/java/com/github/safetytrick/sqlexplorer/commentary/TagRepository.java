@@ -31,9 +31,9 @@ interface TagRepository extends CrudRepository<Tag,Integer> {
      * key enforces — a path-based one asked a differently-shaped question than
      * the constraint answered.
      */
-    Optional<Tag> findByNameAndEnvironmentNameAndTypeAndSchemaNameAndTableNameAndQueryDigest(
+    Optional<Tag> findByNameAndEnvironmentNameAndTypeAndSchemaNameAndTableNameAndColumnNameAndQueryDigest(
         String name, String environmentName, String type,
-        String schemaName, String tableName, String queryDigest);
+        String schemaName, String tableName, String columnName, String queryDigest);
 
     @Query("SELECT DISTINCT t.name FROM Tag t WHERE t.type = :type AND t.environmentName = :environmentName")
     List<String> findTagNamesByType(@Param("type") String type,

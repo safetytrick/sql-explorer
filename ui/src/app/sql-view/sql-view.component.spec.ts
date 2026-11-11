@@ -95,6 +95,23 @@ describe('SqlViewComponent', () => {
     expect(component.indexPanels).toEqual([]);
   });
 
+  // an index on the ORDER BY column lets MySQL read rows in order and skip the sort
+  it('counts ORDER BY columns as columns an index can serve', () => {
+    component.query = {...profileWithNullColumnArrays(), query: 'SELECT id FROM account ORDER BY name',
+      schemaName: 'app_main', tables: ['app_main.account'], orderByColumns: ['app_main.account.name']} as SqlProfile;
+    component.tables = [{
+      schema: 'app_main', name: 'account', type: 'TABLE', remarks: '', foreignKeys: [], columns: [],
+      underlyingTables: null, viewColumns: null,
+      indices: [{name: 'idx_name', columns: ['name'], unique: false, schema: 'app_main', identifier: 'idx_name',
+        indexType: 'BTREE', direction: 'A', cardinality: 1, pages: 1, filterCondition: ''}]
+    }];
+    (component as unknown as {refreshPanels(): void}).refreshPanels();
+
+    expect(component.indexPanels.length).toBe(1);
+    expect(component.indexPanels[0].indexes[0].index.name).toBe('idx_name');
+    expect(component.indexPanels[0].indexes[0].leading).toBeTrue();
+  });
+
   /**
    * The backend sends a zone-less LocalDateTime, which reaches a template as
    * 26 characters of raw ISO with microseconds. Every other surface formats

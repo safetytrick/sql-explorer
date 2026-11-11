@@ -15,12 +15,19 @@
  * (sqlx-3ai). Build a target for anything that talks to the tag API.
  */
 
-/** What a tag points at, as the API states it. */
+/**
+ * What a tag points at, as the API states it.
+ *
+ * <p>Columns are a kind too (sqlx-n5j.1), and the environment itself is one for
+ * annotations only (sqlx-n5j.13). `column` is optional so the shapes that
+ * predate it still type-check; absent means empty.
+ */
 export interface TagTarget {
-  type: 'schema' | 'table' | 'query';
+  type: 'schema' | 'table' | 'column' | 'query' | 'environment';
   schema: string;
   table: string;
   digest: string;
+  column?: string;
 }
 
 export function schemaTarget(schema: string): TagTarget {
@@ -31,8 +38,17 @@ export function tableTarget(schema: string, table: string): TagTarget {
   return {type: 'table', schema, table, digest: ''};
 }
 
+export function columnTarget(schema: string, table: string, column: string): TagTarget {
+  return {type: 'column', schema, table, digest: '', column};
+}
+
 export function queryTarget(digest: string): TagTarget {
   return {type: 'query', schema: '', table: '', digest};
+}
+
+/** The selected environment itself — an annotation target, never a tag's. */
+export function environmentTarget(): TagTarget {
+  return {type: 'environment', schema: '', table: '', digest: '', column: ''};
 }
 
 /**
@@ -43,7 +59,7 @@ export function queryTarget(digest: string): TagTarget {
  * is exactly what could not tell `x`.`a/b` from `x/table/a`.`b`.
  */
 export function targetKey(target: TagTarget): string {
-  return [target.type, target.schema, target.table, target.digest].join('\u0000');
+  return [target.type, target.schema, target.table, target.digest, target.column ?? ''].join('\u0000');
 }
 export function schemaPath(schema: string): string {
   return '/schema/' + schema;
@@ -51,6 +67,11 @@ export function schemaPath(schema: string): string {
 
 export function tablePath(schema: string, table: string): string {
   return '/schema/' + schema + '/table/' + table;
+}
+
+/** Where a column's notes live: its table's path plus the column (sqlx-n5j.1). */
+export function columnPath(schema: string, table: string, column: string): string {
+  return tablePath(schema, table) + '/column/' + column;
 }
 
 export function queryPath(digest: string): string {

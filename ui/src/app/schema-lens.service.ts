@@ -3,6 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {QuerySearchRequest} from './query-search.service';
 import type {ColumnRef, TableRef} from './refs';
+import type {TableStorageStats} from './api-types';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -62,6 +63,25 @@ export interface ColumnUsage {
   collation: string | null;
   roles: string[];
   queries: number;
+  /**
+   * Qualifies the `criteria` role: per comparison kind (`equality`, `range`,
+   * `in`, `like`, `not like`, ...), the distinct queries comparing the column
+   * that way (sqlx-n5j.7). Optional: absent from a backend older than it.
+   */
+  comparisons?: Record<string, number>;
+  /** LIKE / NOT LIKE usage under criteria; null unless some query pattern-matches. */
+  like?: LikeUsage | null;
+}
+
+/**
+ * Distinct queries matching a column with LIKE or NOT LIKE, those whose
+ * pattern is known to lead with a wildcard, and those whose pattern could not
+ * be read (usually a `?` placeholder).
+ */
+export interface LikeUsage {
+  queries: number;
+  leadingWildcard: number;
+  unknownWildcard: number;
 }
 
 /**
@@ -155,6 +175,8 @@ export interface TableMeta {
   columns: TableMetaColumn[] | null;
   underlyingTables: TableRef[] | null;
   viewColumns: ViewColumnMeta[] | null;
+  /** Size and row estimate per server (sqlx-n5j.2); absent before it was kept. */
+  stats?: TableStorageStats[] | null;
 }
 
 export interface GraphNode {

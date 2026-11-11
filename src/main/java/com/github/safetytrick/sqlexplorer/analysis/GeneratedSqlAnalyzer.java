@@ -2,34 +2,25 @@ package com.github.safetytrick.sqlexplorer.analysis;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
-import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
-import net.sf.jsqlparser.util.TablesNamesFinder;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+/**
+ * Records which generators' signatures a statement matches (sqlx-n5j.12).
+ *
+ * <p>Was a single rule — a table aliased {@code this_} meant "hibernate" —
+ * written to {@code generatedSource} as though it were an origin. Now every
+ * matching rule of every generator in {@link GeneratorSignatures} is stored as
+ * a candidate, and whether a candidate is the origin is decided when read,
+ * against what a person has confirmed the environment uses.
+ * {@code generatedSource} is no longer written.
+ */
 @Order(4)
 @Component
 class GeneratedSqlAnalyzer implements SqlAnalyzer {
     @Override
     public void analyze(Statement statement, SqlProfile.Builder builder, SqlSchemaRepository schema) {
-        GeneratedSqlStatementVisitor visitor = new GeneratedSqlStatementVisitor();
-        visitor.getTables(statement);
-
-        if (visitor.isHibernate) {
-            builder.setGeneratedSource("hibernate");
-        }
-    }
-
-    private static class GeneratedSqlStatementVisitor extends TablesNamesFinder<Void> {
-        boolean isHibernate;
-
-        @Override
-        public <S> Void visit(Table tableName, S context) {
-            super.visit(tableName, context);
-            String aliasName = tableName.getAlias() == null ? null : tableName.getAlias().getName();
-            isHibernate |= "`this_`".equals(aliasName);
-            return null;
-        }
+        builder.setGeneratorCandidates(GeneratorSignatures.match(statement, builder.getQuery()));
     }
 }

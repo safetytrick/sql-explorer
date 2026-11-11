@@ -22,6 +22,8 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {EnvironmentService} from '../environment.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 import {QueryScopeService} from '../query-scope.service';
+import {AnnotationService} from '../annotation.service';
+import {GeneratorOrigin, generatorOrigin, generatorStatuses, GeneratorStatuses, originLabel, originRules} from '../generator-origin';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {DateRangeSelectorComponent, DateRangeValue} from '../date-range-selector/date-range-selector.component';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, RangeState, SearchUrlState} from '../search-url';
@@ -154,6 +156,14 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     { value: null, label: 'any' }, { value: 'ANY', label: 'hinted' },
     { value: 'FORCE', label: 'force' }, { value: 'USE', label: 'use' }, { value: 'IGNORE', label: 'ignore' }
   ];
+  /**
+   * Generator filter: a generator among a query's candidates, `none`, or null
+   * for unconstrained (sqlx-n5j.12). The options and the row badges come from
+   * `/generators`, which also says which ones the environment has confirmed.
+   */
+  generator: string | null = null;
+  generatorOptions: { value: string | null; label: string }[] = [{ value: null, label: 'any' }];
+  private generatorStatuses: GeneratorStatuses = new Map();
   sort: SortKey = 'IMPACT';
   /**
    * Column drill-down, arriving from a table-lens link. The workbench has no
@@ -210,11 +220,22 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
               private tagColorsService: TagColorsService,
               private queryScopeService: QueryScopeService,
               private route: ActivatedRoute,
-              private router: Router) { }
+              private router: Router,
+              private annotationService: AnnotationService) { }
 
   ngOnInit() {
     this.subscriptions.add(this.searchTrigger.pipe(debounceTime(250)).subscribe(() => this.runSearch()));
     this.subscriptions.add(this.environmentService.current$.subscribe(() => this.searchTrigger.next()));
+    this.subscriptions.add(this.annotationService.generators().subscribe({
+      next: generators => {
+        this.generatorStatuses = generatorStatuses(generators ?? []);
+        this.generatorOptions = [{ value: null, label: 'any' },
+          ...(generators ?? []).map(generator => ({ value: generator.name, label: generator.name })),
+          { value: 'none', label: 'none' }];
+      },
+      // without the list the filter offers only "any"; a linked generator still applies
+      error: () => { /* nothing to offer */ }
+    }));
     this.subscriptions.add(this.tagColorsService.getSummaries().subscribe(summaries => {
       this.tableTagNames = summaries.filter(summary => summary.tables > 0)
         .sort((a, b) => b.tables - a.tables || a.name.localeCompare(b.name))
@@ -344,6 +365,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.columns = state.columns;
     this.indexes = state.indexes;
     this.hinted = state.hinted;
+    this.generator = state.generator;
     this.excludeTypes = state.excludeTypes;
     this.excludeTags = state.excludeTags;
     this.excludeTableTags = state.excludeTableTags;
@@ -470,6 +492,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       columns: this.columns,
       indexes: this.indexes,
       hinted: this.hinted,
+      generator: this.generator,
       scope: this.queryScopeService.scope,
       schemaTagFilter: this.queryScopeService.schemaTagFilter
     };
@@ -607,6 +630,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = this.analysisSkipped = false;
     this.failureKind = null;
     this.hinted = null;
+    this.generator = null;
     this.queryScopeService.clear();
     this.queryScopeService.clearSchemaTagFilter();
     this.filtersChanged();
@@ -633,6 +657,23 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.hinted = value;
     this.filtersChanged();
   }
+
+  hasGeneratorOption(value: string): boolean {
+    return this.generatorOptions.some(option => option.value === value);
+  }
+
+  setGenerator(value: string | null) {
+    this.generator = value;
+    this.filtersChanged();
+  }
+
+  /** A row's generator, as far as the environment's confirmations allow: asserted, or a candidate. */
+  originOf(profile: QueryProfile): GeneratorOrigin {
+    return generatorOrigin(profile.generatorCandidates, this.generatorStatuses);
+  }
+
+  readonly originLabel = originLabel;
+  readonly originRules = originRules;
 
   /** The distinct hint actions a row's statement uses, for its badge. */
   hintActions(profile: QueryProfile): string[] {

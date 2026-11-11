@@ -11,7 +11,24 @@ public record TableRollup(String name,
                          double totalQueryTime,
                          String schema,
                          List<Tag> tags,
-                         boolean view) {
+                         boolean view,
+                         /**
+                          * INSERT/UPDATE/DELETE/REPLACE executions per day touching the table:
+                          * an average over each statement's captured window ({@link CapturedRate}).
+                          */
+                         double writesPerDay,
+                         /**
+                          * information_schema.TABLES TABLE_ROWS — an estimate, summed over
+                          * the servers reporting the table; null when none has (sqlx-n5j.2).
+                          */
+                         Long rowsEstimate,
+                         /** DATA_LENGTH + INDEX_LENGTH in bytes, summed likewise; null when unknown. */
+                         Long sizeBytes) {
+
+    public TableRollup(String name, int numberOfQueries, double totalQueryTime, String schema, List<Tag> tags,
+                       boolean view) {
+        this(name, numberOfQueries, totalQueryTime, schema, tags, view, 0, null, null);
+    }
 
     public static Comparator<TableRollup> comparator(IgnoredSchemas ignoredSchemas) {
         return (o1, o2) -> {
@@ -38,6 +55,19 @@ public record TableRollup(String name,
         private String schema;
         private List<Tag> tags;
         private boolean view;
+        private double writesPerDay;
+        private Long rowsEstimate;
+        private Long sizeBytes;
+
+        public Builder rowsEstimate(Long rowsEstimate) {
+            this.rowsEstimate = rowsEstimate;
+            return this;
+        }
+
+        public Builder sizeBytes(Long sizeBytes) {
+            this.sizeBytes = sizeBytes;
+            return this;
+        }
 
         public Builder name(String name) {
             this.name = name;
@@ -64,8 +94,13 @@ public record TableRollup(String name,
             return this;
         }
 
+        public Builder writesPerDay(double writesPerDay) {
+            this.writesPerDay = writesPerDay;
+            return this;
+        }
+
         public TableRollup build() {
-            return new TableRollup(name, numberOfQueries, totalQueryTime, schema, tags, view);
+            return new TableRollup(name, numberOfQueries, totalQueryTime, schema, tags, view, writesPerDay, rowsEstimate, sizeBytes);
         }
 
         public Builder schema(String schema) {

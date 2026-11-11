@@ -1,0 +1,210 @@
+<div class="view-header">
+  <span class="view-title">Plan a change</span>
+  <span class="view-sub mono">{{schema}}.{{table}}</span>
+  <span class="view-sub">advice before it runs; nothing is executed</span>
+  <div class="view-actions">
+    <a class="btn" [routerLink]="['/table', schema, table]" queryParamsHandling="preserve">← Table</a>
+  </div>
+</div>
+
+@if (structureResolved && !structure && !structureFailed) {
+  <div class="lens-card"><div class="card-empty"><span class="mono">{{schema}}.{{table}}</span> is not in the schema
+    snapshot, so there is nothing to build against. The statement editor still checks anything you type.</div></div>
+}
+
+<div class="ddl-grid">
+  <div class="ddl-main">
+
+    <!-- Builder -->
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">Build</span>
+        <span class="card-head-note">or click a column or index on the right</span></div>
+      <div class="builder">
+        <div class="ops" role="tablist">
+          @for (o of ops; track o.op) {
+            <button type="button" class="tri-btn" role="tab" [class.on]="builder.op === o.op"
+                    [attr.aria-selected]="builder.op === o.op" (click)="setOp(o.op)">{{o.label}}</button>
+          }
+        </div>
+
+        <div class="fields">
+          @switch (builder.op) {
+            @case ('add-column') {
+              <label>name <input class="mono" [(ngModel)]="builder.newName" placeholder="new_column" spellcheck="false"></label>
+              <label>type <input class="mono" [(ngModel)]="builder.type" placeholder="VARCHAR(255)" spellcheck="false" list="ddl-types"></label>
+              <label class="check"><input type="checkbox" [(ngModel)]="builder.nullable"> nullable</label>
+              <label>default <input class="mono short" [(ngModel)]="builder.defaultValue" placeholder="none"></label>
+              <label>after
+                <select [(ngModel)]="builder.after">
+                  <option value="">(at the end)</option>
+                  @for (c of columns; track c.columnName) { <option [value]="c.columnName">{{c.columnName}}</option> }
+                </select>
+              </label>
+              <ng-container *ngTemplateOutlet="encoding"></ng-container>
+            }
+            @case ('modify-column') {
+              <ng-container *ngTemplateOutlet="columnPick"></ng-container>
+              <label>type <input class="mono" [(ngModel)]="builder.type" spellcheck="false" list="ddl-types"></label>
+              <label class="check"><input type="checkbox" [(ngModel)]="builder.nullable"> nullable</label>
+              <label>default <input class="mono short" [(ngModel)]="builder.defaultValue" placeholder="none"></label>
+              <ng-container *ngTemplateOutlet="encoding"></ng-container>
+              <div class="hint">MODIFY restates the whole column: anything left out (NOT NULL, the default, the
+                charset) is dropped. Picking a column fills in what it is now.</div>
+            }
+            @case ('rename-column') {
+              <ng-container *ngTemplateOutlet="columnPick"></ng-container>
+              <label>to <input class="mono" [(ngModel)]="builder.newName" spellcheck="false"></label>
+            }
+            @case ('drop-column') {
+              <ng-container *ngTemplateOutlet="columnPick"></ng-container>
+            }
+            @case ('convert') {
+              <ng-container *ngTemplateOutlet="encoding"></ng-container>
+              <div class="hint">Converts every character column, rebuilding the table. To change one column, use
+                Modify column.</div>
+            }
+            @case ('add-index') {
+              <label class="check"><input type="checkbox" [(ngModel)]="builder.unique"> unique</label>
+              <label>name <input class="mono wide" [(ngModel)]="builder.index" spellcheck="false"></label>
+              <div class="index-cols">
+                <span class="k">columns, in order</span>
+                @for (c of builder.indexColumns; track c; let i = $index) {
+                  <button type="button" class="col-chip mono" (click)="toggleIndexColumn(c)" title="remove">{{i + 1}}. {{c}} ×</button>
+                } @empty { <span class="dim">click columns on the right, or</span> }
+                <select (change)="toggleIndexColumn($any($event.target).value); $any($event.target).value = ''">
+                  <option value="">add a column…</option>
+                  @for (c of columns; track c.columnName) {
+                    @if (!isIndexColumn(c.columnName)) { <option [value]="c.columnName">{{c.columnName}}</option> }
+                  }
+                </select>
+              </div>
+            }
+            @case ('drop-index') {
+              <label>index
+                <select [(ngModel)]="builder.index">
+                  <option value="">choose…</option>
+                  @for (i of indexes; track i.name) { <option [value]="i.name">{{i.name}}</option> }
+                </select>
+              </label>
+            }
+          }
+          <label class="algorithm" title="what each choice means for this change is listed once you check it">algorithm
+            <select [ngModel]="builder.algorithm" (ngModelChange)="setAlgorithm($event)">
+              @for (a of algorithms; track a) { <option [value]="a">{{a || 'none (MySQL chooses)'}}</option> }
+            </select>
+          </label>
+        </div>
+
+        <div class="preview">
+          @if (statement; as s) {
+            <pre><code [sqlHighlight]="s"></code></pre>
+            <button type="button" class="btn primary" (click)="useStatement()" [disabled]="busy">Check this ↓</button>
+          } @else {
+            <span class="dim">needs {{missing.join(', ')}}</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Editor -->
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">Statement</span>
+        <span class="card-head-note">edit freely: ALTER TABLE, CREATE INDEX or DROP INDEX</span></div>
+      <div class="form">
+        <textarea rows="4" spellcheck="false" [(ngModel)]="ddl" aria-label="DDL statement"
+                  (keydown.control.enter)="check()" (keydown.meta.enter)="check()"></textarea>
+        <div class="row">
+          <label for="long">Long statement from</label>
+          <input id="long" type="number" min="0.1" step="0.5" [(ngModel)]="longSeconds"> <span class="unit">s</span>
+          <button type="button" class="btn" (click)="check()" [disabled]="busy || !ddl.trim()">{{busy ? 'Checking…' : 'Check'}}</button>
+        </div>
+      </div>
+    </div>
+
+    @if (failed) {
+      <div class="lens-card"><div class="card-empty">The check could not run. Is the backend up?</div></div>
+    }
+    @if (otherTable) {
+      <div class="lens-card"><div class="note-card">This statement changes <span class="mono">{{result?.schema ? result?.schema + '.' : ''}}{{result?.table}}</span>,
+        not this table.</div></div>
+    }
+    <app-preflight-result [result]="result" [linkTable]="otherTable"></app-preflight-result>
+
+    <!-- Write rate and lock risk (sqlx-n5j.9, .10) -->
+    <app-table-workload [schema]="schema" [table]="table"></app-table-workload>
+  </div>
+
+  <!-- The table's own definition -->
+  <div class="ddl-rail">
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">Columns</span>
+        <span class="card-head-note">{{columns.length}}</span></div>
+      @if (structureFailed) {
+        <div class="card-empty">the table's definition could not be read</div>
+      } @else if (!structureResolved) {
+        <div class="card-empty">loading…</div>
+      } @else {
+        <div class="table-scroll">
+          <table class="data-table ledger ref">
+            <tbody>
+              @for (c of columns; track c.columnName) {
+                <tr class="pick" [class.on]="builder.column === c.columnName || isIndexColumn(c.columnName)"
+                    (click)="useColumn(c)" [title]="'use ' + c.columnName + ' in the builder'">
+                  <td class="mono">{{c.columnName}}</td>
+                  <td class="mono dim">{{declaredType(c)}}@if (c.isAutoIncrement === 'YES') { <span class="tag">auto</span>}</td>
+                  <td class="dim">{{c.isNullable === 'NO' ? 'not null' : 'null'}}</td>
+                  <td class="mono dim enc">{{c.collation ?? ''}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <app-index-card [indexes]="indexUsage" [selected]="builder.op === 'drop-index' ? builder.index : null"
+                    clickable="existing" clickTitle="drop it in the builder" note="ordered by their columns"
+                    (picked)="useIndex($event)"></app-index-card>
+
+    <div class="lens-card">
+      <div class="card-head">
+        <button type="button" class="card-collapse" (click)="toggleCreate()" [attr.aria-expanded]="showCreate">
+          <span class="caret">{{showCreate ? '▾' : '▸'}}</span>
+          <span class="card-head-title">CREATE TABLE</span>
+        </button>
+      </div>
+      @if (showCreate) {
+        @if (createFailed) {
+          <div class="card-empty">the statement needs a live server: pull the environment to read it</div>
+        } @else if (createStatement === null) {
+          <div class="card-empty">loading…</div>
+        } @else {
+          <pre class="create"><code [sqlHighlight]="createStatement"></code></pre>
+        }
+      }
+    </div>
+  </div>
+</div>
+
+<ng-template #columnPick>
+  <label>column
+    <select [ngModel]="builder.column" (ngModelChange)="pickColumn($event)">
+      <option value="">choose…</option>
+      @for (c of columns; track c.columnName) { <option [value]="c.columnName">{{c.columnName}}</option> }
+    </select>
+  </label>
+</ng-template>
+
+<ng-template #encoding>
+  <label>charset <input class="mono short" [(ngModel)]="builder.charset" placeholder="unchanged" list="ddl-charsets" spellcheck="false"></label>
+  <label>collation <input class="mono" [(ngModel)]="builder.collation" placeholder="its default" list="ddl-collations" spellcheck="false"></label>
+</ng-template>
+
+<datalist id="ddl-types">
+  <option value="VARCHAR(255)"></option><option value="VARCHAR(64)"></option><option value="CHAR(36)"></option>
+  <option value="TEXT"></option><option value="INT"></option><option value="BIGINT"></option>
+  <option value="BIGINT UNSIGNED"></option><option value="DECIMAL(10,2)"></option><option value="TINYINT(1)"></option>
+  <option value="DATETIME"></option><option value="TIMESTAMP"></option><option value="DATE"></option><option value="JSON"></option>
+</datalist>
+<datalist id="ddl-charsets">@for (c of charsets; track c) { <option [value]="c"></option> }</datalist>
+<datalist id="ddl-collations">@for (c of collations; track c) { <option [value]="c"></option> }</datalist>

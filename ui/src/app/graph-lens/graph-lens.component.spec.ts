@@ -734,12 +734,34 @@ describe('GraphLensComponent — scope legibility', () => {
         .forEach(req => req.flush({schemas: [{name: 'app'}, {name: 'mysql'}]}));
       http.match(req => req.url.endsWith('tags/targets'))
         .forEach(req => req.flush([[], [{name: 'system'}]]));
+      http.match(req => req.url.endsWith('annotations/namespace/schema-role'))
+        .forEach(req => req.flush([]));
       http.match(req => req.url.includes('table/by-tag') || req.url.includes('tables/tag'))
         .forEach(req => req.flush([]));
       // the last one: the first was the unscoped graph the page opened on
       const search = http.match(req => req.url.includes('graph/v2/search'));
       const body = search[search.length - 1].request.body;
       expect(body.excludeSchemas).toEqual(['mysql']);
+    });
+
+    /**
+     * `system` is a schema-role annotation now, not a tag (sqlx-n5j.14), and a
+     * link excluding it must still leave MySQL's schemas out.
+     */
+    it('excludes a schema by its role as it did by the tag the role replaced', () => {
+      navigateTo({}, {schemaTagsExclude: 'system'});
+      const http = TestBed.inject(HttpTestingController);
+      http.match(req => req.url.endsWith('schema-tree'))
+        .forEach(req => req.flush({schemas: [{name: 'app'}, {name: 'mysql'}]}));
+      http.match(req => req.url.endsWith('tags/targets'))
+        .forEach(req => req.flush([[], []]));
+      http.match(req => req.url.endsWith('annotations/namespace/schema-role'))
+        .forEach(req => req.flush([{id: 1, target: {type: 'schema', schema: 'mysql', table: '', digest: ''},
+          namespace: 'schema-role', key: 'role', value: 'system', confidence: 'confirmed'}]));
+      http.match(req => req.url.includes('table/by-tag') || req.url.includes('tables/tag'))
+        .forEach(req => req.flush([]));
+      const search = http.match(req => req.url.includes('graph/v2/search'));
+      expect(search[search.length - 1].request.body.excludeSchemas).toEqual(['mysql']);
     });
 
     it('draws everything when no scope is set', () => {

@@ -161,6 +161,10 @@ td.lineage {
   &.rp-criteria { background: var(--teal-dim); color: var(--teal); }
   &.rp-select   { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
   &.rp-groupby  { background: var(--purple-dim); color: var(--purple); }
+  &.rp-orderby  { background: var(--purple-dim); color: var(--purple); border: 1px dashed var(--purple); }
+  // LIKE qualifies criteria rather than being a role (sqlx-n5j.7); a known leading wildcard is the loud part
+  .rp-qual      { opacity: 0.85; }
+  .rp-wild      { color: var(--amber); font-weight: 600; }
   // index hint actions (sqlx-yj0): FORCE overrides the optimizer, so it is the loud one
   &.rp-force    { background: var(--amber-dim); color: var(--amber); }
   &.rp-use      { background: var(--blue-dim); color: var(--blue); }
@@ -181,25 +185,6 @@ td.lineage {
 }
 
 .charset { font-size: 10px; }
-
-.index-list { padding: 8px 12px; display: flex; flex-direction: column; gap: 7px; }
-.index-row {
-  padding: 4px 0;
-  border-bottom: 1px solid var(--border);
-  &:last-child { border-bottom: none; }
-
-  .index-head { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
-  .index-queries { margin-left: auto; font-size: 10px; color: var(--text2); }
-  .index-hints { margin-top: 3px; }
-  .warn-note { font-size: 10px; color: var(--amber); }
-
-  // same drill affordance as a column row
-  &.drillable {
-    cursor: pointer;
-    &:hover { background: var(--bg3); }
-  }
-  &.on { background: var(--bg3); box-shadow: inset 2px 0 0 var(--blue); }
-}
 
 .tags-body { padding: 8px 10px; }
 
@@ -416,4 +401,34 @@ tr.drillable {
   background: var(--green-dim);
   color: var(--green);
   &.trailing { opacity: 0.5; }
+}
+
+// ── column commentary (sqlx-n5j.1) ──
+// The notes glyph is a faint ghost until the row is hovered, like the dense
+// tag field's '+': an unannotated column should cost one dim glyph.
+.col-notes {
+  font: inherit;
+  font-size: 11px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text3);
+  opacity: 0;
+  cursor: pointer;
+
+  &.has, &.on { opacity: 1; }
+  &.on { color: var(--blue); background: var(--blue-dim); }
+  &:hover { color: var(--text); }
+}
+tr:hover .col-notes { opacity: 1; }
+.col-notes-count { margin-left: 2px; }
+
+.col-tags { min-width: 120px; }
+
+.column-detail {
+  margin-bottom: 16px;
+
+  app-annotations-view { display: block; margin-bottom: 8px; }
 }

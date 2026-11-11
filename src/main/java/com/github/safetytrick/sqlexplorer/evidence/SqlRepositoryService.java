@@ -20,6 +20,7 @@ import com.github.safetytrick.sqlexplorer.commentary.TagsService;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import com.github.safetytrick.sqlexplorer.model.SchemaRollup;
 import com.github.safetytrick.sqlexplorer.model.Table;
+import com.github.safetytrick.sqlexplorer.model.CapturedRate;
 import com.github.safetytrick.sqlexplorer.model.TableRollup;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
@@ -293,6 +294,9 @@ public class SqlRepositoryService {
             .numberOfQueries(sqlList.size())
             .totalQueryTime(totalQueryTime)
             .view(structure != null && "VIEW".equalsIgnoreCase(structure.type()))
+            .writesPerDay(CapturedRate.writesPerDay(sqlList))
+            .rowsEstimate(structure == null ? null : structure.rowsEstimate())
+            .sizeBytes(structure == null ? null : structure.sizeBytes())
             .build();
     }
 

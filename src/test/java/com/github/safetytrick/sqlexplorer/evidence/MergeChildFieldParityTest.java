@@ -68,6 +68,8 @@ class MergeChildFieldParityTest {
         assertThat(actual.getAnalysisFailureReason()).as("analysisFailureReason")
             .isEqualTo(expected.getAnalysisFailureReason());
         assertThat(actual.getGeneratedSource()).as("generatedSource").isEqualTo(expected.getGeneratedSource());
+        assertThat(actual.getGeneratorCandidates()).as("generatorCandidates")
+            .isEqualTo(expected.getGeneratorCandidates());
         assertThat(actual.getModifiedForAnalysis()).as("modifiedForAnalysis")
             .isEqualTo(expected.getModifiedForAnalysis());
     }
@@ -119,6 +121,8 @@ class MergeChildFieldParityTest {
             .setGroupByColumns(List.of(ColumnReference.fromComponents("tdb", "folders", "name")))
             .setMismatchedJoins(List.of())
             .setGeneratedSource("hibernate")
+            .setGeneratorCandidates(List.of(new com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate(
+                "hibernate", "criteria-root-alias")))
             .setModifiedForAnalysis(true);
     }
 

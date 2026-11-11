@@ -18,10 +18,18 @@
     @if (query.isDml) { <span class="badge b-idx" title="this statement writes">DML</span> }
     @if (query.isMultiSchema) { <span class="badge b-idx" title="references more than one schema">multi-schema</span> }
     @if (query.analysisSkipped) { <span class="badge" title="analysis was skipped for this statement">not analyzed</span> }
+    @if (origin && origin.kind !== 'none') {
+      <!-- sqlx-n5j.12: an origin only once the environment confirms the generator -->
+      <span class="generator" [class.candidate]="origin.kind === 'candidate'">
+        <span class="term" [title]="glossary.generator">generator</span>
+        <span class="mono" [title]="'matched ' + originRules(origin)">{{originLabel(origin)}}</span>
+      </span>
+    }
     <div class="view-actions">
       <app-tag-field [target]="queryTarget(query.digest)"></app-tag-field>
     </div>
   </div>
+  <app-annotations-view [target]="queryTarget(query.digest)"></app-annotations-view>
 
   <!-- Performance strip: the headline cost of this query, above the fold. -->
   <div class="perf-strip">
@@ -353,6 +361,7 @@
             <div class="ref-list">
               @for (column of query.criteriaColumns; track column) {
                 <app-column-link [schema]="query.schemaName" [columnReference]="column"></app-column-link>
+                @if (likeLabel(column); as like) {<span class="like-qual term" [title]="glossary.likeCriteria">{{like}}</span>}
               }
             </div>
           }
@@ -366,6 +375,20 @@
             </div>
             <div class="ref-list">
               @for (column of query.groupByColumns; track column) {
+                <app-column-link [schema]="query.schemaName" [columnReference]="column"></app-column-link>
+              }
+            </div>
+          </div>
+        }
+
+        @if (query.orderByColumns?.length) {
+          <div class="lens-card">
+            <div class="card-head">
+              <span class="card-head-title">Order by columns</span>
+              <span class="card-head-note">an index in this order can skip the sort</span>
+            </div>
+            <div class="ref-list">
+              @for (column of query.orderByColumns; track column) {
                 <app-column-link [schema]="query.schemaName" [columnReference]="column"></app-column-link>
               }
             </div>

@@ -110,6 +110,46 @@ One flag is worth knowing about:
 `EXPLAIN` is **off unless an environment opts in**, because planning a statement
 runs it against a real server. Leave it off for anything you do not own.
 
+### Server roles
+
+Each server may say what it is for:
+
+```yaml
+    servers:
+      primary:
+        roles: [primary]
+        jdbcUrl: "jdbc:mysql://db.example.com:3306"
+      reporting:
+        roles: [analytics, sampling]
+        jdbcUrl: "jdbc:mysql://reporting.db.example.com:3306"
+```
+
+| Role | Means |
+|---|---|
+| `primary` | takes the application's writes |
+| `replica` | serves the application's reads |
+| `analytics` | a replica the application does not read from — ETL, reporting |
+| `sampling` | SQL Explorer may run its own queries against table data here |
+
+The first three only describe; schema reads and captures go where they always
+did. `sampling` is the one that grants anything, and it is **off unless a
+server opts in**: profiling, cardinality estimates and any other query against
+table data go only to the first server with it, through
+`Environment.samplingTarget()`, and only while the environment is live — never
+from a cached one. Those queries run in a read-only session with
+`max_execution_time` set and walk tables by primary-key range in capped chunks
+(`SamplingLimits`). A `primary` cannot also be `sampling`; startup refuses it.
+`/environments` lists each server's roles and which server, if any, sampling
+would use.
+
+### Table sizes
+
+Every schema load and pull also reads `information_schema.TABLES` — row
+estimate, data and index length, free space, engine, row format, collation,
+create and update time — in one query beside the schema fingerprint, and keeps
+it in the cluster's schema snapshot, so a cached environment still shows it.
+`TABLE_ROWS` is an estimate for InnoDB, not a count, and is labelled so.
+
 ### RDS servers with IAM authentication
 
 An Amazon RDS server that authenticates an AWS IAM identity instead of a

@@ -26,7 +26,7 @@
 
     <div class="lens-card create-card">
       <div class="create-title">Create or recolor tag</div>
-      <input class="name-input" placeholder="tag name…" [(ngModel)]="newTagName">
+      <input class="name-input" placeholder="tag name…" maxlength="48" [(ngModel)]="newTagName">
       <div class="picker-label">Color</div>
       <div class="color-picker">
         @for (color of colors; track color) {

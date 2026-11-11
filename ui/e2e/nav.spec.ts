@@ -55,7 +55,7 @@ test('the nav leads with the primary pages and keeps operator pages under Admin'
   await expect(page.locator('nav.navbar a', {hasText: 'Captured'})).toHaveCount(0);
 
   await page.locator('.dropdown-toggle', {hasText: 'Admin'}).click();
-  await expect(page.locator('.dropdown-item')).toHaveText(['Captured', 'Schema drift', 'Sources', 'Query utilities', 'MCP']);
+  await expect(page.locator('.dropdown-item')).toHaveText(['Captured', 'Schema drift', 'Sources', 'Query utilities', 'DDL pre-flight', 'MCP']);
   await page.locator('.dropdown-item', {hasText: 'Captured'}).click();
   await expect(page).toHaveURL(/\/captured/);
 });

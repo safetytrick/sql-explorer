@@ -542,6 +542,9 @@
   &.b-err     { background: var(--red-dim); color: var(--red); }
   &.b-anal    { background: var(--amber-dim); color: var(--amber); }
   &.b-hint    { background: var(--teal-dim); color: var(--teal); }
+  // an asserted generator is solid; a candidate is dashed, never read as fact (sqlx-n5j.12)
+  &.b-gen     { background: var(--purple-dim); color: var(--purple); }
+  &.b-gen.candidate { background: transparent; color: var(--text3); border: 1px dashed var(--border2); }
 
   // Not a severity. A spread is a fact about what the metrics beside it are
   // averaging, and dressing it as a warning would push people to "fix" a merge

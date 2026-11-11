@@ -13,6 +13,9 @@
   <a class="view-sub unqueried-link" routerLink="/unqueried"
      title="this list holds only tables some captured query touches; tables the schema has that nothing queries are listed separately">
     queried tables only · unqueried ›</a>
+  <a class="view-sub encodings-link" routerLink="/collations"
+     title="tables grouped by the character sets and collations of their columns, and joins whose two sides differ">
+    charsets &amp; collations ›</a>
 
   <!-- Hoisted out of app-table-list-component so the header is the page's one
        control strip. The component still owns the filtering; it is only the
@@ -60,6 +63,8 @@
                               [typeFilter]="typeFilter"
                               [showTypeFilter]="false"
                               [selectable]="searching"
+                              [sort]="sort"
+                              (sortChange)="setSort($event)"
                               [excluded]="excluded"
                               (excludedChange)="setExcluded($event)"
                               (tagsChanged)="onRowTagsChanged()"></app-table-list-component>

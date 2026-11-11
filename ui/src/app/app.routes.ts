@@ -15,8 +15,10 @@ import {TablesWithColumnComponent} from './tables-with-column/tables-with-column
 import {SqlViewComponent} from './sql-view/sql-view.component';
 import {ExplainViewComponent} from './explain-view/explain-view.component';
 import {QueryUtilitiesComponent} from './query-utilities/query-utilities.component';
+import {DdlPreflightComponent} from './ddl-preflight/ddl-preflight.component';
 import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
 import {NoteViewComponent} from './note-view/note-view.component';
+import {TableDdlComponent} from './table-ddl/table-ddl.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.component';
 import {graphRedirectParams, tableGraphRedirectParams} from './graph-lens/graph-url';
@@ -27,6 +29,7 @@ import {CoverageLensComponent} from './coverage-lens/coverage-lens.component';
 import {UnusedIndexesComponent} from './unused-indexes/unused-indexes.component';
 import {carryScope, droppedScope} from './scope-url';
 import {McpSetupComponent} from './mcp-setup/mcp-setup.component';
+import {CollationsComponent} from './collations/collations.component';
 
 /**
  * `/table/{schema}/{table}/{column}` → the table lens with that column drilled
@@ -157,6 +160,11 @@ const routes: Routes = [
     component: SchemaDriftComponent,
     title: 'Schema drift'
   },
+  {
+    path: 'collations',
+    component: CollationsComponent,
+    title: 'Charsets & collations'
+  },
   /** The page's old name; links to it have been shared (sqlx-om1.4). */
   {
     path: 'coverage',
@@ -215,9 +223,15 @@ const routes: Routes = [
     component: TableLensComponent,
     title: paramTitle(p => `${p['schema']}.${p['name']}`)
   },
-  // `table/:schema/:name/:column` matches these two as well, so they have to
-  // stay ahead of it — `queries` and `join` would otherwise be read as column
-  // names. Pinned by app.routes.spec.ts.
+  // `table/:schema/:name/:column` matches these three as well, so they have to
+  // stay ahead of it — `ddl`, `queries` and `join` would otherwise be read as
+  // column names. Pinned by app.routes.spec.ts.
+  {
+    path: 'table/:schema/:name/ddl',
+    pathMatch: 'full',
+    component: TableDdlComponent,
+    title: paramTitle(p => `Plan a change · ${p['schema']}.${p['name']}`)
+  },
   {
     path: 'table/:schema/:name/queries',
     pathMatch: 'full',
@@ -251,6 +265,11 @@ const routes: Routes = [
     path: 'query-utilities',
     component: QueryUtilitiesComponent,
     title: 'Query Utilities'
+  },
+  {
+    path: 'ddl-preflight',
+    component: DdlPreflightComponent,
+    title: 'DDL pre-flight'
   },
   {
     path: 'table-graph/schema/:schema/:table/depth/:depth',

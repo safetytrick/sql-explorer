@@ -1,0 +1,53 @@
+<div class="lens-card storage-card">
+  <div class="card-head">
+    <span class="card-head-title">Storage</span>
+    @if (summary.counted.length > 1) {
+      <span class="card-head-note"><span class="term" [title]="glossary.storageTotals">total of {{summary.counted.length}} primaries</span></span>
+    }
+  </div>
+  @if (rows.length === 0) {
+    <div class="card-empty">no size figures: the schema has not been read since they were first kept, or this is a view</div>
+  } @else {
+    @let s = summary;
+    <dl class="storage-figures summary">
+      <dt><span class="term" [title]="glossary.rowsEstimate">rows (est.)</span></dt>
+      <dd class="mono" [title]="s.rows === null ? '' : (s.rows | number) + ' — an estimate, not a count'">
+        {{s.rows === null ? '—' : formatRowsEstimate(s.rows)}}</dd>
+      <dt>data</dt><dd class="mono">{{formatBytes(s.data) || '—'}}</dd>
+      <dt>indexes</dt><dd class="mono">{{formatBytes(s.indexes) || '—'}}</dd>
+      <dt><span class="term" [title]="glossary.storageAvgRow">avg row</span></dt><dd class="mono">{{formatBytes(s.avgRow) || '—'}}</dd>
+      <dt>engine</dt>
+      <dd class="mono" [class.warn]="s.engines.length > 1 || s.rowFormats.length > 1">{{oneValue(s.engines) ?? '—'}}@if (oneValue(s.rowFormats); as format) { · {{format}}}</dd>
+      @if (oneValue(s.collations); as collation) {
+        <dt>collation</dt><dd class="mono" [class.warn]="s.collations.length > 1">{{collation}}</dd>
+      }
+      <dt><span class="term" [title]="glossary.storageCaptured">captured</span></dt>
+      <dd class="dim" [title]="s.readOldest === s.readNewest ? '' : 'captured between these; the oldest is shown'">{{s.readOldest | date: 'short'}}</dd>
+    </dl>
+
+    @if (rows.length) {
+      <details class="breakdown">
+        <summary>by server ({{rows.length}})@if (s.excluded.length) { · {{s.excluded.length}} {{s.excluded.length === 1 ? 'replica' : 'replicas'}} not totalled}</summary>
+        @for (row of rows; track row.server) {
+          <dl class="storage-figures server" [class.excluded]="isExcluded(row)">
+            <dt>server</dt>
+            <dd class="mono">{{row.server}}@if (isExcluded(row)) {<span class="dim"> · replica</span>}</dd>
+            <dt>rows (est.)</dt><dd class="mono">{{row.rowsEstimate === null ? '—' : formatRowsEstimate(row.rowsEstimate)}}</dd>
+            <dt>data</dt><dd class="mono">{{formatBytes(row.dataLength) || '—'}}</dd>
+            <dt>indexes</dt><dd class="mono">{{formatBytes(row.indexLength) || '—'}}</dd>
+            <dt>free</dt><dd class="mono">{{formatBytes(row.dataFree) || '—'}}</dd>
+            <dt>avg row</dt><dd class="mono">{{formatBytes(row.avgRowLength) || '—'}}</dd>
+            @if (row.autoIncrement !== null) {
+              <dt>next id</dt><dd class="mono">{{row.autoIncrement | number}}</dd>
+            }
+            <dt>engine</dt><dd class="mono">{{row.engine ?? '—'}}@if (row.rowFormat) { · {{row.rowFormat}}}</dd>
+            @if (row.tableCollation) { <dt>collation</dt><dd class="mono">{{row.tableCollation}}</dd> }
+            @if (row.createTime) { <dt>created</dt><dd>{{row.createTime | date: 'mediumDate'}}</dd> }
+            @if (row.updateTime) { <dt>updated</dt><dd>{{row.updateTime | date: 'short'}}</dd> }
+            <dt>captured</dt><dd class="dim">{{row.readAt | date: 'short'}}</dd>
+          </dl>
+        }
+      </details>
+    }
+  }
+</div>

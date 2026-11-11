@@ -208,6 +208,19 @@
         </div>
       </div>
 
+      <div class="fg">
+        <div class="fg-label"><span class="term" [title]="glossary.generator">Generator</span> <span class="hint">ORM signatures</span></div>
+        <div class="tri-row">
+          @for (option of generatorOptions; track option.label) {
+            <span class="tri-btn" [class.on]="generator === option.value" (click)="setGenerator(option.value)">{{option.label}}</span>
+          }
+          @if (generator && !hasGeneratorOption(generator)) {
+            <!-- a linked generator this build does not list still applies; say so -->
+            <span class="tri-btn on" (click)="setGenerator(null)">{{generator}}</span>
+          }
+        </div>
+      </div>
+
       <div class="section-hdr">Examples</div>
       <div class="fg checks">
         <label class="check-row" [title]="glossary.hasExamples">
@@ -333,6 +346,14 @@
                   @let warnings = badge('warn', hit); <span class="badge b-warn" [title]="warnings.title">{{warnings.label}}</span>
                 }
                 @if (hit.profile.indexHints?.length) { <span class="badge b-hint" title="carries an index hint">{{hintActions(hit.profile).join('/')}} index</span> }
+                @if (hit.profile.generatorCandidates?.length) {
+                  @if (originOf(hit.profile); as origin) {
+                    @if (origin.kind !== 'none') {
+                      <span class="badge b-gen" [class.candidate]="origin.kind === 'candidate'"
+                            [title]="'generator — matched ' + originRules(origin)">{{originLabel(origin)}}</span>
+                    }
+                  }
+                }
                 @if (hit.profile.mismatchedJoins.length > 0) { <span class="badge b-anal">analyzer!</span> }
                 @if (hit.profile.analysisFailed) { <span class="badge b-err">failed</span> }
                 <!-- The merge is deliberate; what must not stay silent is that

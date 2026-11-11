@@ -1,0 +1,31 @@
+.storage-figures {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+
+  & + & { border-top: 1px solid var(--border); }
+
+  dt { color: var(--text3); }
+  dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+}
+
+.dim { color: var(--text3); }
+
+.storage-figures dd.warn { color: var(--amber); }
+
+.breakdown {
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+
+  summary {
+    cursor: pointer;
+    padding: 6px 14px;
+    color: var(--text3);
+    &:hover { color: var(--text2); }
+  }
+  .storage-figures.server { border-top: 1px solid var(--border); font-size: 11px; }
+  .storage-figures.excluded { opacity: 0.6; }
+}

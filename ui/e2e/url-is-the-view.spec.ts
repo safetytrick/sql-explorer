@@ -131,3 +131,23 @@ test('a query excluded from its row can be switched off and on from its pill', a
   await expect(rows).toHaveCount(3);
   await expect(page.locator('.active-filter-bar .pill.off')).toHaveCount(1);
 });
+
+/**
+ * The charsets & collations page (sqlx-n5j.5): its "mixed only" filter is a
+ * link, and the page is reached from /tables.
+ */
+test('the collations filter is in the link and survives a reload', async ({page}) => {
+  await page.goto('/tables');
+  await page.getByRole('link', {name: /charsets & collations/}).click();
+  await expect(page).toHaveURL(/\/collations/);
+  await expect(page.locator('.group-card')).toHaveCount(2);
+  await expect(page.locator('.join-card tbody tr')).toHaveCount(1);
+
+  await page.getByRole('button', {name: /mixed only/}).click();
+  await expect(page).toHaveURL(/var-flag=mixed/);
+  await expect(page.locator('.group-card')).toHaveCount(1);
+
+  await page.reload();
+  await expect(page.locator('.group-card')).toHaveCount(1);
+  await expect(page.locator('.group-card')).toContainText('app.orders');
+});

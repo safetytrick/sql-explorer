@@ -27,6 +27,10 @@
       <a class="btn" [routerLink]="['/tables', schema]">Tables in {{schema}} ↗</a>
     } @else {
       <button type="button" class="btn" (click)="toggleCreate()">{{showCreate ? 'hide DDL' : 'show DDL'}}</button>
+      @if (knownToSchema && !isView) {
+        <a class="btn" [routerLink]="['/table', schema, table, 'ddl']"
+           title="build a schema change, check it, and see how the table is written and what it would wait behind">Plan a change ↗</a>
+      }
       <a class="btn" [routerLink]="['/queries']" [queryParams]="graphParams()"
          title="the graph of every query touching this table">Graph ↗</a>
     }
@@ -230,7 +234,7 @@
         <div class="table-scroll">
           <table class="data-table">
             <thead>
-            <tr><th>column</th>@if (isView) {<th>source</th>}<th>type</th><th>attributes</th><th>charset</th><th class="ctr">nullable</th><th>query roles</th><th class="num">queries</th></tr>
+            <tr><th>column</th>@if (isView) {<th>source</th>}<th>type</th><th>attributes</th><th>charset</th><th class="ctr">nullable</th><th>query roles</th><th class="num">queries</th><th>tags</th></tr>
             </thead>
             <tbody>
               @for (column of visibleColumns(); track column.name) {
@@ -240,6 +244,13 @@
                     [title]="isDrillable(column) ? 'queries joining on or filtering by this column' : ''">
                   <td>
                     <span class="mono">{{column.name}}</span>
+                    <!-- this column's notes and facts (sqlx-n5j.1); the open one is var-notes -->
+                    <button type="button" class="col-notes" [class.on]="notesColumn === column.name"
+                            [class.has]="columnCommentary.noteCount(column.name) > 0"
+                            (click)="toggleColumnNotes(column.name, $event)"
+                            [title]="columnCommentary.noteCount(column.name) ? columnCommentary.noteCount(column.name) + ' notes on this column' : 'notes and facts on this column'">
+                      ✎@if (columnCommentary.noteCount(column.name)) {<span class="col-notes-count">{{columnCommentary.noteCount(column.name)}}</span>}
+                    </button>
                     @if (commentFor(column); as comment) {
                       <!-- The schema's own words, under the name rather than in a
                            tooltip: a comment nobody can see they could hover for
@@ -292,7 +303,9 @@
                   <td>
                     @for (role of column.roles; track role) {
                       <span class="rp" [class.rp-join]="role === 'join'" [class.rp-criteria]="role === 'criteria'"
-                            [class.rp-select]="role === 'select'" [class.rp-groupby]="role === 'group by'">{{role}}</span>
+                            [class.rp-select]="role === 'select'" [class.rp-groupby]="role === 'group by'"
+                            [class.rp-orderby]="role === 'order by'" [class.term]="role === 'order by'"
+                            [attr.title]="roleTitle(column, role)">{{role}}@if (role === 'criteria' && column.like) {<span class="rp-qual term" [title]="glossary.likeCriteria"> · like {{column.like.queries}}@if (column.like.leadingWildcard) {<span class="rp-wild"> · %… {{column.like.leadingWildcard}}</span>}</span>}</span>
                     }
                     @if (column.roles.length === 0) { <span class="dim">—</span> }
                   </td>
@@ -302,6 +315,13 @@
                       <div class="q-bar" [style.width.px]="8 + column.queries / maxColumnQueries() * 48"></div>
                     }
                   </td>
+                  <td class="col-tags" (click)="$event.stopPropagation()">
+                    @if (columnCommentary.tags) {
+                      <app-tag-field dense [target]="columnTarget(schema, table, column.name)"
+                                     [tags]="columnCommentary.tagsOf(column.name)"
+                                     (changed)="columnCommentary.changed(column.name, $event)"></app-tag-field>
+                    }
+                  </td>
                 </tr>
               }
             </tbody>
@@ -309,6 +329,14 @@
         </div>
         }
       </div>
+      @if (notesColumn) {
+        <!-- The open column's notes and facts, as a link can name it (var-notes). -->
+        <div class="column-detail">
+          <app-annotations-view [target]="columnTarget(schema, table, notesColumn)"></app-annotations-view>
+          <app-notes-card [path]="columnPath(schema, table, notesColumn)" [heading]="'Notes on ' + notesColumn"
+                          (added)="columnCommentary.noteAdded(notesColumn)"></app-notes-card>
+        </div>
+      }
       <!-- Queries -->
       <div class="lens-card queries-card" #queriesCard [class.flash]="queriesFlash">
         <div class="card-head">
@@ -389,52 +417,17 @@
 
     <!-- Right rail -->
     <div class="lens-rail">
-      <div class="lens-card">
-        <div class="card-head"><span class="card-head-title">Indexes</span></div>
-        <div class="index-list">
-          @if (indexUsage.length === 0) {
-            <div class="card-empty">no indexes</div>
-          }
-          @for (index of indexUsage; track index.name) {
-            <div class="index-row" [class.drillable]="isIndexDrillable(index)"
-                 [class.on]="drillIndex === indexReference(index)"
-                 [class.missing]="!index.exists"
-                 (click)="drillIntoIndex(index)"
-                 [title]="isIndexDrillable(index) ? 'queries whose index hints name this index' : ''">
-              <div class="index-head">
-                @if (!index.exists) {
-                  <span class="badge b-warn">MISSING</span>
-                } @else {
-                  <span class="badge" [class.b-pk]="index.primary" [class.b-idx]="!index.primary">
-                    {{index.primary ? 'PK' : (index.unique ? 'UNIQ' : 'IDX')}}
-                  </span>
-                }
-                <span class="mono dim2">{{index.name}}</span>
-                @if (index.queries > 0) {
-                  <span class="index-queries mono" title="distinct queries hinting this index">{{index.queries}}</span>
-                }
-              </div>
-              @if (index.exists) {
-                <span class="mono dim">{{index.columns.join(', ')}}</span>
-              } @else {
-                <span class="warn-note" title="MySQL rejects a hint naming an index the table does not have (error 1176)">not on this table — statements fail</span>
-              }
-              @if (index.hints.length) {
-                <div class="index-hints">
-                  @for (hint of index.hints; track hint) {
-                    <span class="rp" [class.rp-force]="hint === 'force'" [class.rp-use]="hint === 'use'"
-                          [class.rp-ignore]="hint === 'ignore'">{{hint}}</span>
-                  }
-                </div>
-              }
-            </div>
-          }
-        </div>
-      </div>
+      @if (knownToSchema && !isView) {
+        <app-table-storage-card [stats]="storage"></app-table-storage-card>
+      }
+      <app-index-card [indexes]="indexUsage" [selected]="drillIndexName()" clickable="hinted"
+                      clickTitle="queries whose index hints name this index"
+                      (picked)="drillIntoIndex($event)"></app-index-card>
       <div class="lens-card">
         <div class="card-head"><span class="card-head-title">Tags</span></div>
         <div class="tags-body">
           <app-tag-field [target]="tableTarget(schema, table)"></app-tag-field>
+          <app-annotations-view [target]="tableTarget(schema, table)"></app-annotations-view>
         </div>
       </div>
       <app-notes-card [path]="tablePath(schema, table)"></app-notes-card>

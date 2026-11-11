@@ -1,4 +1,4 @@
-import {Component, Input, OnChanges} from '@angular/core';
+import {Component, EventEmitter, Input, OnChanges, Output} from '@angular/core';
 import {HttpClient, HttpHeaders} from '@angular/common/http';
 import {DatePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
@@ -31,6 +31,10 @@ export interface Note {
 })
 export class NotesCardComponent implements OnChanges {
   @Input({required: true}) path!: string;
+  /** The card's title; a column's notes say which column (sqlx-n5j.1). */
+  @Input() heading = 'Notes';
+  /** A note was saved here. */
+  @Output() added = new EventEmitter<Note>();
 
   notes: Note[] = [];
   failed = false;
@@ -63,6 +67,7 @@ export class NotesCardComponent implements OnChanges {
       {headers: new HttpHeaders({'Content-Type': 'application/x-www-form-urlencoded'})}).subscribe({
       next: note => {
         this.notes = [...this.notes, note];
+        this.added.emit(note);
         this.draft = '';
         this.adding = false;
         this.saving = false;

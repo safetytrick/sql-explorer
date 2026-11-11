@@ -35,9 +35,14 @@ public final class AnalyzerVersion {
      *       to its source table rather than dual, and a UNION derived table
      *       resolves through its first branch (sqlx-03r).</li>
      *   <li>5 — index hints are recorded (sqlx-yj0).</li>
+     *   <li>6 — ORDER BY columns are recorded (sqlx-n5j.8); criteria
+     *       columns carry how they are compared, LIKE and its leading
+     *       wildcard included (sqlx-n5j.7); and generator signatures: every
+     *       matching rule of every generator is recorded as a candidate, and
+     *       generatedSource is no longer written (sqlx-n5j.12).</li>
      * </ul>
      */
-    public static final int ANALYZERS = 5;
+    public static final int ANALYZERS = 6;
 
     /** What a profile records, and what reuse compares: {@code a<ANALYZERS>.n<QueryNormalizer.VERSION>}. */
     public static final String CURRENT = "a" + ANALYZERS + ".n" + QueryNormalizer.VERSION;

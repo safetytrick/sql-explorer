@@ -6,9 +6,22 @@ import { INITIAL_SEARCH, envFromSearch } from './environment-url';
 const endpoint = '/api/sql-explorer/';
 const STORAGE_KEY = 'sql-explorer.environment';
 
+/** What config says a server is for (sqlx-n5j.4); only `sampling` grants anything. */
+export type ServerRole = 'primary' | 'replica' | 'analytics' | 'sampling';
+
 export interface ServerSummary {
   name: string;
   schemaLoaded: boolean;
+  /** Empty when config names none. */
+  roles?: ServerRole[];
+}
+
+/** Which server sampling queries would go to, or why none would (sqlx-n5j.4). */
+export interface SamplingStatus {
+  /** The first server with the sampling role; null when none has it. */
+  server: string | null;
+  available: boolean;
+  reason: string | null;
 }
 
 export interface SqlImportStats {
@@ -54,6 +67,7 @@ export interface EnvironmentSummary {
   /** Served from its cache with no server connected; a pull takes it live (sqlx-nbi). */
   cached?: boolean;
   health?: EnvironmentHealth;
+  sampling?: SamplingStatus;
 }
 
 export interface PullResult {

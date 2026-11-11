@@ -1,5 +1,6 @@
 import {FormsModule} from '@angular/forms';
-import {Component, Input, OnInit} from '@angular/core';
+import {Component, inject, Input, OnInit} from '@angular/core';
+import {AnnotationService, schemaTerms} from '../annotation.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import { TableListComponent } from '../table-list-component/table-list.component';
@@ -8,9 +9,10 @@ import { emptyTagFilter, matchesTagFilter, TagFilterState } from '../tag-filter/
 import { TableRollup } from '../api-types';
 import { TypeFilter } from '../schema-tree/tree-filter';
 import { readTypeFilter, TYPE_PARAM } from './type-filter-url';
+import { encodeTableSort, readTableSort, SORT_PARAM, sortTables, TableSort } from './sort-url';
 import { matchesTreeFilter, matchesTypeFilter } from '../schema-tree/tree-filter';
 import { decodeTableSearch, encodeTableSearch, parseColumns, tableKey, TableSearchState } from './table-search-url';
-import {schemaTarget, tableTarget, targetKey, type TagTarget} from '../tag-path';
+import {tableTarget, targetKey, type TagTarget} from '../tag-path';
 import { BulkTagBarComponent } from '../bulk-tag/bulk-tag-bar.component';
 
 @Component({
@@ -40,6 +42,9 @@ export class TableNamesComponent implements OnInit {
    * omitted, so an untouched page keeps a clean URL.
    */
   typeFilter: TypeFilter = 'all';
+
+  /** The list's order, URL-backed as `var-sort`; see sort-url.ts (sqlx-n5j.10). */
+  sort: TableSort = 'time';
   /** How many of the filtered rows each type choice would show, on its button (sqlx-c8w.8). */
   typeCounts = {all: 0, tables: 0, views: 0};
   /** `tables` narrowed by the tag strip; the type filter still applies inside. */
@@ -112,6 +117,8 @@ export class TableNamesComponent implements OnInit {
    */
   private schemaTags = new Map<string, string[]>();
 
+  private readonly annotationService = inject(AnnotationService);
+
   constructor(public sqlService: AnalyzedSqlService, private route: ActivatedRoute,
               private router: Router) { }
 
@@ -119,6 +126,7 @@ export class TableNamesComponent implements OnInit {
     // seeded from the snapshot, then kept current — /tables and /tables/:schema
     // are the same component, so a schema change must not drop the type filter
     this.typeFilter = readTypeFilter(this.route.snapshot.queryParamMap.get(TYPE_PARAM));
+    this.sort = readTableSort(this.route.snapshot.queryParamMap.get(SORT_PARAM));
     this.readSearch(decodeTableSearch(this.route.snapshot.queryParamMap));
     this.route.params.subscribe(params => {
         this.schema = params['schema'];
@@ -126,6 +134,7 @@ export class TableNamesComponent implements OnInit {
     });
     this.route.queryParamMap.subscribe(params => {
       this.typeFilter = readTypeFilter(params.get(TYPE_PARAM));
+      this.sort = readTableSort(params.get(SORT_PARAM));
       this.readSearch(decodeTableSearch(params));
       this.load();
       this.applyFilter();
@@ -165,10 +174,10 @@ export class TableNamesComponent implements OnInit {
   private loadSchemaTags(tables: TableRollup[]) {
     const names = [...new Set(tables.map(table => table.schema).filter(Boolean))];
     if (!names.length) { return; }
-    this.sqlService.getTagsForTargets(names.map(schemaTarget)).subscribe({
-      next: byIndex => {
-        this.schemaTags = new Map(names.map((name, index) =>
-          [name.toLowerCase(), (byIndex[index] ?? []).map(tag => tag.name)]));
+    // tags and schema roles together: `system` is a role now (sqlx-n5j.14)
+    schemaTerms(this.sqlService, this.annotationService, names).subscribe({
+      next: terms => {
+        this.schemaTags = terms;
         this.applyFilter();
       },
       // a missing tag map narrows exclusion to the row's own tags rather than
@@ -203,7 +212,7 @@ export class TableNamesComponent implements OnInit {
   private applyFilter() {
     this.stripRows = this.tables.map(table =>
       ({tags: table.tags ?? [], inheritedTags: this.inherited(table)}));
-    this.visible = this.tables.filter(table =>
+    this.visible = sortTables(this.tables, this.sort).filter(table =>
       matchesTreeFilter(table.schema ?? '', table.name, this.search.name)
       && matchesTagFilter((table.tags ?? []).map(tag => tag.name), this.filter,
         this.inherited(table)));
@@ -317,6 +326,17 @@ export class TableNamesComponent implements OnInit {
    * stack history entries — the back button should leave the page, not walk
    * back through filter states.
    */
+  setSort(sort: TableSort) {
+    this.sort = sort;
+    this.applyFilter();
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { [SORT_PARAM]: encodeTableSort(sort) },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+  }
+
   setTypeFilter(typeFilter: TypeFilter) {
     this.typeFilter = typeFilter;
     this.router.navigate([], {

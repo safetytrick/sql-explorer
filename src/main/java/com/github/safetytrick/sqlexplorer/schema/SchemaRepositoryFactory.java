@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import com.github.safetytrick.sqlexplorer.analysis.resolver.ViewLineageResolver;
@@ -36,6 +37,8 @@ public class SchemaRepositoryFactory {
     private final ViewDefinitionService viewDefinitionService;
     private final SchemaFingerprintService fingerprintService;
     private final SchemaSnapshotStore snapshotStore;
+    /** Null: no table stats are read (sqlx-n5j.2). */
+    private final TableStatsService tableStatsService;
 
     /** Without snapshots: every load reads the server in full. */
     public SchemaRepositoryFactory(TableColumnService tableColumnService,
@@ -47,7 +50,7 @@ public class SchemaRepositoryFactory {
             viewDefinitionService, null, null);
     }
 
-    @Autowired
+    /** Without table stats. */
     public SchemaRepositoryFactory(TableColumnService tableColumnService,
                                    IndexLoadingService indexLoadingService,
                                    ForeignKeyLoadingService foreignKeyLoadingService,
@@ -55,6 +58,20 @@ public class SchemaRepositoryFactory {
                                    ViewDefinitionService viewDefinitionService,
                                    SchemaFingerprintService fingerprintService,
                                    SchemaSnapshotStore snapshotStore) {
+        this(tableColumnService, indexLoadingService, foreignKeyLoadingService, createStatementService,
+            viewDefinitionService, fingerprintService, snapshotStore, null);
+    }
+
+    @Autowired
+    public SchemaRepositoryFactory(TableColumnService tableColumnService,
+                                   IndexLoadingService indexLoadingService,
+                                   ForeignKeyLoadingService foreignKeyLoadingService,
+                                   CreateStatementService createStatementService,
+                                   ViewDefinitionService viewDefinitionService,
+                                   SchemaFingerprintService fingerprintService,
+                                   SchemaSnapshotStore snapshotStore,
+                                   TableStatsService tableStatsService) {
+        this.tableStatsService = tableStatsService;
         this.tableColumnService = tableColumnService;
         this.indexLoadingService = indexLoadingService;
         this.foreignKeyLoadingService = foreignKeyLoadingService;
@@ -89,23 +106,91 @@ public class SchemaRepositoryFactory {
      */
     public SchemaLoad loadCurrent(DataSource dataSource, SchemaSnapshot.Key key, String server) {
         if (snapshotStore == null || fingerprintService == null || key == null) {
-            return new SchemaLoad(load(dataSource), null, false, true, Instant.now(), server);
+            Map<String, TableStats> stats = readStats(dataSource, server);
+            return new SchemaLoad(withCreateStatements(withStats(load(dataSource).getTables(), stats), dataSource),
+                null, false, true, Instant.now(), server);
         }
         SchemaFingerprint fingerprint = fingerprintService.fingerprint(dataSource);
+        // read beside the fingerprint, on the connection a load makes anyway: stats move
+        // with the data, so a snapshot that is still current structurally is not current here
+        Map<String, TableStats> stats = readStats(dataSource, server);
         Optional<SchemaSnapshot> snapshot = snapshotStore.read(key);
         if (snapshot.isPresent() && snapshot.get().fingerprint().equals(fingerprint)) {
             log.info("Schema of {}/{} unchanged since {} (read from {}); using its snapshot",
                 key.environment(), key.cluster(), snapshot.get().readAt(), snapshot.get().server());
-            return new SchemaLoad(withCreateStatements(snapshot.get().tables(), dataSource), fingerprint, true, true,
+            List<TableStructure> tables = refreshedStats(snapshot.get(), stats);
+            return new SchemaLoad(withCreateStatements(tables, dataSource), fingerprint, true, true,
                 snapshot.get().readAt(), snapshot.get().server());
         }
         log.info("Schema of {}/{} {}; reading it from {}", key.environment(), key.cluster(),
             snapshot.isPresent() ? "changed since its snapshot" : "has no snapshot", server);
         Instant readAt = Instant.now();
-        LoadedSchema schema = load(dataSource);
+        List<TableStructure> tables = withStats(load(dataSource).getTables(), stats);
         snapshotStore.write(new SchemaSnapshot(SchemaSnapshotStore.FORMAT, key.environment(), key.cluster(), server,
-            readAt, fingerprint, schema.getTables()));
-        return new SchemaLoad(schema, fingerprint, false, true, readAt, server);
+            readAt, fingerprint, tables));
+        return new SchemaLoad(withCreateStatements(tables, dataSource), fingerprint, false, true, readAt, server);
+    }
+
+    /**
+     * A schema still current, with its table stats read again — what a pull
+     * does for a server whose schema it keeps in memory, so that sizes and row
+     * estimates move with the data while the structure is not re-read
+     * (sqlx-n5j.2). The cluster's snapshot is rewritten with them, so a later
+     * cached start shows them too. A failed read keeps the stats it had.
+     */
+    public SchemaLoad withFreshStats(DataSource dataSource, SchemaLoad loaded, SchemaSnapshot.Key key,
+                                     String server) {
+        Map<String, TableStats> stats = readStats(dataSource, server);
+        if (stats.isEmpty()) {
+            return loaded;
+        }
+        List<TableStructure> tables = withStats(loaded.schema().getTables(), stats);
+        if (snapshotStore != null && key != null && loaded.fingerprint() != null) {
+            snapshotStore.write(new SchemaSnapshot(SchemaSnapshotStore.FORMAT, key.environment(), key.cluster(),
+                loaded.readFrom(), loaded.readAt(), loaded.fingerprint(), tables));
+        }
+        return new SchemaLoad(withCreateStatements(tables, dataSource), loaded.fingerprint(), loaded.fromSnapshot(),
+            loaded.current(), loaded.readAt(), loaded.readFrom());
+    }
+
+    /** The snapshot's tables with these stats, rewriting the snapshot so it keeps them; as it was when there are none. */
+    private List<TableStructure> refreshedStats(SchemaSnapshot snapshot, Map<String, TableStats> stats) {
+        if (stats.isEmpty()) {
+            return snapshot.tables();
+        }
+        List<TableStructure> tables = withStats(snapshot.tables(), stats);
+        snapshotStore.write(new SchemaSnapshot(snapshot.format(), snapshot.environment(), snapshot.cluster(),
+            snapshot.server(), snapshot.readAt(), snapshot.fingerprint(), tables));
+        return tables;
+    }
+
+    /**
+     * Stats are an extra, not part of the schema: one that cannot be read
+     * leaves the tables without them, and the load goes on.
+     */
+    private Map<String, TableStats> readStats(DataSource dataSource, String server) {
+        if (tableStatsService == null) {
+            return Map.of();
+        }
+        try {
+            return tableStatsService.read(dataSource, server);
+        } catch (RuntimeException e) {
+            log.warn("Table statistics of server {} could not be read: {}", server, e.toString());
+            return Map.of();
+        }
+    }
+
+    /** Each table with the one server's stats for it; a table it did not report (a view) has none. */
+    static List<TableStructure> withStats(List<TableStructure> tables, Map<String, TableStats> stats) {
+        if (stats.isEmpty()) {
+            return tables;
+        }
+        return tables.stream()
+            .map(table -> {
+                TableStats reported = stats.get(SchemaFingerprint.key(table.schema(), table.name()));
+                return table.withStats(reported == null ? null : List.of(reported));
+            })
+            .toList();
     }
 
     /**

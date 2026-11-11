@@ -1,0 +1,56 @@
+<div class="lens-card">
+  <div class="card-head">
+    <span class="card-head-title"><span class="term" [title]="definition">Generators</span></span>
+    <span class="card-head-note">which ORMs this environment's statements come from</span>
+  </div>
+  @if (failed) {
+    <div class="card-empty">generators could not be read</div>
+  } @else if (!generators.length) {
+    <div class="card-empty">loading…</div>
+  } @else {
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>generator</th><th>signatures</th><th>this environment</th><th></th></tr></thead>
+        <tbody>
+          @for (generator of generators; track generator.name) {
+            <tr>
+              <td>
+                <span class="mono">{{generator.name}}</span>
+                <div class="dim">{{generator.description}}</div>
+              </td>
+              <td class="rules">
+                @for (rule of generator.rules; track rule.id) {
+                  <span class="rule mono" [title]="rule.description">{{rule.id}}</span>
+                }
+              </td>
+              <td>
+                @if (generator.status === 'used') {
+                  <span class="state used">used</span>
+                } @else if (generator.status === 'not-used') {
+                  <span class="state not-used">not used</span>
+                } @else {
+                  <span class="state unknown">not confirmed — matches show as candidates</span>
+                }
+                @if (generator.confirmation) {
+                  <div class="dim">{{generator.confirmation.author?.email || 'someone'}}
+                    @if (generator.confirmation.recordedOn) { · {{generator.confirmation.recordedOn | date: 'MMM d, y'}} }</div>
+                }
+              </td>
+              <td class="actions">
+                <a class="matches-link" [routerLink]="['/queries']" [queryParams]="queriesParams(generator)">matching queries</a>
+                @if (generator.status !== 'used') {
+                  <button type="button" class="btn primary" [disabled]="saving === generator.name"
+                          (click)="set(generator, true)">confirm used</button>
+                }
+                @if (generator.status !== 'not-used') {
+                  <button type="button" class="btn" [disabled]="saving === generator.name"
+                          (click)="set(generator, false)">not used</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

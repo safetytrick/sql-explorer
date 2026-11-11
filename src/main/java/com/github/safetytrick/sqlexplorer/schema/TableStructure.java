@@ -29,7 +29,21 @@ public record TableStructure(String schema,
                              /** Base tables a view selects from; null for base tables. */
                              List<TableReference> underlyingTables,
                              /** Per-column lineage for views; null for base tables. */
-                             List<ViewColumn> viewColumns) {
+                             List<ViewColumn> viewColumns,
+                             /**
+                              * Size and row estimate, one entry per server that reported the
+                              * table — one per cluster carrying it (sqlx-n5j.2). Null when
+                              * none was read: a structure built from DDL, or a snapshot
+                              * written before stats were kept.
+                              */
+                             List<TableStats> stats) {
+
+    /** Without stats: a structure built from DDL or a test, which no server has reported on. */
+    public TableStructure(String schema, String name, String type, String remarks, List<ForeignKey> foreignKeys,
+                          List<TableIndex> indices, List<TableColumn> columns, List<TableReference> underlyingTables,
+                          List<ViewColumn> viewColumns) {
+        this(schema, name, type, remarks, foreignKeys, indices, columns, underlyingTables, viewColumns, null);
+    }
 
     public TableReference tableReference() {
         return TableReference.newTableReference(schema, name);
@@ -38,7 +52,23 @@ public record TableStructure(String schema,
     /** Copy with the view's base tables and column lineage attached (see {@link ViewDefinitionService}). */
     public TableStructure withViewDefinition(List<TableReference> underlyingTables, List<ViewColumn> viewColumns) {
         return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns,
-            underlyingTables, viewColumns);
+            underlyingTables, viewColumns, stats);
+    }
+
+    /** Copy with these stats in place of any it had. */
+    public TableStructure withStats(List<TableStats> stats) {
+        return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns,
+            underlyingTables, viewColumns, stats == null ? null : List.copyOf(stats));
+    }
+
+    /** {@link TableStats#totalRowsEstimate}: an estimate, summed over the servers reporting it. */
+    public Long rowsEstimate() {
+        return TableStats.totalRowsEstimate(stats);
+    }
+
+    /** {@link TableStats#totalSize}: data plus index bytes, summed over the servers reporting it. */
+    public Long sizeBytes() {
+        return TableStats.totalSize(stats);
     }
 
     public static Builder builder() {

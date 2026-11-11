@@ -48,7 +48,10 @@
 }
 
 .query-count,
-.total-time {
+.total-time,
+.writes,
+.rows-est,
+.table-size {
   font-family: var(--mono);
   white-space: nowrap;
 }
@@ -64,3 +67,20 @@
 tr.unchecked td:not(.check-col) { opacity: 0.45; }
 
 .render-more { padding: 8px 14px; font-size: 11px; color: var(--text3); text-align: center; cursor: pointer; }
+
+td.writes.dim { color: var(--text3); }
+
+// A header that sorts: reads as a header, not a button, until hovered.
+.sort-btn {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover, &.on { color: var(--blue); }
+}

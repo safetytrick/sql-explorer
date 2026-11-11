@@ -16,6 +16,10 @@ environments:
     explainEnabled: true
     servers:
       explorer:
+        # Roles (ServerRole) describe what each server is for; only `sampling`
+        # grants SQL Explorer anything: the right to run its own queries against
+        # table data there, through Environment.samplingTarget().
+        roles: [primary]
         jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
         # Stated explicitly. Left off, the pool sends no user at all and the
         # driver falls back to mysql_native_password, which MySQL 8.4 removed —
@@ -31,6 +35,8 @@ environments:
       # the unused-index report's whole rule is "read on no connection", which a
       # single-server environment cannot exercise at all (sqlx-vjr).
       replica:
+        # the sampling server: never the primary, which the registry refuses
+        roles: [replica, sampling]
         jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
         username: root
         password: password

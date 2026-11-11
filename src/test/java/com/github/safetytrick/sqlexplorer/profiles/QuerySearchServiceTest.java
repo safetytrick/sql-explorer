@@ -516,6 +516,23 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void generatorFilterKeepsQueriesWithThatCandidateOrNone() {
+        SqlProfile walker = withColumns("walker", "app.account", List.of(), List.of(), List.of());
+        walker.setGeneratorCandidates(List.of(
+            new com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate("doctrine-orm", "dql-walker-alias")));
+        SqlProfile insert = withColumns("insert", "app.account", List.of(), List.of(), List.of());
+        insert.setGeneratorCandidates(List.of(
+            new com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate("doctrine-orm", "uow-insert"),
+            new com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate("hibernate", "uow-insert")));
+        repositoryReturns(walker, insert, withColumns("plain", "app.account", List.of(), List.of(), List.of()));
+
+        assertThat(searchIds(request().generator("doctrine-orm").build())).containsExactlyInAnyOrder("walker", "insert");
+        assertThat(searchIds(request().generator("hibernate").build())).containsExactly("insert");
+        assertThat(searchIds(request().generator("none").build())).containsExactly("plain");
+        assertThat(searchIds(request().generator(null).build())).containsExactlyInAnyOrder("walker", "insert", "plain");
+    }
+
+    @Test
     void hintedFilterKeepsQueriesCarryingAnyHintOrOneAction() {
         SqlProfile forced = withColumns("forced", "app.orders", List.of(), List.of(), List.of());
         forced.setIndexHints(List.of(new IndexHint(TableReference.fromString("app.orders"),
@@ -708,6 +725,7 @@ class QuerySearchServiceTest {
         private List<String> schemas, excludeSchemas, tables, excludeTables, columns, indexes;
         private TableMode tableMode;
         private HintAction hinted;
+        private String generator;
         private Boolean untaggedOnly, analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
         private Flag fullScan, truncated, multiSchema;
@@ -733,6 +751,7 @@ class QuerySearchServiceTest {
         RequestBuilder columns(List<String> v) { this.columns = v; return this; }
         RequestBuilder indexes(List<String> v) { this.indexes = v; return this; }
         RequestBuilder hinted(HintAction v) { this.hinted = v; return this; }
+        RequestBuilder generator(String v) { this.generator = v; return this; }
         RequestBuilder tables(List<String> v) { this.tables = v; return this; }
         RequestBuilder tableMode(TableMode v) { this.tableMode = v; return this; }
         RequestBuilder untaggedOnly(Boolean v) { this.untaggedOnly = v; return this; }
@@ -753,7 +772,7 @@ class QuerySearchServiceTest {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly, tableTags,
                 excludeTableTags, excludeTypes, excludeTags, excludeQueries,
-                schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted,
+                schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted, generator,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
                 analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);

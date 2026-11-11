@@ -83,6 +83,67 @@ public final class Environment implements AutoCloseable {
         return name;
     }
 
+    /**
+     * THE GUARD for every query SQL Explorer would run against table data —
+     * profiling, cardinality estimates, samples (sqlx-n5j.4). A feature that
+     * samples goes through here and nowhere else, so the rules below hold for
+     * all of them rather than for the ones that remembered to check:
+     *
+     * <ol>
+     *   <li><b>Only a server with the {@code sampling} role.</b> Config opts a
+     *       server in by name; absent that, nothing is sampled, and the
+     *       exception says so. When several have it, the first declared.</li>
+     *   <li><b>Never while the environment is served from its cache.</b> A
+     *       cached environment connects to nothing (sqlx-nbi), and sampling is
+     *       no exception: pull it first.</li>
+     *   <li><b>Within {@link SamplingLimits}:</b> a read-only session, a
+     *       {@code max_execution_time} on every statement — both applied by
+     *       {@link SamplingTarget#openSession()} — and row caps by primary-key
+     *       range, which the caller keeps.</li>
+     * </ol>
+     *
+     * <p>It decides without connecting: the answer comes from config and the
+     * environment's state alone.
+     *
+     * @throws SamplingUnavailableException naming why there is no target
+     */
+    public SamplingTarget samplingTarget() {
+        DatabaseServer sampling = servers.stream()
+            .filter(server -> server.hasRole(ServerRole.SAMPLING))
+            .findFirst()
+            .orElseThrow(() -> new SamplingUnavailableException("environment " + name
+                + " has no server with the sampling role, so nothing in it may be sampled; "
+                + "give a replica that serves no application traffic `roles: [sampling]` to allow it"));
+        if (cached) {
+            throw new SamplingUnavailableException("environment " + name + " is served from its cache, so "
+                + "server " + sampling.getName() + " is not connected; pull the environment to go live");
+        }
+        return new SamplingTarget(name, sampling, SamplingLimits.DEFAULT);
+    }
+
+    /**
+     * What {@link #samplingTarget()} would answer, without throwing — for
+     * {@code /environments}.
+     *
+     * @param server    the sampling server; null when no server has the role
+     * @param available whether a feature could sample now
+     * @param reason    why it cannot; null when it can
+     */
+    public record SamplingStatus(String server, boolean available, String reason) { }
+
+    public SamplingStatus samplingStatus() {
+        String server = servers.stream()
+            .filter(candidate -> candidate.hasRole(ServerRole.SAMPLING))
+            .map(DatabaseServer::getName)
+            .findFirst().orElse(null);
+        try {
+            samplingTarget();
+            return new SamplingStatus(server, true, null);
+        } catch (SamplingUnavailableException e) {
+            return new SamplingStatus(server, false, e.getMessage());
+        }
+    }
+
     /** Every server of every cluster, in declaration order. */
     public List<DatabaseServer> getServers() {
         return servers;

@@ -121,6 +121,18 @@ export class NavBarComponent implements OnInit, OnDestroy {
     return [STATE_MEANING[this.state(env)], ...problems.map(p => '• ' + p)].join('\n');
   }
 
+  /** Hover text on the server count: each server with its roles, then where sampling goes (sqlx-n5j.4). */
+  serversTitle(env: EnvironmentSummary): string {
+    const lines = env.servers.map(server =>
+      server.name + (server.roles?.length ? ' — ' + server.roles.join(', ') : ''));
+    if (env.sampling) {
+      lines.push(env.sampling.available
+        ? 'sampling: ' + env.sampling.server
+        : env.sampling.server ? 'sampling: ' + env.sampling.server + ' (not now: cached)' : 'sampling: none');
+    }
+    return lines.join('\n');
+  }
+
   /** The environment chooser is open (sqlx-m6r.6). */
   envOpen = false;
 

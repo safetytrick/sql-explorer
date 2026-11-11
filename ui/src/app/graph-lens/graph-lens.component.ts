@@ -1,7 +1,8 @@
 import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import {forkJoin, map, of, skip, Subscription, switchMap} from 'rxjs';
+import {catchError, forkJoin, map, of, skip, Subscription, switchMap} from 'rxjs';
+import {AnnotationService, withSchemaRoles} from '../annotation.service';
 import {GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
@@ -198,7 +199,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
               private themeService: ThemeService,
               private route: ActivatedRoute,
               private router: Router,
-              private graphLayoutService: GraphLayoutService) { }
+              private graphLayoutService: GraphLayoutService,
+              private annotationService: AnnotationService) { }
 
   ngOnInit() {
     this.refreshPalette();
@@ -418,11 +420,14 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       const targets = tree.schemas.map(schema => schemaTarget(schema.name));
       return forkJoin({
         byPath: this.analyzedSqlService.getTagsForTargets(targets),
-        tablesByTag: tablesByTag$
-      }).pipe(map(({ byPath, tablesByTag }) => {
+        tablesByTag: tablesByTag$,
+        // a schema role (e.g. `system`) answers the same vocabulary (sqlx-n5j.14)
+        roles: this.annotationService.schemaRoles().pipe(catchError(() => of(new Map<string, string[]>())))
+      }).pipe(map(({ byPath, tablesByTag, roles }) => {
         // Zipped by index: the batched answer is positional (sqlx-3ai).
         const tagsBySchema = new Map<string, string[]>(tree.schemas.map((schema, index) =>
-          [schema.name.toLowerCase(), (byPath[index] ?? []).map(tag => tag.name)]));
+          [schema.name.toLowerCase(),
+            withSchemaRoles(schema.name, (byPath[index] ?? []).map(tag => tag.name), roles)]));
         return resolveSchemaTagScope(names, tagsBySchema, filter, tablesByTag);
       }));
     }));

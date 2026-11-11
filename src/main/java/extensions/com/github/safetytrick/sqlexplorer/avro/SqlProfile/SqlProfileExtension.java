@@ -11,6 +11,7 @@ import com.github.safetytrick.sqlexplorer.analysis.NameNormalizer;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.CriteriaComparison;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.google.common.hash.Hashing;
@@ -139,6 +140,35 @@ public class SqlProfileExtension {
             return thiz;
         }
 
+        public static SqlProfile.Builder orderByColumn(@This SqlProfile.Builder thiz, ColumnReference column) {
+            if (thiz.getOrderByColumns() == null) {
+                thiz.setOrderByColumns(new ArrayList<>());
+            }
+            if (thiz.getOrderByColumns().stream().noneMatch(column::equalsNormalized)) {
+                thiz.getOrderByColumns().add(column);
+            }
+            return thiz;
+        }
+
+        /**
+         * Adds a comparison unless the same column is already recorded with
+         * the same kind and leading-wildcard answer: a column searched both
+         * {@code LIKE 'a%'} and {@code LIKE '%a'} keeps both.
+         */
+        public static SqlProfile.Builder criteriaComparison(@This SqlProfile.Builder thiz, CriteriaComparison comparison) {
+            if (thiz.getCriteriaComparisons() == null) {
+                thiz.setCriteriaComparisons(new ArrayList<>());
+            }
+            boolean present = thiz.getCriteriaComparisons().stream().anyMatch(existing ->
+                existing.getColumn().equalsNormalized(comparison.getColumn())
+                    && existing.getKind().equals(comparison.getKind())
+                    && java.util.Objects.equals(existing.getLeadingWildcard(), comparison.getLeadingWildcard()));
+            if (!present) {
+                thiz.getCriteriaComparisons().add(comparison);
+            }
+            return thiz;
+        }
+
         /** Adds a hint unless the same action already names the same index of the same table. */
         public static SqlProfile.Builder indexHint(@This SqlProfile.Builder thiz, IndexHint hint) {
             if (thiz.getIndexHints() == null) {
@@ -253,6 +283,23 @@ public class SqlProfileExtension {
                 thiz.setJoinColumns(joinColumns);
             }
 
+            if (thiz.getOrderByColumns() != null) {
+                List<ColumnReference> orderByColumns = new ArrayList<>(thiz.getOrderByColumns().size());
+                for (ColumnReference orderByColumn : thiz.getOrderByColumns()) {
+                    orderByColumns.add(orderByColumn.withDefaultSchema(defaultSchema));
+                }
+                thiz.setOrderByColumns(orderByColumns);
+            }
+
+            if (thiz.getCriteriaComparisons() != null) {
+                List<CriteriaComparison> comparisons = new ArrayList<>(thiz.getCriteriaComparisons().size());
+                for (CriteriaComparison comparison : thiz.getCriteriaComparisons()) {
+                    comparisons.add(CriteriaComparison.newBuilder(comparison)
+                        .setColumn(comparison.getColumn().withDefaultSchema(defaultSchema)).build());
+                }
+                thiz.setCriteriaComparisons(comparisons);
+            }
+
             if (thiz.getIndexHints() != null) {
                 List<IndexHint> indexHints = new ArrayList<>(thiz.getIndexHints().size());
                 for (IndexHint hint : thiz.getIndexHints()) {
@@ -344,6 +391,9 @@ public class SqlProfileExtension {
             if (thiz.getSchemas() == null) { thiz.setSchemas(new ArrayList<>()); }
             if (thiz.getSourcedFiles() == null) { thiz.setSourcedFiles(new ArrayList<>()); }
             if (thiz.getIndexHints() == null) { thiz.setIndexHints(new ArrayList<>()); }
+            if (thiz.getOrderByColumns() == null) { thiz.setOrderByColumns(new ArrayList<>()); }
+            if (thiz.getCriteriaComparisons() == null) { thiz.setCriteriaComparisons(new ArrayList<>()); }
+            if (thiz.getGeneratorCandidates() == null) { thiz.setGeneratorCandidates(new ArrayList<>()); }
         }
 
         public static SqlProfile completeBuild(@This SqlProfile.Builder thiz, String defaultSchema) {

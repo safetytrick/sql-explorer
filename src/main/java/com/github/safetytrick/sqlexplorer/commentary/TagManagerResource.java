@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.commentary;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.commentary.TagManagerService.TagSummary;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Tags")
 @RestController
@@ -29,6 +31,10 @@ class TagManagerResource {
 
     @PutMapping("/tags/definitions/{name}")
     public TagDefinition define(@PathVariable String name, @RequestBody DefineTagRequest body) {
+        String nameProblem = Names.tagNameProblem(name);
+        if (nameProblem != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, nameProblem);
+        }
         return tagManagerService.define(name, body.color());
     }
 

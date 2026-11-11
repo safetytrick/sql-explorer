@@ -2,7 +2,8 @@ import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {tableTarget} from '../tag-path';
 import {tableKey} from '../table-names/table-search-url';
 import type {Tag} from '../api-types';
-import {Component, OnDestroy, OnInit} from '@angular/core';
+import {Component, inject, OnDestroy, OnInit} from '@angular/core';
+import {AnnotationService, schemaTerms} from '../annotation.service';
 import {Subscription} from 'rxjs';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {DatePipe} from '@angular/common';
@@ -14,7 +15,6 @@ import {SEEN_FORMAT} from '../seen-format';
 import type {CoverageVerdict, ObservedWindow} from '../api-types';
 import {SchemaUsage, totals, unqueriedBySchema} from './unqueried-tables';
 import {matchesScopeTags, NO_SCOPE_TAGS, ScopeTags, decodeScopeTags, isUnscoped} from '../scope-tags';
-import {schemaTarget} from '../tag-path';
 
 /**
  * Also show the schemas the scope excluded. Off by default.
@@ -95,6 +95,8 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
    * same way `/tables` does it.
    */
   private schemaTags = new Map<string, string[]>();
+
+  private readonly annotationService = inject(AnnotationService);
 
   constructor(private schemaLensService: SchemaLensService,
               private sqlService: AnalyzedSqlService,
@@ -194,10 +196,10 @@ export class UnqueriedTablesComponent implements OnInit, OnDestroy {
   private loadSchemaTags() {
     const names = this.all.map(usage => usage.schema).filter(Boolean);
     if (!names.length) { return; }
-    this.sqlService.getTagsForTargets(names.map(schemaTarget)).subscribe({
-      next: byIndex => {
-        this.schemaTags = new Map(names.map((name, index) =>
-          [name.toLowerCase(), (byIndex[index] ?? []).map(tag => tag.name)]));
+    // tags and schema roles together: `system` is a role now (sqlx-n5j.14)
+    schemaTerms(this.sqlService, this.annotationService, names).subscribe({
+      next: terms => {
+        this.schemaTags = terms;
         this.applyScope();
       },
       // Without the tags nothing is excluded, so the page shows everything —

@@ -9,6 +9,27 @@
   padding: 10px 14px;
   border-top: 1px solid var(--border);
 }
+.roles { white-space: nowrap; }
+.role-chip {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: var(--bg3);
+  color: var(--text2);
+
+  // the one role that grants sql-explorer anything
+  &.sampling { background: var(--blue-dim); color: var(--blue); }
+}
+.dim { color: var(--text3); }
+.sampling-line {
+  margin: 0;
+  padding: 8px 14px 0;
+  font-size: 12px;
+
+  &.unavailable { color: var(--text3); }
+}
 .refresh-hint { font-size: 11px; color: var(--text3); }
 .pull-result, .pull-failed { margin: 0; padding: 0 14px 10px; font-size: 12px; }
 

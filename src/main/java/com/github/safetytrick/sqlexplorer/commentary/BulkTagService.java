@@ -3,7 +3,6 @@ package com.github.safetytrick.sqlexplorer.commentary;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import com.github.safetytrick.sqlexplorer.auth.UserService;
 import jakarta.transaction.Transactional;
@@ -40,9 +39,6 @@ public class BulkTagService {
      * this is a backstop against a runaway client, not a quota.
      */
     public static final int MAX_PATHS = 25_000;
-
-    /** Tag names are used in URLs and filenames; keep them boring. */
-    private static final Pattern TAG_NAME = Pattern.compile("[\\w-]+");
 
     private final TagRepository tagRepository;
     private final UserService userService;
@@ -128,9 +124,9 @@ public class BulkTagService {
      * and the counts reported back have to mean "objects", not "list entries".
      */
     private static List<TagTarget> validatedTargets(String name, List<TagTarget> targets, String type) {
-        if (name == null || !TAG_NAME.matcher(name).matches()) {
-            throw new BulkTagRequestException(
-                "name must only contain letters, numbers, underscores and hyphens");
+        String nameProblem = Names.tagNameProblem(name);
+        if (nameProblem != null) {
+            throw new BulkTagRequestException(nameProblem);
         }
         if (targets == null || targets.isEmpty()) {
             throw new BulkTagRequestException("at least one target is required");
@@ -138,7 +134,7 @@ public class BulkTagService {
         List<TagTarget> checked = new java.util.ArrayList<>(targets.size());
         for (TagTarget target : targets) {
             try {
-                TagTarget valid = target.validated();
+                TagTarget valid = target.validatedForTags();
                 if (type != null && !type.equals(valid.type())) {
                     throw new BulkTagRequestException("type " + type
                         + " does not match a target addressing a " + valid.type());

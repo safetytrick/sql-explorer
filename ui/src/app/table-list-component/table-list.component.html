@@ -20,7 +20,21 @@
       <th class="table-col">Name</th>
       <th class="table-tags">Tags</th>
       <th class="query-count num"><span class="term" [title]="glossary.tableQueries"># of Queries</span></th>
-      <th class="total-time num"><span class="term" [title]="glossary.tableTime">Total Query Time</span></th>
+      @if (sort === null) {
+        <th class="total-time num"><span class="term" [title]="glossary.tableTime">Total Query Time</span></th>
+      } @else {
+        <!-- sortable on /tables (sqlx-n5j.10); the order is the page's, in the URL -->
+        <th class="total-time num" [attr.aria-sort]="sort === 'time' ? 'descending' : 'none'">
+          <button type="button" class="sort-btn" [class.on]="sort === 'time'" (click)="sortChange.emit('time')"
+                  title="sort by total query time"><span class="term" [title]="glossary.tableTime">Total Query Time</span>@if (sort === 'time') { ▾ }</button>
+        </th>
+        <th class="writes num" [attr.aria-sort]="sort === 'writes' ? 'descending' : 'none'">
+          <button type="button" class="sort-btn" [class.on]="sort === 'writes'" (click)="sortChange.emit('writes')"
+                  title="sort by writes per day"><span class="term" [title]="glossary.writesPerDay">Writes / day</span>@if (sort === 'writes') { ▾ }</button>
+        </th>
+      }
+      <th class="rows-est num"><span class="term" [title]="glossary.rowsEstimate">Rows (est.)</span></th>
+      <th class="table-size num"><span class="term" [title]="glossary.tableSize">Size</span></th>
     </tr>
   </thead>
   <tbody>
@@ -52,6 +66,12 @@
           <app-pico-view [duration]="table.totalQueryTime"></app-pico-view>
           <div class="dur-bar" [style.width.%]="weight(table.totalQueryTime)"></div>
         </td>
+        @if (sort !== null) {
+          <td class="writes num" [class.dim]="!table.writesPerDay"
+              [title]="table.writesPerDay ? 'a daily average over the captured window' : 'no writes captured'">{{fmtPerDay(table.writesPerDay)}}</td>
+        }
+        <td class="rows-est num">{{formatRowsEstimate(table.rowsEstimate)}}</td>
+        <td class="table-size num">{{formatBytes(table.sizeBytes)}}</td>
       </tr>
     }
   </tbody>

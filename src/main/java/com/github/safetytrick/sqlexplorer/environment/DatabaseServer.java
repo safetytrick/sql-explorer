@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.environment;
 
 import javax.sql.DataSource;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
@@ -28,6 +29,8 @@ public final class DatabaseServer implements AutoCloseable {
     private final SchemaRepositoryFactory schemaRepositoryFactory;
     /** The cluster whose schema snapshot this server reads and writes; null for no snapshots. */
     private final SchemaSnapshot.Key snapshotKey;
+    /** What the server is for (sqlx-n5j.4); empty when config says nothing. */
+    private final Set<ServerRole> roles;
 
     /*
      * LOCKING (sqlx-o7x). Connecting is slow when a server is unreachable: a
@@ -87,6 +90,15 @@ public final class DatabaseServer implements AutoCloseable {
     /** @param snapshotKey the cluster this server belongs to, whose schema snapshot it shares */
     public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
                           SchemaRepositoryFactory schemaRepositoryFactory, SchemaSnapshot.Key snapshotKey) {
+        this(name, connectionInfo, sourceDefinitions, schemaRepositoryFactory, snapshotKey, Set.of());
+    }
+
+    /** @param roles what the server is for; only {@link ServerRole#SAMPLING} gates anything */
+    public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
+                          SchemaRepositoryFactory schemaRepositoryFactory, SchemaSnapshot.Key snapshotKey,
+                          Set<ServerRole> roles) {
+        this.roles = roles == null || roles.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.copyOf(roles));
         this.name = name;
         this.connectionInfo = connectionInfo;
         this.sourceDefinitions = List.copyOf(sourceDefinitions);
@@ -104,6 +116,15 @@ public final class DatabaseServer implements AutoCloseable {
 
     public List<SourceDefinition> getSourceDefinitions() {
         return sourceDefinitions;
+    }
+
+    /** What the server is for, in {@link ServerRole} order. */
+    public Set<ServerRole> getRoles() {
+        return roles;
+    }
+
+    public boolean hasRole(ServerRole role) {
+        return roles.contains(role);
     }
 
     /** Refuse every connection while {@code environment} is served from its cache; null goes live. */
@@ -264,6 +285,18 @@ public final class DatabaseServer implements AutoCloseable {
             }
             if (!current) {
                 schemaLoad = null;
+            } else {
+                // kept, but sizes and row estimates move with the data: read them
+                // again on the connection the check just used (sqlx-n5j.2)
+                try {
+                    SchemaRepositoryFactory.SchemaLoad fresh =
+                        schemaRepositoryFactory.withFreshStats(getDataSource(), loaded, snapshotKey, name);
+                    if (fresh != null) {
+                        schemaLoad = fresh;
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("Table statistics of server {} could not be refreshed: {}", name, e.toString());
+                }
             }
         } finally {
             schemaLock.unlock();

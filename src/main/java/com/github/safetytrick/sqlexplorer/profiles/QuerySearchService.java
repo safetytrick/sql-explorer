@@ -212,6 +212,7 @@ public class QuerySearchService {
         if (!matchesColumns(r, profile)) return false;
         if (!matchesIndexes(r, profile)) return false;
         if (!matchesHinted(r, profile)) return false;
+        if (!matchesGenerator(r, profile)) return false;
 
         if (!matchesFlag(r.fullScan(), m == null ? null : m.getFullTableScan())) return false;
         if (!matchesFlag(r.tmpTable(), m == null ? null : m.getTempTables() > 0)) return false;
@@ -312,6 +313,18 @@ public class QuerySearchService {
     }
 
     /** {@link QuerySearchRequest#hinted()}: any index hint, or one with the given action, on any table. */
+    /** {@link QuerySearchRequest#generator()}: a generator among the candidates, or {@code none} for no candidates. */
+    private static boolean matchesGenerator(QuerySearchRequest r, SqlProfile profile) {
+        if (r.generator() == null || r.generator().isBlank()) {
+            return true;
+        }
+        List<com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate> candidates = profile.getGeneratorCandidates();
+        if ("none".equals(r.generator())) {
+            return candidates == null || candidates.isEmpty();
+        }
+        return candidates != null && candidates.stream().anyMatch(c -> r.generator().equals(c.getGenerator()));
+    }
+
     private static boolean matchesHinted(QuerySearchRequest r, SqlProfile profile) {
         if (r.hinted() == null) {
             return true;

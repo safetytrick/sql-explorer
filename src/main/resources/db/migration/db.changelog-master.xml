@@ -526,4 +526,174 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		Tags on columns (sqlx-n5j.1): `/schema/{s}/table/{t}/column/{c}`.
+
+		column_name joins the typed target, '' and NOT NULL like the others (a
+		NULL would let the same tag be stored twice — see tags-typed-target-
+		columns). It has to join the unique key too, and that key was already at
+		2904 of InnoDB's 3072 bytes, so environment_name narrows from 255 to 128
+		characters to make room: 128 is far longer than any environment name, and
+		a longer one would fail this statement loudly rather than truncate.
+
+		The generated path learns the column shape in the same statement. ONE
+		statement, for the reason given above tags-typed-target-columns: a failure
+		part way through must not leave the table without its key or its path.
+	-->
+	<changeSet id="n5j-d-tags-column-target" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><columnExists tableName="tags" columnName="column_name"/></not>
+		</preConditions>
+		<sql>
+			alter table tags
+				modify column environment_name varchar(128) not null,
+				add column column_name varchar(64) not null default '' after table_name,
+				drop index tags_target_name,
+				add unique key tags_target_name
+					(environment_name, type, schema_name, table_name, column_name, query_digest, name),
+				drop key tags_path,
+				drop column path,
+				add column path varchar(220) generated always as (
+					case
+						when type = 'schema' and schema_name not like '%/%'
+							then concat('/schema/', schema_name)
+						when type = 'table' and schema_name not like '%/%' and table_name not like '%/%'
+							then concat('/schema/', schema_name, '/table/', table_name)
+						when type = 'column' and schema_name not like '%/%' and table_name not like '%/%'
+							and column_name not like '%/%'
+							then concat('/schema/', schema_name, '/table/', table_name, '/column/', column_name)
+						when type = 'query' and query_digest not like '%/%'
+							then concat('/query/', query_digest)
+					end) stored,
+				add key tags_path (path);
+		</sql>
+	</changeSet>
+
+	<!--
+		Annotations (sqlx-n5j.13): facts recorded about an object, kept apart from
+		tags. A tag is a person's label, present or absent; an annotation is a
+		record — what was stated (namespace, key, value), how sure (confidence:
+		inferred, sampled, confirmed), why (basis), and who said so (source: a
+		rule, a sampler, or a person, who is then also the author).
+
+		APPEND-ONLY. A confirmation or a correction is a new row, and the latest
+		row for (target, namespace, key) is the current answer; nothing is updated
+		in place, so how a fact came to be believed stays readable.
+
+		Addressed by the same typed target as tags, plus the environment itself
+		(target_type 'environment', every part ''), and scoped by environment the
+		same way. No unique key: history is the point. The two indexes are the two
+		reads, by target and by namespace.
+
+		`key` is a reserved word in MySQL, hence ann_key.
+	-->
+	<changeSet id="n5j-d-create-annotations" author="claude">
+		<preConditions onFail="MARK_RAN">
+			<not><tableExists tableName="annotations"/></not>
+		</preConditions>
+		<sql>
+			create table annotations
+			(
+				id               int primary key not null auto_increment,
+				environment_name varchar(128)  not null,
+				target_type      varchar(16)   not null,
+				schema_name      varchar(64)   not null default '',
+				table_name       varchar(64)   not null default '',
+				column_name      varchar(64)   not null default '',
+				query_digest     varchar(72)   not null default '',
+				namespace        varchar(64)   not null,
+				ann_key          varchar(128)  not null,
+				value            varchar(1024) character set utf8mb4 not null,
+				confidence       varchar(16)   not null,
+				basis            text character set utf8mb4,
+				source_kind      varchar(16)   not null,
+				source_name      varchar(255),
+				author_id        int,
+				recorded_on      timestamp(3)  not null default current_timestamp(3),
+				index annotations_target (environment_name, target_type, schema_name, table_name,
+				                          column_name, query_digest),
+				index annotations_namespace (environment_name, namespace, ann_key),
+				index (author_id),
+				foreign key (author_id) references users (id)
+					on update cascade on delete restrict
+			);
+		</sql>
+	</changeSet>
+
+	<!--
+		The `system` schema tag becomes an annotation (sqlx-n5j.14). It states a
+		fact — this schema belongs to MySQL — rather than a person's label, so it
+		moves to namespace schema-role, key role, value system, confirmed, keeping
+		who applied it and when. Only schema tags: that is the only place the tag
+		was ever applied, and a `system` tag anywhere else is someone's label
+		that this change has no business reinterpreting.
+	-->
+	<changeSet id="n5j-d-system-tag-to-annotation" author="claude">
+		<sql>
+			insert into annotations
+				(environment_name, target_type, schema_name, namespace, ann_key, value,
+				 confidence, basis, source_kind, source_name, author_id, recorded_on)
+			select environment_name, 'schema', schema_name, 'schema-role', 'role', 'system',
+			       'confirmed', 'migrated from the system tag', 'person', null, author_id, created_on
+			from tags
+			where name = 'system' and type = 'schema';
+		</sql>
+	</changeSet>
+
+	<!-- Then the tag rows go: the annotation is the only record now. -->
+	<changeSet id="n5j-d-remove-system-schema-tags" author="claude">
+		<sql>
+			delete from tags where name = 'system' and type = 'schema';
+		</sql>
+	</changeSet>
+
+	<!--
+		And its colour, unless a `system` tag survives somewhere else — the
+		definition is per name, so it stays while any row still uses the name.
+	-->
+	<changeSet id="n5j-d-remove-system-tag-def" author="claude">
+		<sql>
+			delete from tag_def
+			where name = 'system'
+			  and not exists (select 1 from (select id from tags where name = 'system') still_used);
+		</sql>
+	</changeSet>
+
+	<!--
+		Tag names and environment names are capped at 48 characters (Names.MAX_LENGTH),
+		and every column holding one narrows to match. Both are chosen by people and
+		shown as chips and headers, and both lead unique keys, so the spare width was
+		only ever key length.
+
+		HALTS rather than truncating: a longer name already stored must be renamed
+		by a person, because a cut-off name could collide with another one. Each
+		table is its own statement inside one changeset; MySQL commits DDL per
+		statement, and each statement is safe to repeat (modify to the same type).
+		Nullability is restated as it was: notes, tags and annotations not null,
+		source_ref and query_example nullable.
+	-->
+	<changeSet id="names-limited-to-48" author="claude">
+		<preConditions onFail="HALT" onFailMessage="A tag or environment name is longer than 48 characters; rename it before upgrading">
+			<and>
+			<sqlCheck expectedResult="0">select count(*) from tags where char_length(name) &gt; 48</sqlCheck>
+			<sqlCheck expectedResult="0">select count(*) from tag_def where char_length(name) &gt; 48</sqlCheck>
+			<sqlCheck expectedResult="0">select count(*) from tags where char_length(environment_name) &gt; 48</sqlCheck>
+			<sqlCheck expectedResult="0">select count(*) from notes where char_length(environment_name) &gt; 48</sqlCheck>
+			<sqlCheck expectedResult="0">select count(*) from annotations where char_length(environment_name) &gt; 48</sqlCheck>
+			<sqlCheck expectedResult="0">select count(*) from source_ref where char_length(environment_name) &gt; 48</sqlCheck>
+			<sqlCheck expectedResult="0">select count(*) from query_example where char_length(environment_name) &gt; 48</sqlCheck>
+			</and>
+		</preConditions>
+		<sql>
+			alter table tags
+				modify column name varchar(48) character set utf8mb4 collate utf8mb4_general_ci not null,
+				modify column environment_name varchar(48) not null;
+			alter table tag_def modify column name varchar(48) not null;
+			alter table notes modify column environment_name varchar(48) not null;
+			alter table annotations modify column environment_name varchar(48) not null;
+			alter table source_ref modify column environment_name varchar(48);
+			alter table query_example modify column environment_name varchar(48);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

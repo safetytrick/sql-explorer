@@ -53,7 +53,7 @@ class TagTargetTest {
 
     @Test
     void aShapeThatAddressesNothingIsRefused() {
-        assertThatThrownBy(() -> new TagTarget("column", "app_main", "orders", "").validate())
+        assertThatThrownBy(() -> new TagTarget("index", "app_main", "orders", "").validate())
             .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("type must be");
         assertThatThrownBy(() -> new TagTarget("table", "app_main", "", "").validate())
             .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("needs a table");
@@ -86,5 +86,36 @@ class TagTargetTest {
     void aLegacyPathBecomesATarget() {
         assertThat(TagPath.require("/schema/app_main/table/orders").toTarget())
             .isEqualTo(TagTarget.ofTable("app_main", "orders"));
+    }
+
+    /** Columns are addressed like tables plus a name, and validated as strictly (sqlx-n5j.1). */
+    @Test
+    void aColumnTargetNeedsItsTableAndColumn() {
+        assertThat(TagTarget.ofColumn("app", "account", "status").validatedForTags().type()).isEqualTo("column");
+        assertThatThrownBy(() -> new TagTarget("column", "app", "account", "", "").validate())
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("needs a column");
+        assertThatThrownBy(() -> new TagTarget("column", "app", "", "", "status").validate())
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("needs a table");
+        assertThatThrownBy(() -> new TagTarget("table", "app", "account", "", "status").validate())
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("no column");
+    }
+
+    /** Two columns of one table are different targets; a column is not its table. */
+    @Test
+    void theColumnIsPartOfTheIdentity() {
+        assertThat(TagTarget.ofColumn("app", "account", "status"))
+            .isNotEqualTo(TagTarget.ofColumn("app", "account", "name"))
+            .isNotEqualTo(TagTarget.ofTable("app", "account"));
+    }
+
+    /** The environment is an annotation target, never a tag's (sqlx-n5j.13). */
+    @Test
+    void theEnvironmentIsATargetButNotATagTarget() {
+        assertThat(TagTarget.ofEnvironment().validated().type()).isEqualTo("environment");
+        assertThat(TagTarget.ofEnvironment().path()).isNull();
+        assertThatThrownBy(() -> TagTarget.ofEnvironment().validatedForTags().validate())
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("not the environment");
+        assertThatThrownBy(() -> new TagTarget("environment", "app", "", "").validate())
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("no schema");
     }
 }

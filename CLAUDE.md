@@ -269,6 +269,7 @@ Components map directly to the URL hierarchy:
 | `/schemas`                           | SchemaListComponent                             |
 | `/tables`, `/tables/:schema`         | TableNamesComponent                             |
 | `/table/:schema/:name`               | TableLensComponent                              |
+| `/table/:schema/:name/ddl`           | TableDdlComponent (plan a change: builder, pre-flight, write rate, lock risk) |
 | `/table/:schema/:name/queries` (+ `/join/**`, `/:column`) | TableViewComponent         |
 | `/analyzed-sql/:id`                  | SqlViewComponent                                |
 | `/tags`                              | TagManagerComponent (master/detail)             |
@@ -366,12 +367,29 @@ Two correctness details that are easy to undo by accident:
   chip renders in the fallback grey and never updates, because mutating a Map
   triggers no change detection.
 
-Tag paths are `/schema/{s}`, `/schema/{s}/table/{t}`, `/query/{digest}`.
+Tag names and environment names are capped at 48 characters (`commentary/Names`),
+and every column holding one is `varchar(48)`.
+
+Tag paths are `/schema/{s}`, `/schema/{s}/table/{t}`,
+`/schema/{s}/table/{t}/column/{c}`, `/query/{digest}`; notes use the same
+paths. The table lens's column list tags columns through one batched
+`/tags/targets` call and counts notes through `POST /notes/paths`.
 `DELETE /tag/:id` detaches by *association* id, not tag id — and a row
 carrying two tags returns both, so match by name rather than taking the first.
 `SqlProfile` carries no `tags` field at all; a query's association has to be
 resolved via `POST /tags/path`, which batches and returns a map keyed by
 exactly the paths sent.
+
+**Tags are human vocabulary; facts are annotations.** `commentary/Annotation`
+(table `annotations`) records namespace, key, value, confidence
+(`inferred` | `sampled` | `confirmed`), basis and source (a rule, a sampler,
+or a person as author) against the same typed target as tags, plus the
+environment itself. Rows are appended, never updated: the latest per
+(target, namespace, key) is the answer. `system` on MySQL's own schemas is
+the `schema-role` annotation, not a tag (sqlx-n5j.14); `withSchemaRoles` in
+`annotation.service.ts` folds roles into the scope/tag-filter terms, so
+`schemaTagsExclude=system` still means what it did. Generator confirmations
+are annotations on the environment (namespace `generator`).
 
 The list pages carry a tag filter strip in the header (`tag-filter/`), sharing
 the workbench's URL vocabulary: `?tags=a,b` plus `tagMode=ALL|ANY`. It

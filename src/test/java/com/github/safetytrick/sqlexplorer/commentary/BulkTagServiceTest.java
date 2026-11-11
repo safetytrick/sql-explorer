@@ -220,7 +220,7 @@ class BulkTagServiceTest {
     @Test
     void aTargetThatAddressesNothingIsRefused() {
         assertThatThrownBy(() ->
-            service.attach("system", List.of(new TagTarget("column", "app_main", "orders", "")), null))
+            service.attach("system", List.of(new TagTarget("index", "app_main", "orders", "")), null))
             .isInstanceOf(BulkTagRequestException.class);
         assertThatThrownBy(() ->
             service.attach("system", List.of(new TagTarget("table", "app_main", "", "")), null))
