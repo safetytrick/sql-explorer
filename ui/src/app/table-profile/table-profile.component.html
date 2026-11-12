@@ -1,0 +1,236 @@
+<div class="view-header">
+  <span class="view-title">Profile data</span>
+  <span class="view-sub mono">{{schema}}.{{table}}</span>
+  <span class="view-sub">counts read on sampling servers; column values never leave the server</span>
+  <div class="view-actions">
+    <a class="btn" [routerLink]="['/table', schema, table]" queryParamsHandling="preserve">← Table</a>
+  </div>
+</div>
+
+<div class="profile-grid">
+  <div class="profile-main">
+
+    <!-- The plan, before anything runs -->
+    <div class="lens-card">
+      <div class="card-head">
+        <span class="card-head-title">{{state.scan ? 'Full scan of ' + state.scan : 'Run a profile'}}</span>
+        <span class="card-head-note">nothing runs until you confirm</span>
+      </div>
+      <div class="plan">
+        @if (planError) {
+          <div class="card-empty">{{planError}}</div>
+        } @else if (!plan) {
+          <div class="card-empty">loading…</div>
+        } @else {
+          <div class="plan-row">
+            @if (state.scan) {
+              <button type="button" class="btn" (click)="backToSampling()">← back to sampling</button>
+            } @else {
+              <label>servers
+                <select [value]="state.server ?? ''" (change)="setServer($any($event.target).value)">
+                  <option value="">every cluster's sampling server</option>
+                  @for (s of samplingServers; track s) { <option [value]="s">probe {{s}} only</option> }
+                </select>
+              </label>
+            }
+            <span class="method">{{methodLabel(plan.method)}}@if (plan.key.length) { by <span class="mono">{{plan.key.join(', ')}}</span>}</span>
+          </div>
+
+          @if (plan.unavailable) {
+            <div class="note-card unavailable">{{plan.unavailable}}</div>
+          } @else {
+            <p class="windows">{{plan.windows}}</p>
+
+            <div class="table-scroll">
+              <table class="data-table ledger targets">
+                <thead><tr><th>Cluster</th><th>Server</th><th class="num">Rows (est.)</th>
+                  <th class="num">Reads at most</th><th class="num">Statements at most</th></tr></thead>
+                <tbody>
+                  @for (t of availableTargets; track t.server) {
+                    <tr>
+                      <td class="mono">{{t.cluster}}</td><td class="mono">{{t.server}}</td>
+                      <td class="num mono">{{t.rowsEstimate === null ? '—' : (t.rowsEstimate | number)}}</td>
+                      <td class="num mono">{{bound(t.maxRows)}} rows</td>
+                      <td class="num mono">{{bound(t.maxStatements)}}</td>
+                    </tr>
+                  }
+                  @for (t of skippedTargets; track t.cluster) {
+                    <tr class="skipped"><td class="mono">{{t.cluster}}</td><td colspan="4">not read: {{t.reason}}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <div class="limits">
+              Each statement is a SELECT in a read-only session, stopped by MySQL after
+              {{plan.statementTimeLimitMs / 1000 | number:'1.0-1'}} s; one at a time per server, {{plan.pauseMs}} ms apart.
+              Up to {{plan.idsPerSignature}} row keys are kept per finding, per server.
+              Columns: <span class="mono">{{plan.columns.length ? '' : 'none'}}</span>
+              @for (c of plan.columns; track c.name; let last = $last) {
+                <span class="mono">{{c.name}}</span><span class="dim"> {{c.characterSet}}</span>{{last ? '' : ', '}}
+              }
+            </div>
+
+            <details class="statements">
+              <summary>the {{plan.statements.length}} kinds of statement it sends, exactly as sent</summary>
+              @for (s of plan.statements; track $index) {
+                <pre><code [sqlHighlight]="s"></code></pre>
+              }
+            </details>
+
+            <div class="confirm">
+              @if (!confirming) {
+                <button type="button" class="btn primary" (click)="confirming = true" [disabled]="!availableTargets.length">
+                  {{state.scan ? 'Run full scan…' : 'Run profile…'}}</button>
+              } @else {
+                <span class="ask">Send at most <strong>{{bound(plan.maxStatements)}}</strong> statements reading at most
+                  <strong>{{bound(plan.maxRows)}}</strong> rows on
+                  @for (t of availableTargets; track t.server; let last = $last) { <span class="mono">{{t.server}}</span>{{last ? '' : ', '}} }?</span>
+                <button type="button" class="btn primary" (click)="start()" [disabled]="starting">
+                  {{starting ? 'Starting…' : 'Confirm and run'}}</button>
+                <button type="button" class="btn" (click)="confirming = false">Cancel</button>
+              }
+              @if (startError) { <span class="error">{{startError}}</span> }
+            </div>
+          }
+        }
+      </div>
+    </div>
+
+    <!-- What a run found -->
+    @if (detail; as d) {
+      <div class="lens-card">
+        <div class="card-head">
+          <span class="card-head-title">Run #{{d.run.id}}</span>
+          <span class="card-head-note">{{d.run.startedOn | date:'medium'}} · {{scopeLabel(d.run)}} · {{methodLabel(d.run.method)}}</span>
+        </div>
+        <div class="run-status" [attr.data-status]="d.run.status">
+          <span class="status">{{d.run.status}}</span>
+          @if (d.run.status === 'running') {
+            <span>{{d.run.statementsSoFar}} statements so far</span>
+            <button type="button" class="btn" (click)="cancel()">Cancel run</button>
+          } @else {
+            <span>{{d.run.rowsRead | number}} rows read in {{d.run.statements}} statements</span>
+            @if (d.result; as r) {
+              <span class="confidence" [attr.data-confidence]="r.confidence">{{r.confidence}}</span>
+            }
+          }
+          @if (d.run.stale) { <span class="stale" title="finished more than 30 days ago; run again for current figures">stale</span> }
+          @if (d.error) { <span class="error">{{d.error}}</span> }
+        </div>
+
+        @if (d.result; as r) {
+          @for (s of r.servers; track s.server) {
+            @if (s.status !== 'done') {
+              <div class="note-card">{{s.server}}: {{s.status}}{{s.reason ? ' — ' + s.reason : ''}}</div>
+            }
+          }
+          <div class="table-scroll">
+            <table class="data-table ledger columns">
+              <thead><tr><th>Column</th><th>Charset</th><th class="num">Rows</th><th class="num">Null</th>
+                <th class="num">Non-ASCII</th><th class="num">Max bytes</th><th class="num">Distinct ≥</th><th>Verdict</th></tr></thead>
+              <tbody>
+                @for (c of r.columns; track c.column) {
+                  <tr class="col-row" [class.open]="isOpen(c)" [class.problem]="hasProblems(c)" (click)="toggleColumn(c)">
+                    <td class="mono"><span class="caret">{{isOpen(c) ? '▾' : '▸'}}</span> {{c.column}}</td>
+                    <td class="mono dim">{{c.characterSet}}</td>
+                    <td class="num mono">{{c.rows | number}}</td>
+                    <td class="num mono">{{share(c.nulls, c.rows)}}</td>
+                    <td class="num mono">{{share(c.nonAscii, c.rows)}}</td>
+                    <td class="num mono">{{c.maxBytes ?? '—'}}</td>
+                    <td class="num mono">{{c.distinctAtLeast | number}}</td>
+                    <td class="verdict">{{c.verdict}}</td>
+                  </tr>
+                  @if (isOpen(c)) {
+                    <tr class="detail-row"><td colspan="8">
+                      <div class="col-detail">
+                        @for (f of findings(c); track f.signature) {
+                          <div class="finding" [class.info]="f.informational">
+                            <div class="finding-head">
+                              <strong>{{f.label}}</strong>
+                              <span class="rows mono">{{f.rows | number}} rows</span>
+                              @if (f.heuristic) { <span class="chip">heuristic</span> }
+                              @if (f.informational) { <span class="chip">information</span> }
+                            </div>
+                            <p class="explain">{{f.explanation}}</p>
+                            @if (f.characters.length) {
+                              <table class="data-table chars">
+                                <thead><tr><th>Stored</th><th>Code points</th><th>Most likely</th><th class="num">Rows</th></tr></thead>
+                                <tbody>
+                                  @for (ch of f.characters; track ch.matched) {
+                                    <tr><td class="mono stored">{{ch.matched}}</td><td class="mono dim">{{ch.codePoints}}</td>
+                                      <td class="mono">{{ch.intended ?? '?'}}</td><td class="num mono">{{ch.rows | number}}</td></tr>
+                                  }
+                                </tbody>
+                              </table>
+                            }
+                            @for (ids of f.ids; track ids.server) {
+                              <div class="ids"><span class="k">rows on {{ids.server}}</span>
+                                <span class="mono">{{ids.ids.join(', ')}}</span></div>
+                            }
+                          </div>
+                        } @empty {
+                          <div class="dim">No signature matched {{c.rows | number}} rows.</div>
+                        }
+                        <div class="scan-row">
+                          <button type="button" class="btn" (click)="planFullScan(c.column); $event.stopPropagation()"
+                                  title="read every row of this column, after confirming">Full scan of {{c.column}}…</button>
+                          <span class="dim">a sample can only say what it saw; a full scan says what the column holds</span>
+                        </div>
+                      </div>
+                    </td></tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <details class="servers">
+            <summary>by server ({{r.servers.length}}): windows and statements</summary>
+            @for (s of r.servers; track s.server) {
+              <div class="server-block">
+                <div class="server-head"><span class="mono">{{s.server}}</span> <span class="dim">{{s.cluster}}</span>
+                  · {{s.status}} · {{s.coverage}}</div>
+                <table class="data-table ledger windows">
+                  <thead><tr><th>Window</th><th>From</th><th>To</th><th class="num">Rows</th><th class="num">ms</th><th></th></tr></thead>
+                  <tbody>
+                    @for (w of s.windows; track $index) {
+                      <tr><td>{{w.label}}</td><td class="mono">{{w.from ?? '—'}}</td><td class="mono">{{w.to ?? '—'}}</td>
+                        <td class="num mono">{{w.rows | number}}</td><td class="num mono">{{w.millis}}</td>
+                        <td class="error">{{w.error ?? ''}}</td></tr>
+                    }
+                  </tbody>
+                </table>
+                <details class="sent">
+                  <summary>{{s.statementCount}} statements sent{{s.statementCount > s.statements.length ? ' (the first ' + s.statements.length + ' kept)' : ''}}</summary>
+                  @for (q of s.statements; track $index) { <pre><code [sqlHighlight]="q"></code></pre> }
+                </details>
+              </div>
+            }
+          </details>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- Every run -->
+  <div class="profile-rail">
+    <div class="lens-card">
+      <div class="card-head"><span class="card-head-title">Runs</span>
+        <span class="card-head-note">every one is kept</span></div>
+      @if (!runs.length) {
+        <div class="card-empty">not profiled yet</div>
+      }
+      <ul class="run-list">
+        @for (run of runs; track run.id) {
+          <li [class.on]="detail?.run?.id === run.id" (click)="selectRun(run.id)" [attr.data-status]="run.status">
+            <div class="run-line"><span class="mono">#{{run.id}}</span> <span class="status">{{run.status}}</span>
+              @if (run.stale) { <span class="stale">stale</span> }</div>
+            <div class="dim">{{run.startedOn | date:'short'}} · {{run.requestedBy}}</div>
+            <div class="dim">{{scopeLabel(run)}} · {{methodLabel(run.method)}} · {{run.rowsRead | number}} rows</div>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+</div>

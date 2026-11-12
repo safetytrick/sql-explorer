@@ -122,6 +122,60 @@ public final class Environment implements AutoCloseable {
     }
 
     /**
+     * One cluster's sampling server, or why it has none.
+     *
+     * @param target null when the cluster cannot be sampled
+     * @param reason why not; null when it can
+     */
+    public record ClusterSampling(Cluster cluster, SamplingTarget target, String reason) { }
+
+    /**
+     * Every cluster's sampling target — the first of its servers with the
+     * sampling role — for a feature that samples each shard rather than one
+     * server (sqlx-n5j.3). The same guard as {@link #samplingTarget()}, per
+     * cluster: a cluster with no sampling server answers why instead of
+     * borrowing another's, and a cached environment answers that for all.
+     */
+    public List<ClusterSampling> samplingByCluster(SamplingLimits limits) {
+        return clusters.stream().map(cluster -> {
+            DatabaseServer sampling = cluster.servers().stream()
+                .filter(server -> server.hasRole(ServerRole.SAMPLING))
+                .findFirst().orElse(null);
+            if (sampling == null) {
+                return new ClusterSampling(cluster, null, "cluster " + cluster.name()
+                    + " has no server with the sampling role");
+            }
+            if (cached) {
+                return new ClusterSampling(cluster, null, "environment " + name + " is served from its cache, "
+                    + "so server " + sampling.getName() + " is not connected; pull the environment to go live");
+            }
+            return new ClusterSampling(cluster, new SamplingTarget(name, sampling, limits), null);
+        }).toList();
+    }
+
+    /**
+     * One named server as a sampling target: a probe addressed to a single
+     * instance. Still only a server with the sampling role, and never while
+     * cached.
+     *
+     * @throws SamplingUnavailableException naming why not
+     */
+    public SamplingTarget samplingTargetOn(String serverName, SamplingLimits limits) {
+        DatabaseServer server = servers.stream().filter(s -> s.getName().equals(serverName)).findFirst()
+            .orElseThrow(() -> new SamplingUnavailableException("environment " + name + " has no server "
+                + serverName));
+        if (!server.hasRole(ServerRole.SAMPLING)) {
+            throw new SamplingUnavailableException("server " + serverName + " does not have the sampling role, "
+                + "so nothing on it may be sampled");
+        }
+        if (cached) {
+            throw new SamplingUnavailableException("environment " + name + " is served from its cache, so server "
+                + serverName + " is not connected; pull the environment to go live");
+        }
+        return new SamplingTarget(name, server, limits);
+    }
+
+    /**
      * What {@link #samplingTarget()} would answer, without throwing — for
      * {@code /environments}.
      *

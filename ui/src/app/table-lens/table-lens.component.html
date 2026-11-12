@@ -30,6 +30,8 @@
       @if (knownToSchema && !isView) {
         <a class="btn" [routerLink]="['/table', schema, table, 'ddl']"
            title="build a schema change, check it, and see how the table is written and what it would wait behind">Plan a change ↗</a>
+        <a class="btn" [routerLink]="['/table', schema, table, 'profile']"
+           title="sample the character columns on sampling servers for charset corruption; values never leave the server">Profile data ↗</a>
       }
       <a class="btn" [routerLink]="['/queries']" [queryParams]="graphParams()"
          title="the graph of every query touching this table">Graph ↗</a>

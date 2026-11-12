@@ -696,4 +696,37 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		Every profile run (sqlx-n5j.3): who asked, which servers, the plan that was
+		shown and agreed to, the statements issued, the rows read and what was
+		found. Kept for good: nothing deletes or replaces a run.
+	-->
+	<changeSet id="n5j-3-profile-run" author="claude">
+		<sql>
+			create table profile_run
+			(
+				id               bigint primary key not null auto_increment,
+				environment_name varchar(48)  not null,
+				schema_name      varchar(64)  not null,
+				table_name       varchar(64)  not null,
+				probe_server     varchar(128),
+				method           varchar(16)  not null,
+				columns_list     text         not null,
+				status           varchar(16)  not null,
+				requested_by_id  int,
+				started_on       timestamp(3) not null default current_timestamp(3),
+				finished_on      timestamp(3) null,
+				rows_read        bigint       not null default 0,
+				statements       int          not null default 0,
+				plan_json        mediumtext   character set utf8mb4,
+				result_json      mediumtext   character set utf8mb4,
+				error            text         character set utf8mb4,
+				index profile_run_table (environment_name, schema_name, table_name),
+				index (requested_by_id),
+				foreign key (requested_by_id) references users (id)
+					on update cascade on delete restrict
+			);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

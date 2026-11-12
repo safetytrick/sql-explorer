@@ -18,6 +18,7 @@ import {QueryUtilitiesComponent} from './query-utilities/query-utilities.compone
 import {DdlPreflightComponent} from './ddl-preflight/ddl-preflight.component';
 import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
 import {NoteViewComponent} from './note-view/note-view.component';
+import {TableProfileComponent} from './table-profile/table-profile.component';
 import {TableDdlComponent} from './table-ddl/table-ddl.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.component';
@@ -224,13 +225,19 @@ const routes: Routes = [
     title: paramTitle(p => `${p['schema']}.${p['name']}`)
   },
   // `table/:schema/:name/:column` matches these three as well, so they have to
-  // stay ahead of it — `ddl`, `queries` and `join` would otherwise be read as
+  // stay ahead of it — `ddl`, `profile`, `queries` and `join` would otherwise be read as
   // column names. Pinned by app.routes.spec.ts.
   {
     path: 'table/:schema/:name/ddl',
     pathMatch: 'full',
     component: TableDdlComponent,
     title: paramTitle(p => `Plan a change · ${p['schema']}.${p['name']}`)
+  },
+  {
+    path: 'table/:schema/:name/profile',
+    pathMatch: 'full',
+    component: TableProfileComponent,
+    title: paramTitle(p => `Profile data · ${p['schema']}.${p['name']}`)
   },
   {
     path: 'table/:schema/:name/queries',

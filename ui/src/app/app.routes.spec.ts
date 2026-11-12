@@ -6,6 +6,7 @@ import {provideLocationMocks} from '@angular/common/testing';
 import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
 import {TableDdlComponent} from './table-ddl/table-ddl.component';
+import {TableProfileComponent} from './table-profile/table-profile.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {NotFoundComponent} from './not-found/not-found.component';
 import {McpSetupComponent} from './mcp-setup/mcp-setup.component';
@@ -78,6 +79,13 @@ describe('appRoutes: the table drill-downs', () => {
 
     expect(matched()).toBe(TableDdlComponent);
     expect(router.url).toBe('/table/app_main/user_profile/ddl?var-op=add-index');
+  });
+
+  it('opens the profile page rather than reading "profile" as a column', async () => {
+    await router.navigateByUrl('/table/app_main/user_profile/profile?var-run=3');
+
+    expect(matched()).toBe(TableProfileComponent);
+    expect(router.url).toBe('/table/app_main/user_profile/profile?var-run=3');
   });
 
   it('keeps the retired routes ahead of the column drill-down', async () => {

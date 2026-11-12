@@ -270,6 +270,7 @@ Components map directly to the URL hierarchy:
 | `/tables`, `/tables/:schema`         | TableNamesComponent                             |
 | `/table/:schema/:name`               | TableLensComponent                              |
 | `/table/:schema/:name/ddl`           | TableDdlComponent (plan a change: builder, pre-flight, write rate, lock risk) |
+| `/table/:schema/:name/profile`       | TableProfileComponent (profile data: charset corruption counts, sampled on demand) |
 | `/table/:schema/:name/queries` (+ `/join/**`, `/:column`) | TableViewComponent         |
 | `/analyzed-sql/:id`                  | SqlViewComponent                                |
 | `/tags`                              | TagManagerComponent (master/detail)             |
@@ -366,6 +367,19 @@ Two correctness details that are easy to undo by accident:
   map.** The service fills a `Map` inside a `tap`; with no subscriber every
   chip renders in the fallback grey and never updates, because mutating a Map
   triggers no change detection.
+
+**Profiling reads table data, so it has the strictest rules in the code base**
+(`profiling/`, sqlx-n5j.3). A run reaches a server only through
+`Environment.samplingByCluster` or `samplingTargetOn` — a server with the
+`sampling` role, never while cached — in a read-only session with a 2 s
+statement limit, one statement at a time with a pause between. It starts only
+on demand, from a POST with `confirmed: true` after the plan (every statement,
+the most rows and statements per server) has been shown. Values never leave the
+server: corruption signatures (`Signature`) are ICU patterns MySQL evaluates,
+and only counts, row keys and the matched characters come back. Every run is
+kept in `profile_run`; nothing deletes one. To try it locally, load
+`src/test/resources/profiling/charset-probe.sql` into explorer-mysql and pull
+`local` — never against a real deployment.
 
 Tag names and environment names are capped at 48 characters (`commentary/Names`),
 and every column holding one is `varchar(48)`.

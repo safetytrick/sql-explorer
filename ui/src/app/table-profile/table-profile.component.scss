@@ -1,0 +1,161 @@
+:host { display: block; }
+
+.mono { font-family: var(--mono); }
+.dim { color: var(--text3); }
+.error { color: var(--red); font-size: 12px; }
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .profile-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.profile-main, .profile-rail { min-width: 0; }
+
+.plan {
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text2);
+}
+.plan-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  label { display: inline-flex; align-items: center; gap: 6px; }
+  select {
+    font-size: 12px;
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 3px 6px;
+  }
+}
+.windows { margin: 0; }
+.limits { line-height: 1.6; }
+.unavailable { margin: 0; }
+
+.targets tr.skipped td { color: var(--text3); }
+
+.statements, .servers, .sent {
+  summary { cursor: pointer; color: var(--text2); font-size: 12px; }
+  pre {
+    margin: 6px 0;
+    padding: 8px 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 220px;
+    overflow: auto;
+  }
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  .ask { color: var(--text); }
+}
+
+.run-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text2);
+  border-bottom: 1px solid var(--border);
+}
+.status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+[data-status="running"] .status { color: var(--blue); border-color: var(--blue); }
+[data-status="failed"] .status { color: var(--red); border-color: var(--red); }
+[data-status="done"] .status { color: var(--green); border-color: var(--green); }
+.confidence { font-size: 11px; color: var(--amber); }
+.confidence[data-confidence="confirmed"] { color: var(--green); }
+.stale {
+  font-size: 10px;
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.columns {
+  td { vertical-align: top; }
+  tr.col-row { cursor: pointer; }
+  tr.col-row:hover td { background: var(--bg2); }
+  tr.col-row.problem td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+  tr.col-row.open td { background: var(--bg2); }
+  td:first-child { white-space: nowrap; }
+  .caret { color: var(--text3); font-size: 10px; }
+  .verdict { color: var(--text2); font-size: 12px; min-width: 220px; }
+  tr.detail-row > td { background: var(--bg2); padding: 0; }
+}
+
+.col-detail {
+  padding: 10px 14px 12px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.finding {
+  border-left: 3px solid var(--red);
+  padding-left: 10px;
+  &.info { border-left-color: var(--border2); }
+  .finding-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+  .rows { color: var(--text2); }
+  .chip {
+    font-size: 10px;
+    color: var(--text3);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 0 6px;
+  }
+  .explain { margin: 4px 0 6px; font-size: 12px; color: var(--text2); max-width: 80ch; line-height: 1.5; }
+  .ids { font-size: 11px; margin-top: 4px; word-break: break-all; .k { color: var(--text3); margin-right: 6px; } }
+}
+.chars {
+  width: auto;
+  td, th { font-size: 11px; padding: 2px 10px 2px 0; }
+  .stored { color: var(--red); }
+}
+.scan-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11px; }
+
+.servers { padding: 8px 14px 12px; }
+.server-block { margin-top: 8px; }
+.server-head { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+
+.run-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  li {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    cursor: pointer;
+    &:hover { background: var(--bg2); }
+    &.on { background: var(--bg2); box-shadow: inset 2px 0 0 var(--blue); }
+    &:last-child { border-bottom: none; }
+  }
+  .run-line { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 2px; }
+}
