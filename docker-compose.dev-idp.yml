@@ -1,0 +1,50 @@
+# Adds `dev-idp`, a dummy OIDC identity provider with canned users, one per
+# role (sqlx-e13.3). Development and e2e only. The logins, the groups claim
+# and the client are in dev-idp/README.md.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev-idp.yml up -d dev-idp
+#
+# Then http://localhost:18190/.well-known/openid-configuration is discovery.
+# Stacks with the other overlays (local-build, offline-dummy, rds).
+#
+# The image builds the jar itself. If the registry cannot be reached (sqlx-dec),
+# build on the host and run the jar directly instead; it needs nothing else:
+#
+#   ./gradlew :dev-idp:bootJar && java -jar dev-idp/build/libs/dev-idp.jar
+#
+# WHICH ISSUER. Tokens name one issuer, and discovery advertises endpoints
+# under it. It is the browser-facing http://localhost:18190, because the
+# browser is the party that cannot be told about a second address: it follows
+# the authorize redirect, shows the login form and follows logout. A backend in
+# this compose network reaches the same server as http://dev-idp:18190, so it
+# must take the browser-facing authorization endpoint and issuer from config,
+# and the in-network address for the back channel (token, JWKS, userinfo). It
+# cannot use issuer-uri discovery, which would fetch localhost from inside its
+# own container. A backend on the host (bootRun) has no split: localhost works
+# for everything. To use a single name everywhere instead, set
+# DEV_IDP_ISSUER=http://dev-idp:18190 and add `127.0.0.1 dev-idp` to the
+# host's /etc/hosts. The README has the details.
+services:
+  dev-idp:
+    build:
+      context: .
+      dockerfile: dev-idp/Dockerfile
+    container_name: dev-idp
+    image: sql-explorer/dev-idp
+    ports:
+      # the same port inside and out, so the two addresses differ only by host
+      - "18190:18190"
+    environment:
+      DEV_IDP_ISSUER: ${DEV_IDP_ISSUER:-http://localhost:18190}
+      DEV_IDP_KEY_FILE: /app/data/signing-key.json
+    volumes:
+      # the signing key, generated once and kept across container recreation
+      - dev-idp-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://127.0.0.1:18190/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+
+volumes:
+  dev-idp-data:

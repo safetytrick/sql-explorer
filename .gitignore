@@ -37,3 +37,6 @@ src/main/docker-local/config/statement-analysis/legacy
 .design/
 scripts/
 policy.yaml
+
+# The dev IdP's signing key, generated on first start (sqlx-e13.3).
+dev-idp/.data/

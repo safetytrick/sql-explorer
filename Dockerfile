@@ -16,6 +16,8 @@ WORKDIR /workspace
 COPY gradlew gradle.properties settings.gradle build.gradle ./
 COPY gradle gradle
 COPY models/build.gradle models/build.gradle
+# settings.gradle includes the dev IdP, so its build script must exist
+COPY dev-idp/build.gradle dev-idp/build.gradle
 
 # Warm the wrapper + dependency caches (best-effort; assemble below is the gate).
 RUN --mount=type=cache,target=/root/.gradle \

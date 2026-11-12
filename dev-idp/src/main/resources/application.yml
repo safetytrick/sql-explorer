@@ -1,0 +1,30 @@
+# Each value can be overridden from the environment, e.g. DEV_IDP_ISSUER.
+server:
+  # The same port inside and outside the container, so the browser-facing and
+  # in-network addresses differ only by hostname (see README, "Which issuer").
+  port: 18190
+  servlet:
+    session:
+      cookie:
+        # Cookies are scoped by host, not port: under the default JSESSIONID
+        # the IdP and a backend on another localhost port would overwrite
+        # each other's session on every sign-in.
+        name: DEV_IDP_SESSION
+
+dev-idp:
+  issuer: http://localhost:18190
+  # Generated on first start and reused after, so a restart keeps tokens valid.
+  # Relative to the working directory: dev-idp/ under bootRun, /app/data in the
+  # container (a named volume). Git-ignored (.data/).
+  key-file: .data/signing-key.json
+  client-id: sql-explorer
+  redirect-uris:
+    # the backend's oauth2Login callback, under its registration id, at each
+    # address it is reached by: ng serve's proxy, bootRun, and docker compose
+    - http://localhost:4200/login/oauth2/code/sql-explorer
+    - http://localhost:8080/login/oauth2/code/sql-explorer
+    - http://localhost:18180/login/oauth2/code/sql-explorer
+  post-logout-redirect-uris:
+    - http://localhost:4200/
+    - http://localhost:8080/
+    - http://localhost:18180/

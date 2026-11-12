@@ -392,3 +392,17 @@ failing), or a server that restarted recently and cleared its digest table.
 with generated query traffic, so you can work on sql-explorer without pointing
 it at a real server. It is a plan rather than a description — the services it
 describes are not in `docker-compose.yml` yet.
+
+## Signing in against a dummy identity provider
+
+`dev-idp/` is a dummy OIDC provider with canned users, one per role, for
+development and e2e. It is opt-in:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev-idp.yml up -d dev-idp
+```
+
+`dev-idp/README.md` lists the logins, the `groups` claim scheme
+(`sqlx:viewer`, `sqlx:admin`, `sqlx:runner:<datasource>`,
+`sqlx:author:<datasource>`) and which issuer to configure when the backend runs
+in a container. sql-explorer itself does not sign in through it yet (sqlx-e13.1).

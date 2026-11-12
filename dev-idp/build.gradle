@@ -1,0 +1,32 @@
+// A dummy OIDC identity provider for development and e2e (sqlx-e13.3):
+// Spring Authorization Server with canned users, see dev-idp/README.md.
+// It shares only the build with the application. It is its own Spring Boot
+// app and its own jar, and is never on the application's classpath.
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
+apply plugin: 'java'
+apply plugin: 'org.springframework.boot'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    implementation platform(SpringBootPlugin.BOM_COORDINATES)
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-authorization-server'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+    testImplementation platform(SpringBootPlugin.BOM_COORDINATES)
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+bootJar {
+    archiveFileName = 'dev-idp.jar'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
