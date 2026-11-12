@@ -1,6 +1,7 @@
 import {convertToParamMap} from '@angular/router';
 import {
-  arrange, decodeTopologyParams, encodeTopologyParams, formatSeconds, Load, percent, shownInLegend, split,
+  arrange, decodeTopologyParams, encodeTopologyParams, formatSeconds, Load, opensQueries, percent, serverQueriesParams,
+  shownInLegend, split,
   TopologyCluster, TopologyServer
 } from './topology';
 
@@ -24,15 +25,22 @@ const server = (name: string, roles: string[]): TopologyServer => ({
 
 describe('topology', () => {
 
-  it('reads and writes the URL, omitting defaults', () => {
-    expect(decodeTopologyParams(convertToParamMap({}))).toEqual({server: null, by: 'time'});
+  it('reads and writes the URL, omitting defaults and clearing an old var-server', () => {
+    expect(decodeTopologyParams(convertToParamMap({}))).toEqual({by: 'time'});
     expect(decodeTopologyParams(convertToParamMap({'var-server': 'shard1', 'var-by': 'executions'})))
-      .toEqual({server: 'shard1', by: 'executions'});
+      .toEqual({by: 'executions'});
     // anything unknown is the default, not an error
     expect(decodeTopologyParams(convertToParamMap({'var-by': 'bogus'})).by).toBe('time');
-    expect(encodeTopologyParams({server: null, by: 'time'})).toEqual({'var-server': null, 'var-by': null});
-    expect(encodeTopologyParams({server: 'shard1', by: 'executions'}))
-      .toEqual({'var-server': 'shard1', 'var-by': 'executions'});
+    expect(encodeTopologyParams({by: 'time'})).toEqual({'var-server': null, 'var-by': null});
+    expect(encodeTopologyParams({by: 'executions'})).toEqual({'var-server': null, 'var-by': 'executions'});
+  });
+
+  it('opens a server with figures in the workbench, scoped to its source', () => {
+    const replica = {...server('shard1-replica', ['replica']), load: load([1, 1], [0, 0], [0, 0])};
+    expect(opensQueries(replica)).toBeTrue();
+    expect(serverQueriesParams(replica)).toEqual({sources: 'shard1-replica'});
+    // not captured or unreachable: nothing to open
+    expect(opensQueries(server('shard1-etl', ['analytics']))).toBeFalse();
   });
 
   it('splits by time or by executions', () => {

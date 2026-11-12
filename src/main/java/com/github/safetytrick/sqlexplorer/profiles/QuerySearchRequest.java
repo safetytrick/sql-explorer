@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.github.safetytrick.sqlexplorer.evidence.SourceScope;
 
 /**
  * Filter/sort/page criteria for {@code POST /queries/search}. Every field is
@@ -58,6 +59,15 @@ public record QuerySearchRequest(
      * or any digest a merged profile absorbed.
      */
     List<String> excludeQueries,
+    /**
+     * Source refs (for a live source, the server's name) the search is about.
+     * They scope the data, not the matches: the corpus is merged from these
+     * sources alone, so every figure is theirs (SourceScope, sqlx-a9h.1).
+     * Empty or null means every source.
+     */
+    List<String> sources,
+    /** Source refs whose statements and figures are left out of the corpus. */
+    List<String> excludeSources,
     /** Normalized schema names; a query in any listed schema matches. */
     List<String> schemas,
     /** Normalized schema names; a query that touches any of these is excluded. */
@@ -190,5 +200,10 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+
+    /** The sources this search reads, as a scope over the environment's corpus. */
+    public SourceScope sourceScope() {
+        return SourceScope.of(sources, excludeSources);
+    }
 }

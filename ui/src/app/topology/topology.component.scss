@@ -78,9 +78,8 @@
 }
 
 .node {
-  all: unset;
   box-sizing: border-box;
-  cursor: pointer;
+  &[href] { cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -92,9 +91,9 @@
   border-radius: var(--radius);
   font-size: 11px;
   color: var(--text2);
-  &:hover { border-color: var(--blue); }
+  text-decoration: none;
+  &[href]:hover { border-color: var(--blue); }
   &:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-  &.on { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
   &[data-status="NO_SOURCE"], &[data-status="UNREACHABLE"], &[data-status="NOT_LOADED"] {
     background: transparent;
     border-style: dashed;
@@ -142,26 +141,4 @@
   border: 1px solid var(--border2);
   border-radius: 4px;
   padding: 0 4px;
-}
-
-.statements {
-  margin-top: 14px;
-  .card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .close { margin-left: auto; }
-  .note-card { margin: 10px 14px 0; }
-  td { vertical-align: top; }
-  td.num { white-space: nowrap; }
-  .query {
-    max-width: 0;
-    width: 100%;
-    a { text-decoration: none; color: inherit; }
-    code {
-      display: block;
-      font-size: 11px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
-  .kind { font-size: 10px; font-family: var(--mono); color: var(--kind); }
 }

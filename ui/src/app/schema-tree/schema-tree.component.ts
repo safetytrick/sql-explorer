@@ -30,7 +30,7 @@ export class SchemaTreeComponent implements OnInit, OnDestroy {
 
   /** In filter mode the tree scopes the queries workbench instead of navigating. */
   active = false;
-  private facets: QueryFacets = { tables: {}, schemas: {} };
+  private facets: QueryFacets = { tables: {}, schemas: {}, sources: {} };
 
   /** schema name (lower) → tag names on that schema */
   private tagsBySchema = new Map<string, string[]>();

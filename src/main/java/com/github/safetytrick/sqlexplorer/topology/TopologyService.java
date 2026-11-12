@@ -21,9 +21,8 @@ import com.github.safetytrick.sqlexplorer.environment.Environment;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
 import com.github.safetytrick.sqlexplorer.environment.ServerRole;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepository;
+import com.github.safetytrick.sqlexplorer.evidence.SourceScope;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
-import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
-import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.QueryKind;
 import com.github.safetytrick.sqlexplorer.topology.Topology.Load;
 import com.github.safetytrick.sqlexplorer.topology.Topology.Share;
@@ -43,8 +42,6 @@ public class TopologyService {
     /** Performance Schema times are picoseconds. */
     private static final BigDecimal PICOS_PER_SECOND = BigDecimal.valueOf(1_000_000_000_000L);
 
-    static final int STATEMENT_LIMIT = 25;
-
     private final SqlRepositoryManager repositories;
     private final EnvironmentRegistry environments;
 
@@ -61,7 +58,6 @@ public class TopologyService {
     public Topology.Report report(String environmentName) {
         Environment environment = environments.get(environmentName);
         boolean loaded = repositories.getLoadState(environmentName) != null;
-        Map<String, List<SqlRepository>> bySource = loaded ? bySourceRef(environmentName) : Map.of();
         Set<String> failed = new HashSet<>();
         Map<String, String> failures = new LinkedHashMap<>();
         if (loaded) {
@@ -71,8 +67,7 @@ public class TopologyService {
             });
         }
 
-        Map<String, Tally> tallies = new LinkedHashMap<>();
-        bySource.forEach((ref, repos) -> tallies.put(ref, tally(repos)));
+        Map<String, Tally> tallies = loaded ? talliesBySource(environmentName) : Map.of();
         double environmentSeconds = tallies.values().stream().mapToDouble(t -> t.load().seconds()).sum();
 
         List<Topology.Cluster> clusters = new ArrayList<>();
@@ -120,78 +115,24 @@ public class TopologyService {
         + "DDL) is other. Unknown is a statement whose operation could not be read, usually because its text was "
         + "truncated; it counts as a write if it changed any rows. Statements a full digest table discarded are not counted; see Captured.";
 
-    /** Whether the environment configures this server, or loaded a source by that name. */
-    public boolean knows(String environmentName, String server) {
-        Environment environment = environments.get(environmentName);
-        if (environment != null && environment.getServers().stream().anyMatch(s -> s.getName().equals(server))) {
-            return true;
-        }
-        return repositories.getLoadState(environmentName) != null
-            && bySourceRef(environmentName).containsKey(server);
-    }
-
-    /** One server's statements, the most time first. */
-    public Topology.ServerStatements statements(String environmentName, String server, int limit) {
-        List<SqlRepository> repos = repositories.getLoadState(environmentName) == null ? List.of()
-            : bySourceRef(environmentName).getOrDefault(server, List.of());
-        Tally tally = tally(repos);
-        Map<String, Agg> byDigest = new LinkedHashMap<>();
-        for (SqlRepository repository : repos) {
-            repository.getAllAnalyzedSql().forEach(profile -> {
-                String digest = profile.getNormalizedDigest() != null ? profile.getNormalizedDigest()
-                    : profile.getDigest();
-                byDigest.computeIfAbsent(digest, d -> new Agg(d, profile)).add(profile.getRuntimeMetrics());
-            });
-        }
-        double serverSeconds = tally.load().seconds();
-        List<Topology.Statement> statements = byDigest.values().stream()
-            .sorted(Comparator.comparingDouble((Agg a) -> a.seconds).reversed()
-                .thenComparing(Comparator.comparingLong((Agg a) -> a.executions).reversed()))
-            .limit(Math.max(1, Math.min(limit, 200)))
-            .map(a -> new Topology.Statement(a.digest, a.profile.getType(), QueryKind.of(a.profile),
-                a.profile.getSchemaName(), a.profile.getQuery(), a.executions, a.seconds,
-                serverSeconds > 0 ? a.seconds / serverSeconds : 0))
-            .toList();
-        Status status = repos.isEmpty() ? Status.NOT_LOADED : Status.READ;
-        return new Topology.ServerStatements(environmentName, server, status, tally.load(), statements);
-    }
-
-    private static final class Agg {
-        final String digest;
-        final SqlProfile profile;
-        long executions;
-        double seconds;
-
-        Agg(String digest, SqlProfile profile) {
-            this.digest = digest;
-            this.profile = profile;
-        }
-
-        void add(RuntimeMetrics metrics) {
-            if (metrics != null) {
-                executions += metrics.getExecuted();
-                seconds += seconds(metrics);
-            }
-        }
-    }
-
-    private Map<String, List<SqlRepository>> bySourceRef(String environmentName) {
-        Map<String, List<SqlRepository>> bySource = new LinkedHashMap<>();
+    /**
+     * Each loaded source's tally, by source ref. Read from the corpus scoped
+     * to that source — the one a search with {@code sources=<ref>} reads — so
+     * the page and the workbench it links to cannot disagree (sqlx-a9h.1).
+     */
+    private Map<String, Tally> talliesBySource(String environmentName) {
+        Map<String, Tally> tallies = new LinkedHashMap<>();
         for (SqlRepository repository : repositories.getRepositories(environmentName)) {
-            String ref = sourceRef(repository);
-            bySource.computeIfAbsent(ref == null ? "unnamed source" : ref, k -> new ArrayList<>()).add(repository);
+            String ref = repository.sourceRef();
+            if (ref == null || tallies.containsKey(ref)) {
+                continue;
+            }
+            Tally tally = new Tally();
+            repositories.getSqlRepository(environmentName, SourceScope.only(ref)).getAllAnalyzedSql()
+                .forEach(tally::add);
+            tallies.put(ref, tally);
         }
-        return bySource;
-    }
-
-    /** As coverage names it: the capture's own record first, then the source. */
-    private static String sourceRef(SqlRepository repository) {
-        CaptureContext capture = repository.getCaptureContext();
-        if (capture != null && capture.sourceRef() != null) {
-            return capture.sourceRef();
-        }
-        SqlSource source = repository.getSource();
-        return source == null ? null : source.getSourceRef();
+        return tallies;
     }
 
     /** Primary first, then replicas, then the rest, keeping config order within each. */
@@ -239,14 +180,6 @@ public class TopologyService {
         Double share = load == null || environmentSeconds <= 0 ? null : load.seconds() / environmentSeconds;
         return new Topology.Server(name, roles, schemaSource, status, load, tally == null ? null : tally.window(),
             share, why);
-    }
-
-    private static Tally tally(List<SqlRepository> repos) {
-        Tally tally = new Tally();
-        for (SqlRepository repository : repos) {
-            repository.getAllAnalyzedSql().forEach(tally::add);
-        }
-        return tally;
     }
 
     /** Running sums for one server, a cluster or the environment. */

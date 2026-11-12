@@ -20,6 +20,7 @@ import com.github.safetytrick.sqlexplorer.environment.Environment;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
 import com.github.safetytrick.sqlexplorer.environment.ServerRole;
 import com.github.safetytrick.sqlexplorer.environment.SourceDefinition;
+import com.github.safetytrick.sqlexplorer.evidence.SourceScope;
 import com.github.safetytrick.sqlexplorer.evidence.SqlImportStats;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepository;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
@@ -31,6 +32,8 @@ import com.github.safetytrick.sqlexplorer.topology.Topology.Status;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -70,6 +73,14 @@ class TopologyServiceTest {
                 true));
         when(manager.getRepositories("env")).thenReturn(List.of(repositories));
         when(manager.getFailedSources("env")).thenReturn(failures);
+        // the scoped corpus: what a search with sources=<ref> reads
+        when(manager.getSqlRepository(eq("env"), any(SourceScope.class))).thenAnswer(call -> {
+            SourceScope scope = call.getArgument(1);
+            return repository("scoped", Stream.of(repositories)
+                .filter(repository -> scope.includes(repository.sourceRef()))
+                .flatMap(SqlRepository::getAllAnalyzedSql)
+                .toArray(SqlProfile[]::new));
+        });
         EnvironmentRegistry registry = mock(EnvironmentRegistry.class);
         when(registry.get("env")).thenReturn(environment());
         return new TopologyService(manager, registry);
@@ -191,26 +202,6 @@ class TopologyServiceTest {
 
         assertThat(report.others()).extracting(Topology.Server::name).containsExactly("export-2026-10");
         assertThat(report.total().seconds()).isCloseTo(3, within(1e-9));
-        assertThat(service.knows("env", "export-2026-10")).isTrue();
-        assertThat(service.knows("env", "shard1-etl")).isTrue();
-        assertThat(service.knows("env", "nowhere")).isFalse();
-    }
-
-    @Test
-    void aServersStatementsAreRankedByTimeWithTheirShare() {
-        TopologyService service = service(List.of(),
-            repository("shard1",
-                profile("a", "SELECT", 600, 60, 10),
-                profile("b", "UPDATE", 300, 30, 10),
-                profile("c", "SET", 100, 10, 10)),
-            repository("shard1-replica", profile("z", "SELECT", 1, 500, 1)));
-
-        Topology.ServerStatements statements = service.statements("env", "shard1", 2);
-
-        assertThat(statements.statements()).extracting(Topology.Statement::digest).containsExactly("a", "b");
-        assertThat(statements.statements().get(0).shareOfServer()).isCloseTo(0.6, within(1e-9));
-        assertThat(statements.statements().get(1).kind()).isEqualTo(QueryKind.WRITE);
-        assertThat(statements.load().seconds()).isCloseTo(100, within(1e-9));
     }
 
     @Test

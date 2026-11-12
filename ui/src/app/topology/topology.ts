@@ -59,47 +59,35 @@ export interface TopologyReport {
   basis: string;
 }
 
-export interface TopologyStatement {
-  digest: string;
-  type: string;
-  kind: StatementKind;
-  schema: string;
-  query: string;
-  executions: number;
-  seconds: number;
-  shareOfServer: number;
-}
-
-export interface ServerStatements {
-  environment: string;
-  server: string;
-  status: ServerStatus;
-  load: Load;
-  statements: TopologyStatement[];
-}
-
 /** What the split and the node size are measured by. */
 export type Measure = 'time' | 'executions';
 
-/** Page state, all of it in the URL: `var-server`, `var-by` (time is the default and is omitted). */
+/**
+ * Page state, all of it in the URL: `var-by` (time is the default and is
+ * omitted). A server's statements are the workbench scoped to its source,
+ * not state of this page (sqlx-a9h.1), so `var-server` is cleared.
+ */
 export interface TopologyState {
-  server: string | null;
   by: Measure;
 }
 
 export function decodeTopologyParams(params: ParamMap): TopologyState {
-  return {
-    server: params.get('var-server') || null,
-    by: params.get('var-by') === 'executions' ? 'executions' : 'time'
-  };
+  return {by: params.get('var-by') === 'executions' ? 'executions' : 'time'};
 }
 
 /** Null clears a param, so an untouched view keeps a clean URL. */
 export function encodeTopologyParams(state: TopologyState): Params {
-  return {
-    'var-server': state.server || null,
-    'var-by': state.by === 'executions' ? 'executions' : null
-  };
+  return {'var-server': null, 'var-by': state.by === 'executions' ? 'executions' : null};
+}
+
+/** The workbench reading only what ran on this server: its source, as a search scope. */
+export function serverQueriesParams(server: TopologyServer): Params {
+  return {sources: server.name};
+}
+
+/** A server with figures has statements to open; one with none (not captured, unreachable) does not. */
+export function opensQueries(server: TopologyServer): boolean {
+  return server.load !== null;
 }
 
 export const KIND_LABELS: Record<StatementKind, string> =
@@ -159,14 +147,6 @@ export function formatSeconds(seconds: number | null | undefined): string {
     return (seconds / 3600).toFixed(1) + ' h';
   }
   return (seconds / 86400).toFixed(1) + ' d';
-}
-
-/** Every server in the report, clusters first, then sources naming no configured server. */
-export function allServers(report: TopologyReport | null): TopologyServer[] {
-  if (!report) {
-    return [];
-  }
-  return [...report.clusters.flatMap(cluster => cluster.servers), ...report.others];
 }
 
 /**

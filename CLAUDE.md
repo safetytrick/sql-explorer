@@ -271,7 +271,7 @@ Components map directly to the URL hierarchy:
 | `/table/:schema/:name`               | TableLensComponent                              |
 | `/table/:schema/:name/ddl`           | TableDdlComponent (plan a change: builder, pre-flight, write rate, lock risk) |
 | `/table/:schema/:name/profile`       | TableProfileComponent (profile data: charset corruption counts, sampled on demand) |
-| `/topology`                          | TopologyComponent (clusters and servers: read/write split and query seconds per server, from each server's own capture) |
+| `/topology`                          | TopologyComponent (clusters and servers: read/write split and query seconds per server; a server opens `/queries?sources=<server>`) |
 | `/table/:schema/:name/queries` (+ `/join/**`, `/:column`) | TableViewComponent         |
 | `/analyzed-sql/:id`                  | SqlViewComponent                                |
 | `/tags`                              | TagManagerComponent (master/detail)             |
@@ -381,6 +381,15 @@ and only counts, row keys and the matched characters come back. Every run is
 kept in `profile_run`; nothing deletes one. To try it locally, load
 `src/test/resources/profiling/charset-probe.sql` into explorer-mysql and pull
 `local` — never against a real deployment.
+
+**`sources` scopes the data, not the matches** (sqlx-a9h.1). Every profile
+names the sources it was captured from (`SqlProfile.sources`, a source ref —
+for a live source, the server's name). A search with `sources=` (and `-ref`
+to exclude) reads a corpus merged from only those sources' repositories
+(`SqlRepositoryManager.getSqlRepository(env, SourceScope)`), so every metric
+is theirs alone; filtering the merged corpus by "ran there" would keep both
+servers' totals instead. Queries, the graph and topology read it; tables and
+schemas do not yet.
 
 Tag names and environment names are capped at 48 characters (`commentary/Names`),
 and every column holding one is `varchar(48)`.

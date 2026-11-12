@@ -35,36 +35,36 @@ const TOPOLOGY = {
   }]
 };
 
-const STATEMENTS = {
-  environment: 'local', server: 'shard1', status: 'READ', load: TOPOLOGY.clusters[0].servers[0].load,
-  statements: [
-    {digest: 'abc123', type: 'SELECT', kind: 'READ', schema: 'app_main', query: 'SELECT * FROM account WHERE id = ?',
-      executions: 600, seconds: 60, shareOfServer: 0.6},
-    {digest: 'def456', type: 'UPDATE', kind: 'WRITE', schema: 'app_main', query: 'UPDATE account SET name = ?',
-      executions: 300, seconds: 30, shareOfServer: 0.3}
-  ]
-};
-
 /**
- * Topology (sqlx-a9h): each cluster draws its primary over its replicas, each
- * server shows its read/write split and time, and choosing one lists its own
- * statements — all of it carried in the URL.
+ * Topology (sqlx-a9h): each cluster draws its primary over its replicas and
+ * each server shows its read/write split and time. A server opens the
+ * queries workbench scoped to its source, so its statements are a search
+ * like any other (sqlx-a9h.1).
  */
-test('the topology shows each server\'s split and opens its statements', async ({page}) => {
+test('the topology shows each server\'s split and opens its queries scoped to it', async ({page}) => {
   await stubApi(page);
   await page.route(`${BASE}/topology`, route =>
     route.fulfill({contentType: 'application/json', body: JSON.stringify(TOPOLOGY)}));
-  await page.route(`${BASE}/topology/server/shard1/statements**`, route =>
-    route.fulfill({contentType: 'application/json', body: JSON.stringify(STATEMENTS)}));
+  const searches: {sources?: string[] | null}[] = [];
+  page.on('request', request => {
+    if (request.url().endsWith('/queries/search')) {
+      searches.push(JSON.parse(request.postData() || '{}'));
+    }
+  });
 
-  await page.goto('/topology');
+  await page.goto('/topology?var-server=shard1');
+  // a link from before servers opened the workbench: the selection is dropped
+  await expect(page).not.toHaveURL(/var-server/);
 
   const primary = page.locator('.node', {hasText: 'primary'});
   await expect(primary).toContainText('shard1');
   await expect(primary).toContainText('reads 60%');
   await expect(primary).toContainText('writes 30%');
   await expect(primary).toContainText('50% of env');
-  await expect(page.locator('.node', {hasText: 'shard1-etl'})).toContainText('not captured');
+  const etl = page.locator('.node', {hasText: 'shard1-etl'});
+  await expect(etl).toContainText('not captured');
+  // nothing was captured from it, so there is nothing to open
+  await expect(etl).not.toHaveAttribute('href');
   // a statement whose operation could not be read is keyed only where there is one
   await expect(page.locator('.node', {hasText: 'shard1-replica'})).toContainText('unknown 10%');
   await expect(primary).not.toContainText('unknown');
@@ -76,13 +76,6 @@ test('the topology shows each server\'s split and opens its statements', async (
   await expect(primary).toContainText('reads 60%');
 
   await primary.click();
-  await expect(page).toHaveURL(/var-server=shard1(&|$)/);
-  const rows = page.locator('.statements tbody tr');
-  await expect(rows).toHaveCount(2);
-  await expect(rows.first()).toContainText('60%');
-  await expect(rows.first().locator('a')).toHaveAttribute('href', /\/analyzed-sql\/abc123/);
-
-  // the link restores the view
-  await page.goto('/topology?var-server=shard1');
-  await expect(page.locator('.statements tbody tr')).toHaveCount(2);
+  await expect(page).toHaveURL(/\/queries\?sources=shard1$/);
+  await expect.poll(() => searches.some(body => body.sources?.join() === 'shard1')).toBe(true);
 });

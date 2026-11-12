@@ -190,6 +190,12 @@ public class SqlRepositoryService {
         return repository().getAllAnalyzedSql();
     }
 
+    /** The corpus of only the sources in scope, merged from them alone (sqlx-a9h.1). */
+    public Stream<SqlProfile> getAllAnalyzedSql(SourceScope scope) {
+        return sqlRepositoryManager.getSqlRepository(environmentContext.current().getName(), scope)
+            .getAllAnalyzedSql();
+    }
+
     public Stream<SqlProfile> getTableQueries(TableReference table) {
         return repository().getTableQueries(table);
     }

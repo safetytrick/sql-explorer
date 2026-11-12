@@ -76,7 +76,7 @@ public class QuerySearchService {
         int from = Math.min(offset, matches.size());
         int to = Math.min(from + limit, matches.size());
         return new QuerySearchResult(matches.size(), List.copyOf(matches.subList(from, to)),
-            new QuerySearchResult.Facets(sweep.tableFacets(), sweep.schemaFacets()));
+            new QuerySearchResult.Facets(sweep.tableFacets(), sweep.schemaFacets(), sweep.sourceFacets()));
     }
 
     /**
@@ -119,11 +119,13 @@ public class QuerySearchService {
 
         Map<String, Integer> tableFacets = new HashMap<>();
         Map<String, Integer> schemaFacets = new HashMap<>();
+        Map<String, Integer> sourceFacets = new HashMap<>();
         List<QueryHit> matches = new ArrayList<>();
         // compiled once, not per profile
         Pattern queryPattern = compileQueryPattern(criteria.queryRegex());
 
-        sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
+        // scoped to the requested sources: their corpus, merged from them alone
+        sqlRepositoryService.getAllAnalyzedSql(criteria.sourceScope()).forEach(profile -> {
             QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
             if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit, digestsWithExamples)) {
                 return;
@@ -139,13 +141,16 @@ public class QuerySearchService {
             keys.schemas().forEach(key -> schemaFacets.merge(key, 1, Integer::sum));
             if (matchesScope(criteria, keys)) {
                 matches.add(hit);
+                if (profile.getSources() != null) {
+                    profile.getSources().forEach(source -> sourceFacets.merge(source, 1, Integer::sum));
+                }
             }
         });
-        return new Sweep(matches, tableFacets, schemaFacets);
+        return new Sweep(matches, tableFacets, schemaFacets, sourceFacets);
     }
 
     private record Sweep(List<QueryHit> matches, Map<String, Integer> tableFacets,
-                         Map<String, Integer> schemaFacets) { }
+                         Map<String, Integer> schemaFacets, Map<String, Integer> sourceFacets) { }
 
     private List<Tag> tagsForQuery(SqlProfile profile, Map<String, List<Tag>> tags) {
         return profile.getAllIds()

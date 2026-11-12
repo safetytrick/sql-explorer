@@ -81,15 +81,4 @@ public final class Topology {
      */
     public record Report(String environment, boolean loaded, boolean cached, List<Cluster> clusters,
                          List<Server> others, Load total, String basis) { }
-
-    /**
-     * One statement on one server.
-     *
-     * @param digest the normalized digest, which the statement page takes
-     */
-    public record Statement(String digest, String type, QueryKind kind, String schema, String query, long executions,
-                            double seconds, double shareOfServer) { }
-
-    public record ServerStatements(String environment, String server, Status status, Load load,
-                                   List<Statement> statements) { }
 }

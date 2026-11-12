@@ -90,81 +90,52 @@
       </section>
     }
   </div>
-
-  <!-- the selected server's statements -->
-  @if (selected; as server) {
-    <div class="lens-card statements">
-      <div class="card-head">
-        <span class="card-head-title mono">{{server.name}}</span>
-        <span class="card-head-note">statements by time on this server only
-          @if (server.window) { · {{server.window.from | date:'mediumDate'}} – {{server.window.to | date:'mediumDate'}}
-            ({{server.window.days | number:'1.0-0'}} days) }</span>
-        <button type="button" class="btn close" (click)="select(server)">Close</button>
-      </div>
-      @if (server.reason) { <div class="note-card">{{server.reason}}</div> }
-      @if (statementsLoading) {
-        <div class="card-empty">loading…</div>
-      } @else if (statementsFailed) {
-        <div class="card-empty">This server's statements could not be loaded.</div>
-      } @else if (statements && !statements.statements.length) {
-        <div class="card-empty">No statements were loaded from this server.</div>
-      } @else if (statements) {
-        <div class="table-scroll">
-          <table class="data-table ledger">
-            <thead><tr><th>Kind</th><th>Statement</th><th class="num">Executions</th><th class="num">Time</th><th class="num">Share</th></tr></thead>
-            <tbody>
-              @for (s of statements.statements; track s.digest) {
-                <tr>
-                  <td><span class="kind" [attr.data-kind]="s.kind">{{s.type}}</span></td>
-                  <td class="query"><a [routerLink]="['/analyzed-sql', s.digest]" queryParamsHandling="preserve">
-                    <code [sqlHighlight]="s.query"></code></a><span class="dim mono"> {{s.schema}}</span></td>
-                  <td class="num mono">{{s.executions | number}}</td>
-                  <td class="num mono">{{formatSeconds(s.seconds)}}</td>
-                  <td class="num mono">{{percent(s.shareOfServer)}}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </div>
-  }
 }
 
 <ng-template #node let-server>
-  <button type="button" class="node" [class.on]="state.server === server.name" [attr.data-status]="server.status"
-          (click)="select(server)" [attr.aria-pressed]="state.server === server.name"
-          [title]="server.reason ?? ('show ' + server.name + '\'s statements')">
-    <span class="node-head">
-      <span class="name mono">{{server.name}}</span>
-      @for (role of server.roles; track role) { <span class="role" [attr.data-role]="role">{{role}}</span> }
-      @if (server.schemaSource) { <span class="role schema" title="the cluster reads its schema from this server">schema</span> }
+  <!-- a server with figures opens the workbench reading only its source (sqlx-a9h.1) -->
+  @if (opensQueries(server)) {
+    <a class="node" [attr.data-status]="server.status" routerLink="/queries" [queryParams]="serverQueriesParams(server)"
+       [title]="server.reason ?? ('open what ran on ' + server.name + ' in Queries')">
+      <ng-container [ngTemplateOutlet]="nodeBody" [ngTemplateOutletContext]="{$implicit: server}" />
+    </a>
+  } @else {
+    <div class="node" [attr.data-status]="server.status" [title]="server.reason ?? ''">
+      <ng-container [ngTemplateOutlet]="nodeBody" [ngTemplateOutletContext]="{$implicit: server}" />
+    </div>
+  }
+</ng-template>
+
+<ng-template #nodeBody let-server>
+  <span class="node-head">
+    <span class="name mono">{{server.name}}</span>
+    @for (role of server.roles; track role) { <span class="role" [attr.data-role]="role">{{role}}</span> }
+    @if (server.schemaSource) { <span class="role schema" title="the cluster reads its schema from this server">schema</span> }
+  </span>
+  @if (server.load) {
+    <span class="node-figures">
+      <span class="big">{{headline(server.load)}}</span>
+      @if (state.by === 'time' && server.load.secondsPerDay !== null) {
+        <span class="dim">{{formatSeconds(server.load.secondsPerDay)}}/day</span>
+      }
+      <span class="dim share">{{percent(weight(server))}} of env</span>
     </span>
-    @if (server.load) {
-      <span class="node-figures">
-        <span class="big">{{headline(server.load)}}</span>
-        @if (state.by === 'time' && server.load.secondsPerDay !== null) {
-          <span class="dim">{{formatSeconds(server.load.secondsPerDay)}}/day</span>
+    <span class="bar" aria-hidden="true">
+      @for (s of split(server.load, state.by); track s.kind) {
+        @if (s.fraction > 0) {
+          <span class="seg" [attr.data-kind]="s.kind" [style.flex-grow]="s.fraction"
+                [title]="segmentTitle(s.kind, s.fraction, s.value)"></span>
         }
-        <span class="dim share">{{percent(weight(server))}} of env</span>
-      </span>
-      <span class="bar" aria-hidden="true">
-        @for (s of split(server.load, state.by); track s.kind) {
-          @if (s.fraction > 0) {
-            <span class="seg" [attr.data-kind]="s.kind" [style.flex-grow]="s.fraction"
-                  [title]="segmentTitle(s.kind, s.fraction, s.value)"></span>
-          }
+      }
+    </span>
+    <span class="rw">
+      @for (s of split(server.load, state.by); track s.kind) {
+        @if (shownInLegend(s)) {
+          <span class="key" [attr.data-kind]="s.kind"><i></i>{{KIND_LABELS[s.kind]}} {{percent(s.fraction)}}</span>
         }
-      </span>
-      <span class="rw">
-        @for (s of split(server.load, state.by); track s.kind) {
-          @if (shownInLegend(s)) {
-            <span class="key" [attr.data-kind]="s.kind"><i></i>{{KIND_LABELS[s.kind]}} {{percent(s.fraction)}}</span>
-          }
-        }
-      </span>
-      <span class="weight" aria-hidden="true"><span [style.width.%]="weight(server) * 100"></span></span>
-    }
-    @if (statusLabel(server.status)) { <span class="status">{{statusLabel(server.status)}}</span> }
-  </button>
+      }
+    </span>
+    <span class="weight" aria-hidden="true"><span [style.width.%]="weight(server) * 100"></span></span>
+  }
+  @if (statusLabel(server.status)) { <span class="status">{{statusLabel(server.status)}}</span> }
 </ng-template>

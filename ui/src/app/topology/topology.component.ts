@@ -1,36 +1,34 @@
 import {Component, DestroyRef, inject, OnInit} from '@angular/core';
-import {DatePipe, DecimalPipe, NgTemplateOutlet} from '@angular/common';
+import {DecimalPipe, NgTemplateOutlet} from '@angular/common';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {skip} from 'rxjs';
 import {EnvironmentService} from '../environment.service';
-import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {TopologyService} from './topology.service';
 import {
-  allServers, arrange, decodeTopologyParams, encodeTopologyParams, formatSeconds, KIND_LABELS, Load, Measure,
-  percent, ServerStatements, shownInLegend, split, statusLabel, TopologyReport, TopologyServer, TopologyState
+  arrange, decodeTopologyParams, encodeTopologyParams, formatSeconds, KIND_LABELS, Load, Measure, opensQueries,
+  percent, serverQueriesParams, shownInLegend, split, statusLabel, TopologyReport, TopologyServer, TopologyState
 } from './topology';
 
 /**
  * The environment's servers as config arranges them, with the share of reads
  * and writes each ran and its query seconds (sqlx-a9h). Every figure is the
- * server's own Performance Schema; nothing is merged across servers.
+ * server's own Performance Schema; nothing is merged across servers. A
+ * server opens the queries workbench scoped to its source, which reads the
+ * same per-source corpus these figures come from (sqlx-a9h.1).
  */
 @Component({
   selector: 'app-topology',
   templateUrl: './topology.component.html',
   styleUrls: ['./topology.component.scss'],
-  imports: [RouterLink, DatePipe, DecimalPipe, NgTemplateOutlet, SqlHighlightDirective]
+  imports: [RouterLink, DecimalPipe, NgTemplateOutlet]
 })
 export class TopologyComponent implements OnInit {
 
   report: TopologyReport | null = null;
   loading = true;
   failed = false;
-  state: TopologyState = {server: null, by: 'time'};
-  statements: ServerStatements | null = null;
-  statementsLoading = false;
-  statementsFailed = false;
+  state: TopologyState = {by: 'time'};
 
   protected readonly arrange = arrange;
   protected readonly split = split;
@@ -39,6 +37,8 @@ export class TopologyComponent implements OnInit {
   protected readonly statusLabel = statusLabel;
   protected readonly KIND_LABELS = KIND_LABELS;
   protected readonly shownInLegend = shownInLegend;
+  protected readonly opensQueries = opensQueries;
+  protected readonly serverQueriesParams = serverQueriesParams;
 
   private readonly topology = inject(TopologyService);
   private readonly router = inject(Router);
@@ -48,58 +48,26 @@ export class TopologyComponent implements OnInit {
 
   ngOnInit() {
     this.state = decodeTopologyParams(this.route.snapshot.queryParamMap);
-    this.load();
-    // another environment's servers are not this one's: drop the selection
-    this.environmentService.current$.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      this.state = {...this.state, server: null};
+    // an old link's var-server is dropped: a server's statements live in the workbench now
+    if (this.route.snapshot.queryParamMap.has('var-server')) {
       this.writeUrl();
-      this.load();
-    });
+    }
+    this.load();
+    this.environmentService.current$.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
   }
 
   private load() {
     this.loading = true;
     this.failed = false;
     this.report = null;
-    this.statements = null;
     this.topology.getTopology().subscribe({
       next: report => {
         this.report = report;
         this.loading = false;
-        if (this.state.server && !allServers(report).some(s => s.name === this.state.server)) {
-          this.state = {...this.state, server: null};
-          this.writeUrl();
-        }
-        this.loadStatements();
       },
       // an empty page would read as "no servers", which a failed request cannot support
       error: () => { this.failed = true; this.loading = false; }
     });
-  }
-
-  private loadStatements() {
-    this.statements = null;
-    this.statementsFailed = false;
-    const server = this.state.server;
-    if (!server) {
-      return;
-    }
-    this.statementsLoading = true;
-    this.topology.getStatements(server).subscribe({
-      next: statements => {
-        if (this.state.server === server) {
-          this.statements = statements;
-          this.statementsLoading = false;
-        }
-      },
-      error: () => { this.statementsFailed = true; this.statementsLoading = false; }
-    });
-  }
-
-  select(server: TopologyServer) {
-    this.state = {...this.state, server: this.state.server === server.name ? null : server.name};
-    this.writeUrl();
-    this.loadStatements();
   }
 
   setMeasure(by: Measure) {
@@ -110,10 +78,6 @@ export class TopologyComponent implements OnInit {
   private writeUrl() {
     this.router.navigate([], {relativeTo: this.route, queryParams: encodeTopologyParams(this.state),
       queryParamsHandling: 'merge', replaceUrl: true});
-  }
-
-  get selected(): TopologyServer | null {
-    return allServers(this.report).find(server => server.name === this.state.server) ?? null;
   }
 
   /** The headline number: seconds, or executions when splitting by executions. */

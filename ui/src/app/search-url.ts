@@ -54,6 +54,13 @@ export interface SearchUrlState {
   /** Queries left out by hand, by the digest `/analyzed-sql/:id` uses. */
   excludeQueries: string[];
   /**
+   * Sources the search reads, by source ref (a live source is its server's
+   * name): `sources=shard1-replica,-etl`. They scope the *data*: every figure
+   * is those sources' own, not the environment's total (sqlx-a9h.1).
+   */
+  sources: string[];
+  excludeSources: string[];
+  /**
    * Criteria switched off but kept, by their key in criteria.ts: `off=`. A
    * shared link reproduces "this search, with that one paused", and the
    * request leaves them out (see effectiveState).
@@ -122,6 +129,7 @@ export function defaultSearchState(): SearchUrlState {
     firstAfter: null, firstBefore: null, lastAfter: null, lastBefore: null,
     tags: [], tagMode: 'ANY', untaggedOnly: false, tableTags: [],
     excludeTypes: [], excludeTags: [], excludeTableTags: [], excludeQueries: [], off: [],
+    sources: [], excludeSources: [],
     avgTime: { min: null, max: null },
     maxTime: { min: null, max: null },
     avgRows: { min: null, max: null },
@@ -165,6 +173,9 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
     params['tableTags'] = signed(state.tableTags, state.excludeTableTags);
   }
   if (state.excludeQueries.length) { params['excludeQueries'] = state.excludeQueries.join(','); }
+  if (state.sources.length || state.excludeSources.length) {
+    params['sources'] = signed(state.sources, state.excludeSources);
+  }
   putRange('avgTime', state.avgTime);
   putRange('maxTime', state.maxTime);
   putRange('avgRows', state.avgRows);
@@ -223,6 +234,8 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     tableTags: included('tableTags'),
     excludeTableTags: excluded('tableTags'),
     excludeQueries: csv('excludeQueries'),
+    sources: included('sources'),
+    excludeSources: excluded('sources'),
     off: csv('off'),
     avgTime: readRange('avgTime'),
     maxTime: readRange('maxTime'),
@@ -337,6 +350,8 @@ export function buildSearchRequest(asWritten: SearchUrlState,
     excludeTags: state.excludeTags.length ? state.excludeTags : null,
     excludeTableTags: state.excludeTableTags.length ? state.excludeTableTags : null,
     excludeQueries: state.excludeQueries.length ? state.excludeQueries : null,
+    sources: state.sources.length ? state.sources : null,
+    excludeSources: state.excludeSources.length ? state.excludeSources : null,
     tables: state.scope.tables.length ? state.scope.tables : null,
     tableMode: state.scope.tableMode,
     columns: state.columns.length ? state.columns : null,

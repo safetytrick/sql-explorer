@@ -151,3 +151,21 @@ test('the collations filter is in the link and survives a reload', async ({page}
   await expect(page.locator('.group-card')).toHaveCount(1);
   await expect(page.locator('.group-card')).toContainText('app.orders');
 });
+
+/**
+ * Sources scope the data the workbench reads (sqlx-a9h.1): a link names them,
+ * the filter writes them, and each row says where it ran.
+ */
+test('a source filter is a link and scopes the results', async ({page}) => {
+  await page.goto('/queries?sources=replica');
+
+  await expect(page.locator('.q-row')).toHaveCount(1);
+  await expect(page.locator('.q-row').first()).toContainText('sessions');
+  await expect(page.locator('.q-row').first()).toContainText('on replica');
+  await expect(page.locator('.source-btn', {hasText: 'replica'})).toHaveClass(/\bon\b/);
+
+  // the filter's choices are the environment's loaded sources
+  await page.locator('.source-btn', {hasText: 'primary'}).click();
+  await expect(page).toHaveURL(/sources=replica%2Cprimary|sources=replica,primary/);
+  await expect(page.locator('.q-row')).toHaveCount(3);
+});

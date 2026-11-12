@@ -46,6 +46,9 @@ export interface QuerySearchRequest {
   excludeTags?: string[] | null;
   /** By the digest `/analyzed-sql/:id` uses. */
   excludeQueries?: string[] | null;
+  /** Source refs the corpus is merged from: every figure is theirs alone (sqlx-a9h.1). */
+  sources?: string[] | null;
+  excludeSources?: string[] | null;
   schemas?: string[] | null;
   excludeSchemas?: string[] | null;
   tables?: string[] | null;        // normalized "schema.table" keys
@@ -146,6 +149,8 @@ export interface QueryHit {
 export interface QueryFacets {
   tables: Record<string, number>;   // keyed by normalized "schema.table"
   schemas: Record<string, number>;  // keyed by normalized schema
+  /** Matches per source ref; a statement seen on two sources counts on each, so these can exceed the total. */
+  sources: Record<string, number>;
 }
 
 export interface QuerySearchResult {

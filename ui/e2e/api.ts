@@ -44,7 +44,7 @@ function tableRollup(name: string, schema: string) {
     rowsEstimate: 1200, sizeBytes: 163840};
 }
 
-function profile(name: string, schema: string, perfDigest: string, executed = 100) {
+function profile(name: string, schema: string, perfDigest: string, executed = 100, source = 'primary') {
   return {
     id: `primary@2026-08-30T00:00:00Z-${name}`,
     query: `select * from \`${schema}\`.\`${name}\` where id = ?`,
@@ -55,14 +55,14 @@ function profile(name: string, schema: string, perfDigest: string, executed = 10
     selectColumns: [], criteriaColumns: [], groupByColumns: [], joinColumns: [],
     mismatchedJoins: [], analysisFailed: false, analysisSkipped: false,
     isDml: false, isMultiSchema: false, truncated: false, modifiedForAnalysis: false,
-    sourcedFiles: [], sourceFileName: null, lineNumber: 0,
+    sourcedFiles: [], sourceFileName: null, lineNumber: 0, sources: [source],
     analysisFailureReason: null, generatedSource: null
   };
 }
 
 export const ORDERS = profile('orders', 'app', 'aaaa1111');
 export const USERS = profile('users', 'app', 'bbbb2222', 50);
-export const SESSIONS = profile('sessions', 'ops', 'cccc3333', 7);
+export const SESSIONS = profile('sessions', 'ops', 'cccc3333', 7, 'replica');
 
 const ALL = [ORDERS, USERS, SESSIONS];
 
@@ -156,14 +156,20 @@ function search(body: Record<string, unknown>) {
     ? new RegExp(body.queryRegex, 'i') : null;
   const schemas = (body.schemas as string[] | null) ?? [];
   const excludeQueries = (body.excludeQueries as string[] | null) ?? [];
+  // the server merges only these sources' data; one source per fixture, so keeping its rows is the same
+  const sources = (body.sources as string[] | null) ?? [];
   const results = ALL
     .filter(p => !regex || regex.test(p.query))
     .filter(p => !schemas.length || schemas.includes(p.schemaName))
-    .filter(p => !excludeQueries.includes(p.digest));
+    .filter(p => !excludeQueries.includes(p.digest))
+    .filter(p => !sources.length || p.sources.some(source => sources.includes(source)));
+  const perSource: Record<string, number> = {};
+  results.forEach(p => p.sources.forEach(source => { perSource[source] = (perSource[source] ?? 0) + 1; }));
   return {
     total: results.length,
     results: results.map(profile => ({profile, tags: []})),
-    facets: {tables: {}, schemas: {app: 2, ops: 1}}  // the shape QuerySearchResult.Facets serializes to
+    // the shape QuerySearchResult.Facets serializes to
+    facets: {tables: {}, schemas: {app: 2, ops: 1}, sources: perSource}
   };
 }
 
@@ -185,6 +191,9 @@ export async function stubApi(page: Page) {
   await page.route(`${SCOPED}/queries/search`, async route =>
     route.fulfill(json(search(JSON.parse(route.request().postData() || '{}')))));
   await page.route(`${SCOPED}/schema-tree`, route => route.fulfill(json(SCHEMA_TREE)));
+  // the environment's loaded sources, which the workbench offers as its source filter
+  await page.route(`${SCOPED}/sources/active`, route => route.fulfill(json(['primary', 'replica'].map(sourceRef =>
+    ({source: {sourceRef, createdOn: '2026-08-30T00:00:00Z'}, status: 'unknown', importStats: null})))));
   await page.route(`${SCOPED}/coverage`, route => route.fulfill(json(COVERAGE)));
   // Answers POSITIONALLY — one entry per target, in the order sent — which is
   // the contract the client zips against (sqlx-3ai).

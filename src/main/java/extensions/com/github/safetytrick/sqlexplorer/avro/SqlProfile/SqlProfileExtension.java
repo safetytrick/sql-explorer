@@ -390,6 +390,7 @@ public class SqlProfileExtension {
             if (thiz.getMismatchedJoins() == null) { thiz.setMismatchedJoins(new ArrayList<>()); }
             if (thiz.getSchemas() == null) { thiz.setSchemas(new ArrayList<>()); }
             if (thiz.getSourcedFiles() == null) { thiz.setSourcedFiles(new ArrayList<>()); }
+            if (thiz.getSources() == null) { thiz.setSources(new ArrayList<>()); }
             if (thiz.getIndexHints() == null) { thiz.setIndexHints(new ArrayList<>()); }
             if (thiz.getOrderByColumns() == null) { thiz.setOrderByColumns(new ArrayList<>()); }
             if (thiz.getCriteriaComparisons() == null) { thiz.setCriteriaComparisons(new ArrayList<>()); }

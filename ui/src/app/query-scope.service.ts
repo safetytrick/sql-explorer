@@ -35,7 +35,7 @@ export interface SchemaTagScope {
   excludedTables: string[];
 }
 
-const EMPTY_FACETS: QueryFacets = { tables: {}, schemas: {} };
+const EMPTY_FACETS: QueryFacets = { tables: {}, schemas: {}, sources: {} };
 const EMPTY_TAG_FILTER: SchemaTagFilter = { includeTags: [], excludeTags: [], tagMode: 'ANY' };
 const EMPTY_TAG_SCOPE: SchemaTagScope = { includedSchemas: null, excludedSchemas: [], excludedTables: [] };
 

@@ -1,3 +1,4 @@
+import {SourceService} from '../source.service';
 import {countBadge, CountBadge} from './count-badge';
 import {GLOSSARY} from '../glossary';
 import {InViewDirective} from '../in-view.directive';
@@ -115,6 +116,13 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   excludeTableTags: string[] = [];
   /** Queries left out by hand, by digest. */
   excludeQueries: string[] = [];
+  /** Sources the search reads (`sources=`): every figure is theirs alone (sqlx-a9h.1). */
+  sources: string[] = [];
+  excludeSources: string[] = [];
+  /** The environment's loaded sources, offered as the filter's choices. */
+  sourceOptions: string[] = [];
+  /** Matches per source in the current results. */
+  sourceCounts: Record<string, number> = {};
   /** Criteria switched off but kept, by key (criteria.ts): `off=`. */
   off: string[] = [];
   /**
@@ -220,11 +228,26 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
               private queryScopeService: QueryScopeService,
               private route: ActivatedRoute,
               private router: Router,
-              private annotationService: AnnotationService) { }
+              private annotationService: AnnotationService,
+              private sourceService: SourceService) { }
+
+  private loadSourceOptions() {
+    this.sourceService.getActiveSources().subscribe({
+      next: active => {
+        this.sourceOptions = [...new Set((active ?? []).map(imported => imported.source?.sourceRef)
+          .filter((ref): ref is string => !!ref))].sort();
+      },
+      // the filter still works from the link and the facets; only the choices are missing
+      error: () => { this.sourceOptions = []; }
+    });
+  }
 
   ngOnInit() {
     this.subscriptions.add(this.searchTrigger.pipe(debounceTime(250)).subscribe(() => this.runSearch()));
-    this.subscriptions.add(this.environmentService.current$.subscribe(() => this.searchTrigger.next()));
+    this.subscriptions.add(this.environmentService.current$.subscribe(() => {
+      this.searchTrigger.next();
+      this.loadSourceOptions();
+    }));
     this.subscriptions.add(this.annotationService.generators().subscribe({
       next: generators => {
         this.generatorStatuses = generatorStatuses(generators ?? []);
@@ -369,6 +392,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.excludeTags = state.excludeTags;
     this.excludeTableTags = state.excludeTableTags;
     this.excludeQueries = state.excludeQueries;
+    this.sources = state.sources;
+    this.excludeSources = state.excludeSources;
     this.off = state.off;
     this.queryScopeService.setPaused(state.off);
   }
@@ -468,6 +493,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       excludeTags: this.excludeTags,
       excludeTableTags: this.excludeTableTags,
       excludeQueries: this.excludeQueries,
+      sources: this.sources,
+      excludeSources: this.excludeSources,
       off: this.off,
       avgTime: this.avgTime,
       maxTime: this.maxTime,
@@ -553,6 +580,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
         this.hits = result.results;
         this.total = result.total;
         this.queryScopeService.publishFacets(result.facets);
+        this.sourceCounts = result.facets.sources ?? {};
         this.loading = false;
         if (this.selected && !this.hits.some(hit => hit.profile.id === this.selected!.profile.id)) {
           this.selected = null;
@@ -597,6 +625,34 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.filtersChanged();
   }
 
+  /** Include a source, or take it off; an excluded one is taken off too. */
+  toggleSource(source: string) {
+    if (this.excludeSources.includes(source)) {
+      this.excludeSources = this.excludeSources.filter(candidate => candidate !== source);
+    } else {
+      this.sources = this.sources.includes(source)
+        ? this.sources.filter(candidate => candidate !== source)
+        : [...this.sources, source];
+    }
+    this.filtersChanged();
+  }
+
+  clearSources() {
+    this.sources = [];
+    this.excludeSources = [];
+    this.filtersChanged();
+  }
+
+  /** Every source worth offering: the loaded ones, and any a link names that is not loaded. */
+  get sourceChoices(): string[] {
+    return [...new Set([...this.sourceOptions, ...this.sources, ...this.excludeSources])].sort();
+  }
+
+  /** Only an environment with more than one source has a choice to make. */
+  get showSources(): boolean {
+    return this.sourceChoices.length > 1 || this.sources.length > 0 || this.excludeSources.length > 0;
+  }
+
   clearTypes() {
     this.types = [];
     this.excludeTypes = [];
@@ -616,6 +672,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.excludeTags = [];
     this.excludeTableTags = [];
     this.excludeQueries = [];
+    this.sources = [];
+    this.excludeSources = [];
     this.off = [];
     this.queryScopeService.setPaused([]);
     this.avgTime = { min: null, max: null };

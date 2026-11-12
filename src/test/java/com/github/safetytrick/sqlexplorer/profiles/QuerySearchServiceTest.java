@@ -11,6 +11,7 @@ import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
+import com.github.safetytrick.sqlexplorer.evidence.SourceScope;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.commentary.Tag;
@@ -56,6 +57,13 @@ class QuerySearchServiceTest {
 
     private void repositoryReturns(SqlProfile... profiles) {
         when(sqlRepositoryService.getAllAnalyzedSql()).thenAnswer(inv -> Stream.of(profiles));
+        // stands in for the scoped corpus: the profiles naming a source in scope
+        when(sqlRepositoryService.getAllAnalyzedSql(org.mockito.ArgumentMatchers.any(SourceScope.class)))
+            .thenAnswer(inv -> {
+                SourceScope scope = inv.getArgument(0);
+                return Stream.of(profiles).filter(profile -> scope.isEverything()
+                    || profile.getSources().stream().anyMatch(scope::includes));
+            });
     }
 
     private List<String> searchIds(QuerySearchRequest request) {
@@ -713,6 +721,8 @@ class QuerySearchServiceTest {
     }
 
     private static class RequestBuilder {
+        private List<String> sources;
+        private List<String> excludeSources;
         private String queryRegex;
         private Range avgTimeMs, selectivity;
         private Activity activity;
@@ -765,13 +775,15 @@ class QuerySearchServiceTest {
         RequestBuilder multiSchema(Flag v) { this.multiSchema = v; return this; }
         RequestBuilder hasExamples(Boolean v) { this.hasExamples = v; return this; }
         RequestBuilder sort(Sort v) { this.sort = v; return this; }
+        RequestBuilder sources(List<String> v) { this.sources = v; return this; }
+        RequestBuilder excludeSources(List<String> v) { this.excludeSources = v; return this; }
         RequestBuilder limit(Integer v) { this.limit = v; return this; }
         RequestBuilder offset(Integer v) { this.offset = v; return this; }
 
         QuerySearchRequest build() {
             return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly, tableTags,
-                excludeTableTags, excludeTypes, excludeTags, excludeQueries,
+                excludeTableTags, excludeTypes, excludeTags, excludeQueries, sources, excludeSources,
                 schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted, generator,
                 fullScan, null, null, null, null,
                 truncated, multiSchema,
@@ -797,5 +809,29 @@ class QuerySearchServiceTest {
         // UNKNOWN is a type of its own, not part of OTHER
         assertThat(QuerySearchService.matchesTypes(List.of("OTHER"), "UNKNOWN")).isFalse();
         assertThat(QuerySearchService.matchesTypes(List.of("OTHER"), "CALL")).isTrue();
+    }
+
+    /**
+     * Sources scope the corpus the search reads, and the result counts its
+     * matches per source (sqlx-a9h.1).
+     */
+    @Test
+    void sourcesScopeTheCorpusAndAreCountedPerSource() {
+        SqlProfile primary = sourced(profile("p", null), "shard1");
+        SqlProfile replica = sourced(profile("r", null), "shard1-replica");
+        SqlProfile both = sourced(profile("b", null), "shard1", "shard1-replica");
+        repositoryReturns(primary, replica, both);
+
+        assertThat(searchIds(request().sources(List.of("shard1-replica")).build())).containsExactlyInAnyOrder("r", "b");
+        org.mockito.Mockito.verify(sqlRepositoryService)
+            .getAllAnalyzedSql(SourceScope.of(List.of("shard1-replica"), null));
+
+        QuerySearchResult all = service.search(request().build());
+        assertThat(all.facets().sources()).containsEntry("shard1", 2).containsEntry("shard1-replica", 2);
+    }
+
+    private static SqlProfile sourced(SqlProfile profile, String... sources) {
+        profile.setSources(List.of(sources));
+        return profile;
     }
 }

@@ -81,6 +81,8 @@ public class CaptureRehydrator {
             return null;
         }
 
+        labelSources(rows, context != null && context.sourceRef() != null ? context.sourceRef() : sourceRef);
+
         log.info("Rehydrated {} from {}: {} profiles", sourceRef, capture.getFileName(), rows.size());
         // Merging is rebuilt here, by AnalyzedSqlRepository grouping on the
         // normalized digest — exactly as a fresh import does. Nothing about the
@@ -141,6 +143,22 @@ public class CaptureRehydrator {
      * {@code docs/plans/normalization-versioning.md}'s problem, not this
      * method's.
      */
+    /**
+     * Captures written before profiles recorded their source hold none; the
+     * capture knows whose it is, so its rows are labelled with that
+     * (sqlx-a9h.1). A row that already names its source keeps it.
+     */
+    static void labelSources(List<SqlProfile> rows, String sourceRef) {
+        if (sourceRef == null) {
+            return;
+        }
+        for (SqlProfile row : rows) {
+            if (row.getSources() == null || row.getSources().isEmpty()) {
+                row.setSources(List.of(sourceRef));
+            }
+        }
+    }
+
     private static boolean normalizerMatches(List<SqlProfile> rows) {
         String expected = "v" + QueryNormalizer.VERSION + ":";
         String stale = rows.stream()

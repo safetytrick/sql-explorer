@@ -172,4 +172,18 @@ class CaptureRehydratorTest {
         assertThat(rehydrator.rehydrate("primary")).isNotNull();
         assertThat(rehydrator.rehydrate("replica")).isNull();
     }
+
+    /** A capture from before profiles named their source is labelled with its own (sqlx-a9h.1). */
+    @Test
+    void rowsWithoutASourceAreLabelledWithTheCaptures() {
+        SqlProfile old = new SqlProfile();
+        old.setSources(List.of());
+        SqlProfile named = new SqlProfile();
+        named.setSources(List.of("shard2"));
+
+        CaptureRehydrator.labelSources(List.of(old, named), "shard1");
+
+        assertThat(old.getSources()).containsExactly("shard1");
+        assertThat(named.getSources()).as("a row that names its source keeps it").containsExactly("shard2");
+    }
 }

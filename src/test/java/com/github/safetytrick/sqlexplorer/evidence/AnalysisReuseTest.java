@@ -111,6 +111,7 @@ class AnalysisReuseTest {
 
         assertThat(profile.getAnalyzerVersion()).isEqualTo(AnalyzerVersion.CURRENT);
         assertThat(profile.getSessionSchema()).isEqualTo("app");
+        assertThat(profile.getSources()).as("where the row was seen (sqlx-a9h.1)").containsExactly("shard1");
     }
 
     @Test
@@ -124,6 +125,7 @@ class AnalysisReuseTest {
         SqlProfile reused = only(repository);
         assertThat(reused.getTables()).as("the earlier analysis").isEqualTo(prior.getTables());
         assertThat(reused.getRuntimeMetrics().getExecuted()).as("this row's own metrics").isEqualTo(99);
+        assertThat(reused.getSources()).as("this row's own source, not copied").containsExactly("shard1");
         assertThat(repository.getImportStats().reused()).isEqualTo(1);
     }
 

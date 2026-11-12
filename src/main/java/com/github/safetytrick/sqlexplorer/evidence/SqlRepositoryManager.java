@@ -105,6 +105,15 @@ public class SqlRepositoryManager {
         return resident(environmentName).composite();
     }
 
+    /**
+     * The environment's corpus over only the sources in scope, merged from
+     * their repositories alone: every figure is those sources' own. An
+     * unconstrained scope is the whole corpus (sqlx-a9h.1).
+     */
+    public SqlRepository getSqlRepository(String environmentName, SourceScope scope) {
+        return resident(environmentName).scoped(scope);
+    }
+
     public List<SqlRepository> getRepositories(String environmentName) {
         return resident(environmentName).repositories();
     }
@@ -532,9 +541,57 @@ public class SqlRepositoryManager {
      */
     public record LoadState(int sourceCount, Instant loadedOn, SqlImportStats importStats, boolean resident) { }
 
-    private record EnvironmentRepositories(List<SqlRepository> repositories, CompositeSqlRepository composite,
-                                           Instant loadedOn) {
+    /**
+     * One load of an environment: its repositories, their merged corpus, and
+     * the corpus of any subset of its sources asked for.
+     *
+     * <p>A scoped corpus is merged from the chosen repositories alone, so its
+     * figures are those sources' own (sqlx-a9h.1). It is cached here, which
+     * gives it this load's lifetime exactly — the same no-invalidation rule
+     * as {@link CompositeSqlRepository}'s corpus. Bounded, because the scopes
+     * come from requests.
+     */
+    private static final class EnvironmentRepositories {
         static final EnvironmentRepositories EMPTY =
             new EnvironmentRepositories(List.of(), new CompositeSqlRepository(List.of()), null);
+        private static final int MAX_SCOPES = 32;
+
+        private final List<SqlRepository> repositories;
+        private final CompositeSqlRepository composite;
+        private final Instant loadedOn;
+        private final Map<SourceScope, SqlRepository> scoped = new ConcurrentHashMap<>();
+
+        EnvironmentRepositories(List<SqlRepository> repositories, CompositeSqlRepository composite, Instant loadedOn) {
+            this.repositories = repositories;
+            this.composite = composite;
+            this.loadedOn = loadedOn;
+        }
+
+        List<SqlRepository> repositories() {
+            return repositories;
+        }
+
+        CompositeSqlRepository composite() {
+            return composite;
+        }
+
+        Instant loadedOn() {
+            return loadedOn;
+        }
+
+        SqlRepository scoped(SourceScope scope) {
+            if (scope == null || scope.isEverything()) {
+                return composite;
+            }
+            SqlRepository cached = scoped.get(scope);
+            if (cached != null) {
+                return cached;
+            }
+            if (scoped.size() >= MAX_SCOPES) {
+                scoped.clear();
+            }
+            return scoped.computeIfAbsent(scope, s -> new CompositeSqlRepository(
+                repositories.stream().filter(repository -> s.includes(repository.sourceRef())).toList()));
+        }
     }
 }

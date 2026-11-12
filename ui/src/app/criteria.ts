@@ -44,6 +44,7 @@ const LISTS: ListKind[] = [
   { kind: 'table', label: 'table', include: s => s.scope.tables, exclude: s => s.scope.excludeTables },
   { kind: 'schemaTag', label: 'schema tag', include: s => s.schemaTagFilter.includeTags,
     exclude: s => s.schemaTagFilter.excludeTags },
+  { kind: 'source', label: 'source', include: s => s.sources, exclude: s => s.excludeSources },
   { kind: 'type', label: 'type', include: s => s.types, exclude: s => s.excludeTypes },
   { kind: 'tag', label: 'tag', include: s => s.tags, exclude: s => s.excludeTags },
   { kind: 'tableTag', label: 'tables tagged', include: s => s.tableTags, exclude: s => s.excludeTableTags },

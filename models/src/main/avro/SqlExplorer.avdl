@@ -26,6 +26,14 @@ protocol SqlExplorer {
 		string? analysisFailureReason = null;
 		string? sourceFileName = null;
 		array<string> sourcedFiles = [];
+		/**
+		 * The sources the statement was captured from, by source ref — for a
+		 * live source, the server's name. One per profile as loaded; a profile
+		 * merged across sources holds each of theirs. Where it ran, not how
+		 * much: per-source figures come from scoping the corpus to a source
+		 * (SourceScope), not from this list (sqlx-a9h.1).
+		 */
+		array<string> sources = [];
 		QueryActivityStatus queryActivityStatus;
 		boolean modifiedForAnalysis = false;
 		boolean isMultiSchema = false;

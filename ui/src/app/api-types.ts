@@ -90,6 +90,8 @@ export interface SqlProfile {
   analysisFailureReason: string | null;
   sourceFileName: string | null;
   sourcedFiles: string[];
+  /** The sources it was captured from, by source ref (a live source is its server's name). */
+  sources: string[] | null;
   queryActivityStatus: QueryActivityStatus;
   modifiedForAnalysis: boolean;
   isMultiSchema: boolean;

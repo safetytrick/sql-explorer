@@ -16,6 +16,11 @@ public record QuerySearchResult(int total, List<QueryHit> results, Facets facets
 
     public record QueryHit(SqlProfile profile, List<Tag> tags) { }
 
-    /** Match counts keyed by normalized {@code schema.table} and normalized schema name. */
-    public record Facets(Map<String, Integer> tables, Map<String, Integer> schemas) { }
+    /**
+     * Match counts keyed by normalized {@code schema.table} and normalized
+     * schema name, and the matches per source ref they were captured from. A
+     * statement seen on two sources counts once on each, so the source counts
+     * can add up to more than the total (sqlx-a9h.1).
+     */
+    public record Facets(Map<String, Integer> tables, Map<String, Integer> schemas, Map<String, Integer> sources) { }
 }

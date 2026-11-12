@@ -306,6 +306,8 @@ public class SqlEvidenceInputService {
             // singular `sourceFileName` was never carried into the plural. One
             // element per profile is what makes the group answer real.
             .setSourcedFiles(sourceFileName == null ? List.of() : List.of(sourceFileName))
+            // where the row was seen: a fact of the row, so reuse never copies it
+            .setSources(toProcess.source().getSourceRef() == null ? List.of() : List.of(toProcess.source().getSourceRef()))
             .setQuery(query)
             .setType(textType)
             .setSchemaName(row.getSchemaName() != null ? row.getSchemaName() : "dual")

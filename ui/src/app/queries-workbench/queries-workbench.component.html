@@ -64,6 +64,19 @@
           }
         </div>
       </div>
+      @if (showSources) {
+        <div class="fg">
+          <div class="fg-label">Source <span class="hint">figures are only what ran there</span></div>
+          <div class="tri-row">
+            <span class="tri-btn" [class.on]="sources.length === 0 && excludeSources.length === 0" (click)="clearSources()">all</span>
+            @for (source of sourceChoices; track source) {
+              <span class="tri-btn source-btn" [class.on]="sources.includes(source)" [class.on-bad]="excludeSources.includes(source)"
+                    [title]="excludeSources.includes(source) ? 'excluded; click to take it off' : 'read only what ran on ' + source"
+                    (click)="toggleSource(source)">{{source}}@if (sourceCounts[source]) { <span class="count">{{sourceCounts[source]}}</span>}</span>
+            }
+          </div>
+        </div>
+      }
       <div class="fg">
         <div class="fg-label">First seen</div>
         <app-date-range-selector [from]="firstAfter" [to]="firstBefore"
@@ -375,6 +388,9 @@
               <span class="qm">scanned <span>{{rows(hit.profile.runtimeMetrics?.averageRowsScanned)}}</span></span>
               <span class="qm">sel <span>{{selectivityOf(hit)}}</span></span>
               <span class="qm">last <span>{{hit.profile.runtimeMetrics?.lastSeen ? (hit.profile.runtimeMetrics?.lastSeen | date:'MMM d, yy') : '—'}}</span></span>
+              @if (showSources && hit.profile.sources?.length) {
+                <span class="qm">on <span>{{hit.profile.sources!.join(', ')}}</span></span>
+              }
               @for (tag of hit.tags; track tag.id) {
                 <span class="tag-chip small" [style.background]="tagStyle(tag.name).background" [style.color]="tagStyle(tag.name).color">{{tag.name}}</span>
               }

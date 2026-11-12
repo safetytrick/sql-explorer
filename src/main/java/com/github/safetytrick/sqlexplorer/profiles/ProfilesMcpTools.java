@@ -73,10 +73,13 @@ class ProfilesMcpTools implements McpToolProvider {
                 .handler(args -> tableInsights.getColumns(args.string("schema"), args.string("table"))),
             McpTool.named("search_queries", "Search analyzed queries with the workbench's filter engine. All filters "
                     + "optional. Returns matching profiles (normalized SQL, tables, join/criteria columns, runtime "
-                    + "metrics) plus table/schema facet counts.")
+                    + "metrics, the sources each was captured from) plus table/schema/source facet counts.")
                 .optionalString("queryRegex",
                     "case-insensitive regex over the SQL text (invalid patterns fall back to literal search)")
-                .optionalStrings("types", "statement types: SELECT, INSERT, UPDATE, DELETE, OTHER")
+                .optionalStrings("types", "statement types: SELECT, INSERT, UPDATE, DELETE, UNKNOWN, OTHER")
+                .optionalStrings("sources", "source refs (a server's name) to read: metrics become those sources' "
+                    + "own, not the environment's total")
+                .optionalStrings("excludeSources", "source refs to leave out of the data")
                 .optionalStrings("excludeTypes", "statement types to leave out")
                 .optionalStrings("schemas", "only queries in these schemas")
                 .optionalStrings("excludeSchemas", "leave out queries in these schemas")

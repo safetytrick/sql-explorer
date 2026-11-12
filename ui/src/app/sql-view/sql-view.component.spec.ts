@@ -62,6 +62,7 @@ describe('SqlViewComponent', () => {
       lineNumber: null,
       sourceFileName: null,
       sourcedFiles: [],
+      sources: null,
       queryActivityStatus: 'ACTIVE',
       modifiedForAnalysis: false,
       repeatedBlocks: null,

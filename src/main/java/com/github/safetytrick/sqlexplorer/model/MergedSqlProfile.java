@@ -340,6 +340,14 @@ public class MergedSqlProfile extends SqlProfile {
             .build();
     }
 
+    /** Each source any member was captured from, once: an observation, so the group's union. */
+    @Override
+    public List<String> getSources() {
+        return sourceList.stream().map(SqlProfile::getSources)
+            .filter(java.util.Objects::nonNull)
+            .flatMap(List::stream).distinct().collect(Collectors.toList());
+    }
+
     @Override
     public List<String> getSourcedFiles() {
         return sourceList.stream().map(SqlProfile::getSourcedFiles)

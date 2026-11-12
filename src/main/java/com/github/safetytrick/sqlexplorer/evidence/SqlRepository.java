@@ -57,4 +57,18 @@ public interface SqlRepository {
     default CaptureContext getCaptureContext() {
         return null;
     }
+
+    /**
+     * The source this repository holds, by ref: the capture's own record
+     * first, then the source's. A rehydrated capture's source falls back to
+     * its file name when it has no record, which the capture's ref corrects.
+     */
+    default String sourceRef() {
+        CaptureContext capture = getCaptureContext();
+        if (capture != null && capture.sourceRef() != null) {
+            return capture.sourceRef();
+        }
+        SqlSource source = getSource();
+        return source == null ? null : source.getSourceRef();
+    }
 }
