@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.examples;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  * fact rather than a caller's claim.
  */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Query examples")
+@EnvironmentScoped
 @RestController
 class QueryExampleResource {
 

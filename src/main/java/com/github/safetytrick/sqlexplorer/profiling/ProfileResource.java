@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiling;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -28,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
  * only sampling servers.
  */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Profiles")
+@EnvironmentScoped
 @RestController
 class ProfileResource {
 

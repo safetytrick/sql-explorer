@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.evidence.source;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.sql.SQLException;
@@ -37,6 +38,7 @@ import org.springframework.web.util.UriComponents;
 import static org.springframework.web.servlet.mvc.method.annotation.MvcUriComponentsBuilder.on;
 
 @Tag(name="Source")
+@EnvironmentScoped
 @RestController
 class SqlSourceResource {
 

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, ReplaySubject, map, take, tap } from 'rxjs';
 import { INITIAL_SEARCH, envFromSearch } from './environment-url';
 
 const endpoint = '/api/sql-explorer/';
@@ -108,12 +108,11 @@ export class EnvironmentService {
   /**
    * An environment name that was asked for and does not exist, or null.
    *
-   * <p>Reported rather than silently replaced. The backend's
-   * `EnvironmentContext.getOrDefault` falls back to the default for an unknown
-   * name, which is right for a stale header and wrong for a link a colleague
-   * just sent: it would show them a different corpus without a word, and every
-   * number on the page would be a confident answer to a question they did not
-   * ask.
+   * <p>Reported rather than silently replaced. Requests for an unknown name
+   * go to the default environment instead (see {@link effective}; the backend
+   * itself 404s on it), and showing a colleague's link a different corpus
+   * without a word would make every number on the page a confident answer to
+   * a question they did not ask.
    */
   readonly unknown$ = new BehaviorSubject<string | null>(null);
 
@@ -128,8 +127,43 @@ export class EnvironmentService {
   }
 
   getEnvironments(): Observable<EnvironmentList> {
+    this.knownRequested = true;
     return this.http.get<EnvironmentList>(endpoint + 'environments').pipe(
-      tap(list => this.checkKnown(list)));
+      tap(list => {
+        this.checkKnown(list);
+        this.known$.next(list);
+      }));
+  }
+
+  /** The latest environment list any caller fetched; what {@link effective} resolves against. */
+  private readonly known$ = new ReplaySubject<EnvironmentList>(1);
+  private knownRequested = false;
+
+  /**
+   * The environment requests are actually made against: the selected one when
+   * the backend has it, otherwise the backend's default.
+   *
+   * <p>Every API request carries this in its path (`/env/{name}/…`,
+   * sqlx-e13.6), and the backend answers an unknown name with a 404 rather
+   * than the default. So the substitution happens here, in the open: the
+   * selection is left as it was asked for, and `unknown$` makes the nav say
+   * which environment is being shown instead.
+   *
+   * <p>Synchronous once the list is known, which it is after the nav bar's
+   * first load; a request issued before that waits for the list, fetching it
+   * if nobody has yet.
+   */
+  effective(): Observable<string> {
+    if (!this.knownRequested) {
+      this.knownRequested = true;
+      this.getEnvironments().subscribe({error: () => this.knownRequested = false});
+    }
+    return this.known$.pipe(
+      take(1),
+      map(list => {
+        const current = this.current$.value;
+        return current && list.environments.some(e => e.name === current) ? current : list.defaultEnvironment;
+      }));
   }
 
   /**

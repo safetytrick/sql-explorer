@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.coverage;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import com.github.safetytrick.sqlexplorer.environment.Environment;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentRegistry;
@@ -18,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
  * these findings are what separate the two (sqlx-n01).
  */
 @Tag(name = "Coverage")
+@EnvironmentScoped
 @RestController
 class CoverageResource {
 

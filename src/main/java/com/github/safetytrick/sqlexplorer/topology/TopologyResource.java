@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.github.safetytrick.sqlexplorer.environment.Environment;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * loaded statements only; no server is contacted.
  */
 @Tag(name = "Topology")
+@EnvironmentScoped
 @RestController
 class TopologyResource {
 

@@ -1,7 +1,7 @@
 import {expect, test} from '@playwright/test';
 import {stubApi} from './api';
 
-const BASE = '**/api/sql-explorer';
+const BASE = '**/api/sql-explorer/env/*';
 
 const load = (reads: [number, number], writes: [number, number], other: [number, number], perDay: number | null,
               unknown: [number, number] = [0, 0]) => ({

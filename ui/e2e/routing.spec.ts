@@ -73,7 +73,7 @@ test('the old /coverage address opens Captured, keeping its query', async ({page
 
 /** A tag on a row narrows the list it is on, rather than leaving for another page (sqlx-c8w.9). */
 test('clicking a tag on a tables row filters the list in place', async ({page}) => {
-  await page.route('**/api/sql-explorer/tables', route => route.fulfill({
+  await page.route('**/api/sql-explorer/env/*/tables', route => route.fulfill({
     contentType: 'application/json',
     body: JSON.stringify([
       {name: 'orders', schema: 'app', numberOfQueries: 3, totalQueryTime: 1000, view: false, tags: [{id: 1, name: 'system'}]},

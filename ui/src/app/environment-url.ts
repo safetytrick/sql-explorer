@@ -34,7 +34,7 @@ export function envFromParams(params: ParamMap): string | null {
  *
  * <p>Read synchronously at service construction, before the router has
  * resolved anything. That timing is the point: the HTTP interceptor stamps
- * `X-Sql-Explorer-Environment` from the selected environment on every request,
+ * the selected environment into the path of every API request,
  * and the first of those can be issued by a component's constructor — earlier
  * than any router subscription would fire. Seeding from the router instead
  * would let a shared link's first requests go out against the recipient's

@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.schema;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @Tag(name="Schema")
+@EnvironmentScoped
 @RestController
 class SchemaResource {
 

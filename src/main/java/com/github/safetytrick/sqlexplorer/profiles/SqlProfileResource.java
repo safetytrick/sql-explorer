@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name="SqlProfile")
+@EnvironmentScoped
 @RestController
 class SqlProfileResource {
 

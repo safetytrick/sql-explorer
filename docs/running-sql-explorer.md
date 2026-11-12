@@ -97,9 +97,10 @@ environments:
 
 Environments are independent: loading one does not touch another's data, and
 each is analyzed and reported on separately. The UI's environment selector
-picks between them; the API takes the same choice as an
-`X-Sql-Explorer-Environment` header, defaulting to the environment marked
-`default: true`.
+picks between them; the API takes the same choice in its path,
+`/api/sql-explorer/env/{env}/…`, and answers an environment it does not know
+with a 404. Global endpoints (`/environments`, `/user`, `/util/…`) have no
+environment segment.
 
 One flag is worth knowing about:
 

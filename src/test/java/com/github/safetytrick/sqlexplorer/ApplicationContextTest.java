@@ -8,11 +8,17 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.TreeSet;
+
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -109,7 +115,7 @@ class ApplicationContextTest {
         assertThat(result.path("content").get(0).path("text").asString()).containsIgnoringCase("select");
     }
 
-    /** The REST API falls back to the default for a name it does not know; a tool says so instead. */
+    /** An environment a tool names but nobody configured is refused, as the REST API refuses it with a 404. */
     @Test
     void mcpRefusesAnEnvironmentItDoesNotKnow() throws Exception {
         JsonNode result = mcp("tools/call", "{\"name\":\"list_schemas\",\"arguments\":{\"environment\":\"nope\"}}", null)
@@ -130,6 +136,65 @@ class ApplicationContextTest {
         assertThat(result.path("content").get(0).path("text").asString()).isEqualTo("[ ]");
     }
 
+    /** The environment is a path segment, so the URL alone says which corpus a request reads (sqlx-e13.6). */
+    @Test
+    void restReadsTheEnvironmentInItsPath() throws Exception {
+        HttpResponse<String> beta = get("/env/beta/schemas");
+        assertThat(beta.statusCode()).as(beta.body()).isEqualTo(200);
+        assertThat(jsonMapper.readTree(beta.body()).isArray()).isTrue();
+    }
+
+    /** No silent answer from the default environment: an unknown name is not found. */
+    @Test
+    void restRefusesAnEnvironmentItDoesNotKnow() throws Exception {
+        assertThat(get("/env/nope/schemas").statusCode()).isEqualTo(404);
+    }
+
+    /** The old unprefixed paths are gone rather than quietly reading the default environment. */
+    @Test
+    void restNoLongerServesEnvironmentScopedPathsWithoutAnEnvironment() throws Exception {
+        assertThat(get("/schemas").statusCode()).isEqualTo(404);
+        assertThat(get("/environments").statusCode()).isEqualTo(200);
+    }
+
+    /**
+     * Every endpoint is either under /env/{env}/ or deliberately global. A new
+     * controller has to choose: forgetting @EnvironmentScoped would serve an
+     * environment's data on a path authorization cannot read a scope from.
+     */
+    @Test
+    void everyControllerIsEnvironmentScopedOrKnownGlobal() {
+        Set<String> global = Set.of("UserResource", "QueryCleanupResource", "AnalysisFailureResource",
+            "EnvironmentResource", "SourceRefResource", "GraphLayoutResource");
+        Set<String> unscoped = new TreeSet<>();
+        context.getBean("requestMappingHandlerMapping", RequestMappingHandlerMapping.class).getHandlerMethods()
+            .forEach((info, method) -> {
+                Class<?> type = method.getBeanType();
+                if (!type.getPackageName().startsWith("com.github.safetytrick.sqlexplorer")) { return; }
+                boolean scoped = AnnotatedElementUtils.hasAnnotation(type, EnvironmentScoped.class);
+                if (scoped) {
+                    assertThat(info.getPatternValues()).allMatch(p -> p.startsWith(EnvironmentScoped.PREFIX + "/"));
+                } else if (!global.contains(type.getSimpleName())) {
+                    unscoped.add(type.getSimpleName());
+                }
+            });
+        assertThat(unscoped).as("controllers neither @EnvironmentScoped nor known global").isEmpty();
+    }
+
+    private HttpResponse<String> get(String path) throws Exception {
+        return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/sql-explorer" + path)).GET().build(),
+            HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** A client's config can pin its environment with a header; an argument still wins. */
+    @Test
+    void mcpReadsTheEnvironmentItsConfigPins() throws Exception {
+        HttpResponse<String> pinned = post("tools/call", "{\"name\":\"list_schemas\",\"arguments\":{}}", null, "nope");
+        assertThat(pinned.body()).contains("no environment \\\"nope\\\"");
+        HttpResponse<String> overridden = post("tools/call", "{\"name\":\"list_schemas\",\"arguments\":{\"environment\":\"beta\"}}", null, "nope");
+        assertThat(jsonMapper.readTree(overridden.body()).path("result").path("isError").asBoolean()).as(overridden.body()).isFalse();
+    }
+
     /** A page on another site cannot drive it through someone's localhost. */
     @Test
     void mcpRefusesAForeignOrigin() throws Exception {
@@ -144,12 +209,17 @@ class ApplicationContextTest {
     }
 
     private HttpResponse<String> post(String method, String params, String origin) throws Exception {
+        return post(method, params, origin, null);
+    }
+
+    private HttpResponse<String> post(String method, String params, String origin, String environment) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/sql-explorer/mcp"))
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream")
             .POST(HttpRequest.BodyPublishers.ofString(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"" + method + "\",\"params\":" + params + "}"));
         if (origin != null) { request.header("Origin", origin); }
+        if (environment != null) { request.header("X-Sql-Explorer-Environment", environment); }
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 }

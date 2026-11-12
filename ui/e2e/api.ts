@@ -14,6 +14,13 @@ import {Page} from '@playwright/test';
  */
 
 const BASE = '**/api/sql-explorer';
+/** Environment-scoped endpoints are served under /env/{env}/ (sqlx-e13.6). */
+export const SCOPED = `${BASE}/env/*`;
+
+/** The environment a scoped request names in its path. */
+export function envOf(url: string): string | undefined {
+  return /\/api\/sql-explorer\/env\/([^/]+)\//.exec(url)?.[1];
+}
 
 function metrics(digest: string, executed: number, avgMs: number) {
   return {
@@ -168,29 +175,29 @@ export async function stubApi(page: Page) {
   // specific routes or it swallows every one of them.
   await page.route(`${BASE}/**`, route => route.abort('failed'));
 
-  await page.route(`${BASE}/queries/search`, async route =>
+  await page.route(`${SCOPED}/queries/search`, async route =>
     route.fulfill(json(search(JSON.parse(route.request().postData() || '{}')))));
-  await page.route(`${BASE}/schema-tree`, route => route.fulfill(json(SCHEMA_TREE)));
-  await page.route(`${BASE}/coverage`, route => route.fulfill(json(COVERAGE)));
+  await page.route(`${SCOPED}/schema-tree`, route => route.fulfill(json(SCHEMA_TREE)));
+  await page.route(`${SCOPED}/coverage`, route => route.fulfill(json(COVERAGE)));
   // Answers POSITIONALLY — one entry per target, in the order sent — which is
   // the contract the client zips against (sqlx-3ai).
-  await page.route(`${BASE}/tags/targets`, async route => {
+  await page.route(`${SCOPED}/tags/targets`, async route => {
     const targets: {type: string; schema: string; table: string}[] =
       JSON.parse(route.request().postData() || '[]');
     return route.fulfill(json(targets.map(target =>
       target.type === 'schema' ? SCHEMA_TAGS[target.schema] ?? [] : [])));
   });
   // Annotations (sqlx-n5j.13): positional like tags/targets, and nothing is annotated but mysql's role.
-  await page.route(`${BASE}/annotations/targets`, async route => {
+  await page.route(`${SCOPED}/annotations/targets`, async route => {
     const targets: unknown[] = JSON.parse(route.request().postData() || '[]');
     return route.fulfill(json(targets.map(() => [])));
   });
-  await page.route(`${BASE}/annotations/namespace/*`, route =>
+  await page.route(`${SCOPED}/annotations/namespace/*`, route =>
     route.fulfill(json(route.request().url().endsWith('/schema-role') ? SCHEMA_ROLES : [])));
-  await page.route(`${BASE}/notes/paths`, route => route.fulfill(json({})));
-  await page.route(`${BASE}/generators`, route => route.fulfill(json(GENERATORS)));
-  await page.route(`${BASE}/tags`, route => route.fulfill(json([{name: 'system', color: '#f5a623'}])));
-  await page.route(`${BASE}/tags/type/*`, route => route.fulfill(json(['system'])));
+  await page.route(`${SCOPED}/notes/paths`, route => route.fulfill(json({})));
+  await page.route(`${SCOPED}/generators`, route => route.fulfill(json(GENERATORS)));
+  await page.route(`${SCOPED}/tags`, route => route.fulfill(json([{name: 'system', color: '#f5a623'}])));
+  await page.route(`${SCOPED}/tags/type/*`, route => route.fulfill(json(['system'])));
   await page.route(`${BASE}/environments`, route => route.fulfill(json({
     defaultEnvironment: 'regression',
     // Two, so a test can tell "the environment travelled" apart from "there
@@ -204,7 +211,7 @@ export async function stubApi(page: Page) {
       }}
     ]
   })));
-  // Answers PER ENVIRONMENT, keyed off the header the interceptor stamps. That
+  // Answers PER ENVIRONMENT, keyed off the path segment the interceptor adds. That
   // is what lets a test assert an environment switch changed the DATA and not
   // just the address — the distinction a regression turned on (sqlx-29f).
   // `/schemas` answers per environment too, and it matters more than /tables
@@ -212,23 +219,23 @@ export async function stubApi(page: Page) {
   // bounce through `/` never leaves that route. /schemas is a page where the
   // bounce genuinely changes component, which is what makes it the probe for
   // whether switching reloads at all (sqlx-29f).
-  await page.route(`${BASE}/schemas`, route => {
-    const environment = route.request().headers()['x-sql-explorer-environment'];
+  await page.route(`${SCOPED}/schemas`, route => {
+    const environment = envOf(route.request().url());
     return route.fulfill(json(environment === 'staging'
       ? [schemaRollup('staging_only')]
       : [schemaRollup('app'), schemaRollup('ops')]));
   });
-  await page.route(`${BASE}/tables`, route => {
-    const environment = route.request().headers()['x-sql-explorer-environment'];
+  await page.route(`${SCOPED}/tables`, route => {
+    const environment = envOf(route.request().url());
     const rows = environment === 'staging'
       ? [tableRollup('staging_only', 'ops')]
       : [tableRollup('orders', 'app'), tableRollup('events', 'app')];
     return route.fulfill(json(rows));
   });
-  await page.route(`${BASE}/graph/v2/**`, route => route.fulfill(json({nodes: [], edges: []})));
-  await page.route(`${BASE}/collations`, route => route.fulfill(json(COLLATIONS)));
-  await page.route(`${BASE}/table/*/*/write-rate`, route => route.fulfill(json(WRITE_RATE)));
-  await page.route(`${BASE}/table/*/*/lock-risk`, route => route.fulfill(json(LOCK_RISK)));
+  await page.route(`${SCOPED}/graph/v2/**`, route => route.fulfill(json({nodes: [], edges: []})));
+  await page.route(`${SCOPED}/collations`, route => route.fulfill(json(COLLATIONS)));
+  await page.route(`${SCOPED}/table/*/*/write-rate`, route => route.fulfill(json(WRITE_RATE)));
+  await page.route(`${SCOPED}/table/*/*/lock-risk`, route => route.fulfill(json(LOCK_RISK)));
   await page.route(`${BASE}/graph/layout`, route => route.fulfill(json([])));
 }
 

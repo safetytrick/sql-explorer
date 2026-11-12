@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.profiles.TableWorkloadService.LockRisk;
 import com.github.safetytrick.sqlexplorer.profiles.TableWorkloadService.WriteRate;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Write rate and lock risk for one table (sqlx-n5j.9, sqlx-n5j.10). Zeros, not 404, for an unknown table. */
 @Tag(name = "Table")
+@EnvironmentScoped
 @RestController
 class TableWorkloadResource {
 

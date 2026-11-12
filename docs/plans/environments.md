@@ -17,10 +17,13 @@ config block. It carries three settings: `default`, `explainEnabled` and
 `pullCron`. There is no persistence — the registry is constructed at startup and
 an environment cannot be created, edited or removed at runtime.
 
-Selection is per request. `EnvironmentContext` is `@RequestScope` and reads the
-`X-Sql-Explorer-Environment` header, falling back to the default when the header
-is absent or names something unknown. The frontend attaches that header on every
-call from `environment.interceptor.ts`, taking the value from
+Selection is per request, and it is in the URL (sqlx-e13.6). Controllers
+marked `@EnvironmentScoped` are served under `/env/{env}/`, and
+`EnvironmentContext` (`@RequestScope`) reads that path variable; an unknown
+name is a 404, not the default. (It used to be an `X-Sql-Explorer-Environment`
+header with a silent fallback to the default, which authorization could not
+read and a typo could not detect.) The frontend adds the segment to every
+environment-scoped call in `environment.interceptor.ts`, taking the value from
 `EnvironmentService.current$`, which is seeded from `localStorage` under
 `sql-explorer.environment`.
 

@@ -1,10 +1,12 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Schema")
+@EnvironmentScoped
 @RestController
 class SchemaTreeResource {
 

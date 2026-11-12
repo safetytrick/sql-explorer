@@ -59,17 +59,33 @@ class McpToolRunner {
     }
 
     /**
-     * An environment the call names, checked: the REST API falls back to the
-     * default for a name it does not know, which would answer a model's typo
-     * with another environment's data and no sign of it.
+     * The client's MCP config can pin an environment with this header; a
+     * tool's {@code environment} argument wins over it.
+     */
+    public static final String ENVIRONMENT_HEADER = "X-Sql-Explorer-Environment";
+
+    /**
+     * The environment the call names, else the one the client's config pins
+     * with {@link #ENVIRONMENT_HEADER}, else the default. Checked: an unknown
+     * name is refused rather than answered from another environment.
+     *
+     * <p>{@code /mcp} is one servlet URL for every environment, so unlike the
+     * REST API it does not carry the environment in its path (sqlx-e13.6).
+     * That is the one exception, and access tokens (sqlx-e13.5) are where it
+     * gets revisited.
      */
     private void selectEnvironment(String name, McpTransportContext context) {
-        if (name == null || name.isBlank()) { return; }
-        if (registry.get(name) == null) {
+        HttpServletRequest request = context.get(REQUEST) instanceof HttpServletRequest r ? r : null;
+        if ((name == null || name.isBlank()) && request != null) {
+            name = request.getHeader(ENVIRONMENT_HEADER);
+        }
+        if (name == null || name.isBlank()) {
+            name = registry.getDefaultName();
+        } else if (registry.get(name) == null) {
             String known = registry.list().stream().map(Environment::getName).sorted().collect(Collectors.joining(", "));
             throw new IllegalArgumentException("no environment \"" + name + "\"; known: " + known);
         }
-        if (context.get(REQUEST) instanceof HttpServletRequest request) {
+        if (request != null) {
             request.setAttribute(EnvironmentContext.OVERRIDE_ATTRIBUTE, name);
         }
     }

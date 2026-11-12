@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.explain;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.UUID;
 
 import com.github.safetytrick.sqlexplorer.examples.QueryExampleLookup;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code sqlx-hlu} had to land first.
  */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Explain")
+@EnvironmentScoped
 @RestController
 class LiveExplainResource {
 

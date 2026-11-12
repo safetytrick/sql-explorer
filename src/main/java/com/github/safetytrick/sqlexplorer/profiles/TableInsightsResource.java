@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Table")
+@EnvironmentScoped
 @RestController
 class TableInsightsResource {
 

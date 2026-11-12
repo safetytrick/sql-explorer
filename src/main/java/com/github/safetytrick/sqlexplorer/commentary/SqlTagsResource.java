@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.commentary;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 @io.swagger.v3.oas.annotations.tags.Tag(name="Tags")
+@EnvironmentScoped
 @RestController
 class SqlTagsResource {
 

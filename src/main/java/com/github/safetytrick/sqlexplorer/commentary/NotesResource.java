@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.commentary;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @io.swagger.v3.oas.annotations.tags.Tag(name="Tags")
+@EnvironmentScoped
 @RestController
 class NotesResource {
 

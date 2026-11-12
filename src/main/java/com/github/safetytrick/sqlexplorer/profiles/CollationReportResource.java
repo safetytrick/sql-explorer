@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import com.github.safetytrick.sqlexplorer.profiles.CollationReportService.CollationReport;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -7,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Tables by column charset and collation, and joins whose sides differ (sqlx-n5j.5). */
 @Tag(name = "Schema")
+@EnvironmentScoped
 @RestController
 class CollationReportResource {
 

@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.graph;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import com.github.safetytrick.sqlexplorer.commentary.SqlTagsService;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchService;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @Tag(name = "Graph")
+@EnvironmentScoped
 @RestController
 class GraphV2Resource {
 

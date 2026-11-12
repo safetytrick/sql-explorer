@@ -13,9 +13,10 @@
 > (`*McpTools` implementing `McpToolProvider`, beside the package-private
 > resources they call, so a tool cannot drift from its endpoint). Tools run
 > on the request thread, so the environment comes from the request's
-> `X-Sql-Explorer-Environment` header as for REST, and a tool's
-> `environment` argument overrides it — checked, unlike REST, which falls
-> back to the default for an unknown name. A request carrying a foreign
+> `X-Sql-Explorer-Environment` header (REST moved the environment into its
+> path, sqlx-e13.6; `/mcp` is one servlet URL so it keeps the header), and a
+> tool's `environment` argument overrides it — checked, and an unknown name
+> is refused. A request carrying a foreign
 > `Origin` is refused (DNS rebinding). Covered over real HTTP by
 > `ApplicationContextTest`. Reaching it through the ngrok tunnel needs the
 > Google login, which an MCP client cannot pass; it is for this machine.

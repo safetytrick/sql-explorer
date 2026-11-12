@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.commentary;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -19,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
  * {@link AnnotationService}.
  */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Annotations")
+@EnvironmentScoped
 @RestController
 class AnnotationsResource {
 

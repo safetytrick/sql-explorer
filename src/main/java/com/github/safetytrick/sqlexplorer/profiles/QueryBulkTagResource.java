@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  * queries" cannot disagree with the page behind it or with what is written.
  */
 @Tag(name = "Tags")
+@EnvironmentScoped
 @RestController
 class QueryBulkTagResource {
 

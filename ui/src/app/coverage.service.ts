@@ -17,7 +17,7 @@ const endpoint = '/api/sql-explorer/';
  *
  * <p>It does change when the environment does, and that is the one way this
  * cache could actively misinform. `/coverage` is resolved from the
- * `X-Sql-Explorer-Environment` header, and switching environments does not
+ * environment in its path (`/env/{env}/coverage`), and switching environments does not
  * reload the page — components resubscribe instead — so a cache held for the
  * session would keep asserting the previous environment's window on a page
  * whose entire purpose is to stop people trusting the wrong claim. Dropped on

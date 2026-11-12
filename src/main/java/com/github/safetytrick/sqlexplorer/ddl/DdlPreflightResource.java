@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.ddl;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Preflight;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  * judged against the schema snapshot and captured statistics, never executed.
  */
 @Tag(name = "DDL")
+@EnvironmentScoped
 @RestController
 class DdlPreflightResource {
 

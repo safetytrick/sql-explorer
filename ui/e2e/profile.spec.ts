@@ -1,7 +1,7 @@
 import {expect, test} from '@playwright/test';
 import {stubApi} from './api';
 
-const BASE = '**/api/sql-explorer';
+const BASE = '**/api/sql-explorer/env/*';
 
 const PLAN = {
   environment: 'local', schema: 'app', table: 'note', method: 'WINDOWS', key: ['id'],

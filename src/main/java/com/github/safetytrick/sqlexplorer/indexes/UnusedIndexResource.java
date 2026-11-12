@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.indexes;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
  * how long each connection has been counting (sqlx-vjr).
  */
 @Tag(name = "Indexes")
+@EnvironmentScoped
 @RestController
 class UnusedIndexResource {
 

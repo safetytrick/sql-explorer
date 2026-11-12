@@ -1,7 +1,7 @@
 import {expect, test} from '@playwright/test';
 import {stubApi} from './api';
 
-const BASE = '**/api/sql-explorer';
+const BASE = '**/api/sql-explorer/env/*';
 
 /**
  * The DDL pre-flight (sqlx-n5j.11): a shared link carries the statement, and

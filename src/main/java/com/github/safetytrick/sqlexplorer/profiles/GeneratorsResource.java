@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import com.github.safetytrick.sqlexplorer.environment.EnvironmentScoped;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -31,6 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
  * re-analysis.
  */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Generators")
+@EnvironmentScoped
 @RestController
 class GeneratorsResource {
 

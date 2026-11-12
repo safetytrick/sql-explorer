@@ -6,7 +6,7 @@ environments:
     default: true
 
   # second environment backed by the local explorer database, used to exercise
-  # environment switching (the X-Sql-Explorer-Environment header selects it)
+  # environment switching (the /env/{env}/ path segment selects it)
   local:
     # EXPLAIN is allowed here and nowhere else. This environment points at the
     # disposable explorer-mysql container that docker compose brings up, so
