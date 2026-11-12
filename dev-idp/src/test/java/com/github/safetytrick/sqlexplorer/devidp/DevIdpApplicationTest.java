@@ -43,7 +43,7 @@ import tools.jackson.databind.json.JsonMapper;
 class DevIdpApplicationTest {
 
     private static final String ISSUER = "http://idp.example.test:18190";
-    private static final String REDIRECT_URI = "http://localhost:4200/login/oauth2/code/sql-explorer";
+    private static final String REDIRECT_URI = "http://localhost:4200/api/sql-explorer/login/oauth2/code/sql-explorer";
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @LocalServerPort

@@ -5,6 +5,11 @@ server:
   port: 8080
   servlet:
     context-path: /api/sql-explorer
+  # Honour X-Forwarded-Proto/-Port/-Host from a proxy on a private address (the
+  # UI's nginx, a load balancer). Sign-in needs it: the OIDC callback URL is
+  # built from the address the browser used, http://localhost:4200/... through
+  # nginx, not the container's own :8080.
+  forward-headers-strategy: native
 
 
 spring:
@@ -34,6 +39,15 @@ management:
         include: health,prometheus
 
 sql-explorer:
+  # Sign-in (sqlx-e13.1). `none`: no sign-in, every request is the legacy
+  # `admin` user, as before; a warning at startup and a banner in the UI say
+  # so. `oidc`: sign in through the client registration named `sql-explorer`
+  # (spring.security.oauth2.client.registration.sql-explorer and its provider),
+  # and the API answers 401 without a session. /mcp stays open either way until
+  # personal access tokens (sqlx-e13.5). The dev-idp profile
+  # (src/main/docker-local/config/application-dev-idp.yml) is a worked example.
+  auth:
+    mode: none
   trace-errors: false
   # How many environments keep their corpus in heap at once; 0 disables
   # eviction. An evicted environment rebuilds from its own captures on the next

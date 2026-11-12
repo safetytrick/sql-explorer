@@ -19,11 +19,13 @@ dev-idp:
   key-file: .data/signing-key.json
   client-id: sql-explorer
   redirect-uris:
-    # the backend's oauth2Login callback, under its registration id, at each
-    # address it is reached by: ng serve's proxy, bootRun, and docker compose
-    - http://localhost:4200/login/oauth2/code/sql-explorer
-    - http://localhost:8080/login/oauth2/code/sql-explorer
-    - http://localhost:18180/login/oauth2/code/sql-explorer
+    # the backend's oauth2Login callback, under its registration id and its
+    # servlet context path, at each address it is reached by: the UI's nginx
+    # (or ng serve), a bare :8080, and :18180 (docker compose, and the `local`
+    # profile on the host)
+    - http://localhost:4200/api/sql-explorer/login/oauth2/code/sql-explorer
+    - http://localhost:8080/api/sql-explorer/login/oauth2/code/sql-explorer
+    - http://localhost:18180/api/sql-explorer/login/oauth2/code/sql-explorer
   post-logout-redirect-uris:
     - http://localhost:4200/
     - http://localhost:8080/

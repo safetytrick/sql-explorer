@@ -1,0 +1,42 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+  font-size: 11px;
+}
+
+.who {
+  color: var(--text2);
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.sign-out {
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text2);
+  font: inherit;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--blue);
+    border-color: var(--blue);
+  }
+
+  &:disabled { cursor: default; opacity: 0.6; }
+}
+
+// quiet on purpose: worth knowing, not worth shouting on every page
+.auth-off {
+  color: var(--amber);
+  background: var(--amber-dim);
+  border-radius: var(--radius);
+  padding: 0.15rem 0.5rem;
+  cursor: help;
+}

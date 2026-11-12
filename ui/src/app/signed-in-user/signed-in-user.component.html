@@ -1,0 +1,10 @@
+@if (current) {
+  @if (current.mode === 'none') {
+    <span class="auth-off"
+          title="Sign-in is not configured on this server (sql-explorer.auth.mode: none). Anyone who can reach it can use it, and everything is recorded as the legacy admin user.">sign-in not configured</span>
+  } @else {
+    <span class="who" [title]="detail(current)">{{displayName(current)}}</span>
+    <button type="button" class="sign-out" [disabled]="signingOut" [title]="signOutError || 'sign out here and at the identity provider'"
+            (click)="signOut()">{{signingOut ? 'signing out…' : 'Sign out'}}</button>
+  }
+}

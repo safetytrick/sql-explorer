@@ -165,7 +165,7 @@ class ApplicationContextTest {
     @Test
     void everyControllerIsEnvironmentScopedOrKnownGlobal() {
         Set<String> global = Set.of("UserResource", "QueryCleanupResource", "AnalysisFailureResource",
-            "EnvironmentResource", "SourceRefResource", "GraphLayoutResource");
+            "EnvironmentResource", "SourceRefResource", "GraphLayoutResource", "LoginResource");
         Set<String> unscoped = new TreeSet<>();
         context.getBean("requestMappingHandlerMapping", RequestMappingHandlerMapping.class).getHandlerMethods()
             .forEach((info, method) -> {
@@ -193,6 +193,22 @@ class ApplicationContextTest {
         assertThat(pinned.body()).contains("no environment \\\"nope\\\"");
         HttpResponse<String> overridden = post("tools/call", "{\"name\":\"list_schemas\",\"arguments\":{\"environment\":\"beta\"}}", null, "nope");
         assertThat(jsonMapper.readTree(overridden.body()).path("result").path("isError").asBoolean()).as(overridden.body()).isFalse();
+    }
+
+    /**
+     * Sign-in is off by default (sqlx-e13.1): no session needed, and everyone
+     * is the legacy admin. OidcSignInTest covers it on.
+     */
+    @Test
+    void withSignInOffEveryoneIsTheLegacyAdmin() throws Exception {
+        HttpResponse<String> response = http.send(HttpRequest.newBuilder(
+            URI.create("http://localhost:" + port + "/api/sql-explorer/user")).GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+        JsonNode user = jsonMapper.readTree(response.body());
+        assertThat(user.path("mode").asString()).isEqualTo("none");
+        assertThat(user.path("user").path("email").asString()).isEqualTo("admin");
+        assertThat(user.path("groups").isEmpty()).isTrue();
     }
 
     /** A page on another site cannot drive it through someone's localhost. */

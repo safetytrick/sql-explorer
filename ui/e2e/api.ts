@@ -167,6 +167,13 @@ function search(body: Record<string, unknown>) {
   };
 }
 
+/** `/user` with sign-in on: a dev-idp style user with a group or two. */
+export const SIGNED_IN = {
+  mode: 'oidc',
+  user: {id: 2, email: 'viewer@example.com', name: 'Viewer', createdOn: '2026-08-30T12:00:00Z'},
+  issuer: 'http://localhost:18190', subject: 'viewer', groups: ['sqlx:viewer']
+};
+
 export async function stubApi(page: Page) {
   const json = (body: unknown) => ({status: 200, contentType: 'application/json', body: JSON.stringify(body)});
 
@@ -198,6 +205,8 @@ export async function stubApi(page: Page) {
   await page.route(`${SCOPED}/generators`, route => route.fulfill(json(GENERATORS)));
   await page.route(`${SCOPED}/tags`, route => route.fulfill(json([{name: 'system', color: '#f5a623'}])));
   await page.route(`${SCOPED}/tags/type/*`, route => route.fulfill(json(['system'])));
+  // signed in, as with sign-in on (sqlx-e13.1); sign-in.spec.ts overrides it
+  await page.route(`${BASE}/user`, route => route.fulfill(json(SIGNED_IN)));
   await page.route(`${BASE}/environments`, route => route.fulfill(json({
     defaultEnvironment: 'regression',
     // Two, so a test can tell "the environment travelled" apart from "there

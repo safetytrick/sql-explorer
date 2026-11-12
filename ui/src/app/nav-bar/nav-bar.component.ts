@@ -5,12 +5,13 @@ import {ExplainService} from '../explain.service';
 import { RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
 import { EnvironmentUrlSync } from '../environment-url-sync';
+import { SignedInUserComponent } from '../signed-in-user/signed-in-user.component';
 
 @Component({
     selector: 'app-nav-bar',
     templateUrl: './nav-bar.component.html',
     styleUrls: ['./nav-bar.component.scss'],
-    imports: [RouterLink]
+    imports: [RouterLink, SignedInUserComponent]
 })
 export class NavBarComponent implements OnInit, OnDestroy {
 

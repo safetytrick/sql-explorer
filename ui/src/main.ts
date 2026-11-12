@@ -6,6 +6,7 @@ import {provideHttpClient, withInterceptors, withInterceptorsFromDi} from '@angu
 import {environmentInterceptor} from './app/environment.interceptor';
 import {provideRouter, TitleStrategy, UrlSerializer, withInMemoryScrolling} from '@angular/router';
 import {EnvPathUrlSerializer} from './app/env-path-serializer';
+import {authInterceptor} from './app/auth.interceptor';
 import {PageTitleStrategy} from './app/page-title';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {bootstrapApplication} from '@angular/platform-browser';
@@ -26,7 +27,7 @@ bootstrapApplication(AppComponent, {
         { provide: TitleStrategy, useClass: PageTitleStrategy },
         // the environment leads every app path: /prod/queries (sqlx-e13.7)
         { provide: UrlSerializer, useClass: EnvPathUrlSerializer },
-        provideHttpClient(withInterceptorsFromDi(), withInterceptors([environmentInterceptor])),
+        provideHttpClient(withInterceptorsFromDi(), withInterceptors([environmentInterceptor, authInterceptor])),
         provideRouter(appRoutes, withInMemoryScrolling({
             // it would be nice to get this working: https://github.com/angular/angular/issues/24547
             scrollPositionRestoration: 'enabled',

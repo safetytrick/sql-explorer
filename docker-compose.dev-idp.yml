@@ -24,7 +24,29 @@
 # for everything. To use a single name everywhere instead, set
 # DEV_IDP_ISSUER=http://dev-idp:18190 and add `127.0.0.1 dev-idp` to the
 # host's /etc/hosts. The README has the details.
+#
+# SIGN-IN (sqlx-e13.1). The overlay also turns on the `dev-idp` profile for
+# sql-explorer, which signs in through this IdP
+# (src/main/docker-local/config/application-dev-idp.yml). That is what this
+# file sets on it: the profile, the browser-facing issuer, and the in-network
+# back channel. To run the whole stack signed in:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local-build.yml \
+#                  -f docker-compose.dev-idp.yml up -d
+#
+# then open http://localhost:4200 and sign in as viewer / viewer. Without this
+# overlay the backend runs with sign-in off.
 services:
+  sql-explorer:
+    environment:
+      # active rather than ENVIRONMENT_PROFILE (the included ones), so this
+      # stacks with overlays that set that, such as offline-dummy
+      SPRING_PROFILES_ACTIVE: dev-idp
+      DEV_IDP_ISSUER: ${DEV_IDP_ISSUER:-http://localhost:18190}
+      DEV_IDP_BACKCHANNEL: http://dev-idp:18190
+    depends_on:
+      - dev-idp
+
   dev-idp:
     build:
       context: .

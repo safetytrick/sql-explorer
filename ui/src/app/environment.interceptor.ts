@@ -10,7 +10,10 @@ const API = '/api/sql-explorer/';
  * `/api/sql-explorer/`. Mirrors the controllers the backend leaves without
  * `@EnvironmentScoped`; its ApplicationContextTest pins that list.
  */
-const GLOBAL = [/^environments(\/|$)/, /^user$/, /^util\//, /^analysis-failures(\/|$)/, /^sourceref$/, /^graph\/layout(\/|$)/, /^mcp$/];
+const GLOBAL = [
+  /^environments(\/|$)/, /^user$/, /^util\//, /^analysis-failures(\/|$)/, /^sourceref$/, /^graph\/layout(\/|$)/, /^mcp$/,
+  /^login$/, /^logout$/,
+];
 
 /**
  * Puts the environment into the path of every environment-scoped API request:

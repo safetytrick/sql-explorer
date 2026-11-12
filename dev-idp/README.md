@@ -21,6 +21,34 @@ Or without Docker:
 
 Discovery is at <http://localhost:18190/.well-known/openid-configuration>.
 
+## Signing in to sql-explorer with it
+
+sql-explorer signs in through this IdP under the `dev-idp` profile, which sets
+`sql-explorer.auth.mode: oidc` and the client
+([`application-dev-idp.yml`](../src/main/docker-local/config/application-dev-idp.yml)).
+Without it the app runs with sign-in off (`mode: none`), as the legacy
+`admin` user, and the UI shows a "sign-in not configured" banner.
+
+In Docker, the overlay starts the IdP and turns the profile on for the backend:
+
+```bash
+./gradlew assemble && (cd ui && npm run build)
+docker compose -f docker-compose.yml -f docker-compose.local-build.yml -f docker-compose.dev-idp.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.local-build.yml -f docker-compose.dev-idp.yml up -d --force-recreate explorer-ui
+```
+
+Then open <http://localhost:4200>, which sends you to the IdP's login form;
+sign in as, say, `viewer` / `viewer`. The nav shows who you are and has
+"Sign out", which also ends the IdP session (RP-initiated logout).
+`/api/sql-explorer/user` shows the `groups` claim as received.
+
+On the host, start the IdP with `./gradlew :dev-idp:bootRun` and run the
+backend with `-Dspring.config.additional-location=src/main/docker-local/config/
+-Dspring.profiles.include=local,dev-idp` (port 18180). Every endpoint is
+`localhost` then. There is no UI on 18180, so sign in at
+<http://localhost:18180/api/sql-explorer/login?return=/api/sql-explorer/user>
+to land on the result.
+
 ## Logins
 
 The password is the username.
@@ -70,12 +98,15 @@ One public client, `sql-explorer`: no secret, authorization code with PKCE
 (S256) required, scopes `openid`, `profile` and `email`, and no consent screen.
 Redirect URIs are matched exactly:
 
-- `http://localhost:4200/login/oauth2/code/sql-explorer` (ng serve)
-- `http://localhost:8080/login/oauth2/code/sql-explorer` (bootRun)
-- `http://localhost:18180/login/oauth2/code/sql-explorer` (docker compose)
+- `http://localhost:4200/api/sql-explorer/login/oauth2/code/sql-explorer` (through the UI)
+- `http://localhost:8080/api/sql-explorer/login/oauth2/code/sql-explorer` (a bare bootRun)
+- `http://localhost:18180/api/sql-explorer/login/oauth2/code/sql-explorer` (docker compose, or the `local` profile)
 
 That is Spring Security's default `oauth2Login` callback for a registration
-named `sql-explorer`. The client and its URIs are in
+named `sql-explorer`, `{baseUrl}/login/oauth2/code/{registrationId}`, where
+`{baseUrl}` includes the backend's servlet context path, `/api/sql-explorer`.
+The UI's nginx only proxies that path, so the callback has to live under it.
+The client and its URIs are in
 [`application.yml`](src/main/resources/application.yml) and can be overridden
 from the environment.
 

@@ -6,5 +6,8 @@ import org.springframework.data.repository.CrudRepository;
 
 public interface UserRepository extends CrudRepository<User,Integer> {
 
-    Optional<User> findByEmail(String admin);
+    /** The legacy user: no issuer, looked up by its email, which is {@code admin}. */
+    Optional<User> findFirstByIssuerIsNullAndEmailOrderByIdAsc(String email);
+
+    Optional<User> findByIssuerAndSubject(String issuer, String subject);
 }

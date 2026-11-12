@@ -729,4 +729,25 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		Signed-in users (sqlx-e13.1). A user from the OIDC provider is identified
+		by issuer + subject, the pair OIDC guarantees stable and unique; email and
+		name are only for display. So email stops being unique (two providers may
+		share an address) and stops being required (a provider need not send it).
+		The legacy 'admin' row keeps a null issuer and stays the author of
+		everything written before sign-in (sqlx-e13.2, decision 6). MySQL allows
+		any number of nulls in a unique index, so legacy rows do not collide.
+	-->
+	<changeSet id="e13-1-users-oidc-identity" author="claude">
+		<sql>
+			alter table users
+				drop index email,
+				modify column email varchar(255) null,
+				add column name    varchar(255) character set utf8mb4 null after email,
+				add column issuer  varchar(255) null after name,
+				add column subject varchar(255) null after issuer,
+				add unique index users_issuer_subject (issuer, subject);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

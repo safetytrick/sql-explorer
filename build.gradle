@@ -84,6 +84,9 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter-validation"
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'
+    // OIDC sign-in (sqlx-e13.1): oauth2Login against the configured provider,
+    // when sql-explorer.auth.mode is oidc. See auth/SecurityConfig.
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
     implementation 'tools.jackson.module:jackson-module-jakarta-xmlbind-annotations'
 
     implementation 'io.swagger.core.v3:swagger-annotations:2.2.49'
@@ -123,6 +126,7 @@ dependencies {
 
     testImplementation "org.junit.jupiter:junit-jupiter"
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
     testImplementation('org.assertj:assertj-core:3.27.7')
     // the one test that boots the whole application, against a throwaway MySQL
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
