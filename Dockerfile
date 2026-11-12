@@ -28,8 +28,11 @@ COPY .git .git
 COPY models/src models/src
 COPY src src
 
+# :assemble, not assemble: only the application (and models, which it depends
+# on). An unqualified assemble also builds dev-idp, whose sources are not in
+# this image — it has its own Dockerfile.
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew --no-daemon assemble
+    ./gradlew --no-daemon :assemble
 
 # ── runtime stage ─────────────────────────────────────────────────────────
 FROM amazoncorretto:21
