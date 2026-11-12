@@ -165,7 +165,7 @@ class ApplicationContextTest {
     @Test
     void everyControllerIsEnvironmentScopedOrKnownGlobal() {
         Set<String> global = Set.of("UserResource", "QueryCleanupResource", "AnalysisFailureResource",
-            "EnvironmentResource", "SourceRefResource", "GraphLayoutResource", "LoginResource");
+            "EnvironmentResource", "GraphLayoutResource", "LoginResource");
         Set<String> unscoped = new TreeSet<>();
         context.getBean("requestMappingHandlerMapping", RequestMappingHandlerMapping.class).getHandlerMethods()
             .forEach((info, method) -> {

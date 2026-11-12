@@ -16,7 +16,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.hibernate.engine.jdbc.LobCreator;
 import org.hibernate.engine.spi.SessionImplementor;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
@@ -38,7 +37,6 @@ public class SqlSourceEntityService {
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
-    @CacheEvict(value = "sourceref", allEntries = true)
     public SqlSourceEntity saveSqlSource(AbstractTsvSqlSource sqlSource, String environmentName) {
         String sourceUrl;
         try {
@@ -55,7 +53,6 @@ public class SqlSourceEntityService {
                 CaptureDetails.UNKNOWN);
     }
 
-    @CacheEvict(value = "sourceref", allEntries = true)
     /**
      * What the uploader knows about the export and nobody else can recover.
      * Only {@code capturedAt} is required; the rest read as unknown when absent.
@@ -113,7 +110,6 @@ public class SqlSourceEntityService {
      * when an unattributed (legacy) ref is encountered, to pin it to the
      * default environment.
      */
-    @CacheEvict(value = "sourceref", allEntries = true)
     public void attributeSourceRef(String sourceRef, String environmentName) {
         SourceRefEntity ref = sourceRefEntityRepository.findById(sourceRef).orElseGet(() -> {
             SourceRefEntity created = new SourceRefEntity();

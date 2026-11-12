@@ -11,7 +11,7 @@ const API = '/api/sql-explorer/';
  * `@EnvironmentScoped`; its ApplicationContextTest pins that list.
  */
 const GLOBAL = [
-  /^environments(\/|$)/, /^user$/, /^util\//, /^analysis-failures(\/|$)/, /^sourceref$/, /^graph\/layout(\/|$)/, /^mcp$/,
+  /^environments(\/|$)/, /^user$/, /^util\//, /^analysis-failures(\/|$)/, /^graph\/layout(\/|$)/, /^mcp$/,
   /^login$/, /^logout$/,
 ];
 
