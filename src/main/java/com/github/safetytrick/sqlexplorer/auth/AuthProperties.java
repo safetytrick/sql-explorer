@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.auth;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +33,13 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                              grants they carry, for providers whose group names
  *                              cannot follow the prefix scheme:
  *                              {@code dba-team: [admin]}, {@code eng: [viewer:prod, runner:staging]}
+ * @param tokenMaxLifetime      the longest a personal access token may live
+ *                              (sqlx-e13.5); a user may choose shorter. Bounded
+ *                              because a token is evaluated against the groups
+ *                              seen at its owner's latest sign-in: a group removed
+ *                              at the provider narrows the token only when the
+ *                              owner next signs in, and this caps how long that
+ *                              can take for someone who never does.
  */
 @ConfigurationProperties("sql-explorer.auth")
 public record AuthProperties(
@@ -40,10 +48,14 @@ public record AuthProperties(
         String endSessionUri,
         @DefaultValue("{baseScheme}://{baseHost}{basePort}/") String postLogoutRedirectUri,
         @DefaultValue("sqlx:") String groupPrefix,
-        Map<String, List<String>> groupGrants) {
+        Map<String, List<String>> groupGrants,
+        @DefaultValue("90d") Duration tokenMaxLifetime) {
 
     public AuthProperties {
         groupGrants = groupGrants == null ? Map.of() : Map.copyOf(groupGrants);
+        if (tokenMaxLifetime == null || tokenMaxLifetime.isNegative() || tokenMaxLifetime.isZero()) {
+            tokenMaxLifetime = Duration.ofDays(90);
+        }
     }
 
     public boolean oidc() {

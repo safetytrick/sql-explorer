@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { CurrentUser, UserService } from '../user.service';
 
 /**
@@ -13,6 +14,7 @@ import { CurrentUser, UserService } from '../user.service';
   selector: 'app-signed-in-user',
   templateUrl: './signed-in-user.component.html',
   styleUrls: ['./signed-in-user.component.scss'],
+  imports: [RouterLink],
 })
 export class SignedInUserComponent implements OnInit {
 

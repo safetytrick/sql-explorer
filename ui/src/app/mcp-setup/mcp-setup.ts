@@ -14,11 +14,32 @@ export const API_PATH = '/api/sql-explorer';
 export const MCP_PATH = `${API_PATH}/mcp`;
 export const ENVIRONMENT_HEADER = 'X-Sql-Explorer-Environment';
 
+/**
+ * Where a client's config reads its access token from (sqlx-e13.5), so the
+ * secret is in the environment rather than in a config file that might be
+ * checked in or shared. Claude Code expands `${VAR}` in `.mcp.json` headers;
+ * a shell expands `$VAR` in `claude mcp add`.
+ */
+export const TOKEN_ENV = 'SQL_EXPLORER_TOKEN';
+
+/**
+ * Claude Desktop goes through mcp-remote, whose documentation advises keeping
+ * the whole header value, `Bearer` and all, in one variable: some clients
+ * split arguments on spaces.
+ */
+export const DESKTOP_AUTH_ENV = 'SQL_EXPLORER_AUTH';
+
 export interface McpConfig {
   /** The endpoint's URL as a client on this machine reaches it. */
   url: string;
   /** Sent as {@link ENVIRONMENT_HEADER}; null leaves it out, so the backend's default is used. */
   environment: string | null;
+  /**
+   * Whether the endpoint wants an access token: sign-in is on (`oidc`).
+   * Then every snippet sends `Authorization: Bearer`, read from
+   * {@link TOKEN_ENV}. Absent or false, as with sign-in off, none is sent.
+   */
+  token?: boolean;
 }
 
 /** The endpoint, at the origin this page was served from. */
@@ -37,14 +58,25 @@ export function claudeCodeCommand(config: McpConfig): string {
   if (config.environment) {
     lines.push(`  --header ${shellWord(`${ENVIRONMENT_HEADER}: ${config.environment}`)}`);
   }
+  if (config.token) {
+    // double quotes, so the shell puts the token in from the environment
+    lines.push(`  --header "Authorization: Bearer $${TOKEN_ENV}"`);
+  }
   return lines.join(' \\\n');
 }
 
 /** A project's `.mcp.json`, for Claude Code. */
 export function mcpJson(config: McpConfig): string {
   const server: Record<string, unknown> = {type: 'http', url: config.url};
+  const headers: Record<string, string> = {};
   if (config.environment) {
-    server['headers'] = {[ENVIRONMENT_HEADER]: config.environment};
+    headers[ENVIRONMENT_HEADER] = config.environment;
+  }
+  if (config.token) {
+    headers['Authorization'] = `Bearer \${${TOKEN_ENV}}`;
+  }
+  if (Object.keys(headers).length) {
+    server['headers'] = headers;
   }
   return JSON.stringify({mcpServers: {'sql-explorer': server}}, null, 2);
 }
@@ -60,7 +92,12 @@ export function desktopJson(config: McpConfig): string {
   if (config.environment) {
     args.push('--header', `${ENVIRONMENT_HEADER}:${config.environment}`);
   }
-  return JSON.stringify({mcpServers: {'sql-explorer': {command: 'npx', args}}}, null, 2);
+  const server: Record<string, unknown> = {command: 'npx', args};
+  if (config.token) {
+    args.push('--header', `Authorization:\${${DESKTOP_AUTH_ENV}}`);
+    server['env'] = {[DESKTOP_AUTH_ENV]: 'Bearer <paste your sqlx_ token here>'};
+  }
+  return JSON.stringify({mcpServers: {'sql-explorer': server}}, null, 2);
 }
 
 /** One tool as `tools/list` describes it. */

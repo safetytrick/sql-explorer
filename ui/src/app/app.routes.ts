@@ -31,6 +31,7 @@ import {CoverageLensComponent} from './coverage-lens/coverage-lens.component';
 import {UnusedIndexesComponent} from './unused-indexes/unused-indexes.component';
 import {carryScope, droppedScope} from './scope-url';
 import {McpSetupComponent} from './mcp-setup/mcp-setup.component';
+import {AccessTokensComponent} from './access-tokens/access-tokens.component';
 import {CollationsComponent} from './collations/collations.component';
 
 /**
@@ -319,6 +320,12 @@ const routes: Routes = [
     path: 'admin/mcp',
     component: McpSetupComponent,
     title: 'MCP'
+  },
+  /** Personal access tokens, for MCP and API clients (sqlx-e13.5); linked from the signed-in user in the nav. */
+  {
+    path: 'tokens',
+    component: AccessTokensComponent,
+    title: 'Access tokens'
   },
   {
     path: 'note',

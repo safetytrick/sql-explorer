@@ -8,6 +8,8 @@
       <span class="no-access"
             title="You are signed in, but none of your groups grants access to an environment here. Ask an administrator for a sqlx:viewer:<environment> group.">no access</span>
     }
+    <!-- personal access tokens, for MCP and API clients (sqlx-e13.5) -->
+    <a class="tokens" routerLink="/tokens" title="access tokens for MCP and API clients">Tokens</a>
     <button type="button" class="sign-out" [disabled]="signingOut" [title]="signOutError || 'sign out here and at the identity provider'"
             (click)="signOut()">{{signingOut ? 'signing out…' : 'Sign out'}}</button>
   }

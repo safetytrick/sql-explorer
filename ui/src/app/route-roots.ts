@@ -10,5 +10,5 @@
 export const ROUTE_ROOTS: ReadonlySet<string> = new Set([
   'queries', 'unqueried', 'captured', 'settings', 'drift', 'collations', 'coverage', 'topology',
   'unused-indexes', 'graph', 'schemas', 'tables', 'tags', 'table', 'analyzed-sql', 'explain',
-  'query-utilities', 'ddl-preflight', 'table-graph', 'admin', 'note',
+  'query-utilities', 'ddl-preflight', 'table-graph', 'admin', 'tokens', 'note',
 ]);

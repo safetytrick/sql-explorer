@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { SignedInUserComponent } from './signed-in-user.component';
 import { BrowserNavigation, CurrentUser } from '../user.service';
 
@@ -46,6 +47,7 @@ describe('SignedInUserComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideRouter([]),
         { provide: BrowserNavigation, useValue: navigation },
       ],
     });
@@ -72,6 +74,16 @@ describe('SignedInUserComponent', () => {
     expect(who.getAttribute('title')).toContain('sqlx:viewer:local, sqlx:runner:local/app');
     expect(el().querySelector('.sign-out')!.textContent!.trim()).toBe('Sign out');
     expect(el().querySelector('.auth-off')).toBeNull();
+  });
+
+  it('links to the access tokens page when signed in (sqlx-e13.5)', () => {
+    answer(SIGNED_IN);
+    expect(el().querySelector('a.tokens')!.getAttribute('href')).toBe('/tokens');
+  });
+
+  it('offers no tokens link with sign-in off', () => {
+    answer(SIGN_IN_OFF);
+    expect(el().querySelector('a.tokens')).toBeNull();
   });
 
   it('falls back to the email when the provider sends no name', () => {

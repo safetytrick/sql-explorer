@@ -31,6 +31,12 @@ export interface CurrentUser {
    * there. An environment that is absent is one they cannot see at all.
    */
   environments: Record<string, EnvPermission[]>;
+  /**
+   * The access token the request was made with (sqlx-e13.5). Never set for
+   * the UI, which signs in through a browser; an API client asking `/user`
+   * sees which token it is using, and `grants` are that token's.
+   */
+  token?: {id: number; name: string} | null;
 }
 
 /** The environment-level permissions the backend enforces (sqlx-e13.4). */

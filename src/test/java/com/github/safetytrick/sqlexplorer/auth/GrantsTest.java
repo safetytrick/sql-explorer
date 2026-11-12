@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GrantsTest {
 
     private final GroupGrants mapper = new GroupGrants(new AuthProperties(AuthMode.OIDC, null, null, "/", "sqlx:",
-        Map.of("dba-team", List.of("admin"), "eng", List.of("viewer:prod", "runner:staging"))));
+        Map.of("dba-team", List.of("admin"), "eng", List.of("viewer:prod", "runner:staging")), null));
 
     @Test
     void rolesNest() {

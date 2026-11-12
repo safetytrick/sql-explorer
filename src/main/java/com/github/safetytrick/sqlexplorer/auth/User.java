@@ -1,8 +1,10 @@
 package com.github.safetytrick.sqlexplorer.auth;
 
 import java.time.Instant;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
@@ -46,6 +48,19 @@ public class User {
 
     @JsonIgnore
     private String subject;
+
+    /**
+     * The {@code groups} claim as of the latest sign-in (sqlx-e13.5): what this
+     * user's access tokens are evaluated against, as tokens carry no ID token.
+     * Null for a user who has not signed in since tokens existed.
+     */
+    @JsonIgnore
+    @Convert(converter = StringListConverter.class)
+    private List<String> groupsSnapshot;
+
+    /** When the ID token the snapshot came from was issued; a snapshot is only replaced by a newer one. */
+    @JsonIgnore
+    private Instant groupsSeenOn;
 
     @CreatedDate
     private Instant createdOn;

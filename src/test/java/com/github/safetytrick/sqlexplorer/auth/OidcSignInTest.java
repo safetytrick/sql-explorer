@@ -160,17 +160,21 @@ class OidcSignInTest {
             .contains("redirect_uri=http://localhost:" + port + API + "/login/oauth2/code/sql-explorer");
     }
 
-    /** MCP clients cannot sign in. Until personal access tokens (sqlx-e13.5) the endpoint stays open, without CSRF. */
+    /**
+     * MCP needs an access token now (sqlx-e13.5; AccessTokenTest covers using
+     * one). Without one it is a 401 that says so, not the 403 a missing CSRF
+     * token would otherwise give.
+     */
     @Test
-    void mcpStaysUsableWithoutASession() throws Exception {
+    void mcpNeedsATokenOrASession() throws Exception {
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/mcp"))
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream")
             .POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}")),
             noRedirects());
 
-        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
-        assertThat(response.body()).contains("search_queries");
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(401);
+        assertThat(response.headers().firstValue("Content-Type").orElse("")).startsWith("application/json");
     }
 
     @Test

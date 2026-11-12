@@ -43,8 +43,9 @@ sql-explorer:
   # `admin` user, as before; a warning at startup and a banner in the UI say
   # so. `oidc`: sign in through the client registration named `sql-explorer`
   # (spring.security.oauth2.client.registration.sql-explorer and its provider),
-  # and the API answers 401 without a session. /mcp stays open either way until
-  # personal access tokens (sqlx-e13.5). The dev-idp profile
+  # and the API answers 401 without a session or a personal access token
+  # (sqlx-e13.5: `Authorization: Bearer sqlx_…`, made on the Access tokens
+  # page). /mcp then needs a token too; with `none` it is open. The dev-idp profile
   # (src/main/docker-local/config/application-dev-idp.yml) is a worked example.
   auth:
     mode: none
@@ -55,6 +56,12 @@ sql-explorer:
     #     dba-team: [admin]
     #     engineering: [viewer:production, runner:staging]
     group-prefix: "sqlx:"
+    # The longest a personal access token may live; a user may choose shorter.
+    # A token acts within its owner's grants as of the owner's LATEST SIGN-IN:
+    # groups only arrive in an ID token, so a group removed at the provider
+    # narrows the owner's tokens when they next sign in, not before. This caps
+    # how long that can take for someone who never signs in again.
+    token-max-lifetime: 90d
   trace-errors: false
   # How many environments keep their corpus in heap at once; 0 disables
   # eviction. An evicted environment rebuilds from its own captures on the next

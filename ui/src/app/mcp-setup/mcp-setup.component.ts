@@ -2,10 +2,12 @@ import {Component, DestroyRef, DOCUMENT, inject} from '@angular/core';
 import {HttpClient, HttpHeaders} from '@angular/common/http';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {combineLatest, map, of, catchError, startWith} from 'rxjs';
+import {RouterLink} from '@angular/router';
 import {EnvironmentService} from '../environment.service';
+import {UserService} from '../user.service';
 import {
-  claudeCodeCommand, desktopJson, ENVIRONMENT_HEADER, McpConfig, mcpJson, MCP_PATH, mcpUrl, McpToolInfo,
-  TOOLS_LIST_REQUEST, toolsOf
+  claudeCodeCommand, DESKTOP_AUTH_ENV, desktopJson, ENVIRONMENT_HEADER, McpConfig, mcpJson, MCP_PATH, mcpUrl,
+  McpToolInfo, TOKEN_ENV, TOOLS_LIST_REQUEST, toolsOf
 } from './mcp-setup';
 
 interface Snippet {
@@ -24,10 +26,13 @@ interface Snippet {
 @Component({
   selector: 'app-mcp-setup',
   templateUrl: './mcp-setup.component.html',
-  styleUrls: ['./mcp-setup.component.scss']
+  styleUrls: ['./mcp-setup.component.scss'],
+  imports: [RouterLink]
 })
 export class McpSetupComponent {
   readonly environmentHeader = ENVIRONMENT_HEADER;
+  readonly tokenEnv = TOKEN_ENV;
+  readonly desktopAuthEnv = DESKTOP_AUTH_ENV;
 
   config: McpConfig;
   snippets: Snippet[] = [];
@@ -54,6 +59,14 @@ export class McpSetupComponent {
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe(([current, byDefault]) => {
         this.config = {...this.config, environment: current ?? byDefault};
+        this.build();
+      });
+
+    // with sign-in on, the endpoint wants an access token (sqlx-e13.5)
+    inject(UserService).getCurrentUser()
+      .pipe(map(user => user.mode === 'oidc'), catchError(() => of(false)), takeUntilDestroyed(destroyRef))
+      .subscribe(token => {
+        this.config = {...this.config, token};
         this.build();
       });
 

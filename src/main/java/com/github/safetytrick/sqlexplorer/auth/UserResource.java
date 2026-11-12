@@ -48,9 +48,16 @@ class UserResource {
      *                permissions they hold there ({@code explorer:read},
      *                {@code env:explain}, …), so the UI can leave out what
      *                would only be refused
+     * @param token   the access token the request was made with, if it was
+     *                (sqlx-e13.5); then {@code grants} are what the token may
+     *                do, its owner's narrowed by its ceiling, and
+     *                {@code groups} are those of the owner's latest sign-in
      */
     record CurrentUser(String mode, User user, String issuer, String subject, List<String> groups,
-                       List<String> grants, boolean admin, Map<String, List<String>> environments) {}
+                       List<String> grants, boolean admin, Map<String, List<String>> environments,
+                       TokenInfo token) {}
+
+    record TokenInfo(Integer id, String name) {}
 
     @GetMapping("/user")
     public CurrentUser getCurrentUser() {
@@ -66,12 +73,20 @@ class UserResource {
                 environments.put(environment.getName(), held);
             }
         }
+        var token = userService.accessToken();
+        if (token.isPresent()) {
+            User owner = userService.currentUser();
+            var holder = token.get().getPrincipal();
+            return new CurrentUser(auth.mode().value(), owner, owner.getIssuer(), owner.getSubject(),
+                owner.getGroupsSnapshot() == null ? List.of() : owner.getGroupsSnapshot(), granted, grants.admin(),
+                environments, new TokenInfo(holder.tokenId(), holder.tokenName()));
+        }
         return userService.signedInPrincipal()
             .map(oidc -> new CurrentUser(auth.mode().value(), userService.currentUser(),
                 oidc.getIssuer() == null ? null : oidc.getIssuer().toExternalForm(),
-                oidc.getSubject(), UserService.groups(oidc), granted, grants.admin(), environments))
+                oidc.getSubject(), UserService.groups(oidc), granted, grants.admin(), environments, null))
             .orElseGet(() -> new CurrentUser(auth.mode().value(), userService.currentUser(), null, null, List.of(),
-                granted, grants.admin(), environments));
+                granted, grants.admin(), environments, null));
     }
 
 }

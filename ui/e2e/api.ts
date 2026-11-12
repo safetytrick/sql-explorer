@@ -274,6 +274,48 @@ export async function stubApi(page: Page) {
 }
 
 /**
+ * `/tokens` (sqlx-e13.5), with the tokens held in memory so making and
+ * revoking one shows up in the next listing, as against the server. Not part
+ * of {@link stubApi}: only the tokens page asks for it.
+ */
+export async function stubTokens(page: Page, options: {admin?: boolean} = {}) {
+  const tokens: Record<string, unknown>[] = [{
+    id: 1, name: 'nightly report', prefix: 'sqlx_Old11111', ceiling: ['viewer:regression'],
+    createdOn: '2026-10-01T09:00:00Z', expiresOn: '2026-12-30T09:00:00Z', lastUsedOn: '2026-11-10T02:00:00Z',
+    revokedOn: null, status: 'active', owner: null
+  }];
+  let next = 2;
+  const json = (body: unknown, status = 200) => ({status, contentType: 'application/json', body: JSON.stringify(body)});
+  await page.route(/\/api\/sql-explorer\/tokens(\/\d+)?(\?.*)?$/, async route => {
+    const request = route.request();
+    const id = /\/tokens\/(\d+)/.exec(request.url())?.[1];
+    if (request.method() === 'GET') {
+      return route.fulfill(json({
+        enabled: true, tokens, grants: ['admin:*'], maxLifetimeDays: 90, admin: options.admin ?? true,
+        ceilingOptions: ['admin:*', 'author:*', 'runner:*', 'viewer:*', 'admin:regression', 'author:regression',
+          'runner:regression', 'viewer:regression', 'admin:staging', 'author:staging', 'runner:staging', 'viewer:staging']
+      }));
+    }
+    if (request.method() === 'POST') {
+      const body = JSON.parse(request.postData() || '{}');
+      const token = {
+        id: next++, name: body.name, prefix: 'sqlx_New22222', ceiling: body.ceiling,
+        createdOn: '2026-11-11T12:00:00Z', expiresOn: '2027-02-09T12:00:00Z', lastUsedOn: null, revokedOn: null,
+        status: 'active', owner: null
+      };
+      tokens.unshift(token);
+      return route.fulfill(json({token, secret: 'sqlx_New22222-the-whole-secret-shown-once'}, 201));
+    }
+    if (request.method() === 'DELETE' && id) {
+      const token = tokens.find(t => String(t.id) === id)!;
+      Object.assign(token, {status: 'revoked', revokedOn: '2026-11-11T12:05:00Z'});
+      return route.fulfill(json(token));
+    }
+    return route.abort('failed');
+  });
+}
+
+/**
  * Pick an environment the way a person does: open the status in the nav and
  * choose from the list (sqlx-m6r.6). Was a <select>; tests name the action,
  * not the widget, so the next change to it touches only this.

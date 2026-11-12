@@ -65,6 +65,37 @@ The password is the username.
 They are defined in
 [`DevUsers.java`](src/main/java/com/github/safetytrick/sqlexplorer/devidp/DevUsers.java).
 
+## Access tokens and MCP
+
+With sign-in on, MCP and API clients use a personal access token
+(sqlx-e13.5). To try one end to end:
+
+1. Sign in at <http://localhost:4200> as, say, `admin` / `admin`.
+2. Click **Tokens** beside your name in the nav (or open `/tokens`), then
+   **New token**. Name it, tick a ceiling, e.g. Viewer under `local`, and make
+   it. Copy the `sqlx_…` secret: it is shown once.
+3. `export SQL_EXPLORER_TOKEN=sqlx_…`, then register the endpoint as the MCP
+   page (Admin → MCP) shows, which sends `Authorization: Bearer
+   $SQL_EXPLORER_TOKEN`:
+
+   ```bash
+   claude mcp add --transport http sql-explorer http://localhost:4200/api/sql-explorer/mcp \
+     --header 'X-Sql-Explorer-Environment: local' \
+     --header "Authorization: Bearer $SQL_EXPLORER_TOKEN"
+   ```
+
+4. Or by hand: `curl -H "Authorization: Bearer $SQL_EXPLORER_TOKEN"
+   localhost:18180/api/sql-explorer/user` shows the token's effective grants;
+   a Viewer token from `admin` gets a 403 from
+   `POST /api/sql-explorer/environments/local/pull`.
+
+A token may do what both its ceiling and its owner may. The owner's access is
+taken from the groups at their **latest sign-in**: tokens have no ID token, so
+a group taken away at the provider narrows the owner's tokens when the owner
+next signs in, not before. Every token therefore expires, after at most
+`sql-explorer.auth.token-max-lifetime` (90 days by default). A token cannot
+call `/tokens`, so it cannot make, widen or extend tokens.
+
 ## The groups claim
 
 `groups` is a JSON array of strings, present in the ID token, the access token

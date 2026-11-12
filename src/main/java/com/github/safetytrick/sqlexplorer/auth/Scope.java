@@ -8,7 +8,7 @@ package com.github.safetytrick.sqlexplorer.auth;
  * @param environment null for global
  * @param datasource  null unless this is a datasource
  */
-public record Scope(String environment, String datasource) {
+public record Scope(String environment, String datasource) implements java.io.Serializable {
 
     public static final Scope GLOBAL = new Scope(null, null);
 

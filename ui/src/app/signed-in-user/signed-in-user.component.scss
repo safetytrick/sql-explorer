@@ -15,6 +15,13 @@
   cursor: help;
 }
 
+.tokens {
+  color: var(--text2);
+  text-decoration: none;
+
+  &:hover { color: var(--blue); }
+}
+
 .sign-out {
   background: none;
   border: 1px solid var(--border2);

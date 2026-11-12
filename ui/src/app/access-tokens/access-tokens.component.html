@@ -1,0 +1,164 @@
+<div class="view-header">
+  <span class="view-title">Access tokens</span>
+  <span class="view-sub">for MCP and API clients, which cannot sign in through a browser</span>
+  @if (list?.enabled) {
+    <div class="view-actions">
+      @if (list?.admin) {
+        <label class="all-toggle">
+          <input type="checkbox" [checked]="view.all" (change)="setView({all: $any($event.target).checked})">
+          everyone's
+        </label>
+      }
+      @if (!view.creating) {
+        <button type="button" class="btn new-token" (click)="setView({creating: true})">New token</button>
+      }
+    </div>
+  }
+</div>
+
+@if (loadError) {
+  <div class="lens-card"><div class="card-empty load-error">Could not list tokens: {{loadError}}</div></div>
+} @else if (list && !list.enabled) {
+  <div class="lens-card">
+    <div class="note-card disabled-note">
+      <p>Sign-in is not configured on this server, so there is nothing for a token to prove: the API and
+        the MCP endpoint are open to anyone who can reach them. Tokens are available once
+        <code>sql-explorer.auth.mode</code> is <code>oidc</code>.</p>
+    </div>
+  </div>
+} @else if (list) {
+
+  @if (created) {
+    <div class="lens-card secret-card">
+      <div class="card-head"><span class="card-head-title">Your new token, “{{created.token.name}}”</span>
+        <span class="card-head-note">shown this once; it is not stored and cannot be shown again</span></div>
+      <div class="secret-row">
+        <code class="secret">{{created.secret}}</code>
+        <button type="button" class="btn copy-secret" (click)="copySecret()">{{copied ? 'Copied' : 'Copy'}}</button>
+        <button type="button" class="btn" (click)="dismissSecret()">Done</button>
+      </div>
+      <div class="prose">
+        <p>Send it as <code>Authorization: Bearer &lt;token&gt;</code>. The <a routerLink="/admin/mcp">MCP page</a>
+          has a client config that reads it from <code>SQL_EXPLORER_TOKEN</code>, so it stays out of files you
+          check in.</p>
+      </div>
+    </div>
+  }
+
+  @if (view.creating) {
+    <div class="lens-card create-card">
+      <div class="card-head"><span class="card-head-title">New token</span>
+        <span class="card-head-note">it can do what you can, at most, and no more than you choose here</span></div>
+      <form class="create-form" (ngSubmit)="create()">
+        <label class="field">
+          <span class="field-label">Name</span>
+          <input type="text" name="name" class="token-name" maxlength="64" [(ngModel)]="name"
+                 placeholder="what it is for: laptop MCP, nightly report">
+        </label>
+
+        <div class="field">
+          <span class="field-label">Ceiling</span>
+          @if (list.ceilingOptions.length) {
+            <div class="scopes">
+              @for (group of optionsByScope(list.ceilingOptions); track group.scope) {
+                <div class="scope" [attr.data-scope]="group.scope">
+                  <span class="scope-name">{{group.scope}}</span>
+                  @for (grant of group.grants; track grant) {
+                    <label class="grant">
+                      <input type="checkbox" [attr.data-grant]="grant" [checked]="chosen.has(grant)"
+                             (change)="toggle(grant, $any($event.target).checked)">
+                      {{roleOf(grant)}}
+                    </label>
+                  }
+                </div>
+              }
+            </div>
+            <span class="field-help">Each role includes the ones after it: Admin, Author, Runner, Viewer.
+              Viewer reads and tags; Runner also runs EXPLAIN; Admin also pulls.</span>
+          } @else {
+            <span class="field-help no-grants">Your groups grant you nothing here, so a token could do nothing.
+              If that is wrong, sign out and in again.</span>
+          }
+        </div>
+
+        <label class="field">
+          <span class="field-label">Expires after</span>
+          <select name="lifetime" class="lifetime" [(ngModel)]="lifetimeDays">
+            @for (days of lifetimes; track days) {
+              <option [ngValue]="days">{{days}} day{{days === 1 ? '' : 's'}}</option>
+            }
+          </select>
+        </label>
+
+        @if (creatingError) {
+          <div class="create-error">{{creatingError}}</div>
+        }
+        <div class="form-actions">
+          <button type="submit" class="btn create" [disabled]="!canCreate">{{saving ? 'Making…' : 'Make token'}}</button>
+          <button type="button" class="btn" (click)="setView({creating: false})">Cancel</button>
+        </div>
+      </form>
+    </div>
+  }
+
+  <div class="lens-card">
+    <div class="card-head"><span class="card-head-title">{{view.all ? "Everyone's tokens" : 'Your tokens'}}</span>
+      <span class="card-head-note">your grants: {{list.grants.length ? list.grants.join(', ') : 'none'}}</span></div>
+    @if (revokeError) {
+      <div class="card-empty revoke-error">Could not revoke: {{revokeError}}</div>
+    }
+    @if (list.tokens.length) {
+      <div class="table-scroll">
+        <table class="data-table tokens">
+          <thead>
+            <tr>
+              <th>Name</th>
+              @if (view.all) { <th>Owner</th> }
+              <th>Token</th>
+              <th>Ceiling</th>
+              <th>Created</th>
+              <th>Expires</th>
+              <th>Last used</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (token of list.tokens; track token.id) {
+              <tr [attr.data-token]="token.id" [class.inactive]="token.status !== 'active'">
+                <td class="name">{{token.name}}</td>
+                @if (view.all) { <td class="owner">{{ownerOf(token)}}</td> }
+                <td><code>{{token.prefix}}…</code></td>
+                <td class="ceiling">{{token.ceiling.join(', ')}}</td>
+                <td>{{token.createdOn | date:'yyyy-MM-dd HH:mm'}}</td>
+                <td>{{token.expiresOn | date:'yyyy-MM-dd'}}</td>
+                <td>{{token.lastUsedOn ? (token.lastUsedOn | date:'yyyy-MM-dd HH:mm') : 'never'}}</td>
+                <td class="status" [attr.data-status]="token.status">{{token.status}}
+                  @if (token.revokedOn) { <span class="when">{{token.revokedOn | date:'yyyy-MM-dd'}}</span> }</td>
+                <td class="actions">
+                  @if (token.status === 'active') {
+                    <button type="button" class="btn revoke" (click)="revoke(token)">
+                      {{confirming === token.id ? 'Really revoke?' : 'Revoke'}}</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="card-empty">No tokens yet.</div>
+    }
+  </div>
+
+  <div class="lens-card">
+    <div class="card-head"><span class="card-head-title">How a token's access is decided</span></div>
+    <div class="note-card">
+      <p>A token may do what <strong>both</strong> its ceiling and you may do, checked on every request. Your
+        access is taken from the groups you had at your <strong>latest sign-in</strong>: if a group is taken away
+        from you, your tokens lose it when you next sign in, not before. That is why every token expires, at most
+        {{list.maxLifetimeDays}} days after it is made. Revoke a token you no longer need.</p>
+      <p>Anything a token writes, a tag say, is recorded as yours. A token cannot make or revoke tokens.</p>
+    </div>
+  </div>
+}

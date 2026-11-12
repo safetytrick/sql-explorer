@@ -40,6 +40,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.savedrequest.NullRequestCache;
@@ -74,12 +77,16 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>Sign-out is a POST to {@code /logout}, answered with JSON naming where
  *       to go next: the provider's end-session endpoint (RP-initiated logout)
  *       where one is known, else the UI's root.</li>
- *   <li><b>{@code /mcp} is open, without a session and without CSRF.</b> MCP
- *       clients cannot do a browser sign-in, and personal access tokens are
- *       sqlx-e13.5. Until then anything that can reach the endpoint can use
- *       it, as before, and what it writes is attributed to {@code admin}. Its
- *       own Origin check (McpServerConfig) still refuses browser pages from
- *       other sites.</li>
+ *   <li><b>Personal access tokens</b> (sqlx-e13.5): {@code Authorization:
+ *       Bearer sqlx_…} on any request, checked by {@link BearerTokenFilter}.
+ *       Stateless and without CSRF; it may do what both its owner and its
+ *       ceiling allow ({@link AccessTokenService}), and the same URL rules
+ *       decide. A bad token is a 401, never a fall back to a session.
+ *       {@code /tokens} itself takes only a browser session.</li>
+ *   <li><b>{@code /mcp} needs a token</b> (or a session, which is how the MCP
+ *       page lists the tools; with CSRF like any other session request). Each
+ *       tool checks the permission it needs (McpToolRunner). With sign-in off
+ *       it is open, as everything is.</li>
  * </ul>
  */
 @Configuration
@@ -94,8 +101,6 @@ class SecurityConfig {
     /** Open without a session even in {@code oidc} mode. */
     private static final String[] OPEN = {
         LoginResource.PATH, "/error",
-        // MCP clients cannot sign in; tokens are sqlx-e13.5
-        "/mcp",
         // liveness and scraping, as before
         "/actuator/health", "/actuator/health/**", "/actuator/prometheus",
     };
@@ -135,9 +140,30 @@ class SecurityConfig {
         };
     }
 
-    /** 403 with a JSON body, so the UI can say what is missing rather than show nothing. */
+    /** Signed in through the browser: a session, never an access token (sqlx-e13.5). */
+    private static AuthorizationManager<RequestAuthorizationContext> browserSession() {
+        return (authentication, context) -> {
+            Authentication who = authentication.get();
+            return new AuthorizationDecision(who != null && who.isAuthenticated() && who.getPrincipal() instanceof OidcUser);
+        };
+    }
+
+    /**
+     * 403 with a JSON body, so the UI can say what is missing rather than show
+     * nothing. A write refused for its missing CSRF token by someone not
+     * signed in at all is a 401 instead: CSRF is checked before anything else,
+     * and "forbidden" would tell an MCP client that forgot its token the wrong
+     * thing.
+     */
     private static AccessDeniedHandler forbidden(JsonMapper json) {
+        AuthenticationEntryPoint unauthorized = unauthorized(json);
         return (request, response, exception) -> {
+            Authentication who = SecurityContextHolder.getContext().getAuthentication();
+            if (exception instanceof CsrfException
+                    && (who == null || !who.isAuthenticated() || who instanceof AnonymousAuthenticationToken)) {
+                unauthorized.commence(request, response, new InsufficientAuthenticationException("not signed in"));
+                return;
+            }
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("status", HttpStatus.FORBIDDEN.value());
             body.put("error", "Forbidden");
@@ -152,7 +178,8 @@ class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, AuthProperties auth, JsonMapper json,
                                             ObjectProvider<ClientRegistrationRepository> registrations,
-                                            UserService users, Authorizations authorizations) throws Exception {
+                                            UserService users, Authorizations authorizations,
+                                            AccessTokenService accessTokens) throws Exception {
         // never save an API request to "return to" after sign-in; /login says where to go
         http.requestCache(cache -> cache.requestCache(new NullRequestCache()));
         if (!auth.oidc()) {
@@ -171,6 +198,10 @@ class SecurityConfig {
                 // ── global ──────────────────────────────────────────────────
                 .requestMatchers(HttpMethod.POST, "/environments/{env}/pull", "/environments/{env}/refresh-schema")
                     .access(may(Permission.ENV_PULL, authorizations))
+                // a person's own tokens, from a browser session only: a token never makes a token
+                .requestMatchers("/tokens", "/tokens/**").access(browserSession())
+                // MCP: a token, or a session (the MCP page lists the tools); each tool checks its own permission
+                .requestMatchers("/mcp").authenticated()
                 .requestMatchers(HttpMethod.GET, "/environments", "/user", "/graph/layout").authenticated()
                 .requestMatchers("/util/**", "/graph/layout/**").authenticated()
                 // ── one environment: /env/{env}/… ───────────────────────────
@@ -198,7 +229,10 @@ class SecurityConfig {
             .csrf(csrf -> csrf
                 .spa()
                 .csrfTokenRepository(csrfTokens)
-                .ignoringRequestMatchers("/mcp"))
+                // a bearer request carries no cookie to forge: a page on another site cannot set the
+                // header without a CORS preflight, which is not granted. Sessions keep CSRF, /mcp included.
+                .ignoringRequestMatchers(BearerTokenFilter::presentsBearer))
+            .addFilterBefore(new BearerTokenFilter(accessTokens, json), CsrfFilter.class)
             .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
             .logout(logout -> logout.logoutSuccessHandler(signedOut(repository, auth, json)))
             .build();
@@ -321,7 +355,8 @@ class SecurityConfig {
         @Override
         protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
                 throws ServletException, IOException {
-            if (request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken token) {
+            if (!BearerTokenFilter.presentsBearer(request)
+                    && request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken token) {
                 token.getToken();
             }
             chain.doFilter(request, response);

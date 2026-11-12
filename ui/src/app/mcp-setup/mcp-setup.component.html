@@ -27,6 +27,25 @@
   </div>
 </div>
 
+@if (config.token) {
+  <div class="lens-card token-card">
+    <div class="card-head"><span class="card-head-title">An access token</span>
+      <span class="card-head-note">sign-in is on, so the endpoint needs one</span></div>
+    <div class="prose">
+      <p>
+        An MCP client cannot sign in through a browser, so it sends a personal access token instead.
+        <a class="make-token" routerLink="/tokens" [queryParams]="{'var-new': 'true'}">Make one</a>, choosing what it
+        may do: an MCP client that only reads needs no more than Viewer on the environments it reads.
+      </p>
+      <p>
+        The configs below read it from the environment rather than holding it, so a <code>.mcp.json</code> can be
+        checked in: <code class="filled">export {{tokenEnv}}=sqlx_…</code> before starting Claude Code. For Claude
+        Desktop, paste it into <code>{{desktopAuthEnv}}</code> in its config.
+      </p>
+    </div>
+  </div>
+}
+
 <div class="lens-card">
   <div class="card-head"><span class="card-head-title">Connect a client</span>
     <span class="card-head-note">filled in for this page</span></div>
@@ -87,6 +106,13 @@
       <strong>Through the tunnel it will not connect.</strong> A shared address behind a sign-in page asks a
       browser to log in, which an MCP client cannot do. Use the endpoint from the machine running SQL Explorer.
     </p>
+    @if (config.token) {
+      <p>
+        <strong>401 from the endpoint</strong> means the token is missing, expired or revoked: check that
+        <code>{{tokenEnv}}</code> is set where the client starts. A tool that answers "Not allowed" names the
+        permission its token lacks; a token can do no more than both its ceiling and you.
+      </p>
+    }
     <p>
       <strong>An environment served from its cache</strong> answers as the pages do: live-only tools such as
       the DDL ask for a pull first.

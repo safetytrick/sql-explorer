@@ -12,7 +12,7 @@ const API = '/api/sql-explorer/';
  */
 const GLOBAL = [
   /^environments(\/|$)/, /^user$/, /^util\//, /^analysis-failures(\/|$)/, /^graph\/layout(\/|$)/, /^mcp$/,
-  /^login$/, /^logout$/,
+  /^login$/, /^logout$/, /^tokens(\/|$)/,
 ];
 
 /**

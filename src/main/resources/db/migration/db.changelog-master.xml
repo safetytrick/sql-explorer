@@ -750,4 +750,46 @@
 		</sql>
 	</changeSet>
 
+	<!--
+		Personal access tokens (sqlx-e13.5).
+
+		users.groups_snapshot: the groups claim as of the user's latest sign-in,
+		a JSON array. Groups only arrive in the ID token, so a token, which has no
+		session, is evaluated against this snapshot: losing a group narrows the
+		user's tokens at their next sign-in, not before. That is why tokens have a
+		maximum lifetime. groups_seen_on is the issue time of the ID token the
+		snapshot came from, so an older session can never overwrite a newer one.
+
+		access_tokens: only the SHA-256 of the secret is kept (token_hash, hex),
+		never the secret. token_prefix is its first characters, for telling
+		tokens apart in a list. ceiling is the most the token may do, as grants in
+		the groups syntax (viewer:prod, runner:prod/reporting, admin:*), comma
+		separated; what it may actually do is that and the owner's grants both.
+	-->
+	<changeSet id="e13-5-access-tokens" author="claude">
+		<sql>
+			alter table users
+				add column groups_snapshot text character set utf8mb4 null,
+				add column groups_seen_on  timestamp(3) null;
+
+			create table access_tokens
+			(
+				id            int primary key not null auto_increment,
+				user_id       int          not null,
+				name          varchar(64)  character set utf8mb4 not null,
+				token_hash    char(64)     not null,
+				token_prefix  varchar(16)  not null,
+				ceiling       text         not null,
+				created_on    timestamp(3) not null default current_timestamp(3),
+				expires_on    timestamp(3) not null,
+				last_used_on  timestamp(3) null,
+				revoked_on    timestamp(3) null,
+				unique index access_tokens_hash (token_hash),
+				index (user_id),
+				foreign key (user_id) references users (id)
+					on update cascade on delete cascade
+			);
+		</sql>
+	</changeSet>
+
 </databaseChangeLog>

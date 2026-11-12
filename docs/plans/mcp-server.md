@@ -1,5 +1,24 @@
 # Add an MCP server
 
+> **Update 2026-11-11 — with sign-in on, `/mcp` needs a personal access
+> token (sqlx-e13.5).** `Authorization: Bearer sqlx_…`, made on the Access
+> tokens page (`/tokens`, linked from the signed-in user in the nav). A
+> browser session also works, which is how the MCP page lists the tools.
+> Without either it is a 401. Each tool call is authorized in
+> `McpToolRunner` against the environment it reads: `explorer:read` for the
+> reads, `commentary:write` for `add_tag` / `remove_tag`; `clean_sql` and
+> `normalize_sql` read no environment and need only the authentication. A
+> call that is not allowed is a tool error naming the missing permission.
+> With no environment named, the default is used if the caller may read it,
+> else the first one they may. A token acts as its owner, so what it writes
+> is authored by them; the token's id goes to the `sql-explorer.audit` log
+> beside it. What a token may do is min(its owner's grants as of their
+> latest sign-in, its ceiling): see `AccessTokenService` for why "latest
+> sign-in", and why tokens expire (90 days at most by default,
+> `sql-explorer.auth.token-max-lifetime`). The MCP page's snippets read the
+> token from `SQL_EXPLORER_TOKEN` so a checked-in `.mcp.json` holds no
+> secret. With sign-in off (`mode: none`) nothing changes: `/mcp` is open.
+>
 > **Update 2026-11-09 — served over HTTP by the backend; the Node sidecar is
 > gone.** `POST /api/sql-explorer/mcp` is MCP's streamable HTTP in its
 > stateless form (MCP Java SDK 2.1, `HttpServletStatelessServerTransport`,
