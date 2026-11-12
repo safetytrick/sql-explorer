@@ -33,7 +33,7 @@ corpus; **(c)** fine as built.
 | `id` | pre-scan (`source + "-" + rank`); `complete()` falls back to `digest`; `MergedSqlProfile` overrides with `digest` | `/analyzed-sql/{id}`, `ParquetSqlRepository.getById` (parquet `id` column filter) | **(a)** 3,418/3,608 carry the timestamped form, 190 the digest. Masked: the FE links by `digest` and `AnalyzedSqlRepository` indexes every digest. Not masked in the parquet repository, which nothing currently injects. → item |
 | `query` | pre-scan (formatted raw, then normalized display if it parses); `MergedSqlProfile` → `first()` | everywhere | **(c)** |
 | `tables` | analyzer (`TableNameAnalyzer`) **or** pre-scan (regex, on skip/fail); default schema applied in `complete()` | schema filters, schema tree, rollup, graph, table pages — the real schema key for the whole app | **(c)** both paths always set it |
-| `type` | pre-scan (first token); copied by `attemptMerge` | type facets and filters | **(c)** |
+| `type` | the operation: `StatementTypes.fromText` (read past CTEs; `UNKNOWN` when the text stops first), then the parse (`StatementTypeAnalyzer`); copied by `attemptMerge` | type facets and filters | **(c)** |
 | `joinColumns` | analyzer (unconditional setter); copied; emptied in `complete()` | graph, join panels, `constrainedBy` | **(c)** |
 | `criteriaColumns` | analyzer (lazy add); copied; emptied in `complete()` | `constrainedBy`, column drill-down | **(c)** |
 | `selectColumns` | analyzer (lazy add); emptied in `complete()`; **was not copied** by `attemptMerge` | `TableInsightsService`, SQL view | **(a) fixed** — see below |

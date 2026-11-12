@@ -14,6 +14,7 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.model.CapturedRate;
+import com.github.safetytrick.sqlexplorer.model.QueryKind;
 import org.springframework.stereotype.Service;
 
 /**
@@ -64,7 +65,7 @@ public class TableWorkloadService {
 
         for (SqlProfile profile : sqlRepositoryService.getTableQueries(table).toList()) {
             RuntimeMetrics metrics = profile.getRuntimeMetrics();
-            if (metrics == null || !CapturedRate.isWrite(profile)) {
+            if (metrics == null || !QueryKind.of(profile).isWrite()) {
                 continue;
             }
             String type = profile.getType().toUpperCase(Locale.ROOT);

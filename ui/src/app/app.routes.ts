@@ -19,6 +19,7 @@ import {DdlPreflightComponent} from './ddl-preflight/ddl-preflight.component';
 import {AdminSourceListComponent} from './admin-source-list/admin-source-list.component';
 import {NoteViewComponent} from './note-view/note-view.component';
 import {TableProfileComponent} from './table-profile/table-profile.component';
+import {TopologyComponent} from './topology/topology.component';
 import {TableDdlComponent} from './table-ddl/table-ddl.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {QueriesWorkbenchComponent} from './queries-workbench/queries-workbench.component';
@@ -170,6 +171,11 @@ const routes: Routes = [
   {
     path: 'coverage',
     redirectTo: '/captured'
+  },
+  {
+    path: 'topology',
+    component: TopologyComponent,
+    title: 'Topology'
   },
   {
     path: 'unused-indexes',

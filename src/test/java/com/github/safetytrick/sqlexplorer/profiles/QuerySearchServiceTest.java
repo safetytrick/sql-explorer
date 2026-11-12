@@ -778,4 +778,24 @@ class QuerySearchServiceTest {
                 analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);
         }
     }
+
+    /**
+     * WITH is no longer a type (sqlx-a9h). A link asking for it — "has CTEs",
+     * nearly always a SELECT — finds SELECT and UNKNOWN, and a profile still
+     * typed WITH or ( from an older capture matches as UNKNOWN or SELECT.
+     */
+    @Test
+    void withMeansSelectAndUnknownAndOldTypesMatchAsTheirNewOnes() {
+        assertThat(QuerySearchService.matchesTypes(List.of("WITH"), "SELECT")).isTrue();
+        assertThat(QuerySearchService.matchesTypes(List.of("WITH"), "UNKNOWN")).isTrue();
+        assertThat(QuerySearchService.matchesTypes(List.of("WITH"), "UPDATE")).isFalse();
+
+        assertThat(QuerySearchService.matchesTypes(List.of("SELECT"), "(")).isTrue();
+        assertThat(QuerySearchService.matchesTypes(List.of("UNKNOWN"), "WITH")).isTrue();
+        assertThat(QuerySearchService.matchesTypes(List.of("SELECT"), "WITH")).isFalse();
+
+        // UNKNOWN is a type of its own, not part of OTHER
+        assertThat(QuerySearchService.matchesTypes(List.of("OTHER"), "UNKNOWN")).isFalse();
+        assertThat(QuerySearchService.matchesTypes(List.of("OTHER"), "CALL")).isTrue();
+    }
 }

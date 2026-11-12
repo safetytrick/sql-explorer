@@ -271,6 +271,7 @@ Components map directly to the URL hierarchy:
 | `/table/:schema/:name`               | TableLensComponent                              |
 | `/table/:schema/:name/ddl`           | TableDdlComponent (plan a change: builder, pre-flight, write rate, lock risk) |
 | `/table/:schema/:name/profile`       | TableProfileComponent (profile data: charset corruption counts, sampled on demand) |
+| `/topology`                          | TopologyComponent (clusters and servers: read/write split and query seconds per server, from each server's own capture) |
 | `/table/:schema/:name/queries` (+ `/join/**`, `/:column`) | TableViewComponent         |
 | `/analyzed-sql/:id`                  | SqlViewComponent                                |
 | `/tags`                              | TagManagerComponent (master/detail)             |

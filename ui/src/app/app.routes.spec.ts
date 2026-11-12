@@ -7,6 +7,7 @@ import {appRoutes} from './app.routes';
 import {AnalyzedSqlService} from './analyzed-sql.service';
 import {TableDdlComponent} from './table-ddl/table-ddl.component';
 import {TableProfileComponent} from './table-profile/table-profile.component';
+import {TopologyComponent} from './topology/topology.component';
 import {TableLensComponent} from './table-lens/table-lens.component';
 import {NotFoundComponent} from './not-found/not-found.component';
 import {McpSetupComponent} from './mcp-setup/mcp-setup.component';
@@ -86,6 +87,13 @@ describe('appRoutes: the table drill-downs', () => {
 
     expect(matched()).toBe(TableProfileComponent);
     expect(router.url).toBe('/table/app_main/user_profile/profile?var-run=3');
+  });
+
+  it('opens the topology page with its view state', async () => {
+    await router.navigateByUrl('/topology?var-server=shard1&var-by=executions');
+
+    expect(matched()).toBe(TopologyComponent);
+    expect(router.url).toBe('/topology?var-server=shard1&var-by=executions');
   });
 
   it('keeps the retired routes ahead of the column drill-down', async () => {

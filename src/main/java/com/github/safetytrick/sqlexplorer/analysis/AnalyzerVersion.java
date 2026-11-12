@@ -40,9 +40,15 @@ public final class AnalyzerVersion {
      *       wildcard included (sqlx-n5j.7); and generator signatures: every
      *       matching rule of every generator is recorded as a candidate, and
      *       generatedSource is no longer written (sqlx-n5j.12).</li>
+     *   <li>7 — a WITH clause opening an UPDATE or DELETE types the profile
+     *       UPDATE or DELETE rather than WITH (sqlx-a9h).</li>
+     *   <li>8 — a profile's type is its operation: read past any CTEs or
+     *       opening parenthesis, from the parse when there is one, and
+     *       UNKNOWN when the text does not reach it. WITH and ( are no
+     *       longer types (sqlx-a9h).</li>
      * </ul>
      */
-    public static final int ANALYZERS = 6;
+    public static final int ANALYZERS = 8;
 
     /** What a profile records, and what reuse compares: {@code a<ANALYZERS>.n<QueryNormalizer.VERSION>}. */
     public static final String CURRENT = "a" + ANALYZERS + ".n" + QueryNormalizer.VERSION;

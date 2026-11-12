@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
+import com.github.safetytrick.sqlexplorer.analysis.StatementTypes;
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.IndexHint;
 import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
@@ -46,7 +47,7 @@ public class QuerySearchService {
 
     /** Types offered as explicit filters; "OTHER" matches everything outside this set. */
     public static final Set<String> EXPLICIT_TYPES = Set.of(
-        "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "SHOW", "WITH");
+        "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "SHOW", "UNKNOWN");
     public static final String OTHER_TYPE = "OTHER";
 
     private static final String QUERY_TAG_TYPE = "query";
@@ -418,18 +419,35 @@ public class QuerySearchService {
         return query != null && pattern.matcher(query).find();
     }
 
-    /** "OTHER" matches any type outside {@link #EXPLICIT_TYPES} (including missing types). */
-    private static boolean matchesTypes(List<String> wanted, String profileType) {
+    /**
+     * "OTHER" matches any type outside {@link #EXPLICIT_TYPES} (including missing types).
+     *
+     * <p>WITH and ( were types until analyzer version 8 read past them
+     * (StatementTypes). A profile still carrying one, served from a capture
+     * analysed before that, is matched as what it now would be: ( as SELECT,
+     * WITH as UNKNOWN. A link asking for WITH — which then meant "has CTEs",
+     * nearly always feeding a SELECT — asks for SELECT and UNKNOWN.
+     */
+    static boolean matchesTypes(List<String> wanted, String profileType) {
         if (wanted == null || wanted.isEmpty()) {
             return true;
         }
-        String type = profileType == null ? "" : profileType.toUpperCase(Locale.ROOT);
+        String type = switch (profileType == null ? "" : profileType.toUpperCase(Locale.ROOT)) {
+            case "(" -> "SELECT";
+            case "WITH" -> StatementTypes.UNKNOWN;
+            case String other -> other;
+        };
         for (String candidate : wanted) {
             if (candidate == null) {
                 continue;
             }
             String upper = candidate.toUpperCase(Locale.ROOT);
-            if (OTHER_TYPE.equals(upper) ? !EXPLICIT_TYPES.contains(type) : upper.equals(type)) {
+            boolean matches = switch (upper) {
+                case OTHER_TYPE -> !EXPLICIT_TYPES.contains(type);
+                case "WITH" -> type.equals("SELECT") || type.equals(StatementTypes.UNKNOWN);
+                default -> upper.equals(type);
+            };
+            if (matches) {
                 return true;
             }
         }

@@ -37,7 +37,7 @@ import {GRAPH_PARAMS, GRAPH_VIEW, VIEW_PARAM} from '../graph-lens/graph-url';
 const PAGE_SIZE = 50;
 
 /** Mirrors the backend's explicit type set; OTHER matches everything outside it. */
-export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'WITH', 'OTHER'];
+export const QUERY_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'SHOW', 'UNKNOWN', 'OTHER'];
 
 /** SqlProfileReportService.SLOW_THRESHOLD / CHATTY_THRESHOLD, in ms. */
 /** A one-click bound for a performance range; `on` when the range is exactly this. */

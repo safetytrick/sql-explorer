@@ -3,8 +3,6 @@ package com.github.safetytrick.sqlexplorer.model;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Locale;
-import java.util.Set;
 
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
@@ -33,18 +31,9 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
  */
 public final class CapturedRate {
 
-    /** Statement types that change rows. REPLACE is an INSERT that may DELETE first. */
-    public static final Set<String> WRITE_TYPES = Set.of("INSERT", "UPDATE", "DELETE", "REPLACE");
-
     private static final double SECONDS_PER_DAY = 86_400d;
 
     private CapturedRate() {
-    }
-
-    /** Whether the statement writes rows, by its first keyword. */
-    public static boolean isWrite(SqlProfile profile) {
-        String type = profile.getType();
-        return type != null && WRITE_TYPES.contains(type.toUpperCase(Locale.ROOT));
     }
 
     /** lastSeen − firstSeen in days, or null when either end is unknown. */
@@ -76,7 +65,7 @@ public final class CapturedRate {
         double total = 0;
         for (SqlProfile profile : profiles) {
             RuntimeMetrics metrics = profile.getRuntimeMetrics();
-            if (metrics != null && isWrite(profile)) {
+            if (metrics != null && QueryKind.of(profile).isWrite()) {
                 total += perDay(metrics.getExecuted(), metrics);
             }
         }

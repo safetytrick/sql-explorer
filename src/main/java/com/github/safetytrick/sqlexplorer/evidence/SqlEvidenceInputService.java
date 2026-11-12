@@ -22,6 +22,7 @@ import com.github.safetytrick.sqlexplorer.analysis.AnalyzerVersion;
 import com.github.safetytrick.sqlexplorer.analysis.IgnoredSchemas;
 import com.github.safetytrick.sqlexplorer.analysis.RegexTableExtractor;
 import com.github.safetytrick.sqlexplorer.analysis.SqlAnalysisService;
+import com.github.safetytrick.sqlexplorer.analysis.StatementTypes;
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
 import com.github.safetytrick.sqlexplorer.analysis.parser.RepeatLocator;
 import com.github.safetytrick.sqlexplorer.avro.MergedChild;
@@ -37,6 +38,7 @@ import com.github.safetytrick.sqlexplorer.evidence.source.MeteredSql;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlInput;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.model.MergedSqlProfile;
+import com.github.safetytrick.sqlexplorer.model.QueryKind;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -114,8 +116,6 @@ public class SqlEvidenceInputService {
             "START",
             "UNLOCK",
             "USE");
-
-    private static final Set<String> dmlTokens = Set.of("INSERT", "UPDATE", "DELETE");
 
     /** Introspection, not query load — see the note where its tables are dropped. */
     private static final String SHOW = "SHOW";
@@ -269,6 +269,8 @@ public class SqlEvidenceInputService {
             return;
         }
         String firstToken = firstToken(row.getQuery());
+        // the operation, read past any CTEs; refined by the parse if there is one
+        String textType = StatementTypes.fromText(row.getQuery());
         int lineNumber = toProcess.rank();
         SqlProfile.Builder builder = SqlProfile.newBuilder();
 
@@ -305,11 +307,11 @@ public class SqlEvidenceInputService {
             // element per profile is what makes the group answer real.
             .setSourcedFiles(sourceFileName == null ? List.of() : List.of(sourceFileName))
             .setQuery(query)
-            .setType(firstToken)
+            .setType(textType)
             .setSchemaName(row.getSchemaName() != null ? row.getSchemaName() : "dual")
             .setRuntimeMetrics(runtimeMetrics)
             .setQueryActivityStatus(status)
-            .setIsDml(row.getRowsAffected() > 1 || dmlTokens.contains(firstToken));
+            .setIsDml(QueryKind.of(textType, row.getRowsAffected()).isWrite());
 
         if (row.getErrors() == row.getExecuted()) {
             //if the query always fails we might not be able to parse it and don't really care about it anyway
@@ -322,6 +324,7 @@ public class SqlEvidenceInputService {
         SqlProfile prior = context.reuse().find(row.getDigest(), row.getSchemaName());
         if (prior != null) {
             copyAnalysis(prior, builder);
+            markDml(builder);
             repository.reused();
             if (prior.getNormalizedDigest() != null && repository.attemptMerge(prior.getNormalizedDigest(), builder)) {
                 return;
@@ -436,9 +439,20 @@ public class SqlEvidenceInputService {
             }
         }
 
+        markDml(builder);
         SqlProfile sqlProfile = builder.completeBuild(row.getSchemaName());
 
         repository.addToIndex(sqlProfile);
+    }
+
+    /**
+     * DML is what {@link QueryKind} calls a write, asked once the type is
+     * final: a parse can retype a WITH statement, and reuse brings the type
+     * an earlier parse decided. isDml is the row's own fact, so it is not
+     * copied by reuse but derived again here.
+     */
+    private static void markDml(SqlProfile.Builder builder) {
+        builder.setIsDml(QueryKind.of(builder.getType(), builder.getRuntimeMetrics()).isWrite());
     }
 
     /**
