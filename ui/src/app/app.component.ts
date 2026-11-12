@@ -7,6 +7,7 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { SchemaTreeComponent } from './schema-tree/schema-tree.component';
 import { EnvironmentUrlSync } from './environment-url-sync';
+import { splitEnvPath } from './environment-url';
 import { QueryScopeService } from './query-scope.service';
 
 @Component({
@@ -34,8 +35,9 @@ export class AppComponent implements OnInit {
 
   constructor(private explainService: ExplainService) { }
 
+  /** Whether a URL is the workbench, with or without the environment in front (sqlx-e13.7). */
   static isTreePage(url: string): boolean {
-    return url.split(/[?#]/)[0] === '/queries';
+    return splitEnvPath(url.split(/[?#]/)[0]).rest === '/queries';
   }
 
   ngOnInit() {

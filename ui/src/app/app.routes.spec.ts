@@ -1,3 +1,4 @@
+import {ROUTE_ROOTS} from './route-roots';
 import {TestBed} from '@angular/core/testing';
 import {Router, provideRouter} from '@angular/router';
 import {provideHttpClient} from '@angular/common/http';
@@ -156,5 +157,13 @@ describe('appRoutes: the table drill-downs', () => {
 
     expect(matched()).toBe(TableLensComponent);
     expect(router.url).toBe('/table/app_main/user_profile');
+  });
+});
+
+/** The environment-path parser tells `/prod/queries` from `/queries` by this list (sqlx-e13.7). */
+describe('ROUTE_ROOTS', () => {
+  it('names the first segment of every route, and nothing else', () => {
+    const roots = new Set(appRoutes.map(r => r.path?.split('/')[0]).filter((p): p is string => !!p && p !== '**'));
+    expect([...ROUTE_ROOTS].sort()).toEqual([...roots].sort());
   });
 });

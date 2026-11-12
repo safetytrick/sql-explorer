@@ -1,5 +1,6 @@
 import {InjectionToken} from '@angular/core';
 import type {ParamMap} from '@angular/router';
+import {ROUTE_ROOTS} from './route-roots';
 
 /**
  * Which corpus a URL is about.
@@ -18,6 +19,41 @@ import type {ParamMap} from '@angular/router';
  * localStorage — not an oversight of the rule but a gap it was never pointed at.
  */
 export const ENV_PARAM = 'env';
+
+/**
+ * A path split into the environment it leads with and the app path after it:
+ * `/prod/queries` is `{env: 'prod', rest: '/queries'}` (sqlx-e13.7).
+ *
+ * <p>The first segment is an environment when it is not a route of the app's
+ * own AND something follows it. The second condition keeps a mistyped page,
+ * `/no-such-page`, a not-found page that shows the address, rather than
+ * reading it as an environment called "no-such-page" with no page at all.
+ */
+export function splitEnvPath(path: string): {env: string | null; rest: string} {
+  const match = /^\/([^/?#]+)(\/[^?#]*)$/.exec(path);
+  if (match && !ROUTE_ROOTS.has(match[1]) && match[2] !== '/') {
+    return {env: clean(safeDecode(match[1])), rest: match[2]};
+  }
+  return {env: null, rest: path};
+}
+
+/** The environment a path leads with, or null. */
+export function envFromPath(path: string): string | null {
+  return splitEnvPath(path).env;
+}
+
+/** An app path (`/queries`) under an environment (`/prod/queries`). */
+export function withEnvPath(path: string, env: string): string {
+  return '/' + encodeURIComponent(env) + (path.startsWith('/') ? path : '/' + path);
+}
+
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
 
 /**
  * The environment a link names, or null when it names none.
@@ -77,6 +113,11 @@ function clean(value: string | null): string | null {
  * is not configurable in Chrome, so a service that reads it inline has a
  * startup rule that can only be verified by hand.
  */
+export const INITIAL_PATH = new InjectionToken<string>('initial path', {
+  providedIn: 'root',
+  factory: () => typeof location === 'undefined' ? '/' : location.pathname
+});
+
 export const INITIAL_SEARCH = new InjectionToken<string>('initial query string', {
   providedIn: 'root',
   factory: () => typeof location === 'undefined' ? '' : location.search

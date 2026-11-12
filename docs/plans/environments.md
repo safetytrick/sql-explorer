@@ -195,7 +195,12 @@ likelier.
 
 In order:
 
-1. ~~**`env` in the URL** (S).~~ **Done** — `sqlx-29f`.
+1. ~~**`env` in the URL** (S).~~ **Done** — `sqlx-29f`, as `?env=`. Since
+   `sqlx-e13.7` it leads the path instead, `/prod/queries`, matching the API's
+   `/env/{env}/` (`sqlx-e13.6`). The router never sees it:
+   `EnvPathUrlSerializer` strips it on parse and writes the current one on
+   serialize, so routes and links did not change. Old `?env=` links still
+   open on their environment and are rewritten to the path form.
 2. ~~**Decide the load-on-restart rule** (S).~~ **Done** — Michael's decision on
    2026-09-01 was *load all*. Every configured environment loads at startup,
    default first, and no environment's failure stops the others — previously a

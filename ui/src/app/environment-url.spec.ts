@@ -1,5 +1,5 @@
 import {convertToParamMap} from '@angular/router';
-import {ENV_PARAM, envFromParams, envFromSearch, withEnv} from './environment-url';
+import {ENV_PARAM, envFromParams, envFromPath, envFromSearch, splitEnvPath, withEnv, withEnvPath} from './environment-url';
 
 /**
  * Which corpus a URL is about.
@@ -69,5 +69,30 @@ describe('withEnv', () => {
 
   it('encodes a name that needs it', () => {
     expect(withEnv('/tables', 'prod eu-west')).toContain('env=prod+eu-west');
+  });
+
+  describe('in the path (sqlx-e13.7)', () => {
+    it('takes the first segment when it is not one of the app\'s routes', () => {
+      expect(splitEnvPath('/prod/queries')).toEqual({env: 'prod', rest: '/queries'});
+      expect(splitEnvPath('/prod/table/app/orders')).toEqual({env: 'prod', rest: '/table/app/orders'});
+      expect(envFromPath('/' + encodeURIComponent('prod eu-west') + '/tables')).toBe('prod eu-west');
+    });
+
+    it('leaves an app path alone', () => {
+      expect(splitEnvPath('/queries')).toEqual({env: null, rest: '/queries'});
+      expect(splitEnvPath('/table/app/orders')).toEqual({env: null, rest: '/table/app/orders'});
+      expect(splitEnvPath('/')).toEqual({env: null, rest: '/'});
+    });
+
+    /** A mistyped page stays a not-found page that shows the address. */
+    it('does not read a lone unknown segment as an environment', () => {
+      expect(envFromPath('/no-such-page')).toBeNull();
+      expect(envFromPath('/prod/')).toBeNull();
+    });
+
+    it('writes an environment in front of a path, as one segment', () => {
+      expect(withEnvPath('/queries?tags=a', 'prod')).toBe('/prod/queries?tags=a');
+      expect(withEnvPath('/tables', 'a/b')).toBe('/a%2Fb/tables');
+    });
   });
 });

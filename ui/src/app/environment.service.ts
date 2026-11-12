@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, ReplaySubject, map, take, tap } from 'rxjs';
-import { INITIAL_SEARCH, envFromSearch } from './environment-url';
+import { INITIAL_PATH, INITIAL_SEARCH, envFromPath, envFromSearch } from './environment-url';
 
 const endpoint = '/api/sql-explorer/';
 const STORAGE_KEY = 'sql-explorer.environment';
@@ -92,7 +92,10 @@ export class EnvironmentService {
   /**
    * Currently selected environment name (null = use the backend default).
    *
-   * <p>PRECEDENCE: the URL, then localStorage, then the backend default. A
+   * <p>PRECEDENCE: the URL, then localStorage, then the backend default. The
+   * URL names it as the path's first segment (`/prod/queries`, sqlx-e13.7);
+   * the older `?env=` form is still read, so links shared before the move
+   * keep working. A
    * link that names an environment shows that environment, whatever the
    * recipient last picked — which is the whole point of putting it in the URL.
    *
@@ -101,9 +104,11 @@ export class EnvironmentService {
    * which happens before any router subscription fires.
    */
   private readonly initialSearch = inject(INITIAL_SEARCH);
+  private readonly initialPath = inject(INITIAL_PATH);
+  private readonly fromUrl = envFromPath(this.initialPath) ?? envFromSearch(this.initialSearch);
 
   readonly current$ = new BehaviorSubject<string | null>(
-    envFromSearch(this.initialSearch) ?? localStorage.getItem(STORAGE_KEY));
+    this.fromUrl ?? localStorage.getItem(STORAGE_KEY));
 
   /**
    * An environment name that was asked for and does not exist, or null.
@@ -120,9 +125,8 @@ export class EnvironmentService {
     // A link's environment sticks for this browser: following it is a
     // deliberate act, and the alternative — reverting on the next navigation
     // that omits the parameter — would be harder to explain than it is worth.
-    const fromUrl = envFromSearch(this.initialSearch);
-    if (fromUrl) {
-      localStorage.setItem(STORAGE_KEY, fromUrl);
+    if (this.fromUrl) {
+      localStorage.setItem(STORAGE_KEY, this.fromUrl);
     }
   }
 
@@ -131,12 +135,24 @@ export class EnvironmentService {
     return this.http.get<EnvironmentList>(endpoint + 'environments').pipe(
       tap(list => {
         this.checkKnown(list);
+        this.knownDefault = list.defaultEnvironment;
         this.known$.next(list);
       }));
   }
 
   /** The latest environment list any caller fetched; what {@link effective} resolves against. */
-  private readonly known$ = new ReplaySubject<EnvironmentList>(1);
+  readonly known$ = new ReplaySubject<EnvironmentList>(1);
+  private knownDefault: string | null = null;
+
+  /**
+   * The environment the address bar names: the selection as asked for, known
+   * or not (so a link to a deleted environment still says what it asked for,
+   * beside the nav's warning), else the backend's default once that is known,
+   * else null.
+   */
+  urlName(): string | null {
+    return this.current$.value ?? this.knownDefault;
+  }
   private knownRequested = false;
 
   /**

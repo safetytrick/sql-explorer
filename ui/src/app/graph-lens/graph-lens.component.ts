@@ -18,7 +18,6 @@ import {tableKey} from '../query-scope.service';
 import {addCriterion} from '../criteria';
 import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
 import {scopeOf} from '../scope-url';
-import {ENV_PARAM} from '../environment-url';
 import {schemaTarget} from '../tag-path';
 
 /** The minimap's size in CSS pixels. */
@@ -1201,15 +1200,15 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * The search this graph was drawn from, as workbench params, less its table
    * scope: what a link out of the graph keeps, so the queries it opens are the
-   * ones the graph counted (sqlx-aoy.8). The environment is kept too. The
-   * graph's own params and `view` are not: a link opens the list.
+   * ones the graph counted (sqlx-aoy.8). The environment travels in the path,
+   * which the serializer writes. The graph's own params and `view` are not
+   * kept: a link opens the list.
    */
   private carriedSearch(): Record<string, string> {
     const search = encodeSearchParams(decodeSearchParams(this.route.snapshot.queryParamMap));
     delete search['tables'];
     delete search['tableMode'];
-    const env = this.route.snapshot.queryParams[ENV_PARAM];
-    return {...search, ...(env ? {[ENV_PARAM]: env} : {})};
+    return search;
   }
 
   /**
@@ -1341,9 +1340,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   private openInNewTab(node: LayoutNode) {
     const params = this.route.snapshot.queryParams;
-    const env = params[ENV_PARAM];
     const tree = this.router.createUrlTree(['/table', node.schema, node.table],
-      { queryParams: {...scopeOf(params), ...(env ? {[ENV_PARAM]: env} : {})} });
+      { queryParams: scopeOf(params) });
     window.open(this.router.serializeUrl(tree), '_blank', 'noopener');
   }
 

@@ -79,20 +79,21 @@ describe('GraphLensComponent — scope legibility', () => {
     let open: jasmine.Spy;
 
     beforeEach(() => {
-      navigateTo({}, {schemas: 'app', env: 'staging'});
+      navigateTo({}, {schemas: 'app'});
       // the hit test is canvas geometry; what is under test is what a hit does
       spyOn(component as unknown as {nodeAt: () => unknown}, 'nodeAt').and.returnValue(node);
       open = spyOn(window, 'open');
     });
 
-    it('cmd-click and ctrl-click open the table lens in a new tab, with scope and environment', () => {
+    // the environment is put in front of the path by the app's serializer (sqlx-e13.7)
+    it('cmd-click and ctrl-click open the table lens in a new tab, with its scope', () => {
       component.onClick(new MouseEvent('click', {metaKey: true}));
       component.onClick(new MouseEvent('click', {ctrlKey: true}));
 
       expect(open).toHaveBeenCalledTimes(2);
       const [url, target] = open.calls.mostRecent().args;
       expect(target).toBe('_blank');
-      expect(url).toBe('/table/app/orders?schemas=app&env=staging');
+      expect(url).toBe('/table/app/orders?schemas=app');
       expect(router.navigate).not.toHaveBeenCalledWith(['/table', 'app', 'orders']);
     });
 
@@ -243,14 +244,14 @@ describe('GraphLensComponent — scope legibility', () => {
       queryCount: 2, warn: false, selfJoin: false, view: false, x: 0, y: 0});
 
     it('keep the search the graph was drawn from, with the table scope swapped for the edge', () => {
-      navigateTo({}, {q: 'invoice', fullScan: 'YES', tables: 'app.note', env: 'local',
+      navigateTo({}, {q: 'invoice', fullScan: 'YES', tables: 'app.note',
         view: 'graph', 'var-layers': 'fk', 'var-table': 'account'});
       const link = component.edgeLink({from: node('account'), to: node('site'), label: ''} as never);
       expect(link.path).toBe('/queries');
-      expect(link.query).toEqual({q: 'invoice', fullScan: 'YES', env: 'local',
+      expect(link.query).toEqual({q: 'invoice', fullScan: 'YES',
         tables: 'app.account,app.site', tableMode: 'ALL'});
       expect(component.tableQueriesLink(node('site') as never))
-        .toEqual({q: 'invoice', fullScan: 'YES', env: 'local', tables: 'app.site'});
+        .toEqual({q: 'invoice', fullScan: 'YES', tables: 'app.site'});
     });
 
     it('say a never-joined key is unjoined by the matching queries, once the search is filtered', () => {

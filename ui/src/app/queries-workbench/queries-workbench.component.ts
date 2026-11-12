@@ -1,4 +1,3 @@
-import {ENV_PARAM} from '../environment-url';
 import {countBadge, CountBadge} from './count-badge';
 import {GLOSSARY} from '../glossary';
 import {InViewDirective} from '../in-view.directive';
@@ -858,9 +857,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   }
 
   private openInNewTab(hit: QueryHit) {
-    const env = this.route.snapshot.queryParams[ENV_PARAM];
-    const tree = this.router.createUrlTree(['/analyzed-sql', hit.profile.digest],
-      { queryParams: env ? {[ENV_PARAM]: env} : {} });
+    // the serializer puts the environment at the front of the path
+    const tree = this.router.createUrlTree(['/analyzed-sql', hit.profile.digest]);
     window.open(this.router.serializeUrl(tree), '_blank', 'noopener');
   }
 

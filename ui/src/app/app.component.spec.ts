@@ -29,4 +29,10 @@ describe('AppComponent', () => {
     expect(compiled.querySelector('app-nav-bar')).toBeTruthy();
     expect(compiled.querySelector('router-outlet')).toBeTruthy();
   }));
+
+  it('knows the workbench with the environment in front of it (sqlx-e13.7)', () => {
+    expect(AppComponent.isTreePage('/queries?q=x')).toBeTrue();
+    expect(AppComponent.isTreePage('/prod/queries')).toBeTrue();
+    expect(AppComponent.isTreePage('/prod/tables')).toBeFalse();
+  });
 });

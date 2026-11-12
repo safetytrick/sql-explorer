@@ -29,19 +29,19 @@ test('switching environments reloads the rows on /schemas', async ({page}) => {
   await chooseEnvironment(page, 'staging');
 
   // the address moves...
-  await expect(page).toHaveURL(/env=staging/);
+  await expect(page).toHaveURL(/\/staging\//);
   // ...and so does what is on the page
   await expect(page.locator('.data-table tbody tr')).toHaveCount(1);
   await expect(page.locator('.data-table tbody')).toContainText('staging_only');
 });
 
 test('and switching back reloads again', async ({page}) => {
-  await page.goto('/schemas?env=staging');
+  await page.goto('/staging/schemas');
   await expect(page.locator('.data-table tbody tr')).toHaveCount(1);
 
   await chooseEnvironment(page, 'regression');
 
-  await expect(page).toHaveURL(/env=regression/);
+  await expect(page).toHaveURL(/\/regression\//);
   await expect(page.locator('.data-table tbody tr')).toHaveCount(2);
 });
 
@@ -56,7 +56,7 @@ test('switching environments reloads the rows on /tables, where the root lands',
 
   await chooseEnvironment(page, 'staging');
 
-  await expect(page).toHaveURL(/env=staging/);
+  await expect(page).toHaveURL(/\/staging\//);
   await expect(page.locator('.data-table tbody tr')).toHaveCount(1);
   await expect(page.locator('.data-table tbody')).toContainText('staging_only');
 });

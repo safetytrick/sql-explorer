@@ -2,7 +2,7 @@ import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {EnvironmentService, EnvironmentList} from './environment.service';
-import {INITIAL_SEARCH} from './environment-url';
+import {INITIAL_PATH, INITIAL_SEARCH} from './environment-url';
 
 /**
  * The environment is which corpus a page is about, so getting it wrong does not
@@ -20,7 +20,7 @@ describe('EnvironmentService', () => {
     }))
   });
 
-  function make(search: string, stored: string | null) {
+  function make(search: string, stored: string | null, path = '/') {
     localStorage.clear();
     if (stored) {
       localStorage.setItem('sql-explorer.environment', stored);
@@ -31,7 +31,8 @@ describe('EnvironmentService', () => {
     TestBed.configureTestingModule({
       providers: [
         EnvironmentService, provideHttpClient(), provideHttpClientTesting(),
-        {provide: INITIAL_SEARCH, useValue: search}
+        {provide: INITIAL_SEARCH, useValue: search},
+        {provide: INITIAL_PATH, useValue: path}
       ]
     });
     return {
@@ -45,6 +46,23 @@ describe('EnvironmentService', () => {
   /** The whole point: a link overrides whatever the recipient last picked. */
   it('prefers the environment the URL names over the stored one', () => {
     expect(make('?env=local', 'regression').service.getCurrent()).toBe('local');
+  });
+
+  /** The environment leads the path now (sqlx-e13.7); the old ?env= still works. */
+  it('reads the environment from the front of the path, over storage', () => {
+    expect(make('', 'regression', '/local/queries').service.getCurrent()).toBe('local');
+  });
+
+  it('prefers the path to a legacy ?env=', () => {
+    expect(make('?env=other', 'regression', '/local/queries').service.getCurrent()).toBe('local');
+  });
+
+  it('names the default in the address once the backend has said what it is', () => {
+    const {service, http} = make('', null);
+    expect(service.urlName()).toBeNull();
+    service.getEnvironments().subscribe();
+    http.expectOne('/api/sql-explorer/environments').flush(list('regression', 'local'));
+    expect(service.urlName()).toBe('regression');
   });
 
   it('falls back to the stored environment when the URL names none', () => {
