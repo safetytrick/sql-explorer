@@ -65,10 +65,10 @@ class DevIdpApplicationTest {
 
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = {
-            "viewer   | sqlx:viewer",
-            "runner   | sqlx:runner:app-staging",
-            "author   | sqlx:author:app-staging",
-            "mixed    | sqlx:runner:app-staging,sqlx:author:app-prod",
+            "viewer   | sqlx:viewer:local",
+            "runner   | sqlx:viewer:local,sqlx:runner:local/app",
+            "author   | sqlx:viewer:local,sqlx:author:local/app",
+            "mixed    | sqlx:viewer:local,sqlx:viewer:production,sqlx:runner:local,sqlx:author:production/app",
             "admin    | sqlx:admin",
             "nogroups | ''",
     })

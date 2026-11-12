@@ -81,6 +81,7 @@ class OidcSignInTest {
         registry.add("datasources.explorer.username", MYSQL::getUsername);
         registry.add("datasources.explorer.password", MYSQL::getPassword);
         registry.add("environments.alpha.default", () -> "true");
+        registry.add("environments.beta.default", () -> "false");
         registry.add("parquet-sink.filename", () -> CAPTURES.resolve("sql-repository.parquet").toString());
     }
 
@@ -182,7 +183,7 @@ class OidcSignInTest {
     @Test
     void userReportsTheSignedInUserAndTheirGroups() throws Exception {
         MvcResult result = mvc.perform(get(API + "/user").contextPath(API)
-                .with(signedIn("sub-reader", "reader@example.com", List.of("sqlx:viewer", "sqlx:runner:app-staging"))))
+                .with(signedIn("sub-reader", "reader@example.com", List.of("sqlx:viewer:alpha", "sqlx:runner:alpha/app", "other-app:x"))))
             .andExpect(status().isOk())
             .andReturn();
 
@@ -191,7 +192,14 @@ class OidcSignInTest {
         assertThat(body.path("issuer").asString()).isEqualTo(ISSUER);
         assertThat(body.path("subject").asString()).isEqualTo("sub-reader");
         assertThat(body.path("groups").valueStream().map(JsonNode::asString).toList())
-            .containsExactly("sqlx:viewer", "sqlx:runner:app-staging");
+            .containsExactly("sqlx:viewer:alpha", "sqlx:runner:alpha/app", "other-app:x");
+        assertThat(body.path("grants").valueStream().map(JsonNode::asString).toList())
+            .containsExactly("viewer:alpha", "runner:alpha/app");
+        assertThat(body.path("admin").asBoolean()).isFalse();
+        // per environment, the environment-level permissions held: Runner on a datasource adds none
+        assertThat(body.path("environments").propertyNames()).containsExactly("alpha");
+        assertThat(body.path("environments").path("alpha").valueStream().map(JsonNode::asString).toList())
+            .containsExactly("explorer:read", "commentary:write");
         assertThat(body.path("user").path("email").asString()).isEqualTo("reader@example.com");
         assertThat(body.path("user").path("name").asString()).isEqualTo("Reader sub-reader");
         // the author shape stays free of provider identifiers
@@ -203,7 +211,7 @@ class OidcSignInTest {
     @Test
     void writesAreAttributedToTheSignedInUser() throws Exception {
         MvcResult result = mvc.perform(post(API + "/env/alpha/notes").contextPath(API)
-                .with(signedIn("sub-writer", "writer@example.com", List.of()))
+                .with(signedIn("sub-writer", "writer@example.com", List.of("sqlx:viewer:alpha")))
                 .with(asAngularDoes())
                 .param("path", "/schema/app_main/table/account")
                 .param("text", "a note"))
@@ -219,7 +227,7 @@ class OidcSignInTest {
     @Test
     void aWriteWithoutTheCsrfTokenIsRefused() throws Exception {
         mvc.perform(post(API + "/env/alpha/notes").contextPath(API)
-                .with(signedIn("sub-forged", "forged@example.com", List.of()))
+                .with(signedIn("sub-forged", "forged@example.com", List.of("sqlx:viewer:alpha")))
                 .param("path", "/schema/app_main")
                 .param("text", "x"))
             .andExpect(status().isForbidden());
@@ -238,6 +246,87 @@ class OidcSignInTest {
         assertThat(location).startsWith(ISSUER + "/connect/logout?")
             .contains("id_token_hint=")
             .contains("post_logout_redirect_uri=http://localhost/");
+    }
+
+    // ---- grants: what the groups claim allows (sqlx-e13.4) ----
+
+    /** Viewer is per environment: another environment is refused and not even listed. */
+    @Test
+    void aViewerReadsTheirEnvironmentAndNoOther() throws Exception {
+        var viewer = signedIn("sub-v", "v@example.com", List.of("sqlx:viewer:alpha"));
+        mvc.perform(get(API + "/env/alpha/schemas").contextPath(API).with(viewer)).andExpect(status().isOk());
+        mvc.perform(get(API + "/env/beta/schemas").contextPath(API).with(viewer)).andExpect(status().isForbidden());
+
+        JsonNode list = json.readTree(mvc.perform(get(API + "/environments").contextPath(API).with(viewer))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(list.path("environments").valueStream().map(e -> e.path("name").asString()).toList()).containsExactly("alpha");
+        assertThat(list.path("defaultEnvironment").asString()).isEqualTo("alpha");
+    }
+
+    /** The default is the first visible one when the configured default is not. */
+    @Test
+    void theDefaultIsOneTheCallerCanSee() throws Exception {
+        JsonNode list = json.readTree(mvc.perform(get(API + "/environments").contextPath(API)
+                .with(signedIn("sub-b", "b@example.com", List.of("sqlx:viewer:beta"))))
+            .andReturn().getResponse().getContentAsString());
+        assertThat(list.path("defaultEnvironment").asString()).isEqualTo("beta");
+    }
+
+    /** Commentary comes with Viewer; EXPLAIN, sampling and pulls do not. */
+    @Test
+    void aViewerMayTagButNotRunAnythingAgainstTheServers() throws Exception {
+        var viewer = signedIn("sub-v2", "v2@example.com", List.of("sqlx:viewer:alpha"));
+        mvc.perform(post(API + "/env/alpha/notes").contextPath(API).with(viewer).with(asAngularDoes())
+                .param("path", "/schema/app_main").param("text", "x"))
+            .andExpect(status().is2xxSuccessful());
+        mvc.perform(post(API + "/env/alpha/analyzed-sql/abc/explain").contextPath(API).with(viewer).with(asAngularDoes()))
+            .andExpect(status().isForbidden());
+        mvc.perform(post(API + "/env/alpha/profile/table/app/orders/runs").contextPath(API).with(viewer).with(asAngularDoes()))
+            .andExpect(status().isForbidden());
+        mvc.perform(post(API + "/environments/alpha/pull").contextPath(API).with(viewer).with(asAngularDoes()))
+            .andExpect(status().isForbidden());
+        // a search is a read, though it is a POST
+        mvc.perform(post(API + "/env/alpha/queries/search").contextPath(API).with(viewer).with(asAngularDoes())
+                .contentType("application/json").content("{}"))
+            .andExpect(status().isOk());
+    }
+
+    /** Runner across an environment may EXPLAIN there; Runner on one datasource may not. */
+    @Test
+    void explainNeedsRunnerOnTheEnvironment() throws Exception {
+        var envRunner = signedIn("sub-r", "r@example.com", List.of("sqlx:runner:alpha"));
+        var dsRunner = signedIn("sub-r2", "r2@example.com", List.of("sqlx:viewer:alpha", "sqlx:runner:alpha/app"));
+        int allowed = mvc.perform(post(API + "/env/alpha/analyzed-sql/abc/explain").contextPath(API)
+                .with(envRunner).with(asAngularDoes())).andReturn().getResponse().getStatus();
+        assertThat(allowed).as("authorized; whatever EXPLAIN itself answers").isNotIn(401, 403);
+        mvc.perform(post(API + "/env/alpha/analyzed-sql/abc/explain").contextPath(API).with(dsRunner).with(asAngularDoes()))
+            .andExpect(status().isForbidden());
+    }
+
+    /** Operator endpoints, and anything not classified, are Admin's alone. */
+    @Test
+    void operatorEndpointsAreAdminOnly() throws Exception {
+        mvc.perform(get(API + "/analysis-failures").contextPath(API)
+                .with(signedIn("sub-v3", "v3@example.com", List.of("sqlx:viewer:alpha"))))
+            .andExpect(status().isForbidden());
+        mvc.perform(get(API + "/analysis-failures").contextPath(API)
+                .with(signedIn("sub-a", "a@example.com", List.of("sqlx:admin"))))
+            .andExpect(status().isOk());
+        mvc.perform(get(API + "/env/beta/schemas").contextPath(API)
+                .with(signedIn("sub-a2", "a2@example.com", List.of("sqlx:admin"))))
+            .andExpect(status().isOk());
+    }
+
+    /** Signed in with no groups: nothing listed, everything refused, and told so. */
+    @Test
+    void noGroupsMeansNoAccess() throws Exception {
+        var nobody = signedIn("sub-n", "n@example.com", List.of());
+        JsonNode list = json.readTree(mvc.perform(get(API + "/environments").contextPath(API).with(nobody))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(list.path("environments").isEmpty()).isTrue();
+        String refused = mvc.perform(get(API + "/env/alpha/schemas").contextPath(API).with(nobody))
+            .andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(refused).path("message").asString()).contains("Ask an administrator");
     }
 
     // ---- the users row ----

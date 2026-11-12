@@ -35,10 +35,16 @@ export class SignedInUserComponent implements OnInit {
     return current.user?.name || current.user?.email || current.subject || 'signed in';
   }
 
+  /** Signed in, but granted no environment: everything would be refused (sqlx-e13.4). */
+  noAccess(current: CurrentUser): boolean {
+    return current.mode === 'oidc' && !current.admin && Object.keys(current.environments ?? {}).length === 0;
+  }
+
   /** Hover text: the email and the groups as the provider sent them. */
   detail(current: CurrentUser): string {
     const lines = [current.user?.email || '(no email)'];
     lines.push(current.groups.length ? 'groups: ' + current.groups.join(', ') : 'groups: none');
+    lines.push(current.grants?.length ? 'grants: ' + current.grants.join(', ') : 'grants: none');
     return lines.join('\n');
   }
 

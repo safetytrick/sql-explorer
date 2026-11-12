@@ -20,15 +20,22 @@ import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2Clien
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -57,6 +64,13 @@ import tools.jackson.databind.json.JsonMapper;
  *       {@code XSRF-TOKEN} and echoes as {@code X-XSRF-TOKEN}. The cookie's
  *       path is {@code /}: the UI's pages are not under the API's context path,
  *       and a page can only read cookies whose path covers its own.</li>
+ *   <li><b>Authorization is by URL</b> (sqlx-e13.4): the environment is in the
+ *       path ({@code /env/{env}/…}), and each rule asks whether the caller's
+ *       grants ({@link GroupGrants}) allow one {@link Permission} there. Reads
+ *       need {@code explorer:read}, other writes {@code commentary:write},
+ *       EXPLAIN and profiling the Runner permissions, pulls and loads Admin.
+ *       Anything not classified is Admin's, so a new endpoint is closed until
+ *       someone decides otherwise.</li>
  *   <li>Sign-out is a POST to {@code /logout}, answered with JSON naming where
  *       to go next: the provider's end-session endpoint (RP-initiated logout)
  *       where one is known, else the UI's root.</li>
@@ -86,10 +100,59 @@ class SecurityConfig {
         "/actuator/health", "/actuator/health/**", "/actuator/prometheus",
     };
 
+    /**
+     * POSTs under {@code /env/{env}/} that read rather than write: searches and
+     * batched lookups whose request is a body. They need only
+     * {@code explorer:read}; every other POST there is commentary.
+     */
+    private static final String[] READ_POSTS = {
+        "/env/{env}/queries/search", "/env/{env}/graph/v2/search", "/env/{env}/tags/search/preview",
+        "/env/{env}/tags/path", "/env/{env}/tags/targets", "/env/{env}/notes/paths",
+        "/env/{env}/annotations/targets", "/env/{env}/annotations/history",
+        "/env/{env}/query-examples", "/env/{env}/ddl/preflight", "/env/{env}/unused-indexes/read",
+    };
+
+    /**
+     * Allowed when the caller's grants allow {@code permission} on the
+     * environment named by the path's {@code {env}} (sqlx-e13.4). The scope is
+     * read from the URL alone, which is why the environment is in it
+     * (sqlx-e13.6).
+     */
+    private static AuthorizationManager<RequestAuthorizationContext> may(Permission permission, Authorizations authorizations) {
+        return (authentication, context) -> {
+            String env = context.getVariables().get("env");
+            Authentication who = authentication.get();
+            boolean signedIn = who != null && who.isAuthenticated() && !(who instanceof AnonymousAuthenticationToken);
+            return new AuthorizationDecision(signedIn && env != null && authorizations.of(who).allows(permission, env));
+        };
+    }
+
+    private static AuthorizationManager<RequestAuthorizationContext> admin(Authorizations authorizations) {
+        return (authentication, context) -> {
+            Authentication who = authentication.get();
+            boolean signedIn = who != null && who.isAuthenticated() && !(who instanceof AnonymousAuthenticationToken);
+            return new AuthorizationDecision(signedIn && authorizations.of(who).admin());
+        };
+    }
+
+    /** 403 with a JSON body, so the UI can say what is missing rather than show nothing. */
+    private static AccessDeniedHandler forbidden(JsonMapper json) {
+        return (request, response, exception) -> {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("status", HttpStatus.FORBIDDEN.value());
+            body.put("error", "Forbidden");
+            body.put("message", "You do not have access to this. Ask an administrator for the group that grants it.");
+            response.setStatus(HttpStatus.FORBIDDEN.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            json.writeValue(response.getWriter(), body);
+        };
+    }
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, AuthProperties auth, JsonMapper json,
                                             ObjectProvider<ClientRegistrationRepository> registrations,
-                                            UserService users) throws Exception {
+                                            UserService users, Authorizations authorizations) throws Exception {
         // never save an API request to "return to" after sign-in; /login says where to go
         http.requestCache(cache -> cache.requestCache(new NullRequestCache()));
         if (!auth.oidc()) {
@@ -105,13 +168,33 @@ class SecurityConfig {
         return http
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(OPEN).permitAll()
-                .anyRequest().authenticated())
+                // ── global ──────────────────────────────────────────────────
+                .requestMatchers(HttpMethod.POST, "/environments/{env}/pull", "/environments/{env}/refresh-schema")
+                    .access(may(Permission.ENV_PULL, authorizations))
+                .requestMatchers(HttpMethod.GET, "/environments", "/user", "/graph/layout").authenticated()
+                .requestMatchers("/util/**", "/graph/layout/**").authenticated()
+                // ── one environment: /env/{env}/… ───────────────────────────
+                // loading sources rewrites the environment, as a pull does
+                .requestMatchers(HttpMethod.POST, "/env/{env}/sources", "/env/{env}/sources/load",
+                        "/env/{env}/environments/**").access(admin(authorizations))
+                .requestMatchers(HttpMethod.POST, "/env/{env}/query-examples/*/explain", "/env/{env}/analyzed-sql/*/explain")
+                    .access(may(Permission.ENV_EXPLAIN, authorizations))
+                .requestMatchers(HttpMethod.POST, "/env/{env}/profile/**").access(may(Permission.ENV_SAMPLE, authorizations))
+                // POSTs that only ask a question with a body too large for a query string
+                .requestMatchers(HttpMethod.POST, READ_POSTS).access(may(Permission.EXPLORER_READ, authorizations))
+                .requestMatchers(HttpMethod.GET, "/env/{env}/**").access(may(Permission.EXPLORER_READ, authorizations))
+                // every other write in an environment is commentary: tags, notes, annotations
+                .requestMatchers("/env/{env}/**").access(may(Permission.COMMENTARY_WRITE, authorizations))
+                // anything not named above is an operator's: a new endpoint is closed until it is classified
+                .anyRequest().access(admin(authorizations)))
             .oauth2Login(login -> login
                 .loginPage(LoginResource.PATH)
                 .clientRegistrationRepository(repository)
                 .successHandler(signedIn(users))
                 .failureHandler(signInFailed()))
-            .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(unauthorized(json)))
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint(unauthorized(json))
+                .accessDeniedHandler(forbidden(json)))
             .csrf(csrf -> csrf
                 .spa()
                 .csrfTokenRepository(csrfTokens)

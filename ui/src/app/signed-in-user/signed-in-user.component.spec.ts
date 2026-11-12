@@ -17,7 +17,10 @@ const SIGNED_IN: CurrentUser = {
   user: { id: 7, email: 'reader@example.com', name: 'Reader One', createdOn: new Date(0) },
   issuer: 'http://localhost:18190',
   subject: 'reader',
-  groups: ['sqlx:viewer', 'sqlx:runner:app-staging'],
+  groups: ['sqlx:viewer:local', 'sqlx:runner:local/app'],
+  grants: ['viewer:local', 'runner:local/app'],
+  admin: false,
+  environments: {local: ['explorer:read', 'commentary:write']},
 };
 
 const SIGN_IN_OFF: CurrentUser = {
@@ -26,6 +29,9 @@ const SIGN_IN_OFF: CurrentUser = {
   issuer: null,
   subject: null,
   groups: [],
+  grants: ['admin:*'],
+  admin: true,
+  environments: {},
 };
 
 describe('SignedInUserComponent', () => {
@@ -63,7 +69,7 @@ describe('SignedInUserComponent', () => {
     const who = el().querySelector('.who')!;
     expect(who.textContent!.trim()).toBe('Reader One');
     expect(who.getAttribute('title')).toContain('reader@example.com');
-    expect(who.getAttribute('title')).toContain('sqlx:viewer, sqlx:runner:app-staging');
+    expect(who.getAttribute('title')).toContain('sqlx:viewer:local, sqlx:runner:local/app');
     expect(el().querySelector('.sign-out')!.textContent!.trim()).toBe('Sign out');
     expect(el().querySelector('.auth-off')).toBeNull();
   });
@@ -101,5 +107,14 @@ describe('SignedInUserComponent', () => {
     fixture.detectChanges();
 
     expect(el().textContent!.trim()).toBe('');
+  });
+
+  it('says so when signed in with no environment granted (sqlx-e13.4)', () => {
+    answer(SIGNED_IN);
+    const component = fixture.componentInstance;
+    expect(component.noAccess({...SIGNED_IN, environments: {}})).toBeTrue();
+    expect(component.noAccess(SIGNED_IN)).toBeFalse();
+    expect(component.noAccess({...SIGNED_IN, environments: {}, admin: true})).toBeFalse();
+    expect(component.noAccess(SIGN_IN_OFF)).toBeFalse();
   });
 });

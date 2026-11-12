@@ -40,3 +40,12 @@
   padding: 0.15rem 0.5rem;
   cursor: help;
 }
+
+/* signed in with no grant: the same quiet pill as sign-in-off, saying why pages are empty */
+.no-access {
+  color: var(--amber);
+  background: var(--amber-dim);
+  border-radius: var(--radius);
+  padding: 0.15rem 0.5rem;
+  cursor: help;
+}

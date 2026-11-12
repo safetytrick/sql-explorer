@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, shareReplay } from 'rxjs';
+import { Observable, catchError, combineLatest, of, shareReplay, startWith } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { EnvironmentService } from './environment.service';
 import { Author } from './author';
 
 const endpoint = '/api/sql-explorer/';
@@ -19,8 +20,28 @@ export interface CurrentUser {
   user: Author & { name?: string | null };
   issuer: string | null;
   subject: string | null;
-  /** The provider's `groups` claim as sent. Reported only; roles are sqlx-e13.4. */
+  /** The provider's `groups` claim as sent. */
   groups: string[];
+  /** What those groups grant, as `role:scope` (`viewer:prod`, `admin:*`); sqlx-e13.4. */
+  grants: string[];
+  /** Whether the operator endpoints are open to them. */
+  admin: boolean;
+  /**
+   * Per environment they can see, the environment-level permissions held
+   * there. An environment that is absent is one they cannot see at all.
+   */
+  environments: Record<string, EnvPermission[]>;
+}
+
+/** The environment-level permissions the backend enforces (sqlx-e13.4). */
+export type EnvPermission = 'explorer:read' | 'commentary:write' | 'env:explain' | 'env:sample' | 'env:pull';
+
+/**
+ * Whether `user` holds `permission` on environment `env`. Only for leaving
+ * out controls the backend would refuse; the backend decides.
+ */
+export function can(user: CurrentUser | null | undefined, permission: EnvPermission, env: string | null | undefined): boolean {
+  return !!user && !!env && (user.environments?.[env] ?? []).includes(permission);
 }
 
 /**
@@ -63,7 +84,7 @@ export class UserService {
 
   private current$?: Observable<CurrentUser>;
 
-  constructor(private http: HttpClient, private navigation: BrowserNavigation) { }
+  constructor(private http: HttpClient, private navigation: BrowserNavigation, private environments: EnvironmentService) { }
 
   /** Who is signed in. Asked once per page; a sign-in or sign-out reloads the page anyway. */
   getCurrentUser(): Observable<CurrentUser> {
@@ -71,6 +92,18 @@ export class UserService {
       this.current$ = this.http.get<CurrentUser>(endpoint + 'user').pipe(shareReplay(1));
     }
     return this.current$;
+  }
+
+  /**
+   * Whether the current user holds `permission` on the environment requests
+   * are made against. False until `/user` answers, so a control appears
+   * rather than flashing and vanishing.
+   */
+  can(permission: EnvPermission): Observable<boolean> {
+    return combineLatest([this.getCurrentUser(), this.environments.effective()]).pipe(
+      map(([user, env]) => can(user, permission, env)),
+      startWith(false),
+      catchError(() => of(false)));
   }
 
   /**

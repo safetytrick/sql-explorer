@@ -1,5 +1,6 @@
+import {UserService} from '../user.service';
 import {Component, DestroyRef, inject, OnInit} from '@angular/core';
-import {DatePipe, DecimalPipe} from '@angular/common';
+import {DatePipe, DecimalPipe, AsyncPipe} from '@angular/common';
 import {HttpClient, HttpErrorResponse, HttpParams} from '@angular/common/http';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
@@ -24,7 +25,7 @@ import {
   selector: 'app-table-profile',
   templateUrl: './table-profile.component.html',
   styleUrls: ['./table-profile.component.scss'],
-  imports: [RouterLink, DatePipe, DecimalPipe, SqlHighlightDirective]
+  imports: [RouterLink, DatePipe, DecimalPipe, SqlHighlightDirective, AsyncPipe]
 })
 export class TableProfileComponent implements OnInit {
   protected readonly findings = findings;
@@ -53,6 +54,8 @@ export class TableProfileComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly environmentService = inject(EnvironmentService);
+  /** Profiling samples the table's data on its servers: Runner and up (sqlx-e13.4). */
+  readonly maySample$ = inject(UserService).can('env:sample');
 
   ngOnInit() {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {

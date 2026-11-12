@@ -1,6 +1,8 @@
 import {ComponentFixture, TestBed, waitForAsync} from '@angular/core/testing';
 import {HttpTestingController} from '@angular/common/http/testing';
 import {COMMON_TEST_PROVIDERS} from '../testing/common-test-providers';
+import {of} from 'rxjs';
+import {UserService} from '../user.service';
 import {QueryExamplesComponent} from './query-examples.component';
 import {QueryExample} from '../api-types';
 
@@ -58,7 +60,8 @@ describe('QueryExamplesComponent', () => {
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       imports: [QueryExamplesComponent],
-      providers: [COMMON_TEST_PROVIDERS]
+      // who may EXPLAIN is the user service's to say; here, everyone (sqlx-e13.4)
+      providers: [COMMON_TEST_PROVIDERS, {provide: UserService, useValue: {can: () => of(true)}}]
     }).compileComponents();
   }));
 

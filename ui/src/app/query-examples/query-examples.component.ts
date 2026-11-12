@@ -1,4 +1,6 @@
-import {Component, Input, OnInit} from '@angular/core';
+import {Component, Input, OnInit, inject} from '@angular/core';
+import {AsyncPipe} from '@angular/common';
+import {UserService} from '../user.service';
 import {FormsModule} from '@angular/forms';
 import {RouterLink} from '@angular/router';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
@@ -48,7 +50,7 @@ function byRecency(examples: QueryExample[]): QueryExample[] {
   selector: 'app-query-examples',
   templateUrl: './query-examples.component.html',
   styleUrls: ['./query-examples.component.scss'],
-  imports: [FormsModule, RouterLink, SqlHighlightDirective]
+  imports: [FormsModule, RouterLink, SqlHighlightDirective, AsyncPipe]
 })
 export class QueryExamplesComponent implements OnInit {
 
@@ -109,6 +111,9 @@ export class QueryExamplesComponent implements OnInit {
   explaining: string | null = null;
   plans = new Map<string, ExplainResult>();
   explainErrors = new Map<string, string>();
+
+  /** EXPLAIN runs against the environment's servers: Runner and up (sqlx-e13.4). */
+  readonly mayExplain$ = inject(UserService).can('env:explain');
 
   constructor(private sqlService: AnalyzedSqlService) { }
 

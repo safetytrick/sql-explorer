@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {stubApi} from './api';
+import {stubApi, VIEWER} from './api';
 
 test.beforeEach(async ({page}) => {
   await stubApi(page);
@@ -8,7 +8,7 @@ test.beforeEach(async ({page}) => {
 /** Sign-in (sqlx-e13.1): who is signed in shows in the nav, with a way out. */
 test('the nav shows who is signed in', async ({page}) => {
   await page.goto('/tables');
-  await expect(page.locator('app-signed-in-user .who')).toHaveText('Viewer');
+  await expect(page.locator('app-signed-in-user .who')).toHaveText('Admin');
   await expect(page.locator('app-signed-in-user .sign-out')).toBeVisible();
 });
 
@@ -40,6 +40,28 @@ test('a 401 from the API sends the browser to sign in, and back here after', asy
 
   const url = new URL((await login).url());
   expect(url.pathname).toBe('/api/sql-explorer/login');
-  // the environment leads the path by then (sqlx-e13.7), so sign-in comes back to the same corpus
-  expect(url.searchParams.get('return')).toBe('/regression/tables?var-type=views');
+  // The page, with its query. The environment is in front if it was written before
+  // the 401 arrived; if not, the stored or default one is put back on return (sqlx-e13.7).
+  expect(url.searchParams.get('return')).toMatch(/^(\/regression)?\/tables\?var-type=views$/);
+});
+
+/** A viewer is not offered what would only be refused: pulling an environment live is an administrator's (sqlx-e13.4). */
+test('a viewer is not offered a pull, and is shown what they have', async ({page}) => {
+  await page.route('**/api/sql-explorer/user', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify(VIEWER)
+  }));
+  await page.goto('/regression/schemas');
+  await page.locator('.env-current').click();
+  await expect(page.locator('.env-row[data-env="regression"]')).toBeVisible();
+  await expect(page.locator('.env-pull')).toHaveCount(0);
+  await expect(page.locator('app-signed-in-user .no-access')).toHaveCount(0);
+});
+
+test('signed in with no grants says so', async ({page}) => {
+  await page.route('**/api/sql-explorer/user', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({...VIEWER, groups: [], grants: [], environments: {}})
+  }));
+  await page.goto('/schemas');
+  await expect(page.locator('app-signed-in-user .no-access')).toHaveText('no access');
 });

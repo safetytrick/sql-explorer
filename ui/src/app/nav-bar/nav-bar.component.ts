@@ -6,6 +6,7 @@ import { RouterLink } from '@angular/router';
 import { EnvironmentService, EnvironmentSummary } from '../environment.service';
 import { EnvironmentUrlSync } from '../environment-url-sync';
 import { SignedInUserComponent } from '../signed-in-user/signed-in-user.component';
+import { can, CurrentUser, UserService } from '../user.service';
 
 @Component({
     selector: 'app-nav-bar',
@@ -30,9 +31,20 @@ export class NavBarComponent implements OnInit, OnDestroy {
    */
   unknownEnvironment: string | null = null;
 
+  /** Who is signed in, for leaving out what they could not do (sqlx-e13.4). */
+  private user: CurrentUser | null = null;
+
   constructor(private explainService: ExplainService,
               private environmentService: EnvironmentService,
-              private environmentUrl: EnvironmentUrlSync) { }
+              private environmentUrl: EnvironmentUrlSync,
+              private users: UserService) {
+    this.users.getCurrentUser().subscribe({next: user => this.user = user, error: () => this.user = null});
+  }
+
+  /** Pulling takes an environment live, which is an administrator's call. */
+  mayPull(env: string): boolean {
+    return can(this.user, 'env:pull', env);
+  }
 
   toggleAdmin(event: Event) {
     event.preventDefault();

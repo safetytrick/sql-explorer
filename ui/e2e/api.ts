@@ -173,11 +173,27 @@ function search(body: Record<string, unknown>) {
   };
 }
 
-/** `/user` with sign-in on: a dev-idp style user with a group or two. */
+const EVERY_ENV_PERMISSION = ['explorer:read', 'commentary:write', 'env:explain', 'env:sample', 'env:pull'];
+
+/**
+ * `/user` with sign-in on: an administrator, so every control the suite
+ * exercises is shown. `VIEWER` is the narrow case (sqlx-e13.4).
+ */
 export const SIGNED_IN = {
   mode: 'oidc',
-  user: {id: 2, email: 'viewer@example.com', name: 'Viewer', createdOn: '2026-08-30T12:00:00Z'},
-  issuer: 'http://localhost:18190', subject: 'viewer', groups: ['sqlx:viewer']
+  user: {id: 2, email: 'admin@example.com', name: 'Admin', createdOn: '2026-08-30T12:00:00Z'},
+  issuer: 'http://localhost:18190', subject: 'admin', groups: ['sqlx:admin'],
+  grants: ['admin:*'], admin: true,
+  environments: {regression: EVERY_ENV_PERMISSION, staging: EVERY_ENV_PERMISSION}
+};
+
+/** Viewer on regression only. */
+export const VIEWER = {
+  mode: 'oidc',
+  user: {id: 3, email: 'viewer@example.com', name: 'Viewer', createdOn: '2026-08-30T12:00:00Z'},
+  issuer: 'http://localhost:18190', subject: 'viewer', groups: ['sqlx:viewer:regression'],
+  grants: ['viewer:regression'], admin: false,
+  environments: {regression: ['explorer:read', 'commentary:write']}
 };
 
 export async function stubApi(page: Page) {

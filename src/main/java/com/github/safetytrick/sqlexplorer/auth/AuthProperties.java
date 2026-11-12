@@ -1,5 +1,8 @@
 package com.github.safetytrick.sqlexplorer.auth;
 
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -23,13 +26,25 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param postLogoutRedirectUri where the provider sends the browser after sign-out.
  *                              The default is the root of whatever address the app
  *                              was reached by, which is the UI.
+ * @param groupPrefix           groups that name their grant directly start with this:
+ *                              {@code sqlx:viewer:prod}, {@code sqlx:admin} (sqlx-e13.4)
+ * @param groupGrants           groups the provider names its own way, mapped to the
+ *                              grants they carry, for providers whose group names
+ *                              cannot follow the prefix scheme:
+ *                              {@code dba-team: [admin]}, {@code eng: [viewer:prod, runner:staging]}
  */
 @ConfigurationProperties("sql-explorer.auth")
 public record AuthProperties(
         @DefaultValue("none") AuthMode mode,
         String issuer,
         String endSessionUri,
-        @DefaultValue("{baseScheme}://{baseHost}{basePort}/") String postLogoutRedirectUri) {
+        @DefaultValue("{baseScheme}://{baseHost}{basePort}/") String postLogoutRedirectUri,
+        @DefaultValue("sqlx:") String groupPrefix,
+        Map<String, List<String>> groupGrants) {
+
+    public AuthProperties {
+        groupGrants = groupGrants == null ? Map.of() : Map.copyOf(groupGrants);
+    }
 
     public boolean oidc() {
         return mode == AuthMode.OIDC;

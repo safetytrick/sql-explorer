@@ -157,10 +157,12 @@
               <span class="desc">{{example.description}}</span>
             }
             <span class="spacer"></span>
+            @if (mayExplain$ | async) {
             <button type="button" class="btn small" (click)="explain(example)"
                     [disabled]="explaining === example.id">
               {{explaining === example.id ? 'planning…' : 'explain'}}
             </button>
+            }
           </div>
 
           <!-- the same rendering as the SQL card at the top of the page: an

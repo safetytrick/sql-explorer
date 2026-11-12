@@ -80,7 +80,9 @@
 
             <div class="confirm">
               @if (!confirming) {
-                <button type="button" class="btn primary" (click)="confirming = true" [disabled]="!availableTargets.length">
+                <button type="button" class="btn primary" (click)="confirming = true"
+                        [disabled]="!availableTargets.length || !(maySample$ | async)"
+                        [title]="(maySample$ | async) ? '' : 'Profiling reads table data on the servers; it needs the Runner role on this environment'">
                   {{state.scan ? 'Run full scan…' : 'Run profile…'}}</button>
               } @else {
                 <span class="ask">Send at most <strong>{{bound(plan.maxStatements)}}</strong> statements reading at most

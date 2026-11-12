@@ -53,14 +53,14 @@ to land on the result.
 
 The password is the username.
 
-| Login      | Groups                                           | What it is for                         |
-|------------|--------------------------------------------------|----------------------------------------|
-| `viewer`   | `sqlx:viewer`                                    | Viewer                                 |
-| `runner`   | `sqlx:runner:app-staging`                        | Runner on one datasource               |
-| `author`   | `sqlx:author:app-staging`                        | Author on the same datasource          |
-| `mixed`    | `sqlx:runner:app-staging`, `sqlx:author:app-prod` | Different roles on different datasources |
-| `admin`    | `sqlx:admin`                                     | Admin                                  |
-| `nogroups` | (none, an empty list)                            | Signed in but granted nothing          |
+| Login      | Groups | What it is for |
+|------------|--------|----------------|
+| `viewer`   | `sqlx:viewer:local` | Viewer on `local` only; `production` is not listed |
+| `runner`   | `sqlx:viewer:local`, `sqlx:runner:local/app` | Runner on one datasource; no EXPLAIN |
+| `author`   | `sqlx:viewer:local`, `sqlx:author:local/app` | Author on the same datasource |
+| `mixed`    | `sqlx:viewer:local`, `sqlx:viewer:production`, `sqlx:runner:local`, `sqlx:author:production/app` | Different roles in different places; EXPLAIN on `local` |
+| `admin`    | `sqlx:admin` | Admin everywhere, including pulls |
+| `nogroups` | (none, an empty list) | Signed in but granted nothing |
 
 They are defined in
 [`DevUsers.java`](src/main/java/com/github/safetytrick/sqlexplorer/devidp/DevUsers.java).
@@ -72,22 +72,17 @@ and the userinfo response. It is always present, and is `[]` for a user with no
 groups. It is sent whenever `openid` is in scope; no separate `groups` scope is
 needed.
 
-Every group follows one scheme, which sqlx-e13.4 maps to roles:
+Every group follows sql-explorer's scheme, `sqlx:<role>[:<scope>]`
+(sqlx-e13.4). The role is `viewer`, `runner`, `author` or `admin`, each
+including the one before. The scope is an environment (`local`), one datasource
+in it (`local/app`), or nothing for everywhere. A grant covers everything under
+its scope but never above it: Runner on `local/app` does not make `local`
+readable, which is why `runner` and `author` also carry a Viewer grant.
 
-| Group                    | Meaning                                    |
-|--------------------------|--------------------------------------------|
-| `sqlx:viewer`            | Viewer, on every datasource                |
-| `sqlx:admin`             | Admin, on every datasource                 |
-| `sqlx:runner:<datasource>` | Runner (run saved queries) on one datasource |
-| `sqlx:author:<datasource>` | Author (write and edit SQL) on one datasource |
-
-The `sqlx:` prefix keeps these apart from whatever else a real IdP puts in
-`groups`. A datasource name may contain letters, digits, `-` and `_`, never
-`:`. The datasources here are `app-staging` and `app-prod`.
-
-Each user carries exactly the groups listed and nothing implied: `runner` is
-not also given `sqlx:viewer`. Whether one role implies another belongs to the
-mapping, so these users test it rather than paper over it.
+The environments are the ones `src/main/docker-local/config/application.yml`
+defines, `local` and `production`, so each login can be tried against the
+local stack. A real provider can keep its own group names and map them in
+`sql-explorer.auth.group-grants` instead.
 
 The other claims are `sub` and `preferred_username` (both the login),
 `name`, `email` (`<login>@example.com`) and `email_verified`.

@@ -1,5 +1,9 @@
 package com.github.safetytrick.sqlexplorer.environment;
 
+import com.github.safetytrick.sqlexplorer.auth.Authorizations;
+import com.github.safetytrick.sqlexplorer.auth.Grants;
+import com.github.safetytrick.sqlexplorer.auth.Permission;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -27,10 +31,12 @@ class EnvironmentResource {
     private final EnvironmentLoader environmentLoader;
     private final CoverageService coverageService;
     private final CaptureRetention retention;
+    private final Authorizations authorizations;
 
     EnvironmentResource(EnvironmentRegistry registry, SqlRepositoryManager sqlRepositoryManager,
                         EnvironmentLoader environmentLoader, CoverageService coverageService,
-                        CaptureRetention retention) {
+                        CaptureRetention retention, Authorizations authorizations) {
+        this.authorizations = authorizations;
         this.registry = registry;
         this.sqlRepositoryManager = sqlRepositoryManager;
         this.environmentLoader = environmentLoader;
@@ -38,12 +44,23 @@ class EnvironmentResource {
         this.retention = retention;
     }
 
+    /**
+     * The environments the caller can see (sqlx-e13.4): Viewer is granted per
+     * environment, so one without a grant is left out rather than listed and
+     * refused. The default is the configured one when it is visible, else the
+     * first that is, else null.
+     */
     @GetMapping("/environments")
     public EnvironmentList list() {
+        Grants grants = authorizations.current();
         List<EnvironmentSummary> environments = registry.list().stream()
+            .filter(environment -> grants.allows(Permission.EXPLORER_READ, environment.getName()))
             .map(this::summarize)
             .toList();
-        return new EnvironmentList(registry.getDefaultName(), environments);
+        String preferred = registry.getDefaultName();
+        String defaultName = environments.stream().anyMatch(e -> e.name().equals(preferred)) ? preferred
+            : environments.isEmpty() ? null : environments.getFirst().name();
+        return new EnvironmentList(defaultName, environments);
     }
 
     private EnvironmentSummary summarize(Environment environment) {
