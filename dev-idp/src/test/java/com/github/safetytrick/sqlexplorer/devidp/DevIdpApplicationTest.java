@@ -38,13 +38,16 @@ import tools.jackson.databind.json.JsonMapper;
  * every endpoint is reached on the random port, yet {@code iss} stays fixed.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"dev-idp.issuer=http://idp.example.test:18190",
+        properties = {"dev-idp.issuer=http://idp.example.test:4200/idp",
                 "dev-idp.key-file=build/test-idp/signing-key.json"})
 class DevIdpApplicationTest {
 
-    private static final String ISSUER = "http://idp.example.test:18190";
+    private static final String ISSUER = "http://idp.example.test:4200/idp";
     private static final String REDIRECT_URI = "http://localhost:4200/api/sql-explorer/login/oauth2/code/sql-explorer";
     private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    /** Served under a path so the UI's nginx can proxy it on the same origin as the app. */
+    private static final String CONTEXT_PATH = "/idp";
 
     @LocalServerPort
     int port;
@@ -119,6 +122,29 @@ class DevIdpApplicationTest {
         assertThat(response.statusCode()).isEqualTo(400);
     }
 
+    /**
+     * Behind the UI's nginx the browser is on localhost:4200, and the IdP sees
+     * the proxy's request. The login redirect has to be built from the
+     * forwarded headers, or the browser is sent to a port it cannot reach.
+     */
+    @Test
+    void theLoginRedirectFollowsTheProxysForwardedHeaders() throws Exception {
+        HttpResponse<String> authorize = newClient().send(HttpRequest.newBuilder(URI.create(url("/oauth2/authorize?" + form(Map.of(
+                        "response_type", "code",
+                        "client_id", "sql-explorer",
+                        "scope", "openid",
+                        "redirect_uri", REDIRECT_URI,
+                        "code_challenge", "x".repeat(43),
+                        "code_challenge_method", "S256")))))
+                .header("Accept", "text/html")
+                .header("X-Forwarded-Proto", "http")
+                .header("X-Forwarded-Host", "localhost")
+                .header("X-Forwarded-Port", "4200")
+                .GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(authorize.statusCode()).isEqualTo(302);
+        assertThat(authorize.headers().firstValue("Location")).hasValue("http://localhost:4200/idp/login");
+    }
+
     private record Tokens(String idToken, String accessToken) {
     }
 
@@ -179,7 +205,7 @@ class DevIdpApplicationTest {
     }
 
     private String url(String path) {
-        return "http://localhost:" + port + path;
+        return "http://localhost:" + port + CONTEXT_PATH + path;
     }
 
     private HttpRequest get(String path) {

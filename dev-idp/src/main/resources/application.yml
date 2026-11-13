@@ -1,18 +1,28 @@
 # Each value can be overridden from the environment, e.g. DEV_IDP_ISSUER.
 server:
-  # The same port inside and outside the container, so the browser-facing and
-  # in-network addresses differ only by hostname (see README, "Which issuer").
-  port: 18190
+  # Under /idp so the UI's nginx can serve it on the app's own origin,
+  # http://localhost:4200/idp, and nothing has to be reached on 18190 (see
+  # README, "Behind the UI's nginx").
   servlet:
+    context-path: /idp
     session:
       cookie:
         # Cookies are scoped by host, not port: under the default JSESSIONID
         # the IdP and a backend on another localhost port would overwrite
-        # each other's session on every sign-in.
+        # each other's session on every sign-in. Behind nginx the path (/idp)
+        # keeps them apart as well.
         name: DEV_IDP_SESSION
+  # Trust X-Forwarded-* from the proxy, so redirects (to the login form, back
+  # to authorize) name localhost:4200 rather than the container's own port.
+  forward-headers-strategy: native
+  # The same port inside and outside the container, so the browser-facing and
+  # in-network addresses differ only by hostname (see README, "Which issuer").
+  port: 18190
 
 dev-idp:
-  issuer: http://localhost:18190
+  # Direct, for bootRun. docker-compose.dev-idp.yml sets the proxied
+  # http://localhost:4200/idp instead.
+  issuer: http://localhost:18190/idp
   # Generated on first start and reused after, so a restart keeps tokens valid.
   # Relative to the working directory: dev-idp/ under bootRun, /app/data in the
   # container (a named volume). Git-ignored (.data/).

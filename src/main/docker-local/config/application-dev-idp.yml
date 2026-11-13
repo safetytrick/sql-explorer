@@ -17,8 +17,8 @@
 sql-explorer:
   auth:
     mode: oidc
-    issuer: ${DEV_IDP_ISSUER:http://localhost:18190}
-    end-session-uri: ${DEV_IDP_ISSUER:http://localhost:18190}/connect/logout
+    issuer: ${DEV_IDP_ISSUER:http://localhost:18190/idp}
+    end-session-uri: ${DEV_IDP_ISSUER:http://localhost:18190/idp}/connect/logout
 
 spring:
   security:
@@ -37,8 +37,8 @@ spring:
             scope: openid,profile,email
         provider:
           dev-idp:
-            authorization-uri: ${DEV_IDP_ISSUER:http://localhost:18190}/oauth2/authorize
-            token-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190}/oauth2/token
-            jwk-set-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190}/oauth2/jwks
-            user-info-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190}/userinfo
+            authorization-uri: ${DEV_IDP_ISSUER:http://localhost:18190/idp}/oauth2/authorize
+            token-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190/idp}/oauth2/token
+            jwk-set-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190/idp}/oauth2/jwks
+            user-info-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190/idp}/userinfo
             user-name-attribute: sub

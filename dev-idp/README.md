@@ -13,13 +13,18 @@ valid across restarts: `dev-idp/.data/signing-key.json` under bootRun
 docker compose -f docker-compose.yml -f docker-compose.dev-idp.yml up -d dev-idp
 ```
 
-Or without Docker:
+It publishes no port. The UI's nginx proxies `/idp/` to it, so in Docker
+everything goes through <http://localhost:4200>: discovery is at
+<http://localhost:4200/idp/.well-known/openid-configuration>, and the login
+form and logout live there too (see "Behind the UI's nginx").
+
+Or without Docker, directly on port 18190:
 
 ```bash
 ./gradlew :dev-idp:bootRun
 ```
 
-Discovery is at <http://localhost:18190/.well-known/openid-configuration>.
+Discovery is then at <http://localhost:18190/idp/.well-known/openid-configuration>.
 
 ## Signing in to sql-explorer with it
 
@@ -37,7 +42,8 @@ docker compose -f docker-compose.yml -f docker-compose.local-build.yml -f docker
 docker compose -f docker-compose.yml -f docker-compose.local-build.yml -f docker-compose.dev-idp.yml up -d --force-recreate explorer-ui
 ```
 
-Then open <http://localhost:4200>, which sends you to the IdP's login form;
+Then open <http://localhost:4200>, which sends you to the IdP's login form
+at `localhost:4200/idp/login`;
 sign in as, say, `viewer` / `viewer`. The nav shows who you are and has
 "Sign out", which also ends the IdP session (RP-initiated logout).
 `/api/sql-explorer/user` shows the `groups` claim as received.
@@ -45,7 +51,8 @@ sign in as, say, `viewer` / `viewer`. The nav shows who you are and has
 On the host, start the IdP with `./gradlew :dev-idp:bootRun` and run the
 backend with `-Dspring.config.additional-location=src/main/docker-local/config/
 -Dspring.profiles.include=local,dev-idp` (port 18180). Every endpoint is
-`localhost` then. There is no UI on 18180, so sign in at
+`localhost:18190/idp` then, which is the default on both sides. There is no
+UI on 18180, so sign in at
 <http://localhost:18180/api/sql-explorer/login?return=/api/sql-explorer/user>
 to land on the result.
 
@@ -136,51 +143,54 @@ The client and its URIs are in
 [`application.yml`](src/main/resources/application.yml) and can be overridden
 from the environment.
 
+## Behind the UI's nginx
+
+The IdP serves under the context path `/idp`, and `ui/nginx.conf` proxies
+`/idp/` to `dev-idp:18190` the way it proxies `/api/sql-explorer/` to the
+backend. The browser therefore only ever talks to `localhost:4200`: the app,
+the authorize redirect, the login form and logout are all one origin.
+
+nginx sends `X-Forwarded-Host`, `-Proto` and `-Port: 4200`, and the IdP runs
+with `server.forward-headers-strategy: native`, so the redirects it builds
+(to the login form, back to authorize) name `localhost:4200`, not the
+container's port. `DevIdpApplicationTest` pins that.
+
+The location resolves `dev-idp` at request time, through Docker's resolver,
+so nginx still starts in a stack without the IdP; `/idp/` is a 502 there.
+
 ## Which issuer
 
-A token names one issuer, and a relying party checks it. The browser and a
-backend in the compose network reach this server by different names,
-`localhost:18190` and `dev-idp:18190`, so one of them has to be the issuer.
+A token names one issuer, and a relying party checks it. In Docker it is the
+browser-facing **`http://localhost:4200/idp`** (`DEV_IDP_ISSUER`), fixed
+rather than derived from each request's `Host`. Derived, the same user would
+get a different `iss` depending on which name was used, and a token would
+validate or not by accident.
 
-**It is the browser-facing `http://localhost:18190`** (`DEV_IDP_ISSUER`). The
-browser is the party that cannot be told about a second address: it follows
-the authorize redirect, fills in the login form and follows logout, all at
-whatever discovery advertises. The backend can be configured. So a backend in
-a container takes the browser-facing values from config and uses the
+A backend in a container still cannot reach `localhost:4200`, which is its own
+container, so it takes the browser-facing values from config and uses the
 in-network address only for the back channel:
 
-| Spring client property          | Value                                       |
-|---------------------------------|---------------------------------------------|
-| `authorization-uri`             | `http://localhost:18190/oauth2/authorize`   |
-| `token-uri`                     | `http://dev-idp:18190/oauth2/token`         |
-| `jwk-set-uri`                   | `http://dev-idp:18190/oauth2/jwks`          |
-| `user-info-uri`                 | `http://dev-idp:18190/userinfo`             |
-| expected `iss`                  | `http://localhost:18190`                    |
+| Spring client property          | Value                                         |
+|---------------------------------|-----------------------------------------------|
+| `authorization-uri`             | `http://localhost:4200/idp/oauth2/authorize`  |
+| `token-uri`                     | `http://dev-idp:18190/idp/oauth2/token`       |
+| `jwk-set-uri`                   | `http://dev-idp:18190/idp/oauth2/jwks`        |
+| `user-info-uri`                 | `http://dev-idp:18190/idp/userinfo`           |
+| expected `iss`                  | `http://localhost:4200/idp`                   |
 
 It must not set `issuer-uri`, which makes Spring fetch discovery at startup,
 from `localhost` inside its own container.
 
-The issuer is fixed rather than derived from each request's `Host`. Derived,
-the same user would get a different `iss` depending on which name was used,
-and a token would validate or not by accident.
-
-Two ways around the split:
-
-- **A backend on the host** (`bootRun`, port 8080) has none: `localhost` works
-  for every endpoint, and `issuer-uri: http://localhost:18190` is enough.
-- **One name everywhere**: set `DEV_IDP_ISSUER=http://dev-idp:18190` and add
-  `127.0.0.1 dev-idp` to the host's `/etc/hosts`. The browser then resolves
-  `dev-idp` too, and discovery works from both sides.
-
-The server listens on 18190 inside the container as well as outside, so the two
-addresses differ only by host.
+A backend on the host has no split. Against the IdP in Docker it can reach
+everything at `localhost:4200/idp`; against a bootRun IdP, at
+`localhost:18190/idp`, which is the default issuer on both sides.
 
 ## Cookies
 
-The IdP's session cookie is `DEV_IDP_SESSION`, not `JSESSIONID`. Cookies are
-scoped by host, not port, so under the default name the IdP on
-`localhost:18190` and the backend on `localhost:8080` would overwrite each
-other's session on every sign-in.
+The IdP's session cookie is `DEV_IDP_SESSION`, with path `/idp`, not
+`JSESSIONID`. Behind nginx the IdP and the backend share an origin, and even
+directly cookies are scoped by host, not port: under the default name the IdP
+and the backend would overwrite each other's session on every sign-in.
 
 ## Tests
 
