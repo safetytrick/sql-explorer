@@ -65,6 +65,15 @@ class McpServerConfig {
         return registration;
     }
 
+    /** The request's own address, for {@link McpOriginValidator}. */
+    @Bean
+    FilterRegistrationBean<McpOriginValidator.OwnOrigin> mcpOwnOrigin() {
+        FilterRegistrationBean<McpOriginValidator.OwnOrigin> registration =
+            new FilterRegistrationBean<>(new McpOriginValidator.OwnOrigin());
+        registration.addUrlPatterns(PATH);
+        return registration;
+    }
+
     /**
      * The servlet is not the DispatcherServlet, and with {@code @EnableWebMvc}
      * Boot registers no RequestContextFilter, so nothing would bind the request

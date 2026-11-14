@@ -331,6 +331,26 @@ class AccessTokenTest {
         assertThat(listed.body()).contains("search_queries");
     }
 
+    /**
+     * The MCP page opened through a tunnel lists the tools from its own
+     * address. Its scheme and host come from the proxy's forwarded headers,
+     * which Tomcat consumes before the endpoint sees them (McpOriginValidator).
+     */
+    @Test
+    void mcpTakesAPageOnItsOwnAddressThroughAProxy() throws Exception {
+        String token = secret(create(signedIn("sub-mcp-origin", List.of("sqlx:viewer:alpha")), "page", List.of("viewer:alpha"), null));
+        Map<String, String> tunnel = Map.of(
+            "X-Forwarded-Proto", "https", "X-Forwarded-Host", "tunnel.example.test", "X-Forwarded-Port", "443");
+
+        assertThat(mcpFrom(token, "https://tunnel.example.test", tunnel).statusCode()).isEqualTo(200);
+        assertThat(mcpFrom(token, "http://tunnel.example.test", tunnel).statusCode()).as("scheme differs").isEqualTo(403);
+        assertThat(mcpFrom(token, "https://attacker.example.com", tunnel).statusCode()).isEqualTo(403);
+        Map<String, String> spoofed = Map.of("X-Sql-Explorer-Own-Origin", "https://attacker.example.com");
+        assertThat(mcpFrom(token, "https://attacker.example.com", spoofed).statusCode())
+            .as("a client's own claim to the address is replaced").isEqualTo(403);
+        assertThat(mcpFrom(token, "http://localhost:4200", Map.of()).statusCode()).isEqualTo(200);
+    }
+
     @Test
     void mcpToolsRespectTheTokensGrants() throws Exception {
         String token = secret(create(signedIn("sub-mcp2", List.of("sqlx:admin")), "alpha reader", List.of("viewer:alpha"), null));
@@ -419,6 +439,17 @@ class AccessTokenTest {
         if (token != null) {
             request.header("Authorization", "Bearer " + token);
         }
+        return send(request);
+    }
+
+    private HttpResponse<String> mcpFrom(String token, String origin, Map<String, String> headers) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(uri("/mcp"))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .header("Authorization", "Bearer " + token)
+            .header("Origin", origin)
+            .POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}"));
+        headers.forEach(request::header);
         return send(request);
     }
 

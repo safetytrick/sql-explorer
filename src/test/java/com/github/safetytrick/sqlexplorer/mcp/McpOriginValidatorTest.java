@@ -16,14 +16,12 @@ class McpOriginValidatorTest {
     private static final McpOriginValidator SIGN_IN_ON = new McpOriginValidator(true);
     private static final McpOriginValidator SIGN_IN_OFF = new McpOriginValidator(false);
 
-    /** As the UI's nginx forwards a page opened through a tunnel. */
+    /** A page opened through a tunnel, as the endpoint sees it after {@link McpOriginValidator.OwnOrigin}. */
     private static Map<String, List<String>> throughTunnel(String origin) {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         headers.put("origin", List.of(origin));
         headers.put("host", List.of("tunnel.example.test"));
-        headers.put("x-forwarded-proto", List.of("https"));
-        headers.put("x-forwarded-host", List.of("tunnel.example.test"));
-        headers.put("x-forwarded-port", List.of("443"));
+        headers.put("x-sql-explorer-own-origin", List.of("https://tunnel.example.test"));
         return headers;
     }
 
@@ -59,17 +57,10 @@ class McpOriginValidatorTest {
     }
 
     @Test
-    void theOwnOriginLeavesOutADefaultPortAndKeepsAnyOther() {
-        assertThat(McpOriginValidator.ownOrigin(throughTunnel("x"))).isEqualTo("https://tunnel.example.test");
-        assertThat(McpOriginValidator.ownOrigin(Map.of(
-            "Host", List.of("localhost"), "X-Forwarded-Proto", List.of("http"), "X-Forwarded-Port", List.of("4200"))))
-            .isEqualTo("http://localhost:4200");
-        assertThat(McpOriginValidator.ownOrigin(Map.of("Host", List.of("localhost:18180"))))
-            .isEqualTo("http://localhost:18180");
-        assertThat(McpOriginValidator.ownOrigin(Map.of(
-            "Host", List.of("internal"), "X-Forwarded-Host", List.of("app.example.test, internal"),
-            "X-Forwarded-Proto", List.of("https, http"))))
-            .as("the first of a proxy chain is the browser's")
-            .isEqualTo("https://app.example.test");
+    void theOwnOriginIsWrittenAsABrowserWritesAnOrigin() {
+        assertThat(McpOriginValidator.originOf("https", "tunnel.example.test", 443)).isEqualTo("https://tunnel.example.test");
+        assertThat(McpOriginValidator.originOf("http", "localhost", 4200)).isEqualTo("http://localhost:4200");
+        assertThat(McpOriginValidator.originOf("http", "localhost", 80)).isEqualTo("http://localhost");
+        assertThat(McpOriginValidator.originOf("https", "app.example.test", 8443)).isEqualTo("https://app.example.test:8443");
     }
 }

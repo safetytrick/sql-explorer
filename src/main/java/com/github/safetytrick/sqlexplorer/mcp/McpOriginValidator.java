@@ -1,12 +1,22 @@
 package com.github.safetytrick.sqlexplorer.mcp;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
 import io.modelcontextprotocol.server.transport.ServerTransportSecurityException;
 import io.modelcontextprotocol.server.transport.ServerTransportSecurityValidator;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Which browser pages may call {@code /mcp}. MCP clients send no Origin and
@@ -29,6 +39,14 @@ final class McpOriginValidator implements ServerTransportSecurityValidator {
     static final List<String> LOCAL_ORIGINS = List.of(
         "http://localhost:*", "http://127.0.0.1:*", "http://[::1]:*");
 
+    /**
+     * The request's own address, put there by {@link OwnOrigin}. The SDK hands
+     * a validator headers only, and by then Tomcat has consumed the proxy's
+     * X-Forwarded-Proto into the request's scheme, so the headers alone would
+     * read a tunnel's https as http.
+     */
+    static final String OWN_ORIGIN_HEADER = "X-Sql-Explorer-Own-Origin";
+
     private final ServerTransportSecurityValidator local =
         DefaultServerTransportSecurityValidator.builder().allowedOrigins(LOCAL_ORIGINS).build();
     private final boolean signInOn;
@@ -40,39 +58,10 @@ final class McpOriginValidator implements ServerTransportSecurityValidator {
     @Override
     public void validateHeaders(Map<String, List<String>> headers) throws ServerTransportSecurityException {
         String origin = first(headers, "Origin");
-        if (signInOn && origin != null && origin.equalsIgnoreCase(ownOrigin(headers))) {
+        if (signInOn && origin != null && origin.equalsIgnoreCase(first(headers, OWN_ORIGIN_HEADER))) {
             return;
         }
         local.validateHeaders(headers);
-    }
-
-    /**
-     * The address the request was made to, as {@code scheme://host[:port]} with
-     * a default port left out, which is how a browser writes an Origin. Read
-     * from the proxy's X-Forwarded-* headers (the UI's nginx always sends
-     * them), else from Host.
-     */
-    static String ownOrigin(Map<String, List<String>> headers) {
-        String proto = firstValue(first(headers, "X-Forwarded-Proto"));
-        String host = firstValue(first(headers, "X-Forwarded-Host"));
-        if (host == null) {
-            host = first(headers, "Host");
-        }
-        if (host == null) {
-            return null;
-        }
-        String scheme = proto == null ? "http" : proto.toLowerCase(Locale.ROOT);
-        String port = firstValue(first(headers, "X-Forwarded-Port"));
-        int colon = host.lastIndexOf(':');
-        if (colon > host.lastIndexOf(']')) {
-            // the host names its own port
-            port = host.substring(colon + 1);
-            host = host.substring(0, colon);
-        }
-        boolean defaultPort = port == null
-            || ("http".equals(scheme) && "80".equals(port))
-            || ("https".equals(scheme) && "443".equals(port));
-        return scheme + "://" + host + (defaultPort ? "" : ":" + port);
     }
 
     /** A header's first value, its name matched in any case. */
@@ -83,12 +72,45 @@ final class McpOriginValidator implements ServerTransportSecurityValidator {
             .findFirst().orElse(null);
     }
 
-    /** The first of a comma-separated list, as a chain of proxies writes X-Forwarded-*. */
-    private static String firstValue(String value) {
-        if (value == null) {
-            return null;
+    /** {@code scheme://host[:port]} as a browser writes an Origin, a default port left out. */
+    static String originOf(String scheme, String host, int port) {
+        boolean defaultPort = port <= 0
+            || ("http".equalsIgnoreCase(scheme) && port == 80)
+            || ("https".equalsIgnoreCase(scheme) && port == 443);
+        return scheme + "://" + host + (defaultPort ? "" : ":" + port);
+    }
+
+    /**
+     * Sets {@link #OWN_ORIGIN_HEADER} from the request's scheme, server name
+     * and port, which honour the proxy's forwarded headers. Whatever a client
+     * sent under that name is replaced, never trusted.
+     */
+    static final class OwnOrigin extends OncePerRequestFilter {
+
+        @Override
+        protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+                throws ServletException, IOException {
+            String own = originOf(request.getScheme(), request.getServerName(), request.getServerPort());
+            chain.doFilter(new HttpServletRequestWrapper(request) {
+                @Override
+                public String getHeader(String name) {
+                    return OWN_ORIGIN_HEADER.equalsIgnoreCase(name) ? own : super.getHeader(name);
+                }
+
+                @Override
+                public Enumeration<String> getHeaders(String name) {
+                    return OWN_ORIGIN_HEADER.equalsIgnoreCase(name)
+                        ? Collections.enumeration(List.of(own)) : super.getHeaders(name);
+                }
+
+                @Override
+                public Enumeration<String> getHeaderNames() {
+                    Set<String> names = new LinkedHashSet<>(Collections.list(super.getHeaderNames()));
+                    names.removeIf(OWN_ORIGIN_HEADER::equalsIgnoreCase);
+                    names.add(OWN_ORIGIN_HEADER);
+                    return Collections.enumeration(names);
+                }
+            }, response);
         }
-        String first = value.split(",", 2)[0].trim();
-        return first.isEmpty() ? null : first;
     }
 }
