@@ -183,9 +183,12 @@ class DevIdpApplicationTest {
         CookieManager onlyRemembered = new CookieManager();
         onlyRemembered.getCookieStore().add(URI.create(url("/")), remembered);
         HttpClient later = HttpClient.newBuilder().cookieHandler(onlyRemembered).followRedirects(HttpClient.Redirect.NEVER).build();
-        HttpResponse<String> authorize = authorizeWith(later, REDIRECT_URI);
-        assertThat(authorize.statusCode()).isEqualTo(302);
-        assertThat(authorize.headers().firstValue("Location").orElseThrow()).startsWith(REDIRECT_URI + "?code=");
+        // through to the token exchange: the ID token needs an auth_time
+        Tokens tokens = signIn(later, "viewer", "not asked");
+        assertThat(tokens.askedForPassword()).isFalse();
+        Jwt idToken = NimbusJwtDecoder.withJwkSetUri(url("/oauth2/jwks")).build().decode(tokens.idToken());
+        assertThat(idToken.getSubject()).isEqualTo("viewer");
+        assertThat(idToken.getClaimAsInstant("auth_time")).isNotNull();
     }
 
     /** Signing out forgets it, so the next sign-in can be someone else. */
@@ -213,7 +216,8 @@ class DevIdpApplicationTest {
                         "code_challenge_method", "S256"))), HttpResponse.BodyHandlers.ofString());
     }
 
-    private record Tokens(String idToken, String accessToken) {
+    /** {@code askedForPassword}: the login form was shown, rather than a remembered sign-in used. */
+    private record Tokens(String idToken, String accessToken, boolean askedForPassword) {
     }
 
     private Tokens signIn(String username, String password) throws Exception {
@@ -236,16 +240,18 @@ class DevIdpApplicationTest {
                 "code_challenge", challenge,
                 "code_challenge_method", "S256"))), HttpResponse.BodyHandlers.ofString());
         assertThat(authorize.statusCode()).isEqualTo(302);
-        assertThat(authorize.headers().firstValue("Location").orElseThrow()).endsWith("/login");
+        boolean askedForPassword = authorize.headers().firstValue("Location").orElseThrow().endsWith("/login");
 
-        String csrf = csrfToken(client);
-        HttpResponse<String> login = client.send(post("/login", Map.of("username", username, "password", password, "_csrf", csrf)),
-                HttpResponse.BodyHandlers.ofString());
-        assertThat(login.statusCode()).isEqualTo(302);
-        String resume = login.headers().firstValue("Location").orElseThrow();
-        assertThat(resume).contains("/oauth2/authorize");
-
-        HttpResponse<String> granted = client.send(HttpRequest.newBuilder(URI.create(resume)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> granted = authorize;
+        if (askedForPassword) {
+            String csrf = csrfToken(client);
+            HttpResponse<String> login = client.send(post("/login", Map.of("username", username, "password", password, "_csrf", csrf)),
+                    HttpResponse.BodyHandlers.ofString());
+            assertThat(login.statusCode()).isEqualTo(302);
+            String resume = login.headers().firstValue("Location").orElseThrow();
+            assertThat(resume).contains("/oauth2/authorize");
+            granted = client.send(HttpRequest.newBuilder(URI.create(resume)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        }
         assertThat(granted.statusCode()).isEqualTo(302);
         URI callback = URI.create(granted.headers().firstValue("Location").orElseThrow());
         assertThat(callback.toString()).startsWith(REDIRECT_URI + "?");
@@ -260,7 +266,7 @@ class DevIdpApplicationTest {
                 "code_verifier", verifier)), HttpResponse.BodyHandlers.ofString());
         assertThat(token.statusCode()).as(token.body()).isEqualTo(200);
         JsonNode body = JSON.readTree(token.body());
-        return new Tokens(body.get("id_token").asString(), body.get("access_token").asString());
+        return new Tokens(body.get("id_token").asString(), body.get("access_token").asString(), askedForPassword);
     }
 
     private String csrfToken(HttpClient client) throws Exception {

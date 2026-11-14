@@ -4,7 +4,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -42,7 +45,13 @@ import org.springframework.security.oauth2.server.authorization.token.JwtEncodin
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.RememberMeAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.FactorGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.authentication.RememberMeAuthenticationProvider;
 import org.springframework.security.web.authentication.preauth.AbstractPreAuthenticatedProcessingFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
@@ -124,11 +133,37 @@ public class AuthorizationServerConfig {
         if (properties.rememberFor().isZero()) {
             return new NullRememberMeServices();
         }
-        TokenBasedRememberMeServices services = new TokenBasedRememberMeServices(rememberMeKey(signingKey), users);
+        TokenBasedRememberMeServices services = new RememberedSignIn(rememberMeKey(signingKey), users);
         services.setCookieName(REMEMBER_ME_COOKIE);
         services.setAlwaysRemember(true);
         services.setTokenValiditySeconds((int) Math.min(Integer.MAX_VALUE, properties.rememberFor().toSeconds()));
         return services;
+    }
+
+    /**
+     * A remembered sign-in, carrying the time it was honoured as a factor. The
+     * ID token's {@code auth_time} is taken from a factor authority, which a
+     * password sign-in has and a remember-me one otherwise lacks; without it
+     * the token endpoint fails. The cookie does not record when the password
+     * was given, so this is when the browser was recognised, which is also
+     * when sql-explorer's session starts.
+     */
+    static final class RememberedSignIn extends TokenBasedRememberMeServices {
+
+        static final String FACTOR = "REMEMBER_ME";
+
+        RememberedSignIn(String key, UserDetailsService users) {
+            super(key, users);
+        }
+
+        @Override
+        protected Authentication createSuccessfulAuthentication(HttpServletRequest request, UserDetails user) {
+            List<GrantedAuthority> authorities = new ArrayList<>(user.getAuthorities());
+            authorities.add(FactorGrantedAuthority.withFactor(FACTOR).issuedAt(Instant.now()).build());
+            RememberMeAuthenticationToken authentication = new RememberMeAuthenticationToken(getKey(), user, authorities);
+            authentication.setDetails(getAuthenticationDetailsSource().buildDetails(request));
+            return authentication;
+        }
     }
 
     /** Named apart from sql-explorer's cookies, as the session cookie is (application.yml). */
