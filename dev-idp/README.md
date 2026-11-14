@@ -6,6 +6,7 @@ deployed: the passwords are the usernames. Users, clients and sessions are in
 memory. The signing key is generated on first start and saved, so tokens stay
 valid across restarts: `dev-idp/.data/signing-key.json` under bootRun
 (git-ignored), the `dev-idp-data` volume in Docker. Delete it to rotate.
+A sign-in is remembered for 90 days (see "Staying signed in").
 
 ## Start it
 
@@ -45,7 +46,8 @@ docker compose -f docker-compose.yml -f docker-compose.local-build.yml -f docker
 Then open <http://localhost:4200>, which sends you to the IdP's login form
 at `localhost:4200/idp/login`;
 sign in as, say, `viewer` / `viewer`. The nav shows who you are and has
-"Sign out", which also ends the IdP session (RP-initiated logout).
+"Sign out", which also ends the IdP session and forgets the remembered
+sign-in (RP-initiated logout), so the next sign-in can be someone else.
 `/api/sql-explorer/user` shows the `groups` claim as received.
 
 On the host, start the IdP with `./gradlew :dev-idp:bootRun` and run the
@@ -217,6 +219,20 @@ The IdP's session cookie is `DEV_IDP_SESSION`, with path `/idp`, not
 `JSESSIONID`. Behind nginx the IdP and the backend share an origin, and even
 directly cookies are scoped by host, not port: under the default name the IdP
 and the backend would overwrite each other's session on every sign-in.
+
+The remembered sign-in is `DEV_IDP_REMEMBER`, also under `/idp`.
+
+## Staying signed in
+
+Every sign-in is remembered for `DEV_IDP_REMEMBER_FOR` (default `90d`; `0`
+turns it off), with no checkbox. The cookie is Spring Security's signed
+remember-me token, keyed from the signing key, so it survives restarts of the
+IdP and needs nothing stored; rotating the key, or a sign-out, ends it.
+
+sql-explorer's own session still lasts 30 minutes idle, and none survive a
+backend restart. When it ends, the next request goes through the IdP, which
+recognises the browser and sends it straight back: a page reload, no
+password.
 
 ## Tests
 

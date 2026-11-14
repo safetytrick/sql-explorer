@@ -1,10 +1,15 @@
 package com.github.safetytrick.sqlexplorer.devidp;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -30,19 +35,33 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcUserInfoAuthenticationContext;
+import org.springframework.security.oauth2.server.authorization.oidc.web.authentication.OidcLogoutAuthenticationSuccessHandler;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.RememberMeAuthenticationProvider;
+import org.springframework.security.web.authentication.preauth.AbstractPreAuthenticatedProcessingFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.NullRememberMeServices;
+import org.springframework.security.web.authentication.RememberMeServices;
+import org.springframework.security.web.authentication.logout.CompositeLogoutHandler;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.authentication.rememberme.TokenBasedRememberMeServices;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 /**
  * Spring Authorization Server with the OIDC endpoints, one public client and
- * the canned users of {@link DevUsers}. Everything lives in memory and is lost
- * on restart, including the signing key.
+ * the canned users of {@link DevUsers}. Sessions and codes live in memory;
+ * the signing key is kept in {@code dev-idp.key-file}, and a sign-in is
+ * remembered in a cookie for {@code dev-idp.remember-for}, so neither a
+ * restart nor an idle session asks for the password again.
  */
 @Configuration(proxyBeanMethods = false)
 public class AuthorizationServerConfig {
@@ -50,11 +69,19 @@ public class AuthorizationServerConfig {
     /** The protocol endpoints: authorize, token, jwks, userinfo, discovery, logout. */
     @Bean
     @Order(1)
-    SecurityFilterChain authorizationServerChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain authorizationServerChain(HttpSecurity http, RememberMeServices rememberMe) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServer = new OAuth2AuthorizationServerConfigurer();
+        // signing out ends the remembered sign-in too, or the next sign-in
+        // would come straight back as the same user
+        OidcLogoutAuthenticationSuccessHandler signedOut = new OidcLogoutAuthenticationSuccessHandler();
+        signedOut.setLogoutHandler(rememberMe instanceof LogoutHandler forget
+                ? new CompositeLogoutHandler(new SecurityContextLogoutHandler(), forget)
+                : new SecurityContextLogoutHandler());
         http.securityMatcher(authorizationServer.getEndpointsMatcher())
                 .with(authorizationServer, as -> as
-                        .oidc(oidc -> oidc.userInfoEndpoint(userInfo -> userInfo.userInfoMapper(AuthorizationServerConfig::userInfo))))
+                        .oidc(oidc -> oidc
+                                .userInfoEndpoint(userInfo -> userInfo.userInfoMapper(AuthorizationServerConfig::userInfo))
+                                .logoutEndpoint(logout -> logout.logoutResponseHandler(signedOut))))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 // an unauthenticated browser on /oauth2/authorize goes to the login form
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
@@ -62,16 +89,59 @@ public class AuthorizationServerConfig {
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
                 // userinfo is called with the access token as a bearer token
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()));
+        // A remembered sign-in is honoured on /oauth2/authorize itself, which
+        // otherwise sends the browser to the login form. Added by hand: the
+        // rememberMe() configurer places its filter after the authorization
+        // endpoint, which would then see no one signed in.
+        if (rememberMe instanceof TokenBasedRememberMeServices services) {
+            RememberMeAuthenticationFilter remembered = new RememberMeAuthenticationFilter(
+                    new ProviderManager(new RememberMeAuthenticationProvider(services.getKey())), services);
+            remembered.setSecurityContextRepository(new HttpSessionSecurityContextRepository());
+            // the authorization endpoint sits right after the pre-authenticated slot
+            http.addFilterBefore(remembered, AbstractPreAuthenticatedProcessingFilter.class);
+        }
         return http.build();
     }
 
     /** Everything else, which is the login form. */
     @Bean
     @Order(2)
-    SecurityFilterChain loginChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain loginChain(HttpSecurity http, RememberMeServices rememberMe) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-                .formLogin(Customizer.withDefaults());
+                .formLogin(Customizer.withDefaults())
+                .rememberMe(remember -> remember.rememberMeServices(rememberMe));
         return http.build();
+    }
+
+    /**
+     * Every sign-in is remembered, with no checkbox: this IdP exists to be
+     * signed in to. The cookie is a signed hash of user, expiry and password,
+     * keyed from the signing key, so it survives a restart and needs nothing
+     * stored. {@code remember-for: 0} turns it off.
+     */
+    @Bean
+    RememberMeServices rememberMe(DevIdpProperties properties, UserDetailsService users, RSAKey signingKey) {
+        if (properties.rememberFor().isZero()) {
+            return new NullRememberMeServices();
+        }
+        TokenBasedRememberMeServices services = new TokenBasedRememberMeServices(rememberMeKey(signingKey), users);
+        services.setCookieName(REMEMBER_ME_COOKIE);
+        services.setAlwaysRemember(true);
+        services.setTokenValiditySeconds((int) Math.min(Integer.MAX_VALUE, properties.rememberFor().toSeconds()));
+        return services;
+    }
+
+    /** Named apart from sql-explorer's cookies, as the session cookie is (application.yml). */
+    static final String REMEMBER_ME_COOKIE = "DEV_IDP_REMEMBER";
+
+    private static String rememberMeKey(RSAKey signingKey) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(("remember-me:" + signingKey.toJSONString()).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Bean
@@ -148,8 +218,13 @@ public class AuthorizationServerConfig {
      * each developer's IdP signs with its own.
      */
     @Bean
-    JWKSource<SecurityContext> jwkSource(DevIdpProperties properties) {
-        return new ImmutableJWKSet<>(new JWKSet(SigningKeys.loadOrCreate(Path.of(properties.keyFile()))));
+    RSAKey signingKey(DevIdpProperties properties) {
+        return SigningKeys.loadOrCreate(Path.of(properties.keyFile()));
+    }
+
+    @Bean
+    JWKSource<SecurityContext> jwkSource(RSAKey signingKey) {
+        return new ImmutableJWKSet<>(new JWKSet(signingKey));
     }
 
     @Bean

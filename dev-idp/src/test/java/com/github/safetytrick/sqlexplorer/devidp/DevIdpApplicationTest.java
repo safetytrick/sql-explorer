@@ -3,6 +3,7 @@ package com.github.safetytrick.sqlexplorer.devidp;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.CookieManager;
+import java.net.HttpCookie;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -11,6 +12,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -166,6 +168,41 @@ class DevIdpApplicationTest {
                 .statusCode()).isEqualTo(400);
     }
 
+    /** An idle-expired session or a restart does not ask for the password again. */
+    @Test
+    void aSignInIsRememberedWithoutTheSession() throws Exception {
+        CookieManager cookies = new CookieManager();
+        HttpClient first = HttpClient.newBuilder().cookieHandler(cookies).followRedirects(HttpClient.Redirect.NEVER).build();
+        signIn(first, "viewer", "viewer");
+        HttpCookie remembered = cookies.getCookieStore().getCookies().stream()
+                .filter(cookie -> cookie.getName().equals(AuthorizationServerConfig.REMEMBER_ME_COOKIE))
+                .findFirst().orElseThrow();
+        assertThat(remembered.getMaxAge()).isGreaterThan(Duration.ofDays(30).toSeconds());
+
+        // a browser that kept only the remember-me cookie: no session
+        CookieManager onlyRemembered = new CookieManager();
+        onlyRemembered.getCookieStore().add(URI.create(url("/")), remembered);
+        HttpClient later = HttpClient.newBuilder().cookieHandler(onlyRemembered).followRedirects(HttpClient.Redirect.NEVER).build();
+        HttpResponse<String> authorize = authorizeWith(later, REDIRECT_URI);
+        assertThat(authorize.statusCode()).isEqualTo(302);
+        assertThat(authorize.headers().firstValue("Location").orElseThrow()).startsWith(REDIRECT_URI + "?code=");
+    }
+
+    /** Signing out forgets it, so the next sign-in can be someone else. */
+    @Test
+    void signingOutForgetsTheRememberedSignIn() throws Exception {
+        HttpClient client = newClient();
+        Tokens tokens = signIn(client, "viewer", "viewer");
+        HttpResponse<String> logout = client.send(get("/connect/logout?" + form(Map.of("id_token_hint", tokens.idToken()))),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(logout.statusCode()).isEqualTo(302);
+        assertThat(logout.headers().allValues("Set-Cookie"))
+                .anySatisfy(cookie -> assertThat(cookie).startsWith(AuthorizationServerConfig.REMEMBER_ME_COOKIE + "=").contains("Expires=Thu, 01 Jan 1970"));
+
+        HttpResponse<String> again = authorizeWith(client, REDIRECT_URI);
+        assertThat(again.headers().firstValue("Location").orElseThrow()).endsWith("/login");
+    }
+
     private HttpResponse<String> authorizeWith(HttpClient client, String redirectUri) throws Exception {
         return client.send(get("/oauth2/authorize?" + form(Map.of(
                         "response_type", "code",
@@ -180,7 +217,10 @@ class DevIdpApplicationTest {
     }
 
     private Tokens signIn(String username, String password) throws Exception {
-        HttpClient client = newClient();
+        return signIn(newClient(), username, password);
+    }
+
+    private Tokens signIn(HttpClient client, String username, String password) throws Exception {
         String verifier = randomUrlSafe(32);
         String challenge = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));

@@ -62,6 +62,7 @@ services:
       DEV_IDP_KEY_FILE: /app/data/signing-key.json
       # another origin the app is reached at, e.g. a tunnel; set in .env
       DEV_IDP_EXTRA_ORIGINS: ${DEV_IDP_EXTRA_ORIGINS:-}
+      DEV_IDP_REMEMBER_FOR: ${DEV_IDP_REMEMBER_FOR:-90d}
     volumes:
       # the signing key, generated once and kept across container recreation
       - dev-idp-data:/app/data

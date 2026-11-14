@@ -41,6 +41,9 @@ dev-idp:
   # callback and its root to the lists here. Set it in .env (git-ignored), not
   # in a committed file.
   extra-origins: ${DEV_IDP_EXTRA_ORIGINS:}
+  # How long a sign-in is remembered (a cookie, so it survives restarts and
+  # idle sessions); 0 asks for the password once the session is gone.
+  remember-for: ${DEV_IDP_REMEMBER_FOR:90d}
   post-logout-redirect-uris:
     - http://localhost:4200/
     - http://localhost:8080/
