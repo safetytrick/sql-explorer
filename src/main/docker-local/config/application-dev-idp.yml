@@ -14,11 +14,17 @@
 # DEV_IDP_ISSUER and the back channel (token, JWKS, userinfo) uses
 # DEV_IDP_BACKCHANNEL. On the host both are localhost. issuer-uri would also
 # make Boot fetch discovery from inside the container, from localhost.
+#
+# The two endpoints the browser follows, authorize and logout, are under
+# DEV_IDP_BROWSER_BASE, which defaults to the issuer. docker-compose.dev-idp.yml
+# sets it to the root-relative /idp: the browser then stays on whatever origin
+# it used, localhost:4200 or a tunnel such as ngrok, and the issuer is only the
+# name tokens carry.
 sql-explorer:
   auth:
     mode: oidc
     issuer: ${DEV_IDP_ISSUER:http://localhost:18190/idp}
-    end-session-uri: ${DEV_IDP_ISSUER:http://localhost:18190/idp}/connect/logout
+    end-session-uri: ${DEV_IDP_BROWSER_BASE:${DEV_IDP_ISSUER:http://localhost:18190/idp}}/connect/logout
 
 spring:
   security:
@@ -37,7 +43,7 @@ spring:
             scope: openid,profile,email
         provider:
           dev-idp:
-            authorization-uri: ${DEV_IDP_ISSUER:http://localhost:18190/idp}/oauth2/authorize
+            authorization-uri: ${DEV_IDP_BROWSER_BASE:${DEV_IDP_ISSUER:http://localhost:18190/idp}}/oauth2/authorize
             token-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190/idp}/oauth2/token
             jwk-set-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190/idp}/oauth2/jwks
             user-info-uri: ${DEV_IDP_BACKCHANNEL:http://localhost:18190/idp}/userinfo

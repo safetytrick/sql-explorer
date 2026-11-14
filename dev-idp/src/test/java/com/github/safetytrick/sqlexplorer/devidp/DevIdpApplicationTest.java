@@ -39,7 +39,8 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"dev-idp.issuer=http://idp.example.test:4200/idp",
-                "dev-idp.key-file=build/test-idp/signing-key.json"})
+                "dev-idp.key-file=build/test-idp/signing-key.json",
+                "dev-idp.extra-origins=https://tunnel.example.test/"})
 class DevIdpApplicationTest {
 
     private static final String ISSUER = "http://idp.example.test:4200/idp";
@@ -143,6 +144,36 @@ class DevIdpApplicationTest {
                 .GET().build(), HttpResponse.BodyHandlers.ofString());
         assertThat(authorize.statusCode()).isEqualTo(302);
         assertThat(authorize.headers().firstValue("Location")).hasValue("http://localhost:4200/idp/login");
+    }
+
+    /**
+     * An extra origin, such as a tunnel, may be sent back to; an unregistered
+     * one may not. Checked signed in: before that the IdP only sends the
+     * browser to the login form.
+     */
+    @Test
+    void anExtraOriginsCallbackIsRegisteredAndNoOtherIs() throws Exception {
+        HttpClient client = newClient();
+        client.send(post("/login", Map.of("username", "viewer", "password", "viewer", "_csrf", csrfToken(client))),
+                HttpResponse.BodyHandlers.discarding());
+
+        String tunnel = "https://tunnel.example.test/api/sql-explorer/login/oauth2/code/sql-explorer";
+        HttpResponse<String> registered = authorizeWith(client, tunnel);
+        assertThat(registered.statusCode()).isEqualTo(302);
+        assertThat(registered.headers().firstValue("Location").orElseThrow()).startsWith(tunnel + "?code=");
+
+        assertThat(authorizeWith(client, "https://elsewhere.example.test/api/sql-explorer/login/oauth2/code/sql-explorer")
+                .statusCode()).isEqualTo(400);
+    }
+
+    private HttpResponse<String> authorizeWith(HttpClient client, String redirectUri) throws Exception {
+        return client.send(get("/oauth2/authorize?" + form(Map.of(
+                        "response_type", "code",
+                        "client_id", "sql-explorer",
+                        "scope", "openid",
+                        "redirect_uri", redirectUri,
+                        "code_challenge", "x".repeat(43),
+                        "code_challenge_method", "S256"))), HttpResponse.BodyHandlers.ofString());
     }
 
     private record Tokens(String idToken, String accessToken) {

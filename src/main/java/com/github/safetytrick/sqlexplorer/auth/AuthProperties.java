@@ -23,7 +23,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param endSessionUri         the provider's RP-initiated logout endpoint, browser
  *                              facing. Discovery supplies it when {@code issuer-uri}
  *                              is used; otherwise sign-out is local only unless it
- *                              is set here.
+ *                              is set here. May be root-relative ({@code /idp/connect/logout})
+ *                              for a provider on the app's own origin, as the
+ *                              provider's {@code authorization-uri} may
+ *                              ({@link SameOriginAuthorizationRequestResolver}).
  * @param postLogoutRedirectUri where the provider sends the browser after sign-out.
  *                              The default is the root of whatever address the app
  *                              was reached by, which is the UI.

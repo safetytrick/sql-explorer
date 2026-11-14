@@ -158,6 +158,32 @@ container's port. `DevIdpApplicationTest` pins that.
 The location resolves `dev-idp` at request time, through Docker's resolver,
 so nginx still starts in a stack without the IdP; `/idp/` is a 502 there.
 
+## Through a tunnel (ngrok and the like)
+
+The browser-facing endpoints, authorize and logout, are root-relative in
+Docker (`DEV_IDP_BROWSER_BASE=/idp`), so the browser stays on whatever origin
+it used. A tunnel to `localhost:4200` therefore works once the IdP accepts its
+callback. Put the tunnel's origin in `.env` (git-ignored; never commit a real
+hostname), then recreate `dev-idp`:
+
+```bash
+echo 'DEV_IDP_EXTRA_ORIGINS=https://tunnel.example.test' >> .env
+```
+
+Each origin, comma separated, adds `<origin>/api/sql-explorer/login/oauth2/code/sql-explorer`
+as a redirect URI and `<origin>/` as a post-logout target.
+
+nginx passes a front proxy's `X-Forwarded-Proto`, `-Host` and `-Port` through
+(`https`, the tunnel's host, 443), falling back to `http`, its own host and
+4200 when there are none. Before, it always sent `http` and 4200, and the
+backend sent a tunnel's browser to `http://<tunnel>:4200` after sign-in, where
+it hung.
+
+**A tunnel puts the canned logins on the internet.** Every password is the
+username, `admin` included, and the stack may be connected to real servers.
+Only expose it behind the tunnel's own access control (ngrok's OAuth or IP
+policy), and never this IdP in front of anything that matters.
+
 ## Which issuer
 
 A token names one issuer, and a relying party checks it. In Docker it is the

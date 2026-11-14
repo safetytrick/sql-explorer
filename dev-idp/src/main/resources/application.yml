@@ -36,6 +36,11 @@ dev-idp:
     - http://localhost:4200/api/sql-explorer/login/oauth2/code/sql-explorer
     - http://localhost:8080/api/sql-explorer/login/oauth2/code/sql-explorer
     - http://localhost:18180/api/sql-explorer/login/oauth2/code/sql-explorer
+  # More origins sql-explorer is reached at, comma separated, such as a
+  # tunnel: DEV_IDP_EXTRA_ORIGINS=https://tunnel.example.test. Each adds its
+  # callback and its root to the lists here. Set it in .env (git-ignored), not
+  # in a committed file.
+  extra-origins: ${DEV_IDP_EXTRA_ORIGINS:}
   post-logout-redirect-uris:
     - http://localhost:4200/
     - http://localhost:8080/

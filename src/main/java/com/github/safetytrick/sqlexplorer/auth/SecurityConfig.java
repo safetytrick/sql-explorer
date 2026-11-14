@@ -221,6 +221,9 @@ class SecurityConfig {
             .oauth2Login(login -> login
                 .loginPage(LoginResource.PATH)
                 .clientRegistrationRepository(repository)
+                // a root-relative authorization-uri is on whatever origin the browser used (dev-idp behind nginx)
+                .authorizationEndpoint(endpoint -> endpoint
+                    .authorizationRequestResolver(new SameOriginAuthorizationRequestResolver(repository)))
                 .successHandler(signedIn(users))
                 .failureHandler(signInFailed()))
             .exceptionHandling(exceptions -> exceptions
