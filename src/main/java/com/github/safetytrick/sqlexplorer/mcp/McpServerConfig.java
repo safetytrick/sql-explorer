@@ -9,9 +9,9 @@ import io.modelcontextprotocol.json.schema.jackson3.DefaultJsonSchemaValidator;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpStatelessServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
-import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
 import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport;
 import io.modelcontextprotocol.spec.McpSchema;
+import com.github.safetytrick.sqlexplorer.auth.AuthProperties;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -44,19 +44,15 @@ class McpServerConfig {
 
     /**
      * A browser page on another site must not be able to drive the endpoint
-     * through someone's localhost (DNS rebinding), so a request carrying an
-     * Origin is accepted only from this machine. MCP clients send none.
+     * (DNS rebinding); {@link McpOriginValidator} says which pages may.
      */
-    private static final List<String> ALLOWED_ORIGINS = List.of(
-        "http://localhost:*", "http://127.0.0.1:*", "http://[::1]:*");
-
     @Bean
-    HttpServletStatelessServerTransport mcpTransport(JsonMapper jsonMapper) {
+    HttpServletStatelessServerTransport mcpTransport(JsonMapper jsonMapper, AuthProperties auth) {
         return HttpServletStatelessServerTransport.builder()
             .jsonMapper(new JacksonMcpJsonMapper(jsonMapper))
             .messageEndpoint(PATH)
             .contextExtractor(request -> McpTransportContext.create(Map.of(McpToolRunner.REQUEST, request)))
-            .securityValidator(DefaultServerTransportSecurityValidator.builder().allowedOrigins(ALLOWED_ORIGINS).build())
+            .securityValidator(new McpOriginValidator(auth.oidc()))
             .build();
     }
 

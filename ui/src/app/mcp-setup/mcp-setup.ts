@@ -47,6 +47,25 @@ export function mcpUrl(origin: string): string {
   return origin.replace(/\/$/, '') + MCP_PATH;
 }
 
+/**
+ * Where the endpoint is on the machine running SQL Explorer: the UI's nginx
+ * on its usual port. Offered when the page was opened some other way.
+ */
+export const LOCAL_MCP_URL = mcpUrl('http://localhost:4200');
+
+/**
+ * Whether a page at this origin is on the machine running SQL Explorer. A page
+ * opened any other way (a tunnel, a shared host) gives clients its own address,
+ * which works for them only if nothing in front of it wants a browser sign-in.
+ */
+export function isLocalOrigin(origin: string): boolean {
+  try {
+    return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(origin).hostname);
+  } catch {
+    return true;
+  }
+}
+
 /** Single-quoted for a POSIX shell, unless it plainly needs no quoting. */
 function shellWord(value: string): string {
   return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, '\'\\\'\'')}'`;

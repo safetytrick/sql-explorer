@@ -218,6 +218,23 @@ class ApplicationContextTest {
         assertThat(post("tools/list", "{}", "http://localhost:4200").statusCode()).isEqualTo(200);
     }
 
+    /**
+     * Nor through a name rebound to this machine, though that page is its own
+     * origin: with sign-in off only localhost is trusted (McpOriginValidator).
+     */
+    @Test
+    void mcpRefusesAReboundNameWithSignInOff() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/sql-explorer/mcp"))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .header("Origin", "https://rebound.example.test")
+            .header("X-Forwarded-Proto", "https")
+            .header("X-Forwarded-Host", "rebound.example.test")
+            .POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}"))
+            .build();
+        assertThat(http.send(request, HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(403);
+    }
+
     private JsonNode mcp(String method, String params, String origin) throws Exception {
         HttpResponse<String> response = post(method, params, origin);
         assertThat(response.statusCode()).as(response.body()).isEqualTo(200);

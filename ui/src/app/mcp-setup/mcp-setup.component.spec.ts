@@ -6,7 +6,7 @@ import {provideRouter} from '@angular/router';
 import {EnvironmentService} from '../environment.service';
 import {UserService} from '../user.service';
 import {McpSetupComponent} from './mcp-setup.component';
-import {claudeCodeCommand, desktopJson, mcpJson, mcpUrl, toolsOf} from './mcp-setup';
+import {claudeCodeCommand, desktopJson, isLocalOrigin, mcpJson, mcpUrl, toolsOf} from './mcp-setup';
 
 describe('mcp-setup snippets', () => {
   const config = {url: 'http://localhost:4200/api/sql-explorer/mcp', environment: 'local'};
@@ -14,6 +14,13 @@ describe('mcp-setup snippets', () => {
   it('puts the endpoint at the page origin', () => {
     expect(mcpUrl('http://localhost:4200')).toBe('http://localhost:4200/api/sql-explorer/mcp');
     expect(mcpUrl('https://db.example.com/')).toBe('https://db.example.com/api/sql-explorer/mcp');
+  });
+
+  it('tells this machine from a page opened through another address', () => {
+    expect(isLocalOrigin('http://localhost:4200')).toBeTrue();
+    expect(isLocalOrigin('http://127.0.0.1:4200')).toBeTrue();
+    expect(isLocalOrigin('http://[::1]:4200')).toBeTrue();
+    expect(isLocalOrigin('https://tunnel.example.test')).toBeFalse();
   });
 
   it('registers it with Claude Code by URL, the environment as a header', () => {
@@ -154,6 +161,24 @@ describe('McpSetupComponent', () => {
     listing().flush('', {status: 403, statusText: 'Forbidden'});
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('.status.bad')!.textContent)
-      .toContain('localhost only');
+      .toContain('with sign-in off it answers pages opened on localhost only');
+  });
+
+  it('with sign-in on, does not blame the address for a 403', () => {
+    const fixture = render('local', 'staging', 'oidc');
+    listing().flush('', {status: 403, statusText: 'Forbidden'});
+    fixture.detectChanges();
+    const status = (fixture.nativeElement as HTMLElement).querySelector('.status.bad')!.textContent!;
+    expect(status).toContain('HTTP 403');
+    expect(status).not.toContain('localhost');
+  });
+
+  it('opened through another address, says when to use localhost instead', () => {
+    const fixture = render('local');
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.remote-note')).toBeNull();
+    fixture.componentInstance.remote = true;
+    fixture.detectChanges();
+    expect(el.querySelector('.remote-note')!.textContent).toContain('http://localhost:4200/api/sql-explorer/mcp');
   });
 });

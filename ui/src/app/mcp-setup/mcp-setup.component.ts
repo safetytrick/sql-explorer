@@ -6,7 +6,7 @@ import {RouterLink} from '@angular/router';
 import {EnvironmentService} from '../environment.service';
 import {UserService} from '../user.service';
 import {
-  claudeCodeCommand, DESKTOP_AUTH_ENV, desktopJson, ENVIRONMENT_HEADER, McpConfig, mcpJson, MCP_PATH, mcpUrl,
+  claudeCodeCommand, DESKTOP_AUTH_ENV, desktopJson, ENVIRONMENT_HEADER, isLocalOrigin, LOCAL_MCP_URL, McpConfig, mcpJson, MCP_PATH, mcpUrl,
   McpToolInfo, TOKEN_ENV, TOOLS_LIST_REQUEST, toolsOf
 } from './mcp-setup';
 
@@ -33,19 +33,23 @@ export class McpSetupComponent {
   readonly environmentHeader = ENVIRONMENT_HEADER;
   readonly tokenEnv = TOKEN_ENV;
   readonly desktopAuthEnv = DESKTOP_AUTH_ENV;
+  readonly localUrl = LOCAL_MCP_URL;
 
   config: McpConfig;
   snippets: Snippet[] = [];
   copied: string | null = null;
+  /** Opened other than on the machine running SQL Explorer: through a tunnel, say. */
+  remote = false;
   /** null while asking; the error text when the endpoint did not answer. */
   tools: McpToolInfo[] | null = null;
-  toolsError: string | null = null;
+  private toolsFailure: {status?: number; message?: string} | null = null;
 
   private readonly environments = inject(EnvironmentService);
 
   constructor() {
     const origin = inject(DOCUMENT).location?.origin ?? 'http://localhost:4200';
     this.config = {url: mcpUrl(origin), environment: null};
+    this.remote = !isLocalOrigin(origin);
     this.build();
     const destroyRef = inject(DestroyRef);
 
@@ -78,11 +82,23 @@ export class McpSetupComponent {
         next: response => { this.tools = toolsOf(response); },
         error: (error: {status?: number; message?: string}) => {
           this.tools = [];
-          // a browser always sends an Origin, and the endpoint takes one only from this machine
-          this.toolsError = error.status === 403 ? 'it answers pages opened on localhost only'
-            : error.status ? `HTTP ${error.status}` : (error.message ?? 'no answer');
+          this.toolsFailure = error;
         }
       });
+  }
+
+  /** Why the endpoint did not list its tools; null when it did, or has not answered yet. */
+  get toolsError(): string | null {
+    const failure = this.toolsFailure;
+    if (!failure) {
+      return null;
+    }
+    // A browser always sends an Origin. With sign-in off the endpoint takes one
+    // only from this machine; with it on, also the page's own address.
+    if (failure.status === 403 && !this.config.token) {
+      return 'with sign-in off it answers pages opened on localhost only';
+    }
+    return failure.status ? `HTTP ${failure.status}` : (failure.message ?? 'no answer');
   }
 
   get writeCount(): number {

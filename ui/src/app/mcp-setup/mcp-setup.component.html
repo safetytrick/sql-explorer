@@ -49,6 +49,16 @@
 <div class="lens-card">
   <div class="card-head"><span class="card-head-title">Connect a client</span>
     <span class="card-head-note">filled in for this page</span></div>
+  @if (remote) {
+    <div class="note-card remote-note">
+      <p>
+        <strong>This page was opened through another address</strong>, so the configs below use it. A client
+        reaches it only if nothing in front of it asks for a browser sign-in: a tunnel's own login (ngrok's
+        OAuth, say) stops an MCP client before SQL Explorer sees its token. Then use
+        <code class="filled">{{localUrl}}</code> instead, on the machine running SQL Explorer.
+      </p>
+    </div>
+  }
   <div class="prose">
     <p>
       @if (config.environment) {
@@ -103,8 +113,9 @@
   <div class="card-head"><span class="card-head-title">Troubleshooting</span></div>
   <div class="note-card">
     <p>
-      <strong>Through the tunnel it will not connect.</strong> A shared address behind a sign-in page asks a
-      browser to log in, which an MCP client cannot do. Use the endpoint from the machine running SQL Explorer.
+      <strong>Through a tunnel it may not connect.</strong> If the tunnel itself makes visitors sign in, it
+      sends a client to a login page it cannot follow, before SQL Explorer sees any token. Use
+      <code>{{localUrl}}</code> from the machine running SQL Explorer, or a tunnel without its own login.
     </p>
     @if (config.token) {
       <p>
