@@ -26,6 +26,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
@@ -43,7 +44,6 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.ProviderManager;
@@ -134,8 +134,6 @@ public class AuthorizationServerConfig {
             return new NullRememberMeServices();
         }
         TokenBasedRememberMeServices services = new RememberedSignIn(rememberMeKey(signingKey), users);
-        services.setCookieName(REMEMBER_ME_COOKIE);
-        services.setAlwaysRemember(true);
         services.setTokenValiditySeconds((int) Math.min(Integer.MAX_VALUE, properties.rememberFor().toSeconds()));
         return services;
     }
@@ -154,6 +152,8 @@ public class AuthorizationServerConfig {
 
         RememberedSignIn(String key, UserDetailsService users) {
             super(key, users);
+            setCookieName(REMEMBER_ME_COOKIE);
+            setAlwaysRemember(true);
         }
 
         @Override
@@ -169,7 +169,7 @@ public class AuthorizationServerConfig {
     /** Named apart from sql-explorer's cookies, as the session cookie is (application.yml). */
     static final String REMEMBER_ME_COOKIE = "DEV_IDP_REMEMBER";
 
-    private static String rememberMeKey(RSAKey signingKey) {
+    static String rememberMeKey(RSAKey signingKey) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(("remember-me:" + signingKey.toJSONString()).getBytes(StandardCharsets.UTF_8));
@@ -179,14 +179,21 @@ public class AuthorizationServerConfig {
         }
     }
 
+    /**
+     * Built afresh on every lookup, never stored. InMemoryUserDetailsManager
+     * is a UserDetailsPasswordService, so a sign-in upgraded its stored
+     * {@code {noop}} password to a salted hash. A remember-me signature is made
+     * over the password, so a cookie signed after that failed to check out
+     * after a restart, where the password is {@code {noop}} again.
+     */
     @Bean
     UserDetailsService users() {
-        return new InMemoryUserDetailsManager(DevUsers.ALL.stream()
+        return username -> DevUsers.find(username)
                 .map(user -> User.withUsername(user.username())
                         .password("{noop}" + user.password())
                         .roles("USER")
                         .build())
-                .toList());
+                .orElseThrow(() -> new UsernameNotFoundException(username));
     }
 
     @Bean

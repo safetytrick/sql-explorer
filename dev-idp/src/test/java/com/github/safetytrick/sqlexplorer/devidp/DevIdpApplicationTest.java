@@ -24,7 +24,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import com.nimbusds.jose.jwk.RSAKey;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -47,6 +51,9 @@ class DevIdpApplicationTest {
 
     private static final String ISSUER = "http://idp.example.test:4200/idp";
     private static final String REDIRECT_URI = "http://localhost:4200/api/sql-explorer/login/oauth2/code/sql-explorer";
+    @Autowired
+    DevIdpProperties properties;
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     /** Served under a path so the UI's nginx can proxy it on the same origin as the app. */
@@ -189,6 +196,28 @@ class DevIdpApplicationTest {
         Jwt idToken = NimbusJwtDecoder.withJwkSetUri(url("/oauth2/jwks")).build().decode(tokens.idToken());
         assertThat(idToken.getSubject()).isEqualTo("viewer");
         assertThat(idToken.getClaimAsInstant("auth_time")).isNotNull();
+    }
+
+    /**
+     * A restart is a new process: the same signing key, users built afresh.
+     * The cookie must check out there too, which it did not while a sign-in
+     * re-encoded the stored password the signature is made over.
+     */
+    @Test
+    void theRememberedSignInChecksOutInAFreshProcess() throws Exception {
+        CookieManager cookies = new CookieManager();
+        HttpClient client = HttpClient.newBuilder().cookieHandler(cookies).followRedirects(HttpClient.Redirect.NEVER).build();
+        signIn(client, "viewer", "viewer");
+        String remembered = cookies.getCookieStore().getCookies().stream()
+                .filter(cookie -> cookie.getName().equals(AuthorizationServerConfig.REMEMBER_ME_COOKIE))
+                .findFirst().orElseThrow().getValue();
+
+        AuthorizationServerConfig fresh = new AuthorizationServerConfig();
+        RSAKey key = fresh.signingKey(properties);
+        var services = new AuthorizationServerConfig.RememberedSignIn(AuthorizationServerConfig.rememberMeKey(key), fresh.users());
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new jakarta.servlet.http.Cookie(AuthorizationServerConfig.REMEMBER_ME_COOKIE, remembered));
+        assertThat(services.autoLogin(request, new MockHttpServletResponse())).as("signed in from the cookie alone").isNotNull();
     }
 
     /** Signing out forgets it, so the next sign-in can be someone else. */
