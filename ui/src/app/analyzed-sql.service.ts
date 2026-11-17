@@ -7,6 +7,7 @@ import {
   ExplainResult,
   NormalizedQuery,
   QueryExample,
+  QuerySource,
   SchemaRollup,
   SqlProfile,
   Table,
@@ -34,6 +35,11 @@ export class AnalyzedSqlService {
 
   getSql(id: string): Observable<SqlProfile> {
     return this.http.get<SqlProfile>(endpoint + 'analyzed-sql/' + id);
+  }
+
+  /** Where the statement runs: its figures on each source, the most time first (sqlx-rw2.9). */
+  getSources(id: string): Observable<QuerySource[]> {
+    return this.http.get<QuerySource[]>(endpoint + 'analyzed-sql/' + id + '/sources');
   }
 
   getTable(schema: string, name: string, column: string): Observable<Table> {

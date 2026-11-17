@@ -6,6 +6,7 @@ import java.util.Collection;
 
 import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 
 /**
  * Turning Performance Schema's cumulative counters into a per-day rate.
@@ -60,12 +61,12 @@ public final class CapturedRate {
         return count / rateDays(metrics);
     }
 
-    /** Executions per day of every writing statement in {@code profiles}, summed. */
-    public static double writesPerDay(Collection<? extends SqlProfile> profiles) {
+    /** Executions per day of every statement in {@code profiles} that writes {@code table}, summed. */
+    public static double writesPerDay(TableReference table, Collection<? extends SqlProfile> profiles) {
         double total = 0;
         for (SqlProfile profile : profiles) {
             RuntimeMetrics metrics = profile.getRuntimeMetrics();
-            if (metrics != null && QueryKind.of(profile).isWrite()) {
+            if (metrics != null && WriteTargets.writes(profile, table)) {
                 total += perDay(metrics.getExecuted(), metrics);
             }
         }

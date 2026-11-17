@@ -24,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 class SqlProfileResource {
 
     private final SqlRepositoryService sqlRepositoryService;
+    private final QuerySourcesService querySourcesService;
 
-    public SqlProfileResource(SqlRepositoryService sqlRepositoryService) {
+    public SqlProfileResource(SqlRepositoryService sqlRepositoryService, QuerySourcesService querySourcesService) {
         this.sqlRepositoryService = sqlRepositoryService;
+        this.querySourcesService = querySourcesService;
     }
 
     @GetMapping("/analyzed-sql/{id}")
@@ -36,6 +38,16 @@ class SqlProfileResource {
             throw new ResourceNotFoundException();
         }
         return sqlProfile;
+    }
+
+    /** Where the statement runs: its figures on each source, the most time first (sqlx-rw2.9). */
+    @GetMapping("/analyzed-sql/{id}/sources")
+    public List<QuerySourcesService.QuerySource> getSources(@PathVariable String id) {
+        List<QuerySourcesService.QuerySource> sources = querySourcesService.whereItRuns(id);
+        if (sources == null) {
+            throw new ResourceNotFoundException();
+        }
+        return sources;
     }
     @GetMapping("/schemas")
     public Stream<SchemaRollup> getSchemas() { return sqlRepositoryService.getAllSchemasWithRollup(); }

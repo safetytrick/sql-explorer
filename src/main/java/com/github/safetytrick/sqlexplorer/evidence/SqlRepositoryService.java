@@ -300,7 +300,7 @@ public class SqlRepositoryService {
             .numberOfQueries(sqlList.size())
             .totalQueryTime(totalQueryTime)
             .view(structure != null && "VIEW".equalsIgnoreCase(structure.type()))
-            .writesPerDay(CapturedRate.writesPerDay(sqlList))
+            .writesPerDay(CapturedRate.writesPerDay(reference, sqlList))
             .rowsEstimate(structure == null ? null : structure.rowsEstimate())
             .sizeBytes(structure == null ? null : structure.sizeBytes())
             .build();

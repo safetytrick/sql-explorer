@@ -11,7 +11,7 @@ import {constrainingInstances, instancesOf, Painted, paintSql, SchemaHint, Table
 import {TagFieldComponent} from '../tag-field/tag-field.component';
 import {PicoViewComponent} from '../pico-view/pico-view.component';
 import {ColumnLinkComponent} from '../column-link/column-link.component';
-import {SqlProfile, TableStructure} from '../api-types';
+import {QuerySource, SqlProfile, TableStructure} from '../api-types';
 import {parseTableRef} from '../refs';
 import {MergeVariant, mergeVariants, perfDigestsOf, repeatSpread, RepeatSpread} from '../queries-workbench/merge-group';
 import {buildIndexPanels, TableIndexPanel} from './index-relevance';
@@ -49,6 +49,8 @@ export class SqlViewComponent implements OnInit {
   readonly SEEN_FORMAT = SEEN_FORMAT;
 
   query: SqlProfile | null = null;
+  /** Where it runs: its figures per source, or null until known (sqlx-rw2.9). */
+  sources: QuerySource[] | null = null;
   /** Structures for the query's tables, as they resolve. */
   tables: TableStructure[] = [];
   loading = false;
@@ -113,11 +115,13 @@ export class SqlViewComponent implements OnInit {
     this.visiblePanels = [];
     this.loading = true;
     this.notFound = false;
+    this.sources = null;
     this.sqlService.getSql(id).subscribe({
       next: data => {
         this.query = data;
         this.updateOrigin();
         this.loading = false;
+        this.loadSources(id);
         this.loadTableStructures(data);
         this.titleService.setTitle(formatPageTitle('Query · ' + data.tables.map(ref => parseTableRef(ref).table).join(', ')));
       },
@@ -126,6 +130,15 @@ export class SqlViewComponent implements OnInit {
         this.notFound = true;
         this.titleService.setTitle(formatPageTitle('Query not found'));
       }
+    });
+  }
+
+  private loadSources(id: string) {
+    this.sqlService.getSources(id).subscribe({
+      // a later navigation owns the page: drop an answer for the statement it left
+      next: sources => { if (this.query && this.route.snapshot.params['id'] === id) { this.sources = sources; } },
+      // the rest of the page stands without it; the card is simply not shown
+      error: () => { this.sources = null; }
     });
   }
 

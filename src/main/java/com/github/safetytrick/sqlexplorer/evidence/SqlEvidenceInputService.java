@@ -466,6 +466,7 @@ public class SqlEvidenceInputService {
     static void copyAnalysis(SqlProfile prior, SqlProfile.Builder builder) {
         builder.setQuery(prior.getQuery())
             .setTables(prior.getTables())
+            .setWriteTables(prior.getWriteTables())
             .setType(prior.getType())
             .setJoinColumns(prior.getJoinColumns())
             .setCriteriaColumns(prior.getCriteriaColumns())
@@ -667,6 +668,7 @@ public class SqlEvidenceInputService {
                 .setGeneratedSource(existingEntry.getGeneratedSource())
                 .setGeneratorCandidates(existingEntry.getGeneratorCandidates())
                 .setTables(existingEntry.getTables())
+                .setWriteTables(existingEntry.getWriteTables())
                 .setType(existingEntry.getType());
 
             SqlProfile sqlProfile = builder.completeBuild(existingEntry.getSchemaName());

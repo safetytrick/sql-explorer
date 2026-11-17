@@ -91,6 +91,27 @@ class TableWorkloadServiceTest {
             .containsExactly("report", "batch", "quick");
     }
 
+    /**
+     * A statement is charged only to the tables it writes (sqlx-n5j.16): an
+     * INSERT … SELECT reading the site table is not the site table's write.
+     * One whose written tables are unknown still counts against every table.
+     */
+    @Test
+    void writesCountOnlyAgainstTheTablesWritten() {
+        SqlProfile copy = profile("copy", "INSERT", metrics(500, 500, START, START.plusDays(10), 1, 2), ACCOUNT, SITE);
+        copy.setWriteTables(List.of(ACCOUNT));
+        SqlProfile rename = profile("rename", "UPDATE", metrics(100, 100, START, START.plusDays(10), 1, 2), SITE, ACCOUNT);
+        rename.setWriteTables(List.of(SITE));
+        SqlProfile unparsed = profile("unparsed", "UNKNOWN", metrics(30, 30, START, START.plusDays(10), 1, 2), SITE, ACCOUNT);
+        when(sqlRepositoryService.getTableQueries(SITE)).thenAnswer(inv -> Stream.of(copy, rename, unparsed));
+
+        WriteRate rate = service.getWriteRate(SITE);
+
+        assertThat(rate.statements()).extracting(WriteStatement::digest, WriteStatement::multiTable)
+            .containsExactlyInAnyOrder(tuple("rename", false), tuple("unparsed", true));
+        assertThat(rate.executions()).isEqualTo(130);
+    }
+
     /** The table lens relies on zeros, not an error, for a table nothing knows. */
     @Test
     void anUnknownTableAnswersZeros() {

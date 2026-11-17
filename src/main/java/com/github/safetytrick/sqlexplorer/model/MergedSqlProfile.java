@@ -157,6 +157,11 @@ public class MergedSqlProfile extends SqlProfile {
     }
 
     @Override
+    public List<TableReference> getWriteTables() {
+        return first().getWriteTables();
+    }
+
+    @Override
     public List<ColumnReference> getOrderByColumns() {
         return first().getOrderByColumns();
     }

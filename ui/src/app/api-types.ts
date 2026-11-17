@@ -92,6 +92,8 @@ export interface SqlProfile {
   sourcedFiles: string[];
   /** The sources it was captured from, by source ref (a live source is its server's name). */
   sources: string[] | null;
+  /** The tables it writes ("schema.table"), apart from those it only reads; empty when unknown (sqlx-n5j.16). */
+  writeTables: string[] | null;
   queryActivityStatus: QueryActivityStatus;
   modifiedForAnalysis: boolean;
   isMultiSchema: boolean;
@@ -444,4 +446,27 @@ export interface ClusterSchemaStatus {
   fromSnapshot: boolean;
   /** When the schema was read from a server; null when it never was. */
   readAt: string | null;
+}
+
+/**
+ * One source a statement ran on, with its figures there alone (sqlx-rw2.9):
+ * read from the corpus scoped to that source, as `/queries?sources=` is.
+ */
+export interface QuerySource {
+  /** The source ref; for a live source, the server's name. */
+  source: string;
+  /** The configured cluster, or null when no configured server has this name (an imported file, say). */
+  cluster: string | null;
+  roles: string[];
+  capturedAt: string | null;
+  executions: number;
+  seconds: number;
+  averageMillis: number;
+  rowsScanned: number;
+  rowsSent: number;
+  rowsAffected: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  /** This source's part of the statement's time across every source, 0..1. */
+  shareOfTime: number;
 }

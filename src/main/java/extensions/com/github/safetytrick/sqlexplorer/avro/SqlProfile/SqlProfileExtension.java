@@ -309,6 +309,14 @@ public class SqlProfileExtension {
                 thiz.setIndexHints(indexHints);
             }
 
+            if (thiz.getWriteTables() != null) {
+                List<TableReference> writeTables = new ArrayList<>(thiz.getWriteTables().size());
+                for (TableReference table : thiz.getWriteTables()) {
+                    writeTables.add(table.withDefaultSchema(defaultSchema));
+                }
+                thiz.setWriteTables(writeTables);
+            }
+
             if (thiz.getTables() != null) {
                 List<TableReference> tables = new ArrayList<>(thiz.getTables().size());
                 for (TableReference table : thiz.getTables()) {
@@ -391,6 +399,7 @@ public class SqlProfileExtension {
             if (thiz.getSchemas() == null) { thiz.setSchemas(new ArrayList<>()); }
             if (thiz.getSourcedFiles() == null) { thiz.setSourcedFiles(new ArrayList<>()); }
             if (thiz.getSources() == null) { thiz.setSources(new ArrayList<>()); }
+            if (thiz.getWriteTables() == null) { thiz.setWriteTables(new ArrayList<>()); }
             if (thiz.getIndexHints() == null) { thiz.setIndexHints(new ArrayList<>()); }
             if (thiz.getOrderByColumns() == null) { thiz.setOrderByColumns(new ArrayList<>()); }
             if (thiz.getCriteriaComparisons() == null) { thiz.setCriteriaComparisons(new ArrayList<>()); }

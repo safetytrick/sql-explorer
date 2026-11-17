@@ -100,12 +100,13 @@ export const GLOSSARY = {
     + 'wildcard, which no index can serve. The pattern is usually a ? placeholder, so most are unknown, not safe.',
   // ── migration planning: write rate, lock risk, encodings (sqlx-n5j.5/.9/.10) ──
   writesPerDay:
-    'INSERT, UPDATE, DELETE and REPLACE executions touching the table, per day. An AVERAGE: each statement\'s '
+    'INSERT, UPDATE, DELETE and REPLACE executions writing the table, per day. An AVERAGE: each statement\'s '
     + 'count divided by the days between its first and last seen (at least one day), summed. Performance '
     + 'Schema keeps no time-of-day breakdown, so a nightly batch reads as spread evenly over the day.',
   rowsPerDay:
-    'Rows changed per day, averaged the same way. A statement that writes several tables reports rows for all '
-    + 'of them, and an INSERT … SELECT is also counted against the table it reads.',
+    'Rows changed per day, averaged the same way. A statement is counted only against the tables it writes, '
+    + 'so an INSERT … SELECT is not charged to the table it reads; but one that writes several tables reports '
+    + 'rows for all of them. A statement that could not be parsed is counted against every table it names.',
   lockRisk:
     'A DDL statement (ALTER TABLE, CREATE INDEX, …) must take the table\'s metadata lock, so it waits for every '
     + 'statement already running on the table — and every query arriving after it queues behind the DDL. One '

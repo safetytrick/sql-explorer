@@ -305,6 +305,39 @@
           </div>
         }
 
+        <!-- Where it runs: each source's own figures, from the corpus scoped to it (sqlx-rw2.9) -->
+        @if (sources?.length) {
+          <div class="lens-card where-it-runs">
+            <div class="card-head">
+              <span class="card-head-title">Where it runs</span>
+              <span class="card-head-note">each server's own figures; a server opens its queries</span>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table ledger">
+                <thead><tr><th>Server</th><th class="num">Executions</th><th class="num">Time</th><th>Share of time</th>
+                  <th class="num">Avg</th><th class="num">Rows scanned</th><th>Last seen</th></tr></thead>
+                <tbody>
+                  @for (s of sources; track s.source) {
+                    <tr>
+                      <td><a class="mono" routerLink="/queries" [queryParams]="{sources: s.source}"
+                             [title]="'every query on ' + s.source">{{s.source}}</a>
+                        @if (s.cluster) { <span class="dim"> {{s.cluster}}</span> }
+                        @for (role of s.roles; track role) { <span class="role">{{role}}</span> }</td>
+                      <td class="num mono">{{s.executions | number}}</td>
+                      <td class="num mono">{{s.seconds | number:'1.0-1'}} s</td>
+                      <td><span class="share-bar" [title]="(s.shareOfTime * 100 | number:'1.0-0') + '%'"><span [style.width.%]="s.shareOfTime * 100"></span></span>
+                        <span class="mono"> {{s.shareOfTime * 100 | number:'1.0-0'}}%</span></td>
+                      <td class="num mono">{{s.averageMillis | number:'1.0-2'}} ms</td>
+                      <td class="num mono">{{s.rowsScanned | number}}</td>
+                      <td class="mono">{{s.lastSeen ? (s.lastSeen | date:SEEN_FORMAT) : '—'}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
         <!-- Examples sit here rather than in the right rail: an example is the
              same kind of thing as the SQL at the top of the page — a statement
              you read — so it wants the same width and the same rendering. In

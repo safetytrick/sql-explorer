@@ -34,6 +34,13 @@ protocol SqlExplorer {
 		 * (SourceScope), not from this list (sqlx-a9h.1).
 		 */
 		array<string> sources = [];
+		/**
+		 * The tables the statement writes: an INSERT/REPLACE target, the
+		 * tables an UPDATE sets, a DELETE's targets. Empty for a statement
+		 * that writes nothing, or one that did not parse — then every table
+		 * it names is all that is known (sqlx-n5j.16).
+		 */
+		array<TableReference> writeTables = [];
 		QueryActivityStatus queryActivityStatus;
 		boolean modifiedForAnalysis = false;
 		boolean isMultiSchema = false;

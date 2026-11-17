@@ -46,9 +46,11 @@ public final class AnalyzerVersion {
      *       opening parenthesis, from the parse when there is one, and
      *       UNKNOWN when the text does not reach it. WITH and ( are no
      *       longer types (sqlx-a9h).</li>
+     *   <li>9 — the tables a statement writes are recorded, apart from the
+     *       tables it only reads (sqlx-n5j.16).</li>
      * </ul>
      */
-    public static final int ANALYZERS = 8;
+    public static final int ANALYZERS = 9;
 
     /** What a profile records, and what reuse compares: {@code a<ANALYZERS>.n<QueryNormalizer.VERSION>}. */
     public static final String CURRENT = "a" + ANALYZERS + ".n" + QueryNormalizer.VERSION;

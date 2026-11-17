@@ -14,7 +14,7 @@ import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
 import com.github.safetytrick.sqlexplorer.model.CapturedRate;
-import com.github.safetytrick.sqlexplorer.model.QueryKind;
+import com.github.safetytrick.sqlexplorer.model.WriteTargets;
 import org.springframework.stereotype.Service;
 
 /**
@@ -65,12 +65,13 @@ public class TableWorkloadService {
 
         for (SqlProfile profile : sqlRepositoryService.getTableQueries(table).toList()) {
             RuntimeMetrics metrics = profile.getRuntimeMetrics();
-            if (metrics == null || !QueryKind.of(profile).isWrite()) {
+            // charged only to the tables it writes, not every table it names (sqlx-n5j.16)
+            if (metrics == null || !WriteTargets.writes(profile, table)) {
                 continue;
             }
             String type = profile.getType().toUpperCase(Locale.ROOT);
             WriteStatement statement = new WriteStatement(profile.getDigest(), type, profile.getQuery(),
-                tableCount(profile) > 1,
+                WriteTargets.writtenCount(profile) > 1,
                 metrics.getExecuted(), metrics.getRowsAffected(),
                 CapturedRate.perDay(metrics.getExecuted(), metrics),
                 CapturedRate.perDay(metrics.getRowsAffected(), metrics),
@@ -143,10 +144,6 @@ public class TableWorkloadService {
             List.copyOf(statements.subList(0, Math.min(LOCK_RISK_LIMIT, statements.size()))));
     }
 
-    private static int tableCount(SqlProfile profile) {
-        return profile.getTables() == null ? 0 : profile.getTables().size();
-    }
-
     private static double millis(BigDecimal picos) {
         return picos == null ? 0d : picos.doubleValue() / PICOS_PER_MILLI;
     }
@@ -176,10 +173,12 @@ public class TableWorkloadService {
     /**
      * One writing statement.
      *
-     * @param multiTable the statement names other tables too. Its counts are
+     * @param multiTable the statement writes other tables too. Its counts are
      *                   the statement's, not this table's: a multi-table UPDATE
-     *                   reports rows changed in every table it writes, and an
-     *                   INSERT … SELECT is counted against the table it reads.
+     *                   reports rows changed in every table it writes. A
+     *                   statement whose written tables are unknown (it did not
+     *                   parse) is multi-table when it names others, since it is
+     *                   counted against each of them.
      * @param windowDays lastSeen − firstSeen, unfloored; null when unknown
      */
     public record WriteStatement(String digest, String type, String query, boolean multiTable,

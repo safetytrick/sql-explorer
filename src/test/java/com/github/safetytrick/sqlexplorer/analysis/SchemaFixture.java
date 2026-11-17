@@ -88,6 +88,7 @@ public final class SchemaFixture {
     public SqlAnalysisService analysisServiceWithSchemaInference() {
         return service(
             new StatementTypeAnalyzer(),
+            new WriteTablesAnalyzer(),
             new TableNameAnalyzer(),
             new SchemaAnalyzer(),
             new JoinColumnAnalyzer(resolver),
@@ -105,6 +106,7 @@ public final class SchemaFixture {
     public SqlProfile analyze(String sql) throws JSQLParserException {
         SqlAnalysisService service = service(
             new StatementTypeAnalyzer(),
+            new WriteTablesAnalyzer(),
             new TableNameAnalyzer(),
             new SchemaAnalyzer(),
             new JoinColumnAnalyzer(resolver),
