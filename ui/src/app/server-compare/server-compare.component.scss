@@ -1,0 +1,105 @@
+:host { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+
+.mono { font-family: var(--mono); }
+.dim { color: var(--text3); }
+
+.compare { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+
+.cmp-bar, .cmp-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text2);
+}
+.bar-label { color: var(--text3); margin-left: 6px; &:first-child { margin-left: 0; } }
+select {
+  font-size: 12px;
+  background: var(--bg2);
+  color: var(--text);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 1px 4px;
+}
+
+// each flag a hue, the same on the filter chips and the row badges
+[data-flag="ON_PRIMARY"] { --flag: var(--amber); --flag-dim: var(--amber-dim); }
+[data-flag="SKEWED"] { --flag: var(--purple); --flag-dim: var(--purple-dim); }
+[data-flag="SINGLE_SERVER"] { --flag: var(--teal); --flag-dim: var(--teal-dim); }
+[data-flag="PLAN_DIFFERS"] { --flag: var(--red); --flag-dim: var(--red-dim); }
+[data-flag="LATENCY_DIFFERS"] { --flag: var(--blue); --flag-dim: var(--blue-dim); }
+[data-flag="REPLICA_WRITES"] { --flag: var(--green); --flag-dim: var(--green-dim); }
+
+.flag-chip {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--flag);
+  color: var(--flag);
+  background: transparent;
+  white-space: nowrap;
+  cursor: pointer;
+  .count { font-family: var(--mono); opacity: 0.8; }
+  &.on { background: var(--flag-dim); font-weight: 600; }
+  &.none { opacity: 0.45; }
+  &.small { font-size: 10px; padding: 0 5px; cursor: help; }
+  &:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+}
+.cmp-summary { margin-left: auto; color: var(--text3); }
+
+.cmp-scroll { flex: 1; min-height: 0; overflow: auto; }
+.list-note { padding: 24px 16px; color: var(--text3); }
+
+.cmp-table {
+  width: 100%;
+  &.stale { opacity: 0.6; }
+  th { position: sticky; top: 0; z-index: 1; background: var(--bg2); vertical-align: bottom; }
+  td { vertical-align: top; }
+}
+.col-text {
+  min-width: 260px;
+  max-width: 520px;
+  .flags { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 2px; }
+  .row-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+}
+.col-server {
+  min-width: 130px;
+  // server names keep their case: the header row's uppercase would misspell them
+  a, > .mono { display: block; font-size: 11px; overflow-wrap: anywhere; text-transform: none; letter-spacing: 0; }
+  .roles { display: flex; justify-content: flex-end; gap: 3px; margin: 2px 0; }
+  .window { display: block; font-weight: normal; font-size: 10px; cursor: help; text-transform: none; }
+  &.unread { opacity: 0.55; }
+}
+.role {
+  font-size: 9px;
+  font-weight: normal;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--text3);
+  border: 1px solid var(--border2);
+  &[data-role="primary"] { color: var(--amber); border-color: var(--amber); }
+  &[data-role="replica"] { color: var(--blue); border-color: var(--blue); }
+}
+
+.cell {
+  .per-day { display: block; font-family: var(--mono); color: var(--text); }
+  .sub { display: block; font-size: 10px; white-space: nowrap; }
+  .share { display: block; height: 3px; margin-top: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .share span { display: block; height: 100%; background: var(--text3); }
+  // the cell a flag is about
+  &.hot { background: var(--amber-dim); box-shadow: inset 2px 0 0 var(--amber); }
+  &.hot .share span { background: var(--amber); }
+}
+
+.basis { margin: 10px 12px 16px; font-size: 11px; color: var(--text3); line-height: 1.5; max-width: 110ch; }

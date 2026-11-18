@@ -13,7 +13,19 @@
     <button class="btn" (click)="resetView()">reset</button>
     <button class="btn" [class.on]="layout === 'grid'" (click)="toggleLayout()"
             title="place tables on a grid of schemas and aggregates instead of the force layout">grid</button>
-    @if (layout === 'grid') {
+    <button class="btn" [class.on]="erd" (click)="setLayout(erd ? 'grid' : 'erd')"
+            title="the grid as an entity-relationship diagram: each table lists its key columns, a line meets the columns it relates, and its ends say one or many">ERD</button>
+    <button class="btn" [class.on]="treemap" (click)="setLayout(treemap ? 'grid' : 'treemap')"
+            title="every table as a tile whose area is its query time or its size on disk, inside its schema and aggregate">treemap</button>
+    @if (treemap) {
+      <span class="measure" role="group" aria-label="tile area">
+        <button class="btn" [class.on]="measure === 'time'" (click)="setMeasure('time')"
+                [title]="glossary.treemapTime">query time</button>
+        <button class="btn" [class.on]="measure === 'disk'" (click)="setMeasure('disk')"
+                [title]="glossary.treemapDisk">disk size</button>
+      </span>
+    }
+    @if (grid) {
       <button class="btn" (click)="resetArrangement()"
               title="put the tables and aggregates of the schemas shown back where they are placed automatically; aggregates chosen by hand are kept. The arrangement is shared, so this is for everyone">auto-place</button>
       <button class="btn" [class.on]="overridesOpen" (click)="toggleOverrides()"
@@ -43,14 +55,19 @@
       <button class="btn" [class.on]="layers.view" (click)="toggle('view')">views</button>
     }
     @if (loading) { <span class="loading">loading…</span> }
-    @if (layout === 'grid' && !layoutError) {
+    @if (grid && !layoutError) {
       <span class="loading" title="moves are saved for everyone, by schema name, in every environment">drag a table, an aggregate's label or a schema's name to arrange; shared</span>
     }
     @if (layoutError) { <span class="layout-error">{{layoutError}}</span> }
+    @if (treemap && unmeasured) {
+      <span class="loading" [title]="measure === 'disk'
+        ? 'no server reported a size for them: views, and tables whose statistics were not read'
+        : 'none of the matching queries that touch them took measurable time'">{{unmeasured}} {{unmeasured === 1 ? 'table' : 'tables'}} not drawn: {{measure === 'disk' ? 'no size reported' : 'no query time'}}</span>
+    }
   </div>
 
   <!-- Aggregates chosen by hand, everyone's, each undoable on its own; var-overrides=1. -->
-  @if (overridesOpen && layout === 'grid') {
+  @if (overridesOpen && grid) {
     <div class="overrides">
       <div class="nd-head">
         <span class="nd-name">aggregates chosen by hand</span>
@@ -90,55 +107,87 @@
         @if (node.warn) { <span class="nd-warn" title="a query on it failed analysis or joins mismatched types">· analyzer findings</span> }</div>
       <div class="nd-actions">
         <a class="btn" [routerLink]="['/table', node.schema, node.table]">open table</a>
-        <a class="btn" [routerLink]="['/queries']" [queryParams]="tableQueriesLink(node)">its queries</a>
+        <a class="btn" [routerLink]="['/queries']" [queryParams]="tableQueriesLink(node)">queries</a>
         <button type="button" class="btn exclude" (click)="excludeTable(node)"
-                title="leave out every query that touches it, here and in the list; undo from its pill">⊘ exclude its queries</button>
+                title="leave out every query that touches it, here and in the list; undo from its pill">⊘ exclude queries</button>
       </div>
-      @if (detail.fkOut.length) {
-        <div class="nd-label">references (FK →)</div>
-        @for (edge of detail.fkOut; track edge.to.id + edge.label) {
-          <div class="nd-rel">
-            <a class="nd-follow" (click)="selectTable(edge.to.table)" title="select it on the graph">{{edge.to.table}}</a>
-            <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
-            @if (edge.neverJoined) { <span class="dim nd-unjoined" [title]="filtered ? 'no matching query joins on this key' : 'no query joins on this key'">never joined</span> }
-            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
-          </div>
+      <div class="nd-tabs" role="tablist">
+        <button type="button" role="tab" class="nd-tab" [class.on]="detailTab === 'relationships'"
+                [attr.aria-selected]="detailTab === 'relationships'" (click)="setDetailTab('relationships')">Relationships</button>
+        <button type="button" role="tab" class="nd-tab" [class.on]="detailTab === 'columns'"
+                [attr.aria-selected]="detailTab === 'columns'" (click)="setDetailTab('columns')">Columns</button>
+      </div>
+      @if (detailTab === 'columns') {
+        @if (selectedColumns(node); as columns) {
+          @if (columns === 'loading') {
+            <div class="nd-more dim">reading columns…</div>
+          } @else if (columns === 'error') {
+            <div class="nd-more nd-warn">could not read its columns</div>
+          } @else if (!columns.length) {
+            <div class="nd-more dim">its structure has not been read</div>
+          } @else {
+            <table class="nd-cols">
+              @for (column of columns; track column.name) {
+                <tr [title]="column.remarks ?? ''">
+                  <td class="mono nd-col" [class.nd-pk]="column.primary">{{column.name}}</td>
+                  <td class="mono dim">{{column.type}}{{column.nullable ? '?' : ''}}</td>
+                  <td class="nd-keys">
+                    @if (column.primary) { <span class="nd-key" title="primary key">PK</span> }
+                    @if (column.foreignKey) { <span class="nd-key" title="a declared foreign key">FK</span> }
+                    @if (column.unique) { <span class="nd-key" title="a unique index on this column alone">UQ</span> }
+                  </td>
+                </tr>
+              }
+            </table>
+          }
         }
-      }
-      @if (detail.fkIn.length) {
-        <div class="nd-label">referenced by (FK ←)</div>
-        @for (edge of detail.fkIn; track edge.from.id + edge.label) {
-          <div class="nd-rel">
-            <a class="nd-follow" (click)="selectTable(edge.from.table)" title="select it on the graph">{{edge.from.table}}</a>
-            <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
-            @if (edge.neverJoined) { <span class="dim nd-unjoined" [title]="filtered ? 'no matching query joins on this key' : 'no query joins on this key'">never joined</span> }
-            <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
-          </div>
+      } @else {
+        @if (detail.fkOut.length) {
+          <div class="nd-label">references (FK →)</div>
+          @for (edge of detail.fkOut; track edge.to.id + edge.label) {
+            <div class="nd-rel">
+              <a class="nd-follow" (click)="selectTable(edge.to.table)" title="select it on the graph">{{edge.to.table}}</a>
+              <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
+              @if (edge.neverJoined) { <span class="dim nd-unjoined" [title]="filtered ? 'no matching query joins on this key' : 'no query joins on this key'">never joined</span> }
+              <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
+            </div>
+          }
         }
-      }
-      @if (detail.joins.length) {
-        <div class="nd-label">joined with</div>
-        @for (partner of detail.joins.slice(0, 12); track partner.other.id) {
-          <div class="nd-rel">
-            <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
-            <span class="mono dim" [title]="partner.edge.label">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
-            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
-          </div>
+        @if (detail.fkIn.length) {
+          <div class="nd-label">referenced by (FK ←)</div>
+          @for (edge of detail.fkIn; track edge.from.id + edge.label) {
+            <div class="nd-rel">
+              <a class="nd-follow" (click)="selectTable(edge.from.table)" title="select it on the graph">{{edge.from.table}}</a>
+              <span class="mono dim" [class.nd-warn]="edge.warn">{{edge.label}}</span>
+              @if (edge.neverJoined) { <span class="dim nd-unjoined" [title]="filtered ? 'no matching query joins on this key' : 'no query joins on this key'">never joined</span> }
+              <a class="nd-q" [routerLink]="edgeLink(edge).path" [queryParams]="edgeLink(edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
+            </div>
+          }
         }
-        @if (detail.joins.length > 12) { <div class="nd-more dim">and {{detail.joins.length - 12}} more</div> }
-      }
-      @if (detail.co.length) {
-        <div class="nd-label">queried together with, never joined</div>
-        @for (partner of detail.co.slice(0, 12); track partner.other.id) {
-          <div class="nd-rel">
-            <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
-            <span class="dim">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
-            <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
-          </div>
+        @if (detail.joins.length) {
+          <div class="nd-label">joined with</div>
+          @for (partner of detail.joins.slice(0, 12); track partner.other.id) {
+            <div class="nd-rel">
+              <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
+              <span class="mono dim" [title]="partner.edge.label">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
+              <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
+            </div>
+          }
+          @if (detail.joins.length > 12) { <div class="nd-more dim">and {{detail.joins.length - 12}} more</div> }
         }
-        @if (detail.co.length > 12) { <div class="nd-more dim">and {{detail.co.length - 12}} more</div> }
-      } @else if (!layers.co) {
-        <div class="nd-more dim">turn on co-query to list the tables it is queried with</div>
+        @if (detail.co.length) {
+          <div class="nd-label">queried together with, never joined</div>
+          @for (partner of detail.co.slice(0, 12); track partner.other.id) {
+            <div class="nd-rel">
+              <a class="nd-follow" (click)="selectTable(partner.other.table)" title="select it on the graph">{{partner.other.table}}</a>
+              <span class="dim">{{fmtExecsPublic(partner.edge.execs ?? 0)}} execs</span>
+              <a class="nd-q" [routerLink]="edgeLink(partner.edge).path" [queryParams]="edgeLink(partner.edge).query" [title]="filtered ? 'the matching queries touching both' : 'queries touching both'">queries</a>
+            </div>
+          }
+          @if (detail.co.length > 12) { <div class="nd-more dim">and {{detail.co.length - 12}} more</div> }
+        } @else if (!layers.co) {
+          <div class="nd-more dim">turn on co-query to list the tables it is queried with</div>
+        }
       }
     </div>
   }
@@ -147,7 +196,18 @@
   <div class="graph-legend" [class.open]="legendOpen">
     <button type="button" class="leg-toggle" (click)="toggleLegend()" [attr.aria-expanded]="legendOpen">
       {{legendOpen ? '▾' : '▸'}} legend</button>
-    @if (layout === 'grid') {
+    @if (treemap) {
+      <div class="leg-row"><div class="leg-node"></div>
+        <span>area: <span class="term" [title]="measure === 'disk' ? glossary.treemapDisk : glossary.treemapTime">{{measure === 'disk' ? 'data + index bytes on disk' : 'time of the ' + (filtered ? 'matching ' : '') + 'queries touching it'}}</span></span></div>
+      @if (measure === 'disk') {
+        <div class="leg-row"><div class="leg-node"></div><div class="leg-node leg-hatch"></div> a table's data, then its indexes, hatched</div>
+      }
+      <div class="leg-row"><div class="leg-region"></div> shaded block: one schema, its total named</div>
+      <div class="leg-row"><div class="leg-node aggregate"></div> outlined block: an aggregate, its root named</div>
+      <div class="leg-row"><div class="leg-node selected"></div> blue: the selected table; green, the tables its shown lines reach</div>
+      <div class="leg-hint">lines are not drawn here; the layer buttons still decide which tables count as related</div>
+    } @else {
+    @if (grid) {
       <!-- on the grid, colour is the aggregate, so the kind of line is in its style (sqlx-aoy.14) -->
       <div class="leg-row"><div class="leg-line"></div><span class="leg-head">▸</span> foreign key</div>
       <div class="leg-row"><div class="leg-dot"></div><span class="leg-head">▸</span> foreign key no {{filtered ? 'matching ' : ''}}query joins on</div>
@@ -155,6 +215,11 @@
       <div class="leg-row"><div class="leg-dash"></div> queried together, never joined</div>
       <div class="leg-row"><div class="leg-line amber"></div> FK with mismatched types</div>
       <div class="leg-row"><div class="leg-swatches"><i></i><i></i><i></i></div> colour: the aggregate the line belongs to; grey, none</div>
+      @if (erd) {
+        <div class="leg-row"><span class="leg-end">⪫</span> <span class="term" [title]="glossary.erdKind">many</span>: no unique index on the joined columns</div>
+        <div class="leg-row"><span class="leg-end">┼</span> <span class="term" [title]="glossary.erdKind">one</span>: a unique index covers them</div>
+        <div class="leg-row"><span class="leg-end">○</span> may be none: the other end's column is nullable</div>
+      }
     } @else {
       <div class="leg-row"><div class="leg-line blue"></div> foreign key</div>
       <div class="leg-row"><div class="leg-dot blue"></div> foreign key no {{filtered ? 'matching ' : ''}}query joins on</div>
@@ -167,20 +232,32 @@
     }
     @if (legendOpen) {
       <div class="leg-sep"></div>
-      <div class="leg-row"><div class="leg-node"></div> a table; every box is the same size, so size means nothing</div>
+      @if (erd) {
+        <div class="leg-row"><div class="leg-node"></div> a table and its key columns: primary key, foreign keys, and the columns lines meet</div>
+        <div class="leg-row"><span class="leg-sample">PK FK UQ</span> primary key · declared foreign key · unique on its own</div>
+        <div class="leg-row"><span class="leg-sample mono">int?</span> a type ending in ? is nullable</div>
+        <div class="leg-hint">a join on a declared foreign key is drawn once, as the join; a line's hover says whether a key declares it</div>
+      } @else {
+        <div class="leg-row"><div class="leg-node"></div> a table; every box is the same size, so size means nothing</div>
+      }
       <div class="leg-row"><div class="leg-node warn"></div> amber border: a query on it failed analysis or joins mismatched types</div>
-      <div class="leg-row"><span class="leg-sample">app · 12c · 40q</span> schema · columns · distinct queries</div>
+      @if (erd) {
+        <div class="leg-row"><span class="leg-sample">40q</span> distinct queries · <span class="leg-sample">+ 9 more</span> the columns not listed</div>
+      } @else {
+        <div class="leg-row"><span class="leg-sample">app · 12c · 40q</span> schema · columns · distinct queries</div>
+      }
       <div class="leg-row"><span class="leg-sample">1.2M</span> on a join or dashed line: executions of the queries behind it</div>
       <div class="leg-row"><span class="leg-sample mono">site_id</span> on an FK: its first column pair</div>
       <div class="leg-row"><div class="leg-loop"></div> loop: the table is joined to itself</div>
       <div class="leg-row"><div class="leg-region"></div> shaded area: one schema</div>
-      @if (layout === 'grid') {
+      @if (grid) {
         <div class="leg-row"><div class="leg-node aggregate"></div> outlined block: an aggregate, its root named at the top</div>
         <div class="leg-hint">lines run in the gaps between tables and share them where they head the same way;
           hover a table or a line to follow its whole route</div>
       }
       <div class="leg-row"><div class="leg-node selected"></div> blue: the selected table</div>
-      <div class="leg-hint">click a line for the queries behind it; click a table twice to open it</div>
+      <div class="leg-hint">click a line for the queries behind it; click a table to pin its details, again to unpin</div>
+    }
     }
   </div>
 

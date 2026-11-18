@@ -199,6 +199,7 @@ public class QuerySearchService {
         if (!matchesRange(r.avgRowsScanned(), m == null ? null : (double) m.getAverageRowsScanned())) return false;
         if (!matchesRange(r.selectivity(), m == null ? null : selectivity(m))) return false;
         if (!matchesRange(r.rowsSorted(), m == null ? null : (double) m.getRowsSorted())) return false;
+        if (!matchesRange(r.executed(), m == null ? null : (double) m.getExecuted())) return false;
 
         if (r.activity() == QuerySearchRequest.Activity.ACTIVE
             && profile.getQueryActivityStatus() != QueryActivityStatus.ACTIVE) return false;
@@ -524,12 +525,16 @@ public class QuerySearchService {
             case AVG_TIME -> m -> millis(m.getAverageTime());
             case MAX_TIME -> m -> millis(m.getMaxTime());
             case AVG_ROWS_SCANNED -> m -> (double) m.getAverageRowsScanned();
-            case SELECTIVITY -> QuerySearchService::selectivity;
+            case SELECTIVITY, SELECTIVITY_ASC -> QuerySearchService::selectivity;
+            case EXECUTIONS -> m -> (double) m.getExecuted();
             case LAST_SEEN -> m -> m.getLastSeen() == null ? null : (double) m.getLastSeen().toEpochSecond(java.time.ZoneOffset.UTC);
         };
         Function<QueryHit, Double> extract = hit -> hit.profile().getRuntimeMetrics() == null
             ? null
             : metric.apply(hit.profile().getRuntimeMetrics());
-        return Comparator.comparing(extract, Comparator.nullsLast(Comparator.reverseOrder()));
+        Comparator<Double> order = key == QuerySearchRequest.Sort.SELECTIVITY_ASC
+            ? Comparator.naturalOrder()
+            : Comparator.reverseOrder();
+        return Comparator.comparing(extract, Comparator.nullsLast(order));
     }
 }

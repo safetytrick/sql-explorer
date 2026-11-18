@@ -409,6 +409,15 @@
   app-graph-lens { position: absolute; inset: 0; }
 }
 
+.servers-pane {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-top: 1px solid var(--border);
+
+  app-server-compare { position: absolute; inset: 0; }
+}
+
 .list-and-detail {
   display: flex;
   flex-direction: column;

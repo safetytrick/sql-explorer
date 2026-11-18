@@ -33,6 +33,8 @@ import {decodeWorkbenchParams, encodeWorkbenchParams, WorkbenchPanel} from './wo
 import {BulkTagBarComponent} from '../bulk-tag/bulk-tag-bar.component';
 import {GraphLensComponent} from '../graph-lens/graph-lens.component';
 import {GRAPH_PARAMS, GRAPH_VIEW, VIEW_PARAM} from '../graph-lens/graph-url';
+import {COMPARE_PARAMS, SERVERS_VIEW} from '../server-compare/server-compare';
+import {ServerCompareComponent} from '../server-compare/server-compare.component';
 
 const PAGE_SIZE = 50;
 
@@ -50,7 +52,7 @@ export interface RangePreset { label: string; title: string; min: number | null;
  * where the steps matter most: the interesting range is near zero, where
  * 0.01% and 0.1% are very different queries.
  */
-export const RANGE_PRESETS: Record<'avgTime' | 'maxTime' | 'avgRows' | 'selectivityPct' | 'rowsSorted', RangePreset[]> = {
+export const RANGE_PRESETS: Record<'avgTime' | 'maxTime' | 'avgRows' | 'selectivityPct' | 'rowsSorted' | 'executed', RangePreset[]> = {
   avgTime: [
     { label: 'slow >1s', title: 'average execution over a second', min: 1000, max: null },
     { label: 'chatty <20ms', title: 'average execution under 20ms: cheap, so only costly in bulk', min: null, max: 20 },
@@ -74,6 +76,11 @@ export const RANGE_PRESETS: Record<'avgTime' | 'maxTime' | 'avgRows' | 'selectiv
     { label: '>10k', title: 'sorts over ten thousand rows in total', min: 10000, max: null },
     { label: '>1M', title: 'sorts over a million rows in total', min: 1000000, max: null },
   ],
+  executed: [
+    { label: 'once', title: 'ran a single time in the captured period', min: null, max: 1 },
+    { label: '>1k', title: 'ran over a thousand times', min: 1000, max: null },
+    { label: '>1M', title: 'ran over a million times', min: 1000000, max: null },
+  ],
 };
 type RangeKey = keyof typeof RANGE_PRESETS;
 
@@ -85,7 +92,7 @@ type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'tr
   templateUrl: './queries-workbench.component.html',
   styleUrls: ['./queries-workbench.component.scss'],
   imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, SlicePipe, NgTemplateOutlet, SqlHighlightDirective, DateRangeSelectorComponent,
-    BulkTagBarComponent, InViewDirective, GraphLensComponent]
+    BulkTagBarComponent, InViewDirective, GraphLensComponent, ServerCompareComponent]
 })
 export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
 
@@ -136,6 +143,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   avgRows: RangeState = { min: null, max: null };
   selectivityPct: RangeState = { min: null, max: null };
   rowsSorted: RangeState = { min: null, max: null };
+  executed: RangeState = { min: null, max: null };
   fullScan: Flag = 'ANY';
   tmpTable: Flag = 'ANY';
   tmpDisk: Flag = 'ANY';
@@ -286,8 +294,15 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     }));
   }
 
-  /** The graph in place of the list; `view=graph` (sqlx-aoy.16). */
-  graphView = false;
+  /**
+   * What shows the results: the list, the graph (`view=graph`, sqlx-aoy.16),
+   * or the comparison across servers (`view=servers`, sqlx-a9h.2).
+   */
+  view: WorkbenchView = 'list';
+
+  get graphView(): boolean { return this.view === 'graph'; }
+
+  get serversView(): boolean { return this.view === 'servers'; }
 
   /** What this page last wrote to the URL, by {@link urlKey}, so its own writes are not read back. */
   private writtenKey: string | null = null;
@@ -370,6 +385,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.avgRows = state.avgRows;
     this.selectivityPct = state.selectivityPct;
     this.rowsSorted = state.rowsSorted;
+    this.executed = state.executed;
     this.fullScan = state.fullScan;
     this.tmpTable = state.tmpTable;
     this.tmpDisk = state.tmpDisk;
@@ -501,6 +517,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       avgRows: this.avgRows,
       selectivityPct: this.selectivityPct,
       rowsSorted: this.rowsSorted,
+      executed: this.executed,
       fullScan: this.fullScan,
       tmpTable: this.tmpTable,
       tmpDisk: this.tmpDisk,
@@ -535,8 +552,13 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
    * the link is shareable either way.
    */
   setGraphView(graph: boolean) {
-    if (graph === this.graphView) { return; }
-    this.graphView = graph;
+    this.setView(graph ? 'graph' : 'list');
+  }
+
+  /** The list, the graph or the server comparison, each a view of the same search. */
+  setView(view: WorkbenchView) {
+    if (view === this.view) { return; }
+    this.view = view;
     this.writeFiltersToUrl();
   }
 
@@ -681,6 +703,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.avgRows = { min: null, max: null };
     this.selectivityPct = { min: null, max: null };
     this.rowsSorted = { min: null, max: null };
+    this.executed = { min: null, max: null };
     this.fullScan = this.tmpTable = this.tmpDisk = this.errors = this.warnings = 'ANY';
     this.truncated = this.multiSchema = 'ANY';
     this.hasExamples = false;
@@ -1045,10 +1068,10 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       ...encodeWorkbenchParams({ expanded: [...this.expanded], fullSql: this.fullSql, detailPane: this.detailPane,
         hide: [...this.hidden] })
     };
-    if (this.graphView) {
-      queryParams[VIEW_PARAM] = GRAPH_VIEW;
-      // the graph's own params are its to write; keep them while it shows
-      for (const name of GRAPH_PARAMS) {
+    if (this.view !== 'list') {
+      queryParams[VIEW_PARAM] = this.view === 'graph' ? GRAPH_VIEW : SERVERS_VIEW;
+      // the view's own params are its to write; keep them while it shows
+      for (const name of this.view === 'graph' ? GRAPH_PARAMS : COMPARE_PARAMS) {
         const value = current.get(name);
         if (value !== null) { queryParams[name] = value; }
       }
@@ -1060,7 +1083,7 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   private readFiltersFromUrl() {
     const state = decodeSearchParams(this.route.snapshot.queryParamMap);
     this.assignFields(state);
-    this.graphView = this.route.snapshot.queryParamMap.get(VIEW_PARAM) === GRAPH_VIEW;
+    this.view = viewOf(this.route.snapshot.queryParamMap.get(VIEW_PARAM));
     const view = decodeWorkbenchParams(this.route.snapshot.queryParamMap);
     this.expanded = new Set(view.expanded);
     this.fullSql = view.fullSql;
@@ -1092,8 +1115,14 @@ function urlKey(params: Pick<ParamMap, 'get' | 'has'>): string {
   return JSON.stringify([
     encodeSearchParams(decodeSearchParams(params)),
     encodeWorkbenchParams(decodeWorkbenchParams(params)),
-    params.get(VIEW_PARAM) === GRAPH_VIEW
+    viewOf(params.get(VIEW_PARAM))
   ]);
+}
+
+type WorkbenchView = 'list' | 'graph' | 'servers';
+
+function viewOf(param: string | null): WorkbenchView {
+  return param === GRAPH_VIEW ? 'graph' : param === SERVERS_VIEW ? 'servers' : 'list';
 }
 
 function paramReader(params: Record<string, string>): Pick<ParamMap, 'get' | 'has'> {

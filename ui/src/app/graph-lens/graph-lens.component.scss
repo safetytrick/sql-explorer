@@ -99,9 +99,11 @@ canvas {
   .leg-node { width: 22px; height: 12px; border-radius: 3px; border: 1px solid var(--border2); background: var(--bg3); flex-shrink: 0; }
   .leg-node.warn { border: 1.5px solid var(--amber); }
   .leg-node.aggregate { background: none; border-color: hsl(200 65% 55%); border-radius: 4px; }
+  .leg-node.leg-hatch { margin-left: -6px; background: repeating-linear-gradient(-45deg, var(--bg3) 0 3px, var(--text3) 3px 4px); }
   .leg-node.selected { border: 1.5px solid var(--blue); background: var(--blue-dim); }
   .leg-loop { width: 12px; height: 12px; border: 1.5px dashed var(--text3); border-radius: 50%; margin: 0 5px; flex-shrink: 0; }
   .leg-region { width: 22px; height: 12px; border-radius: 3px; background: var(--blue-dim); flex-shrink: 0; }
+  .leg-end { width: 22px; text-align: center; color: var(--text2); font-size: 12px; line-height: 1; }
   .leg-sample { font-size: 9px; color: var(--text2); background: var(--bg3); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
   .leg-hint { font-size: 10px; color: var(--text3); margin-top: 4px; }
   &.open { max-width: 330px; }
@@ -167,6 +169,18 @@ canvas {
 .nd-follow { color: var(--blue); cursor: pointer; font-family: var(--mono); &:hover { text-decoration: underline; } }
 .nd-q { margin-left: auto; color: var(--text3); text-decoration: none; &:hover { color: var(--blue); } }
 .nd-more { margin-top: 3px; }
+.nd-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border2); margin: 4px 0 6px; }
+.nd-tab {
+  border: none; background: none; padding: 3px 8px; margin-bottom: -1px; cursor: pointer;
+  font-size: 11px; color: var(--text3); border-bottom: 2px solid transparent;
+  &:hover { color: var(--text); }
+  &.on { color: var(--text); border-bottom-color: var(--blue); }
+}
+.nd-cols { width: 100%; border-collapse: collapse; td { padding: 1px 4px 1px 0; vertical-align: baseline; } }
+.nd-col { color: var(--text); }
+.nd-pk { font-weight: 600; }
+.nd-keys { text-align: right; white-space: nowrap; }
+.nd-key { font-size: 9px; color: var(--text3); margin-left: 3px; }
 
 // the hand-chosen aggregates, under the toolbar on the left
 .overrides {
@@ -213,3 +227,6 @@ canvas {
 
 .nd-actions .btn.exclude { padding: 2px 8px; font-size: 11px; }
 .nd-actions .btn.exclude:hover { border-color: var(--red); color: var(--red); }
+
+// the treemap's choice of what a tile's area measures (sqlx-7o0)
+.measure { display: inline-flex; gap: 2px; }

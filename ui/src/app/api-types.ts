@@ -424,7 +424,27 @@ export interface CoverageReport {
 /** One table clusters disagree on; variants in cluster order, lookups using the first present one. */
 export interface TableDrift {
   table: string;
-  variants: {clusters: string[]; present: boolean}[];
+  variants: DriftVariant[];
+}
+
+/** One way a drifting table is defined, and the clusters that define it so. */
+export interface DriftVariant {
+  clusters: string[];
+  present: boolean;
+  /**
+   * How it differs from the variant lookups use (sqlx-a6z). Null for that
+   * variant itself, for an absent one, and when a structure could not be read;
+   * empty when they differ only in what the loaded schema does not keep.
+   */
+  differences?: DriftDifference[] | null;
+}
+
+/** One element defined differently; `base` (the used variant) / `other` are null where that side lacks it. */
+export interface DriftDifference {
+  kind: 'table' | 'column' | 'index' | 'foreign key';
+  name: string;
+  base: string | null;
+  other: string | null;
 }
 
 /** A primary and its replicas, and which of them supplied the schema (sqlx-sqy.2). */

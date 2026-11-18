@@ -97,6 +97,21 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void executionsRangeIsInclusiveAndDropsUnmetered() {
+        repositoryReturns(
+            profile("rare", metrics().executed(5).build()),
+            profile("edge", metrics().executed(10).build()),
+            profile("mid", metrics().executed(500).build()),
+            profile("hot", metrics().executed(100_000).build()),
+            profile("unmetered", null));
+
+        assertThat(searchIds(request().executed(new Range(10d, 500d)).build()))
+            .containsExactlyInAnyOrder("edge", "mid");
+        assertThat(searchIds(request().executed(new Range(null, 9d)).build()))
+            .containsExactly("rare");
+    }
+
+    @Test
     void triStateFlagsMatchYesAndNo() {
         repositoryReturns(
             profile("scanner", metrics().fullScan(true).build()),
@@ -636,6 +651,31 @@ class QuerySearchServiceTest {
             .containsExactly("new", "old", "unmetered");
     }
 
+    @Test
+    void sortByExecutionsPutsMostRunFirst() {
+        repositoryReturns(
+            profile("rare", metrics().executed(10).build()),
+            profile("hot", metrics().executed(100_000).build()),
+            profile("unmetered", null));
+
+        assertThat(searchIds(request().sort(Sort.EXECUTIONS).build()))
+            .containsExactly("hot", "rare", "unmetered");
+    }
+
+    @Test
+    void selectivitySortsBothWaysWithUnmeteredLast() {
+        repositoryReturns(
+            // 1 sent per 10,000 scanned
+            profile("needle", metrics().rowsSentAvg(1).rowsScannedAvg(10_000).build()),
+            profile("half", metrics().rowsSentAvg(50).rowsScannedAvg(100).build()),
+            profile("unmetered", null));
+
+        assertThat(searchIds(request().sort(Sort.SELECTIVITY).build()))
+            .containsExactly("half", "needle", "unmetered");
+        assertThat(searchIds(request().sort(Sort.SELECTIVITY_ASC).build()))
+            .containsExactly("needle", "half", "unmetered");
+    }
+
     // ── fixtures ──
 
     private static SqlProfile profile(String id, RuntimeMetrics metrics) {
@@ -724,7 +764,7 @@ class QuerySearchServiceTest {
         private List<String> sources;
         private List<String> excludeSources;
         private String queryRegex;
-        private Range avgTimeMs, selectivity;
+        private Range avgTimeMs, selectivity, executed;
         private Activity activity;
         private List<String> types;
         private DateRange lastSeen;
@@ -745,6 +785,7 @@ class QuerySearchServiceTest {
         RequestBuilder queryRegex(String v) { this.queryRegex = v; return this; }
         RequestBuilder avgTimeMs(Range v) { this.avgTimeMs = v; return this; }
         RequestBuilder selectivity(Range v) { this.selectivity = v; return this; }
+        RequestBuilder executed(Range v) { this.executed = v; return this; }
         RequestBuilder activity(Activity v) { this.activity = v; return this; }
         RequestBuilder types(List<String> v) { this.types = v; return this; }
         RequestBuilder lastSeen(DateRange v) { this.lastSeen = v; return this; }
@@ -781,7 +822,7 @@ class QuerySearchServiceTest {
         RequestBuilder offset(Integer v) { this.offset = v; return this; }
 
         QuerySearchRequest build() {
-            return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null,
+            return new QuerySearchRequest(queryRegex, avgTimeMs, null, null, selectivity, null, executed,
                 activity, types, null, lastSeen, tags, tagMode, untaggedOnly, tableTags,
                 excludeTableTags, excludeTypes, excludeTags, excludeQueries, sources, excludeSources,
                 schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted, generator,

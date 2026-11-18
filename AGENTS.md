@@ -47,6 +47,15 @@ Configuration that has to name a real deployment stays local: `scripts/` is
 git-ignored for that reason. Before committing, scan the diff for anything
 you only know because of a real system.
 
+## Applying changes to the running stack
+
+Run `./dev-restart.sh` (`--dry-run` first to see the plan). It reads the
+stack's compose files from `COMPOSE_FILE` in the git-ignored `.env`, rebuilds
+only the side whose sources changed, stops the backend before its jar is
+rebuilt, and recreates only `sql-explorer` and `explorer-ui`. See
+`.claude/skills/apply-changes/SKILL.md` and CLAUDE.md, "Running from local
+builds", for why each step is there.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.

@@ -1,5 +1,6 @@
 import {
-  decodeGraphParams, DEFAULT_LAYERS, graphOwnedParamPatch, graphRedirectParams, GraphUrlState, ParamReader, tableGraphRedirectParams
+  decodeGraphParams, decodeMeasure, DEFAULT_LAYERS, graphOwnedParamPatch, graphRedirectParams, GraphUrlState, onGrid, ParamReader,
+  tableGraphRedirectParams
 } from './graph-url';
 
 function reader(params: Record<string, string>): ParamReader {
@@ -47,6 +48,22 @@ describe('decodeGraphParams', () => {
     expect(state.layout).toBe('grid');
     expect(state.allTables).toBeFalse();
     expect(state.depth).toBeNull();
+  });
+
+  it('carries the ERD as var-layout=erd, and reads anything it does not know as the grid', () => {
+    expect(graphOwnedParamPatch({ table: null, layers: { ...DEFAULT_LAYERS }, layout: 'erd' })['var-layout']).toBe('erd');
+    expect(decodeGraphParams(reader({ 'var-layout': 'erd' })).layout).toBe('erd');
+    expect(decodeGraphParams(reader({ 'var-layout': 'radial' })).layout).toBe('grid');
+  });
+
+  it('carries the treemap as var-layout=treemap, off the grid, measuring query time unless var-measure=disk', () => {
+    expect(graphOwnedParamPatch({ table: null, layers: { ...DEFAULT_LAYERS }, layout: 'treemap' })['var-layout']).toBe('treemap');
+    expect(decodeGraphParams(reader({ 'var-layout': 'treemap' })).layout).toBe('treemap');
+    expect(onGrid('treemap')).toBeFalse();
+    expect(onGrid('erd')).toBeTrue();
+    expect(decodeMeasure(null)).toBe('time');
+    expect(decodeMeasure('disk')).toBe('disk');
+    expect(decodeMeasure('rows')).toBe('time');
   });
 
   it('reads var-layout=force as the simulation, and a link from when grid was opt-in as the grid', () => {

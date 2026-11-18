@@ -163,6 +163,12 @@ export interface TableMetaColumn {
   columnName: string;
   /** MySQL returns '' for no comment, not null. */
   remarks: string | null;
+  /** The rest of the metadata column, read by the graph's Columns tab. */
+  typeName?: string;
+  columnSize?: number;
+  /** "YES" or "NO", as JDBC reports it. */
+  isNullable?: string;
+  ordinal?: number;
 }
 
 /** Subset of the metadata TableStructure the lens reads. */
@@ -187,6 +193,17 @@ export interface GraphNode {
   warn: boolean;
   selfJoin: boolean;
   view: boolean;
+  /** The key columns, in table order: what an ERD card lists (sqlx-929). */
+  columns?: GraphKeyColumn[];
+  /** Executions of the queries counted in queryCount (sqlx-7o0). */
+  executions?: number;
+  /** Their total time in ms, each query counted in full against every table it touches. */
+  queryTimeMs?: number;
+  /** Data plus index bytes over the servers reporting it; null when none does. */
+  sizeBytes?: number | null;
+  /** Of which the rows (DATA_LENGTH), and the secondary indexes (INDEX_LENGTH); null when unreported. */
+  dataBytes?: number | null;
+  indexBytes?: number | null;
 }
 
 export interface GraphFkEdge {
@@ -198,6 +215,8 @@ export interface GraphFkEdge {
   mismatch: boolean;
   /** Some query joins the two tables on the key's columns; false means it only enforces integrity. */
   joined?: boolean;
+  /** Every column pair of the key, `a` the referencing side. */
+  pairs?: GraphColumnPair[];
 }
 
 /** Two tables joined in at least one query, from analysis (sqlx-aoy.3). */
@@ -210,6 +229,8 @@ export interface GraphJoinEdge {
   columns: string[];
   queries: number;
   executions: number;
+  /** The same pairs, in the same order, with each end's uniqueness. */
+  pairs?: GraphColumnPair[];
 }
 
 export interface GraphCoQueryEdge {
@@ -219,6 +240,35 @@ export interface GraphCoQueryEdge {
   bTable: string;
   queries: number;
   executions: number;
+}
+
+/** One row of an ERD card: a primary key, foreign key or joined-on column (sqlx-929). */
+export interface GraphKeyColumn {
+  name: string;
+  /** As MySQL names it; null when the table's structure is not known. */
+  type: string | null;
+  nullable: boolean;
+  primary: boolean;
+  /** The column alone is a unique index, the primary key included. */
+  unique: boolean;
+  /** A declared foreign key starts at it. */
+  foreignKey: boolean;
+}
+
+/**
+ * One column pair of a relationship and what the schema says about each end.
+ * `aUnique` is true when a unique index is covered by the columns joined on
+ * that side and includes this one; null when the table's structure is unknown.
+ */
+export interface GraphColumnPair {
+  a: string;
+  b: string;
+  aUnique: boolean | null;
+  bUnique: boolean | null;
+  aNullable: boolean | null;
+  bNullable: boolean | null;
+  /** The side a declared foreign key on exactly this pair starts from. */
+  declared: 'a' | 'b' | null;
 }
 
 /** A view selecting from one of its base tables. */

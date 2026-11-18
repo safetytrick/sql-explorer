@@ -70,6 +70,7 @@ describe('search-url codec', () => {
       tags: ['hot', 'slow'], tagMode: 'ALL', untaggedOnly: false,
       avgTime: { min: 5, max: 500 },
       selectivityPct: { min: null, max: 10 },
+      executed: { min: 1000, max: null },
       fullScan: 'YES', multiSchema: 'NO',
       analyzerWarnings: true, failureKind: 'PARSE',
       sort: 'LAST_SEEN',
@@ -77,6 +78,15 @@ describe('search-url codec', () => {
       schemaTagFilter: { includeTags: ['core'], excludeTags: ['legacy'], tagMode: 'ANY' }
     };
     expect(decodeSearchParams(reader(encodeSearchParams(state)))).toEqual(state);
+  });
+
+  it('spells executions as execMin/execMax and sends them as executed', () => {
+    const state: SearchUrlState = { ...defaultSearchState(), executed: { min: 10, max: 500 } };
+    expect(encodeSearchParams(state)).toEqual({ execMin: '10', execMax: '500' });
+    expect(buildSearchRequest(state, UNCONSTRAINED_TAG_SCOPE, { limit: null, offset: null }).executed)
+      .toEqual({ min: 10, max: 500 });
+    expect(buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, { limit: null, offset: null }).executed)
+      .toBeNull();
   });
 
   it('decodes a bare URL to the default state', () => {

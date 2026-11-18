@@ -1,7 +1,9 @@
 import {Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import type {TopologyReport} from './topology';
+import type {QuerySearchRequest} from '../query-search.service';
+import type {CompareReport, CompareState} from '../server-compare/server-compare';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -17,5 +19,14 @@ export class TopologyService {
 
   getTopology(): Observable<TopologyReport> {
     return this.http.get<TopologyReport>(endpoint + 'topology');
+  }
+
+  /** The queries a search matches, compared across one cluster's servers (sqlx-a9h.2). */
+  compare(request: QuerySearchRequest, state: CompareState): Observable<CompareReport> {
+    let params = new HttpParams().set('by', state.by).set('sort', state.sort);
+    if (state.cluster) { params = params.set('cluster', state.cluster); }
+    if (state.flags.length) { params = params.set('flags', state.flags.join(',')); }
+    if (state.all) { params = params.set('all', 'true'); }
+    return this.http.post<CompareReport>(endpoint + 'topology/compare', request, {params});
   }
 }

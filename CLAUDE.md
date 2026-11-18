@@ -149,6 +149,14 @@ UI is accessible at `http://localhost:4200`. Backend runs on port 8080.
 
 #### Running from local builds
 
+**`./dev-restart.sh` does all of this with the least work** (skill:
+`apply-changes`). It reads the stack's compose files from `COMPOSE_FILE` in the
+git-ignored `.env`, so personal overlays like `docker-compose.rds.yml` stay out
+of the repo. It rebuilds only the side whose sources changed, stops the backend
+before its jar is rebuilt, recreates only `sql-explorer` and `explorer-ui`, and
+checks what is then served. `--dry-run` shows the plan. The manual steps below
+are what it automates.
+
 `docker compose build` intermittently fails to reach the registry through
 Docker Desktop's proxy (`sqlx-dec`) — on `node:22` for the UI, and on the
 backend before it can even pull the dockerfile frontend. Both Dockerfiles are
@@ -266,6 +274,9 @@ Components map directly to the URL hierarchy:
 |--------------------------------------|-------------------------------------------------|
 | `/queries`                           | QueriesWorkbenchComponent                       |
 | `/queries?view=graph`                | GraphLensComponent, inside the workbench; `/graph` and `/graph/:schema` redirect there |
+| `/queries?view=graph&var-layout=erd` | the same graph as an ERD: key columns per table, a line per joined column pair, ends inferred one/many from unique indexes (`graph-lens/erd.ts`) |
+| `/queries?view=graph&var-layout=treemap` | the same graph as a treemap: a tile per table, nested by schema and aggregate, its area the matching queries' time or, with `var-measure=disk`, its bytes on disk (`graph-lens/treemap.ts`) |
+| `/queries?view=servers`              | ServerCompareComponent, inside the workbench: the matching queries compared across one cluster's servers (`var-cluster`), per day of each server's own window, rows flagged where they differ (read on primary, uneven over replicas, one server, plan or latency differs, replica writes) and the unflagged hidden unless `var-all=1`; `var-flags`, `var-rows=table`, `var-sort=time` (`server-compare/`, `topology/ServerComparisonService.java`) |
 | `/schemas`                           | SchemaListComponent                             |
 | `/tables`, `/tables/:schema`         | TableNamesComponent                             |
 | `/table/:schema/:name`               | TableLensComponent                              |

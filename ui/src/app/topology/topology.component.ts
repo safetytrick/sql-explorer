@@ -7,7 +7,7 @@ import {EnvironmentService} from '../environment.service';
 import {TopologyService} from './topology.service';
 import {
   arrange, decodeTopologyParams, encodeTopologyParams, formatSeconds, KIND_LABELS, Load, Measure, opensQueries,
-  percent, serverQueriesParams, shownInLegend, split, statusLabel, TopologyReport, TopologyServer, TopologyState
+  compareParams, percent, serverQueriesParams, shownInLegend, split, statusLabel, TopologyReport, TopologyServer, TopologyState
 } from './topology';
 
 /**
@@ -39,6 +39,7 @@ export class TopologyComponent implements OnInit {
   protected readonly shownInLegend = shownInLegend;
   protected readonly opensQueries = opensQueries;
   protected readonly serverQueriesParams = serverQueriesParams;
+  protected readonly compareParams = compareParams;
 
   private readonly topology = inject(TopologyService);
   private readonly router = inject(Router);

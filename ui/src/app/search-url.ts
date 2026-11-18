@@ -71,6 +71,8 @@ export interface SearchUrlState {
   avgRows: RangeState;
   selectivityPct: RangeState;
   rowsSorted: RangeState;
+  /** Executions in the captured period: `execMin`/`execMax`. */
+  executed: RangeState;
   fullScan: Flag;
   tmpTable: Flag;
   tmpDisk: Flag;
@@ -135,6 +137,7 @@ export function defaultSearchState(): SearchUrlState {
     avgRows: { min: null, max: null },
     selectivityPct: { min: null, max: null },
     rowsSorted: { min: null, max: null },
+    executed: { min: null, max: null },
     fullScan: 'ANY', tmpTable: 'ANY', tmpDisk: 'ANY', errors: 'ANY',
     warnings: 'ANY', truncated: 'ANY', multiSchema: 'ANY',
     hasExamples: false,
@@ -181,6 +184,7 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   putRange('avgRows', state.avgRows);
   putRange('sel', state.selectivityPct);
   putRange('sorted', state.rowsSorted);
+  putRange('exec', state.executed);
   for (const key of ['fullScan', 'tmpTable', 'tmpDisk', 'errors', 'warnings', 'truncated', 'multiSchema'] as const) {
     if (state[key] !== 'ANY') { params[key] = state[key]; }
   }
@@ -242,6 +246,7 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     avgRows: readRange('avgRows'),
     selectivityPct: readRange('sel'),
     rowsSorted: readRange('sorted'),
+    executed: readRange('exec'),
     fullScan: (params.get('fullScan') as Flag) || 'ANY',
     tmpTable: (params.get('tmpTable') as Flag) || 'ANY',
     tmpDisk: (params.get('tmpDisk') as Flag) || 'ANY',
@@ -335,6 +340,7 @@ export function buildSearchRequest(asWritten: SearchUrlState,
     selectivity: state.selectivityPct.min === null && state.selectivityPct.max === null ? null
       : { min: pctToFraction(state.selectivityPct.min), max: pctToFraction(state.selectivityPct.max) },
     rowsSorted: range(state.rowsSorted),
+    executed: range(state.executed),
     activity: state.activity === 'ANY' ? null : state.activity,
     types: state.types.length ? state.types : null,
     firstSeen: dates(resolveDateExpr(state.firstAfter), resolveDateExpr(state.firstBefore, true)),

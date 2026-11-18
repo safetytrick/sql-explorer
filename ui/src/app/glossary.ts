@@ -175,6 +175,56 @@ export const GLOSSARY = {
   schemaRole:
     'What a schema is for, recorded as a fact rather than a tag. "system" marks MySQL\'s own schemas; '
     + 'excluding "system" in a scope hides them, the same as the system tag it replaced.',
+
+  // ── the graph's ERD layout (sqlx-929) ──
+  erdKind:
+    'Whether an end of a relationship is one or many is inferred from the schema, not declared: an end is '
+    + '"one" when a unique index is covered by the columns joined on that side, and "many" when none is. '
+    + 'It says what the schema enforces, not what the data holds, so a column with no unique index reads '
+    + 'as many even if it never repeats. For a join the columns are those of every query joining the two '
+    + 'tables, so two queries each joining on half of a composite key read as unique between them.',
+
+  // ── the graph's treemap layout (sqlx-7o0) ──
+  treemapTime:
+    'A tile\'s area is the total time of the queries touching the table, as Performance Schema timed them, '
+    + 'and only the queries the search matches. A query is counted in full against every table it touches, '
+    + 'so a join of three tables adds its time to all three and the tiles together overstate the time spent.',
+  treemapDisk:
+    'A tile\'s area is the table\'s data plus index bytes, as information_schema.TABLES reported them, '
+    + 'summed over the servers that report it. It is the same whatever the search: the search only decides '
+    + 'which tables are drawn. MySQL caches these figures (a day by default), and a view has none. '
+    + 'Each tile is cut into the table\'s data (DATA_LENGTH: for InnoDB the clustered primary key, so the rows) '
+    + 'and its secondary indexes (INDEX_LENGTH), hatched.',
+
+  // ── comparing servers (sqlx-a9h.2) ──
+  compareServers:
+    'The queries the search matches, each set against its own figures on every server of one cluster. '
+    + 'Per-day figures divide a server\'s totals by its own window, because each server\'s counters run from '
+    + 'its own last reset. Rows with no flag are hidden unless "show all" is on.',
+  compareDifference:
+    'The time per day a row\'s flags are about: the largest of their costs. A read on the primary costs its '
+    + 'seconds there; an uneven spread, the time above an even split; a plan difference, the time beyond what '
+    + 'the leanest server\'s plan would take; and so on. A table\'s is its queries\' added.',
+  flagOnPrimary:
+    'A read that runs on the primary of a cluster that has replicas. A candidate to move, not a verdict: '
+    + 'transactions are not visible, so it may be a read that has to see its own writes.',
+  flagSkewed:
+    'A read whose executions per day differ at least threefold between the cluster\'s replicas, a replica '
+    + 'it never ran on counting as none. Sticky connections, a pinned job, or a balancer not spreading load.',
+  flagSingleServer:
+    'A read seen on only one of the cluster\'s non-primary servers, and not on the primary: a report or job '
+    + 'pointed at one place. Expected on an analytics server; surprising on an application replica.',
+  flagPlanDiffers:
+    'Rows examined per execution differ tenfold or more between servers (at least 100 on the worse), counting '
+    + 'only servers that ran it ten times or more. The same statement doing different work: different index '
+    + 'statistics, an index missing on one server, or a different version.',
+  flagLatencyDiffers:
+    'Rows examined match within a factor of two, but time per execution differs threefold or more (at least '
+    + '1 ms on the slower). The same work, done slower: a cold buffer pool, a smaller instance, or contention.',
+  flagReplicaWrites:
+    'Writes, or rows changed, on a server declared a replica or analytics. Under statement-based replication '
+    + 'this is the replica applying the primary\'s writes; under row-based replication those do not appear, '
+    + 'and something is writing to the replica directly.',
 } as const;
 
 export type GlossaryTerm = keyof typeof GLOSSARY;

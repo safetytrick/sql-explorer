@@ -1,14 +1,22 @@
 import {AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import {catchError, forkJoin, map, of, skip, Subscription, switchMap} from 'rxjs';
-import {AnnotationService, withSchemaRoles} from '../annotation.service';
-import {GraphV2, SchemaLensService} from '../schema-lens.service';
+import {forkJoin, skip, Subscription, switchMap} from 'rxjs';
+import {SearchTagScopeService} from '../search-tag-scope.service';
+import {GraphColumnPair, GraphKeyColumn, GraphV2, SchemaLensService} from '../schema-lens.service';
 import {EnvironmentService} from '../environment.service';
-import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ThemeService} from '../theme.service';
-import {decodeGraphParams, DEFAULT_LAYERS, DEFAULT_LAYOUT, DEPTHS, GraphLayers, GraphLayout, graphOwnedParamPatch} from './graph-url';
+import {
+  decodeGraphParams, decodeMeasure, DEFAULT_LAYERS, DEFAULT_LAYOUT, DEPTHS,
+  GraphLayers, GraphLayout, graphOwnedParamPatch, onGrid, TreemapMeasure
+} from './graph-url';
+import {splitTile, treemap as layTreemap, Tile, TreemapItem} from './treemap';
+import {formatBytes} from '../table-size';
+import {fmtTime} from '../table-workload/table-workload.service';
+import {GLOSSARY} from '../glossary';
+import {cardHeight, endsOf, End, ERD_HEADER, ERD_ROW, ERD_WIDTH, kindOf, portOffset, unlisted} from './erd';
 import {neighbourhood} from './neighbourhood';
+import {ColumnRow, columnRows} from './table-columns';
 import {buildAggregates} from './aggregates';
 import {GridNode, GridSpacing, layoutGrid, LayoutBox, Slot} from './grid-layout';
 import {Point, routeEdges} from './routing';
@@ -16,9 +24,8 @@ import {LayoutChange, LayoutItem, LayoutKind, planMove, SavedLayout, slotAt} fro
 import {GraphLayoutService} from './graph-layout.service';
 import {tableKey} from '../query-scope.service';
 import {addCriterion} from '../criteria';
-import {buildSearchRequest, decodeSearchParams, encodeSearchParams, resolveSchemaTagScope, UNCONSTRAINED_TAG_SCOPE} from '../search-url';
+import {buildSearchRequest, decodeSearchParams, encodeSearchParams} from '../search-url';
 import {scopeOf} from '../scope-url';
-import {schemaTarget} from '../tag-path';
 
 /** The minimap's size in CSS pixels. */
 const MINIMAP_W = 150;
@@ -35,6 +42,12 @@ interface MinimapCanvas extends HTMLCanvasElement {
 }
 
 interface LayoutNode {
+  /** The card's size, which the layout decides: every table alike, or on the ERD by its key columns. */
+  w: number;
+  h: number;
+  /** The key columns an ERD card lists, and how many more the table has. */
+  columns: GraphKeyColumn[];
+  more: number;
   id: string;          // schema.table
   schema: string;
   table: string;
@@ -43,14 +56,43 @@ interface LayoutNode {
   warn: boolean;
   selfJoin: boolean;
   view: boolean;
+  /** What a treemap tile measures (sqlx-7o0); absent on hand-built nodes. */
+  executions?: number;
+  queryTimeMs?: number;
+  sizeBytes?: number | null;
+  dataBytes?: number | null;
+  indexBytes?: number | null;
   x: number;
   y: number;
 }
+
+/** A schema's or an aggregate's block on the treemap. */
+interface TreemapBlock {
+  kind: 'schema' | 'aggregate';
+  label: string;
+  value: number;
+  /** The schema's colour; an aggregate is drawn in its hue. */
+  color: string;
+  hue: number;
+  x: number; y: number; w: number; h: number;
+}
+
+/** The treemap fills the canvas's shape, at least this wide. */
+const TREEMAP_MIN_WIDTH = 800;
+/** A schema keeps a strip for its name and total; an aggregate a thinner one for its root. */
+const TREEMAP_PADDING = [{header: 24, inset: 4}, {header: 18, inset: 3}];
 
 interface Edge {
   from: LayoutNode; to: LayoutNode; label: string; warn?: boolean; execs?: number;
   /** An FK no query joins on: it only enforces integrity (sqlx-aoy.3). */
   neverJoined?: boolean;
+  /**
+   * On the ERD, the one column pair this line is for, `a` at `from` and `b` at
+   * `to`: there a relationship is a line per pair, not one per pair of tables.
+   */
+  pair?: GraphColumnPair;
+  /** A foreign key pair some query joins on, so the join's line already draws it. */
+  folded?: boolean;
 }
 
 /** Dash patterns, in screen pixels before scaling. */
@@ -117,6 +159,20 @@ const GRID_SPACING: GridSpacing[] = [
   { gap: 14, pad: 12, header: 18 }
 ];
 
+/**
+ * The ERD's spacing (sqlx-929): wider than the grid's everywhere, because a
+ * line ends in a mark for one or many, and the mark needs a straight run
+ * between the card and the channel the line turns into.
+ */
+const ERD_SPACING: GridSpacing[] = [
+  { gap: 90, pad: 0, header: 0 },
+  { gap: 44, pad: 34, header: 0 },
+  { gap: 36, pad: 28, header: 18 }
+];
+
+/** Below this zoom an ERD card's rows are too small to read and are not drawn. */
+const ERD_ROWS_FROM = 0.45;
+
 @Component({
   selector: 'app-graph-lens',
   templateUrl: './graph-lens.component.html',
@@ -130,10 +186,31 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('wrap') wrap!: ElementRef<HTMLDivElement>;
   @ViewChild('tooltip') tooltip!: ElementRef<HTMLDivElement>;
 
+  readonly glossary = GLOSSARY;
   selectedTable: string | null = null;
   layers: GraphLayers = { ...DEFAULT_LAYERS };
-  /** Nested grids (the default) or the force simulation, `var-layout=force` (sqlx-aoy.13). */
+  /**
+   * Nested grids (the default), the force simulation, `var-layout=force`
+   * (sqlx-aoy.13), or the grids drawn as an ERD, `var-layout=erd` (sqlx-929).
+   */
   layout: GraphLayout = DEFAULT_LAYOUT;
+
+  /** Whether tables sit on the nested grids: the grid layout and the ERD both. */
+  get grid(): boolean { return onGrid(this.layout); }
+  get erd(): boolean { return this.layout === 'erd'; }
+  get treemap(): boolean { return this.layout === 'treemap'; }
+
+  /** What a treemap tile's area is; `var-measure=disk`, query time when absent. */
+  measure: TreemapMeasure = 'time';
+  /** The tables the treemap leaves out, having nothing to measure. */
+  unmeasured = 0;
+  private treemapBlocks: TreemapBlock[] = [];
+
+  setMeasure(measure: TreemapMeasure) {
+    this.router.navigate([], { relativeTo: this.route,
+      queryParams: { 'var-measure': measure === 'disk' ? 'disk' : null },
+      queryParamsHandling: 'merge', replaceUrl: true });
+  }
   /** The graph last laid out, so switching layout re-places it without a fetch. */
   private lastGraph: GraphV2 | null = null;
   private aggregateBoxes: AggregateBox[] = [];
@@ -194,12 +271,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(private schemaLensService: SchemaLensService,
               private environmentService: EnvironmentService,
-              private analyzedSqlService: AnalyzedSqlService,
               private themeService: ThemeService,
               private route: ActivatedRoute,
               private router: Router,
               private graphLayoutService: GraphLayoutService,
-              private annotationService: AnnotationService) { }
+              private searchTagScope: SearchTagScopeService) { }
 
   ngOnInit() {
     this.refreshPalette();
@@ -218,6 +294,15 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** The list of aggregates chosen by hand is showing; `var-overrides=1`. */
   overridesOpen = false;
+
+  /** The selected table's detail tab; `var-detail=columns`, relationships when absent. */
+  detailTab: 'relationships' | 'columns' = 'relationships';
+
+  setDetailTab(tab: 'relationships' | 'columns') {
+    this.router.navigate([], { relativeTo: this.route,
+      queryParams: { 'var-detail': tab === 'columns' ? 'columns' : null },
+      queryParamsHandling: 'merge', replaceUrl: true });
+  }
 
   toggleOverrides() {
     this.router.navigate([], { relativeTo: this.route, queryParams: { 'var-overrides': this.overridesOpen ? null : '1' },
@@ -264,11 +349,15 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const state = decodeGraphParams(this.route.snapshot.queryParamMap);
     this.legendOpen = this.route.snapshot.queryParamMap.get('var-legend') === '1';
     this.overridesOpen = this.route.snapshot.queryParamMap.get('var-overrides') === '1';
+    this.detailTab = this.route.snapshot.queryParamMap.get('var-detail') === 'columns' ? 'columns' : 'relationships';
     this.selectedTable = state.table;
     this.layers = state.layers;
     this.allTables = state.allTables ?? false;
     this.depth = state.depth ?? null;
-    const layoutChanged = (state.layout ?? DEFAULT_LAYOUT) !== this.layout;
+    const measure = decodeMeasure(this.route.snapshot.queryParamMap.get('var-measure'));
+    const layoutChanged = (state.layout ?? DEFAULT_LAYOUT) !== this.layout
+      || (measure !== this.measure && (state.layout ?? DEFAULT_LAYOUT) === 'treemap');
+    this.measure = measure;
     this.layout = state.layout ?? DEFAULT_LAYOUT;
     if (this.scopeKey() === this.loadedScope) {
       // a new neighbourhood is a new set of tables, so it is laid out afresh
@@ -378,6 +467,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private loadGraph() {
     this.loadedScope = this.scopeKey();
+    this.columnCache.clear();
     const state = decodeSearchParams(this.route.snapshot.queryParamMap);
     this.loading = true;
     this.tagScope$().pipe(switchMap(tagScope =>
@@ -392,44 +482,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  /**
-   * The schema-tag filter resolved against live tag data.
-   *
-   * <p>Shared by both load paths deliberately. `?schemaTagsExclude=` travels
-   * across navigations (see `scope-url.ts`), so it can arrive on any graph —
-   * and it has to mean here exactly what it means on `/queries`, or the same
-   * link describes two different working sets. Resolving it in one place is
-   * what keeps that true.
-   *
-   * <p>Exclusion reaches tagged tables as well as tagged schemas, which is why
-   * the table half is resolved too.
-   */
+  /** The schema-tag filter resolved against live tag data, as the workbench resolves it. */
   private tagScope$() {
-    const filter = decodeSearchParams(this.route.snapshot.queryParamMap).schemaTagFilter;
-    if (!filter.includeTags.length && !filter.excludeTags.length) {
-      return of(UNCONSTRAINED_TAG_SCOPE);
-    }
-    const tablesByTag$ = filter.excludeTags.length
-      ? forkJoin(filter.excludeTags.map(tag => this.analyzedSqlService.getTablesByTag(tag))).pipe(
-          map(perTag => new Map<string, string[]>(filter.excludeTags.map((tag, index) =>
-            [tag, perTag[index].map(table => tableKey(table.schema, table.name))]))))
-      : of(new Map<string, string[]>());
-    return this.schemaLensService.getSchemaTree().pipe(switchMap(tree => {
-      const names = tree.schemas.map(schema => schema.name.toLowerCase());
-      const targets = tree.schemas.map(schema => schemaTarget(schema.name));
-      return forkJoin({
-        byPath: this.analyzedSqlService.getTagsForTargets(targets),
-        tablesByTag: tablesByTag$,
-        // a schema role (e.g. `system`) answers the same vocabulary (sqlx-n5j.14)
-        roles: this.annotationService.schemaRoles().pipe(catchError(() => of(new Map<string, string[]>())))
-      }).pipe(map(({ byPath, tablesByTag, roles }) => {
-        // Zipped by index: the batched answer is positional (sqlx-3ai).
-        const tagsBySchema = new Map<string, string[]>(tree.schemas.map((schema, index) =>
-          [schema.name.toLowerCase(),
-            withSchemaRoles(schema.name, (byPath[index] ?? []).map(tag => tag.name), roles)]));
-        return resolveSchemaTagScope(names, tagsBySchema, filter, tablesByTag);
-      }));
-    }));
+    return this.searchTagScope.resolve(decodeSearchParams(this.route.snapshot.queryParamMap).schemaTagFilter);
   }
 
   // ── layout ──
@@ -568,6 +623,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ? neighbourhood(fetched, this.selectedTable, this.depth, this.layers)
       : fetched;
     this.aggregateBoxes = [];
+    this.treemapBlocks = [];
+    this.unmeasured = 0;
     this.gridBoxes = [];
     this.gridIndex.clear();
     this.membership.clear();
@@ -585,7 +642,13 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       const home = homeOf.get(node.schema);
       const spread = this.regionRadius(counts.get(node.schema) ?? 1) * 0.7;
       const angle = index / Math.max(1, graph.nodes.length) * Math.PI * 2;
+      const columns = this.erd ? node.columns ?? [] : [];
+      const more = unlisted(node.columnCount, columns);
       const layoutNode: LayoutNode = {
+        w: this.erd ? ERD_WIDTH : NW,
+        h: this.erd ? cardHeight(columns.length, more) : NH,
+        columns,
+        more,
         id: `${node.schema}.${node.table}`,
         schema: node.schema,
         table: node.table,
@@ -594,6 +657,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         warn: node.warn,
         selfJoin: node.selfJoin,
         view: node.view,
+        executions: node.executions,
+        queryTimeMs: node.queryTimeMs,
+        sizeBytes: node.sizeBytes,
+        dataBytes: node.dataBytes,
+        indexBytes: node.indexBytes,
         // seeded inside its own region rather than on one global circle
         x: (home?.cx ?? 400) + spread * Math.cos(angle),
         y: (home?.cy ?? 300) + spread * Math.sin(angle)
@@ -602,14 +670,32 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       return layoutNode;
     });
     const resolve = (schema: string, table: string) => byId.get(`${schema}.${table}`.toLowerCase());
-    this.fkEdges = graph.fkEdges
-      .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable),
-        label: edge.label, warn: edge.mismatch, neverJoined: edge.joined === false }))
-      .filter(edge => edge.from && edge.to) as Edge[];
+    // On the ERD a relationship is a line per column pair, each meeting its
+    // columns' rows; elsewhere it is one line per pair of tables (sqlx-929).
+    const unknown = (text: string, separator: string): GraphColumnPair => {
+      const [a, b] = text.split(separator);
+      return { a, b: b ?? a, aUnique: null, bUnique: null, aNullable: null, bNullable: null, declared: null };
+    };
+    const perPair = <T extends Edge>(edge: T, pairs: GraphColumnPair[], separator: string): T[] =>
+      this.erd ? pairs.map(pair => ({ ...edge, label: `${pair.a}${separator}${pair.b}`, pair })) : [edge];
     this.joinEdges = (graph.joinEdges || [])
-      .map(edge => ({ from: resolve(edge.aSchema, edge.aTable), to: resolve(edge.bSchema, edge.bTable),
-        label: edge.columns.join(', '), execs: edge.executions }))
-      .filter(edge => edge.from && edge.to) as Edge[];
+      .map(edge => ({ edge, from: resolve(edge.aSchema, edge.aTable), to: resolve(edge.bSchema, edge.bTable) }))
+      .filter(({ from, to }) => from && to)
+      .flatMap(({ edge, from, to }) => perPair<Edge>(
+        { from: from!, to: to!, label: edge.columns.join(', '), execs: edge.executions },
+        edge.pairs ?? edge.columns.map(columns => unknown(columns, '=')), '='));
+    const end = (node: LayoutNode, column: string) => `${node.id}.${column}`.toLowerCase();
+    const joinedPairs = new Set(this.joinEdges.filter(edge => edge.pair)
+      .map(edge => [end(edge.from, edge.pair!.a), end(edge.to, edge.pair!.b)].sort().join('|')));
+    this.fkEdges = graph.fkEdges
+      .map(edge => ({ edge, from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable) }))
+      .filter(({ from, to }) => from && to)
+      .flatMap(({ edge, from, to }) => perPair<Edge>(
+        { from: from!, to: to!, label: edge.label, warn: edge.mismatch, neverJoined: edge.joined === false },
+        edge.pairs ?? [unknown(edge.label, '→')], '→'))
+      .map(edge => edge.pair
+        ? { ...edge, folded: joinedPairs.has([end(edge.from, edge.pair.a), end(edge.to, edge.pair.b)].sort().join('|')) }
+        : edge);
     // Every joined pair is also queried together. The co-query layer keeps
     // only the pairs that are not joined, so each pair is drawn once and a
     // dashed line means "used together, never joined" (sqlx-aoy.3).
@@ -621,7 +707,11 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     this.viewEdges = (graph.viewEdges || [])
       .map(edge => ({ from: resolve(edge.fromSchema, edge.fromTable), to: resolve(edge.toSchema, edge.toTable), label: 'over' }))
       .filter(edge => edge.from && edge.to) as Edge[];
-    if (this.layout === 'grid') {
+    if (this.treemap) {
+      this.placeOnTreemap();
+      return;
+    }
+    if (this.grid) {
       this.placeOnGrid();
       return;
     }
@@ -631,7 +721,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleLayout() {
-    this.layout = this.layout === 'grid' ? 'force' : 'grid';
+    this.setLayout(this.grid ? 'force' : 'grid');
+  }
+
+  setLayout(layout: GraphLayout) {
+    if (layout === this.layout) { return; }
+    this.layout = layout;
     if (this.lastGraph) {
       this.buildLayout(this.lastGraph);
       this.resetView();
@@ -665,10 +760,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const aggregates = buildAggregates(
       this.nodes.map(node => ({ schema: node.schema, table: node.table })), relations, saved.overrides());
     const items = new Map<string, Omit<GridItem, 'box' | 'parent'>>();
+    const nodeAt = new Map(this.nodes.map(node => [`t:${node.id}`.toLowerCase(), node]));
     const leaf = (schema: string, table: string, fallback?: Slot): GridNode => {
       const key = `t:${schema}.${table}`.toLowerCase();
       items.set(key, { kind: 'table', schema, name: table });
-      return { key, size: { w: NW, h: NH }, slot: saved.slot('table', schema, table) ?? fallback };
+      const node = nodeAt.get(key);
+      return { key, size: { w: node?.w ?? NW, h: node?.h ?? NH }, slot: saved.slot('table', schema, table) ?? fallback };
     };
     const schemas = [...new Set(this.nodes.map(node => node.schema))].sort();
     const tree: GridNode[] = schemas.map(schema => {
@@ -697,7 +794,6 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       };
     });
 
-    const nodeAt = new Map(this.nodes.map(node => [`t:${node.id}`.toLowerCase(), node]));
     const blocks = aggregates.filter(aggregate => aggregate.tables.length > 1);
     const blockOf = new Map(blocks.map((aggregate, index) =>
       [`a:${aggregate.schema}.${aggregate.root}`.toLowerCase(), { root: aggregate.root, hue: aggregateHue(index) }]));
@@ -710,7 +806,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       const node = nodeAt.get(box.key);
       if (node) { node.x = box.x; node.y = box.y; }
     };
-    this.gridBoxes = layoutGrid(tree, GRID_SPACING);
+    this.gridBoxes = layoutGrid(tree, this.erd ? ERD_SPACING : GRID_SPACING);
     const index = (boxes: LayoutBox[], parent: LayoutBox | null) => {
       for (const box of boxes) {
         const item = items.get(box.key);
@@ -738,6 +834,85 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /** What a table's tile measures on the treemap. */
+  private measureOf(node: LayoutNode): number {
+    return (this.measure === 'disk' ? node.sizeBytes : node.queryTimeMs) ?? 0;
+  }
+
+  /** A measure as it reads: bytes, or a duration. */
+  formatMeasure(value: number): string {
+    return this.measure === 'disk' ? formatBytes(value) : fmtTime(value);
+  }
+
+  /**
+   * Lay every table out as a tile whose area is what it measures (sqlx-7o0),
+   * nested as on the grid: schema, then aggregate. A table with nothing to
+   * measure gets no tile; it keeps its place in the list, sized to nothing,
+   * so selecting it still opens its details.
+   */
+  private placeOnTreemap() {
+    const relations = [...this.fkEdges, ...this.joinEdges].map(edge => ({
+      a: { schema: edge.from.schema, table: edge.from.table },
+      b: { schema: edge.to.schema, table: edge.to.table }
+    }));
+    const aggregates = buildAggregates(
+      this.nodes.map(node => ({ schema: node.schema, table: node.table })), relations, this.savedLayout.overrides());
+    const nodeAt = new Map(this.nodes.map(node => [`t:${node.id}`.toLowerCase(), node]));
+    const leaf = (schema: string, table: string): TreemapItem => {
+      const key = `t:${schema}.${table}`.toLowerCase();
+      const node = nodeAt.get(key);
+      return { key, value: node ? this.measureOf(node) : 0 };
+    };
+    const blocks = aggregates.filter(aggregate => aggregate.tables.length > 1);
+    const hueOf = new Map(blocks.map((aggregate, index) =>
+      [`a:${aggregate.schema}.${aggregate.root}`.toLowerCase(), { root: aggregate.root, hue: aggregateHue(index) }]));
+    const schemas = [...new Set(this.nodes.map(node => node.schema))].sort();
+    const items: TreemapItem[] = schemas.map(schema => ({
+      key: `s:${schema}`,
+      value: 0,
+      children: [
+        ...blocks.filter(aggregate => aggregate.schema === schema).map(aggregate => ({
+          key: `a:${schema}.${aggregate.root}`.toLowerCase(),
+          value: 0,
+          children: aggregate.tables.map(table => leaf(schema, table))
+        })),
+        ...aggregates.filter(aggregate => aggregate.schema === schema && aggregate.tables.length === 1)
+          .map(aggregate => leaf(schema, aggregate.root))
+      ]
+    }));
+    // the canvas's own size, so the view fits at about 1:1 and names read at their natural size
+    const width = this.viewW > 0 ? Math.max(TREEMAP_MIN_WIDTH, this.viewW) : TREEMAP_MIN_WIDTH * 2;
+    const height = this.viewW > 0 && this.viewH > 0 ? width * this.viewH / this.viewW : width / 1.6;
+    const tiles = layTreemap(items, { x: 0, y: 0, w: width, h: height }, TREEMAP_PADDING);
+
+    for (const node of this.nodes) { Object.assign(node, { x: 0, y: 0, w: 0, h: 0 }); }
+    const regionOf = new Map(this.regions.map(region => [region.schema, region]));
+    const drawn: SchemaRegion[] = [];
+    const walk = (tile: Tile) => {
+      const box = { x: tile.x, y: tile.y, w: tile.w, h: tile.h };
+      if (tile.key.startsWith('t:')) {
+        const node = nodeAt.get(tile.key);
+        if (node) { Object.assign(node, box); }
+      } else if (tile.key.startsWith('s:')) {
+        const region = regionOf.get(tile.key.slice(2));
+        if (region) {
+          Object.assign(region, box, { cx: tile.x + tile.w / 2, cy: tile.y + tile.h / 2 });
+          drawn.push(region);
+          this.treemapBlocks.push({ kind: 'schema', label: region.schema, value: tile.value, color: region.color, hue: 0,
+            ...box });
+        }
+      } else {
+        const block = hueOf.get(tile.key);
+        this.treemapBlocks.push({ kind: 'aggregate', label: block?.root ?? '', value: tile.value, color: '',
+          hue: block?.hue ?? 0, ...box });
+      }
+      tile.children.forEach(walk);
+    };
+    tiles.forEach(walk);
+    this.regions = drawn;
+    this.unmeasured = this.nodes.filter(node => this.measureOf(node) <= 0).length;
+  }
+
   /**
    * The routed path of every visible line, on the grid layout (sqlx-aoy.14);
    * null on the force layout, where lines stay straight.
@@ -749,20 +924,25 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * onto their channels.
    */
   private currentRoutes(): Map<Edge, Point[]> | null {
-    if (this.layout !== 'grid' || !this.gridBoxes.length) { return null; }
+    if (!this.grid || !this.gridBoxes.length) { return null; }
     const key = JSON.stringify(this.layers);
     let routes = this.routeCache.get(key);
     if (!routes) {
       const busiest = (edges: Edge[]) => [...edges].sort((a, b) => (b.execs ?? 0) - (a.execs ?? 0));
       const edges = [
-        ...(this.layers.fk ? this.fkEdges : []),
+        ...this.shownFks(),
         ...(this.layers.join ? busiest(this.joinEdges) : []),
         ...(this.layers.view ? this.viewEdges : []),
         ...(this.layers.co ? busiest(this.coEdges) : [])
       ];
       const leaf = (node: LayoutNode) => `t:${node.id}`.toLowerCase();
-      const found = routeEdges(this.gridBoxes,
-        edges.map((edge, index) => ({ id: String(index), from: leaf(edge.from), to: leaf(edge.to) })));
+      // on the ERD a line meets its column's row, or the header when it is about no column
+      const port = (node: LayoutNode, column: string | undefined) =>
+        this.erd ? node.y + portOffset(node.columns, column) : undefined;
+      const found = routeEdges(this.gridBoxes, edges.map((edge, index) => ({
+        id: String(index), from: leaf(edge.from), to: leaf(edge.to),
+        fromPort: port(edge.from, edge.pair?.a), toPort: port(edge.to, edge.pair?.b)
+      })));
       routes = new Map<Edge, Point[]>();
       edges.forEach((edge, index) => {
         const path = found.get(String(index));
@@ -771,6 +951,15 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       this.routeCache.set(key, routes);
     }
     return routes;
+  }
+
+  /**
+   * The foreign keys drawn. On the ERD a key some query joins on is the same
+   * line as that join, so with joins showing it is drawn once, as the join.
+   */
+  private shownFks(): Edge[] {
+    if (!this.layers.fk) { return []; }
+    return this.layers.join ? this.fkEdges.filter(edge => !edge.folded) : this.fkEdges;
   }
 
   /** Routed paths, for asserting the grid draws lines through its gutters. */
@@ -825,7 +1014,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const node = this.hovered ?? this.selectedNode();
     if (!node) { return null; }
     const touches = (edge: Edge) => edge.from === node || edge.to === node;
-    return new Set([...this.fkEdges, ...this.joinEdges, ...this.coEdges, ...this.viewEdges].filter(touches));
+    return new Set([...this.shownFks(), ...this.joinEdges, ...this.coEdges, ...this.viewEdges].filter(touches));
   }
 
   /**
@@ -861,7 +1050,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Lay the loaded graph out again on the grid, after the arrangement changed. */
   private relayoutGrid(fit: boolean) {
-    if (this.layout !== 'grid' || !this.lastGraph) { return; }
+    if (!this.grid || !this.lastGraph) { return; }
     this.buildLayout(this.lastGraph);
     if (fit) { this.resetView(); } else { this.draw(); }
   }
@@ -872,9 +1061,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * a pan, so the canvas still drags the way it always has.
    */
   private grabAt(x: number, y: number): GridItem | null {
-    if (this.layout !== 'grid') { return null; }
+    if (!this.grid) { return null; }
     const node = this.nodes.find(candidate =>
-      x >= candidate.x && x <= candidate.x + NW && y >= candidate.y && y <= candidate.y + NH);
+      x >= candidate.x && x <= candidate.x + candidate.w && y >= candidate.y && y <= candidate.y + candidate.h);
     if (node) { return this.gridIndex.get(`t:${node.id}`.toLowerCase()) ?? null; }
     for (const item of this.gridIndex.values()) {
       const box = item.box;
@@ -1090,9 +1279,9 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const xs = this.nodes.map(node => node.x);
     const ys = this.nodes.map(node => node.y);
     let minX = Math.min(...xs) - 40;
-    let maxX = Math.max(...xs) + NW + 40;
+    let maxX = Math.max(...this.nodes.map(node => node.x + node.w)) + 40;
     let minY = Math.min(...ys) - 40;
-    let maxY = Math.max(...ys) + NH + 40;
+    let maxY = Math.max(...this.nodes.map(node => node.y + node.h)) + 40;
     // Regions extend past their nodes by REGION_PAD, and their labels sit
     // above the top edge — fitting to nodes alone clips both.
     for (const region of this.regions) {
@@ -1166,12 +1355,14 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
    * its route on the grid. Only layers on screen are hit.
    */
   private edgeAt(event: MouseEvent): Edge | null {
+    // the treemap draws no lines, so none can be clicked
+    if (this.treemap) { return null; }
     const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
     const px = this.worldX(event.clientX - rect.left);
     const py = this.worldY(event.clientY - rect.top);
     const tolerance = 6 / this.scale;
     const candidates = [
-      ...(this.layers.fk ? this.fkEdges : []),
+      ...this.shownFks(),
       ...(this.layers.join ? this.joinEdges : []),
       ...(this.layers.co ? this.coEdges : []),
       ...(this.layers.view ? this.viewEdges : [])
@@ -1250,7 +1441,18 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       : `queried together, never joined · ${this.fmtExecs(edge.execs || 0)} executions`;
     return `<div class="tt-name">${edge.from.table} ↔ ${edge.to.table}</div>`
       + `<div class="tt-line">${kind}</div>`
+      + this.kindLine(edge)
       + '<div class="tt-foot">click for the queries touching both, ⌘/ctrl-click for a new tab</div>';
+  }
+
+  /** An ERD line's kind in words, and whether a key declares it or it is read off the indexes. */
+  private kindLine(edge: Edge): string {
+    if (!edge.pair) { return ''; }
+    const kind = kindOf(edge.pair);
+    const declared = edge.pair.declared ? 'a foreign key declares it' : 'no foreign key declares it';
+    return kind
+      ? `<div class="tt-line">${kind}, from the unique indexes · ${declared}</div>`
+      : `<div class="tt-line">kind unknown: a table's structure was not read · ${declared}</div>`;
   }
 
   @HostListener('document:mouseup')
@@ -1289,7 +1491,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
     const mx = this.worldX(event.clientX - rect.left);
     const my = this.worldY(event.clientY - rect.top);
-    const found = this.nodes.find(node => mx >= node.x && mx <= node.x + NW && my >= node.y && my <= node.y + NH) || null;
+    const found = this.nodes.find(node => node.w > 0
+      && mx >= node.x && mx <= node.x + node.w && my >= node.y && my <= node.y + node.h) || null;
     const edgeUnder = found ? null : this.edgeAt(event);
     if (found !== this.hovered || edgeUnder !== this.hoveredEdge) {
       this.hovered = found;
@@ -1307,7 +1510,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
         `<div class="tt-name">${found.table}</div>`
         + (fkOut.length ? `<div class="tt-line">FK → ${fkOut.join(', ')}</div>` : '')
         + (fkIn.length ? `<div class="tt-line">FK ← ${fkIn.join(', ')}</div>` : '')
-        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to pin its details, again to open, ⌘/ctrl-click for a new tab</div>`;
+        + (this.treemap ? this.measuresLine(found) : '')
+        + `<div class="tt-foot">${found.queryCount} queries · ${found.columnCount ?? '?'} columns · click to pin its details, again to unpin, ⌘/ctrl-click for a new tab</div>`;
     } else {
       const edge = edgeUnder;
       this.graphCanvas.nativeElement.style.cursor = edge ? 'pointer' : this.grabAt(mx, my) ? 'grab' : '';
@@ -1323,12 +1527,35 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * A table's bytes on disk as its rows and its secondary indexes (sqlx-wgt),
+   * for the disk view; null on the time view, or when no server reported
+   * either. One reported without the other counts the other as none.
+   */
+  private diskParts(node: LayoutNode, anyMeasure = false): {data: number; index: number} | null {
+    if (!anyMeasure && this.measure !== 'disk') { return null; }
+    const data = node.dataBytes ?? null;
+    const index = node.indexBytes ?? null;
+    return data === null && index === null ? null : {data: data ?? 0, index: index ?? 0};
+  }
+
+  /** A tile's hover: both measures, the one its area shows first. */
+  private measuresLine(node: LayoutNode): string {
+    const time = `${fmtTime(node.queryTimeMs ?? 0)} query time · ${this.fmtExecs(node.executions ?? 0)} executions`;
+    const parts = this.diskParts(node, true);
+    const disk = node.sizeBytes === null || node.sizeBytes === undefined ? 'no size reported'
+      : `${formatBytes(node.sizeBytes)} on disk`
+        + (parts ? ` (${formatBytes(parts.data)} data, ${formatBytes(parts.index)} index)` : '');
+    return `<div class="tt-line">${this.measure === 'disk' ? `${disk} · ${time}` : `${time} · ${disk}`}</div>`;
+  }
+
   /** The node under a pointer event, if any. */
   private nodeAt(event: MouseEvent): LayoutNode | undefined {
     const rect = this.graphCanvas.nativeElement.getBoundingClientRect();
     const mx = this.worldX(event.clientX - rect.left);
     const my = this.worldY(event.clientY - rect.top);
-    return this.nodes.find(node => mx >= node.x && mx <= node.x + NW && my >= node.y && my <= node.y + NH);
+    return this.nodes.find(node => node.w > 0
+      && mx >= node.x && mx <= node.x + node.w && my >= node.y && my <= node.y + node.h);
   }
 
   /**
@@ -1375,12 +1602,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       this.openInNewTab(found);
       return;
     }
-    if (found && found.table === this.selectedTable) {
-      // second click on the selected node opens it
-      this.router.navigate(['/table', found.schema, found.table]);
-      return;
-    }
-    const table = found ? found.table : null;
+    // a click on the selected table unpins it; opening it is the detail's link, or cmd-click
+    const table = found && found.table !== this.selectedTable ? found.table : null;
     if (table !== this.selectedTable) {
       this.selectedTable = table;
       this.draw();
@@ -1404,16 +1627,42 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
                      co: {other: LayoutNode, edge: Edge}[]} | null {
     const node = this.selectedNode();
     if (!node) { return null; }
-    const partners = (edges: Edge[]) => edges
-      .filter(edge => edge.from === node || edge.to === node)
-      .map(edge => ({other: edge.from === node ? edge.to : edge.from, edge}))
-      .sort((a, b) => (b.edge.execs ?? 0) - (a.edge.execs ?? 0));
+    // one row per table: the ERD's line per column pair is folded back into its pair of tables
+    const partners = (edges: Edge[]) => {
+      const byOther = new Map<LayoutNode, Edge>();
+      for (const edge of edges.filter(candidate => candidate.from === node || candidate.to === node)) {
+        const other = edge.from === node ? edge.to : edge.from;
+        const seen = byOther.get(other);
+        byOther.set(other, seen ? {...seen, label: `${seen.label}, ${edge.label}`} : edge);
+      }
+      return [...byOther].map(([other, edge]) => ({other, edge}))
+        .sort((a, b) => (b.edge.execs ?? 0) - (a.edge.execs ?? 0));
+    };
     return {
       fkOut: this.fkEdges.filter(edge => edge.from === node),
       fkIn: this.fkEdges.filter(edge => edge.to === node),
       joins: partners(this.joinEdges),
       co: partners(this.coEdges)
     };
+  }
+
+  /** Each table's columns, read once when its Columns tab is first shown. */
+  private columnCache = new Map<string, ColumnRow[] | 'loading' | 'error'>();
+
+  /**
+   * The selected table's every column, for the Columns tab: read on demand
+   * from the table's metadata, since the graph carries only key columns.
+   */
+  selectedColumns(node: LayoutNode): ColumnRow[] | 'loading' | 'error' {
+    const key = tableKey(node.schema, node.table);
+    const cached = this.columnCache.get(key);
+    if (cached) { return cached; }
+    this.columnCache.set(key, 'loading');
+    this.schemaLensService.getTableStructure(node.schema, node.table).subscribe({
+      next: meta => this.columnCache.set(key, meta ? columnRows(meta, node.columns) : []),
+      error: () => this.columnCache.set(key, 'error')
+    });
+    return 'loading';
   }
 
   /** Follow a relationship: select the table at its other end. */
@@ -1522,6 +1771,12 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     ctx.clearRect(0, 0, this.viewW, this.viewH);
 
+    if (this.treemap) {
+      this.drawTreemap(ctx);
+      this.drawMinimap();
+      return;
+    }
+
     // Regions first, so every edge and node draws over them. A cross-schema
     // join is the most valuable thing this graph shows and used to look
     // exactly like a local one; drawn this way it is visibly a line leaving
@@ -1538,7 +1793,14 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       routes ? this.aggregateColor(edge, directed, 0.85) : layerColor;
     const paint = (edge: Edge, color: string, dash: number[] | null, weight: number, head: boolean) => {
       const path = this.pathOf(edge, routes);
-      this.drawPath(ctx, path, color, dash, weight, head, focus ? focus.has(edge) : null);
+      const focused = focus ? focus.has(edge) : null;
+      // on the ERD an end says one or many, which is what an arrowhead would only hint at
+      const ends = this.erd && edge.pair ? endsOf(edge.pair) : null;
+      this.drawPath(ctx, path, color, dash, weight, head && !(this.erd && edge.pair), focused);
+      if (ends) {
+        this.drawEnd(ctx, path[0], path[1], ends.a, color, focused);
+        this.drawEnd(ctx, path[path.length - 1], path[path.length - 2], ends.b, color, focused);
+      }
       return path;
     };
     const labelled = (edge: Edge) => !routes || !!focus?.has(edge);
@@ -1554,7 +1816,8 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     if (this.layers.join) {
       for (const edge of this.joinEdges) {
-        const path = paint(edge, tint(edge, this.alpha(this.palette.green, 0.75), false), null, routes ? 2.2 : 1.5, false);
+        const path = paint(edge, tint(edge, this.alpha(this.palette.green, 0.75), false), null,
+          this.erd ? 1.6 : routes ? 2.2 : 1.5, false);
         if (labelled(edge)) {
           this.drawLabel(ctx, this.fmtExecs(edge.execs || 0), this.labelPoint(path),
             this.alpha(this.palette.green, 0.95), false, 10);
@@ -1567,7 +1830,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
     if (this.layers.fk) {
-      for (const edge of this.fkEdges) {
+      for (const edge of this.shownFks()) {
         const color = edge.warn ? this.palette.amber : tint(edge, this.alpha(this.palette.blue, 0.7), true);
         const path = paint(edge, color, edge.neverJoined ? DOTTED : null, 1.5, true);
         if (labelled(edge)) {
@@ -1578,7 +1841,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     if (this.layers.self) {
       for (const node of this.nodes.filter(n => n.selfJoin)) {
-        const cx = this.wx(node.x + NW / 2);
+        const cx = this.wx(node.x + node.w / 2);
         const cy = this.wy(node.y);
         ctx.save();
         ctx.strokeStyle = this.alpha(this.palette.text2, 0.5);
@@ -1598,10 +1861,10 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private edgePorts(a: LayoutNode, b: LayoutNode): [number, number, number, number] {
-    const ax = a.x + NW / 2;
-    const ay = a.y + NH / 2;
-    const bx = b.x + NW / 2;
-    const by = b.y + NH / 2;
+    const ax = a.x + a.w / 2;
+    const ay = a.y + a.h / 2;
+    const bx = b.x + b.w / 2;
+    const by = b.y + b.h / 2;
     const angle = Math.atan2(by - ay, bx - ax);
     const hw = NW / 2 + 4;
     const hh = NH / 2 + 4;
@@ -1651,6 +1914,45 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.lineTo(x - size * Math.cos(angle + 0.4), y - size * Math.sin(angle + 0.4));
       ctx.closePath();
       ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * The mark at one end of an ERD line (sqlx-929): a crow's foot for many, a
+   * bar for one, and a circle beyond it when a row on the other side may have
+   * none here. `at` is the end on the card's edge and `towards` the next point
+   * of the path, both in world units. Too small to read when zoomed far out,
+   * where they are left off.
+   */
+  private drawEnd(ctx: CanvasRenderingContext2D, at: Point, towards: Point, end: End, color: string, focused: boolean | null) {
+    const length = Math.hypot(towards.x - at.x, towards.y - at.y);
+    if (!length || this.scale < 0.3) { return; }
+    const dx = (towards.x - at.x) / length;
+    const dy = (towards.y - at.y) / length;
+    const point = (along: number, across: number): [number, number] =>
+      [this.wx(at.x + dx * along - dy * across), this.wy(at.y + dy * along + dx * across)];
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = (focused ? 2 : 1.3) * this.scale;
+    ctx.globalAlpha = focused === null ? 0.9 : focused ? 1 : 0.12;
+    ctx.beginPath();
+    if (end.many) {
+      ctx.moveTo(...point(0, 5));
+      ctx.lineTo(...point(8, 0));
+      ctx.lineTo(...point(0, -5));
+    } else {
+      ctx.moveTo(...point(5, 5));
+      ctx.lineTo(...point(5, -5));
+    }
+    ctx.stroke();
+    if (end.optional) {
+      const [x, y] = point(11, 0);
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5 * this.scale, 0, Math.PI * 2);
+      ctx.fillStyle = this.palette.bg;
+      ctx.fill();
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -1779,11 +2081,220 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       || 'monospace';
   }
 
-  private drawNode(ctx: CanvasRenderingContext2D, node: LayoutNode) {
+  /**
+   * A table as an ERD entity (sqlx-929): its name on a header band, then a row
+   * per key column with what kind of key it is, its name and its type, and
+   * the rest of its columns as a count. Lines end at these rows, so the rows
+   * keep their place however far out the view is; only their text is dropped
+   * when it would be too small to read.
+   */
+  private drawEntity(ctx: CanvasRenderingContext2D, node: LayoutNode) {
+    const s = this.scale;
     const x = this.wx(node.x);
     const y = this.wy(node.y);
-    const w = NW * this.scale;
-    const h = NH * this.scale;
+    const w = node.w * s;
+    const h = node.h * s;
+    const selected = node.table === this.selectedTable;
+    const highlighted = node === this.hovered;
+    const edge = selected ? this.palette.blue : node.warn ? this.palette.amber : this.palette.border2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 4 * s);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = this.alpha(this.palette.bg3, 0.97);
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = selected ? this.alpha(this.palette.blue, 0.24)
+      : highlighted ? this.alpha(this.palette.amber, 0.18)
+      : this.alpha(this.palette.text2, 0.14);
+    ctx.fillRect(x, y, w, ERD_HEADER * s);
+    ctx.restore();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = (selected || node.warn ? 1.5 : 1) * s;
+    ctx.stroke();
+
+    const mono = this.monoFont();
+    ctx.textBaseline = 'middle';
+    const count = `${node.view ? 'view · ' : ''}${node.queryCount}q`;
+    ctx.font = `${Math.round(9 * s)}px sans-serif`;
+    ctx.fillStyle = node.view ? this.palette.purple : this.alpha(this.palette.text2, 0.85);
+    ctx.textAlign = 'right';
+    ctx.fillText(count, x + w - 7 * s, y + ERD_HEADER * s / 2);
+    const countWidth = ctx.measureText(count).width;
+    ctx.font = `600 ${Math.round(11 * s)}px ${mono}`;
+    ctx.fillStyle = selected ? this.palette.blue : node.warn ? this.palette.amber : this.palette.text;
+    ctx.textAlign = 'left';
+    ctx.fillText(node.table, x + 8 * s, y + ERD_HEADER * s / 2, w - 22 * s - countWidth);
+
+    if (s >= ERD_ROWS_FROM) {
+      node.columns.forEach((column, index) => {
+        const cy = y + (ERD_HEADER + index * ERD_ROW + ERD_ROW / 2) * s;
+        const key = column.primary ? 'PK' : column.foreignKey ? 'FK' : column.unique ? 'UQ' : '';
+        if (key) {
+          ctx.font = `600 ${Math.round(8 * s)}px sans-serif`;
+          ctx.fillStyle = column.primary ? this.palette.amber : column.foreignKey ? this.palette.blue : this.palette.text2;
+          ctx.fillText(key, x + 7 * s, cy);
+        }
+        // a nullable column's type carries a ?, the way its declaration would read
+        const type = column.type ? `${column.type.toLowerCase()}${column.nullable ? '?' : ''}` : '';
+        ctx.font = `${Math.round(9 * s)}px ${mono}`;
+        ctx.fillStyle = this.alpha(this.palette.text2, 0.8);
+        ctx.textAlign = 'right';
+        ctx.fillText(type, x + w - 7 * s, cy, 62 * s);
+        const typeWidth = Math.min(ctx.measureText(type).width, 62 * s);
+        ctx.font = `${column.primary ? '600 ' : ''}${Math.round(10 * s)}px ${mono}`;
+        ctx.fillStyle = this.palette.text;
+        ctx.textAlign = 'left';
+        ctx.fillText(column.name, x + 26 * s, cy, w - 40 * s - typeWidth);
+      });
+      if (node.more > 0) {
+        ctx.font = `italic ${Math.round(9 * s)}px sans-serif`;
+        ctx.fillStyle = this.alpha(this.palette.text2, 0.75);
+        ctx.fillText(`+ ${node.more} more`, x + 26 * s, y + (ERD_HEADER + node.columns.length * ERD_ROW + ERD_ROW / 2) * s);
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * The tables the selected one's shown lines reach, for the treemap, which
+   * draws no lines: null when nothing is selected.
+   */
+  private relatedToSelected(): Set<LayoutNode> | null {
+    const selected = this.selectedNode();
+    if (!selected) { return null; }
+    const edges = [...this.shownFks(), ...(this.layers.join ? this.joinEdges : []),
+      ...(this.layers.co ? this.coEdges : []), ...(this.layers.view ? this.viewEdges : [])];
+    return new Set(edges.filter(edge => edge.from === selected || edge.to === selected)
+      .map(edge => edge.from === selected ? edge.to : edge.from));
+  }
+
+  /**
+   * The treemap (sqlx-7o0): schema blocks, aggregate outlines, then a tile per
+   * table. With a table selected, the tables it relates to are picked out in
+   * green and the rest fade, since there are no lines to follow.
+   */
+  private drawTreemap(ctx: CanvasRenderingContext2D) {
+    const s = this.scale;
+    const mono = this.monoFont();
+    const related = this.relatedToSelected();
+    const label = (text: string, x: number, y: number, room: number, font: string, color: string) => {
+      if (room < 24) { return; }
+      ctx.font = font;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x, y, room);
+    };
+    for (const block of this.treemapBlocks) {
+      const x = this.wx(block.x);
+      const y = this.wy(block.y);
+      const w = block.w * s;
+      const h = block.h * s;
+      ctx.save();
+      if (block.kind === 'schema') {
+        ctx.fillStyle = this.alpha(block.color, 0.1);
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = this.alpha(block.color, 0.5);
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
+        if (TREEMAP_PADDING[0].header * s >= 10) {
+          label(`${block.label} · ${this.formatMeasure(block.value)}`, x + 6 * s, y + TREEMAP_PADDING[0].header * s / 2,
+            w - 12 * s, `600 ${Math.round(12 * s)}px ${mono}`, this.alpha(block.color, 0.95));
+        }
+      } else {
+        ctx.strokeStyle = this.hueColor(block.hue, 0.6);
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(x, y, w, h);
+        if (TREEMAP_PADDING[1].header * s >= 9) {
+          label(`${block.label} · ${this.formatMeasure(block.value)}`, x + 5 * s, y + TREEMAP_PADDING[1].header * s / 2,
+            w - 10 * s, `${Math.round(10 * s)}px ${mono}`, this.hueColor(block.hue, 0.95));
+        }
+      }
+      ctx.restore();
+    }
+    const regionColor = new Map(this.regions.map(region => [region.schema, region.color]));
+    for (const node of this.nodes) {
+      if (node.w <= 0) { continue; }
+      const x = this.wx(node.x);
+      const y = this.wy(node.y);
+      const w = node.w * s;
+      const h = node.h * s;
+      const selected = node.table === this.selectedTable;
+      const isRelated = related?.has(node) ?? false;
+      const color = regionColor.get(node.schema) ?? this.palette.text2;
+      ctx.save();
+      ctx.fillStyle = selected ? this.alpha(this.palette.blue, 0.4)
+        : isRelated ? this.alpha(this.palette.green, 0.35)
+        : node === this.hovered ? this.alpha(this.palette.amber, 0.25)
+        : this.alpha(color, related ? 0.08 : 0.24);
+      ctx.fillRect(x, y, w, h);
+      // On the disk view a table is two sections, its rows then its indexes,
+      // cut along the tile's longer side. The index section is hatched, so it
+      // reads as part of the same table rather than a neighbour.
+      const parts = this.diskParts(node);
+      const [data, index] = parts ? splitTile({x, y, w, h}, [parts.data, parts.index]) : [{x, y, w, h}, null];
+      if (index && index.w > 0 && index.h > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(index.x, index.y, index.w, index.h);
+        ctx.clip();
+        ctx.fillStyle = this.alpha(this.palette.bg, 0.35);
+        ctx.fillRect(index.x, index.y, index.w, index.h);
+        ctx.strokeStyle = this.alpha(this.palette.text2, 0.25);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let offset = -index.h; offset < index.w; offset += 7) {
+          ctx.moveTo(index.x + offset, index.y + index.h);
+          ctx.lineTo(index.x + offset + index.h, index.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+        ctx.strokeStyle = this.alpha(this.palette.text2, 0.45);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (index.x > x + 0.5) {
+          ctx.moveTo(index.x, y); ctx.lineTo(index.x, y + h);
+        } else {
+          ctx.moveTo(x, index.y); ctx.lineTo(x + w, index.y);
+        }
+        ctx.stroke();
+      }
+      // a gap of background between tiles, so neighbours read as two
+      ctx.strokeStyle = this.palette.bg;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, w, h);
+      if (selected || node.warn || isRelated) {
+        ctx.strokeStyle = selected ? this.palette.blue : isRelated ? this.palette.green : this.palette.amber;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+      }
+      const fade = related && !selected && !isRelated ? 0.45 : 1;
+      if (w >= 30 && h >= 13) {
+        const size = Math.max(9, Math.min(13, Math.min(h / 3, w / 9)));
+        // the name keeps to the data section unless that is too narrow to hold anything
+        const room = (parts && data.w >= 40 ? data.w : w) - 8;
+        label(node.table, x + 4, y + size * 0.9, room, `500 ${Math.round(size)}px ${mono}`,
+          this.alpha(selected ? this.palette.blue : this.palette.text, fade));
+        if ((parts ? data.h : h) >= size * 3) {
+          label(parts ? `${formatBytes(parts.data)} data` : this.formatMeasure(this.measureOf(node)), x + 4,
+            y + size * 2.1, room, `${Math.round(size * 0.85)}px sans-serif`, this.alpha(this.palette.text2, 0.9 * fade));
+        }
+        if (parts && index && index.w >= 40 && index.h >= size * 1.6) {
+          label(`${formatBytes(parts.index)} index`, index.x + 4, index.y + index.h - size * 0.8, index.w - 8,
+            `${Math.round(size * 0.85)}px sans-serif`, this.alpha(this.palette.text2, 0.9 * fade));
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  private drawNode(ctx: CanvasRenderingContext2D, node: LayoutNode) {
+    if (this.erd) { this.drawEntity(ctx, node); return; }
+    const x = this.wx(node.x);
+    const y = this.wy(node.y);
+    const w = node.w * this.scale;
+    const h = node.h * this.scale;
     const r = 5 * this.scale;
     const selected = node.table === this.selectedTable;
     const highlighted = node === this.hovered;
@@ -1831,19 +2342,19 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
     const xs = this.nodes.map(node => node.x);
     const ys = this.nodes.map(node => node.y);
     const minX = Math.min(...xs) - 10;
-    const maxX = Math.max(...xs) + NW + 10;
+    const maxX = Math.max(...this.nodes.map(node => node.x + node.w)) + 10;
     const minY = Math.min(...ys) - 10;
-    const maxY = Math.max(...ys) + NH + 10;
+    const maxY = Math.max(...this.nodes.map(node => node.y + node.h)) + 10;
     const msc = Math.min(mmW / (maxX - minX), mmH / (maxY - minY)) * 0.9;
     const offX = (mmW - (maxX - minX) * msc) / 2 - minX * msc;
     const offY = (mmH - (maxY - minY) * msc) / 2 - minY * msc;
-    if (this.layers.fk) {
+    if (this.layers.fk && !this.treemap) {
       for (const edge of this.fkEdges) {
         ctx.strokeStyle = edge.warn ? this.alpha(this.palette.amber, 0.6) : this.alpha(this.palette.blue, 0.4);
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(edge.from.x * msc + offX + NW * msc / 2, edge.from.y * msc + offY + NH * msc / 2);
-        ctx.lineTo(edge.to.x * msc + offX + NW * msc / 2, edge.to.y * msc + offY + NH * msc / 2);
+        ctx.moveTo((edge.from.x + edge.from.w / 2) * msc + offX, (edge.from.y + edge.from.h / 2) * msc + offY);
+        ctx.lineTo((edge.to.x + edge.to.w / 2) * msc + offX, (edge.to.y + edge.to.h / 2) * msc + offY);
         ctx.stroke();
       }
     }
@@ -1854,7 +2365,7 @@ export class GraphLensComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.strokeStyle = node.warn ? this.palette.amber : node.table === this.selectedTable ? this.palette.blue : this.palette.border2;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(node.x * msc + offX, node.y * msc + offY, NW * msc, NH * msc, 2);
+      ctx.roundRect(node.x * msc + offX, node.y * msc + offY, node.w * msc, node.h * msc, 2);
       ctx.fill();
       ctx.stroke();
     }

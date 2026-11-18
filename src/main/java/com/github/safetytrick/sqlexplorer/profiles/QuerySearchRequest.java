@@ -28,6 +28,8 @@ public record QuerySearchRequest(
     Range avgRowsScanned,
     Range selectivity,
     Range rowsSorted,
+    /** Executions in the captured period ({@code RuntimeMetrics.executed}), inclusive bounds. */
+    Range executed,
     Activity activity,
     /** Statement types (SELECT, INSERT, …); "OTHER" matches any type outside {@link QuerySearchService#EXPLICIT_TYPES}. */
     List<String> types,
@@ -193,14 +195,18 @@ public record QuerySearchRequest(
     /** {@link #hinted()}: ANY = some index hint; otherwise a hint with that action. */
     public enum HintAction { ANY, USE, FORCE, IGNORE }
 
-    /** Sort keys; results are always descending (worst first). IMPACT = total query time; the default. */
-    public enum Sort { IMPACT, AVG_TIME, MAX_TIME, AVG_ROWS_SCANNED, SELECTIVITY, LAST_SEEN }
+    /**
+     * Sort keys. IMPACT = total query time; the default. Every key sorts
+     * descending except {@code SELECTIVITY_ASC}, which puts the lowest rows
+     * sent / rows scanned first. A query without metrics sorts last either way.
+     */
+    public enum Sort { IMPACT, AVG_TIME, MAX_TIME, AVG_ROWS_SCANNED, SELECTIVITY, SELECTIVITY_ASC, EXECUTIONS, LAST_SEEN }
 
     /** An unconstrained search (used when the request body is absent). */
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
     /** The sources this search reads, as a scope over the environment's corpus. */
     public SourceScope sourceScope() {

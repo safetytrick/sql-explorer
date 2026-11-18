@@ -85,6 +85,31 @@ describe('QueriesWorkbenchComponent URL state', () => {
     expect(params['var-layers']).toBeUndefined();
   });
 
+  it('compares the search across servers in place of the list, keeping its own params while it shows', async () => {
+    const { component, harness } = await open('/queries?q=select&view=servers&var-cluster=shard1&var-flags=skewed');
+    expect(component.view).toBe('servers');
+    harness.fixture.detectChanges();
+    expect(harness.routeNativeElement!.querySelector('app-server-compare')).not.toBeNull();
+    expect(harness.routeNativeElement!.querySelector('.query-list')).toBeNull();
+
+    component.queryRegex = 'insert';
+    component.filtersChanged();
+    await harness.fixture.whenStable();
+    const router = TestBed.inject(Router);
+    let params = router.parseUrl(router.url).queryParams;
+    expect(params['view']).toBe('servers');
+    expect(params['q']).toBe('insert');
+    expect(params['var-cluster']).toBe('shard1');
+    expect(params['var-flags']).toBe('skewed');
+
+    // the graph does not keep the comparison's params, nor the list either
+    component.setView('graph');
+    await harness.fixture.whenStable();
+    params = router.parseUrl(router.url).queryParams;
+    expect(params['view']).toBe('graph');
+    expect(params['var-cluster']).toBeUndefined();
+  });
+
   it('reads the filters again when a link lands on the page it is already on', async () => {
     // the graph links an edge to the queries joining its two tables: this page, other filters
     const { component, harness } = await open('/queries?q=select&view=graph');

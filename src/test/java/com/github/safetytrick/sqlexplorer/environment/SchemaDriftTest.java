@@ -7,6 +7,8 @@ import java.util.Map;
 import com.github.safetytrick.sqlexplorer.schema.LoadedSchema;
 import com.github.safetytrick.sqlexplorer.schema.SchemaFingerprint;
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
+import com.github.safetytrick.sqlexplorer.schema.TableDiff;
+import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +27,18 @@ class SchemaDriftTest {
         when(server.getSchemaLoad()).thenReturn(new SchemaRepositoryFactory.SchemaLoad(mock(LoadedSchema.class),
             tables == null ? null : new SchemaFingerprint(tables), false, true, Instant.EPOCH, name));
         return Cluster.of(server);
+    }
+
+    private static Cluster cluster(String name, Map<String, String> tables, LoadedSchema schema) {
+        DatabaseServer server = mock(DatabaseServer.class);
+        when(server.getName()).thenReturn(name);
+        when(server.getSchemaLoad()).thenReturn(new SchemaRepositoryFactory.SchemaLoad(schema,
+            new SchemaFingerprint(tables), false, true, Instant.EPOCH, name));
+        return Cluster.of(server);
+    }
+
+    private static LoadedSchema schema(String ddl) throws Exception {
+        return new LoadedSchema(List.of(TableStructure.fromCreateTable(ddl, "app_production").build()));
     }
 
     private static Environment production(Cluster... clusters) {
@@ -60,6 +74,21 @@ class SchemaDriftTest {
         assertThat(production.schemaDrift()).containsExactly(new Environment.TableDrift("app_production.audit",
             List.of(new Environment.Variant(List.of("shard1"), true),
                 new Environment.Variant(List.of("shard2"), false))));
+    }
+
+    /** A shard defining a table differently says how, against the definition lookups use (sqlx-a6z). */
+    @Test
+    void aDifferingVariantSaysWhatDiffersFromTheOneLookupsUse() throws Exception {
+        Environment production = production(
+            cluster("shard1", Map.of("app_production.users", "a"),
+                schema("CREATE TABLE users (id BIGINT NOT NULL, PRIMARY KEY (id))")),
+            cluster("shard2", Map.of("app_production.users", "a2"),
+                schema("CREATE TABLE users (id BIGINT NOT NULL, email VARCHAR(255), PRIMARY KEY (id))")));
+
+        assertThat(production.schemaDrift()).containsExactly(new Environment.TableDrift("app_production.users",
+            List.of(new Environment.Variant(List.of("shard1"), true),
+                new Environment.Variant(List.of("shard2"), true, List.of(
+                    new TableDiff.Difference("column", "email", null, "varchar(255) NULL · position 2"))))));
     }
 
     /** global's schema is not shard1's: only clusters carrying the same schema are compared. */

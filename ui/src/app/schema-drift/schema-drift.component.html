@@ -18,14 +18,25 @@
     <p class="drift-why">
       Lookups use the first cluster's definition, so queries are analysed against it everywhere. A table
       listed here is one where that is not true of every cluster — often a migration applied to some
-      shards and not others.
+      shards and not others. Open a row to see what differs.
     </p>
     <div class="table-scroll">
       <table class="data-table">
+        <thead>
+          <tr><th>table</th><th>what differs</th><th>clusters, by definition</th></tr>
+        </thead>
         <tbody>
           @for (entry of drift; track entry.table) {
-            <tr>
-              <td class="drift-table">{{entry.table}}</td>
+            <tr class="drift-row" [class.open]="open.has(entry.table)" (click)="toggle(entry)">
+              <td class="drift-table">
+                <button type="button" class="expander" [attr.aria-expanded]="open.has(entry.table)"
+                        [attr.aria-label]="(open.has(entry.table) ? 'hide' : 'show') + ' what differs in ' + entry.table"
+                        (click)="toggle(entry); $event.stopPropagation()">{{open.has(entry.table) ? '▾' : '▸'}}</button>
+                {{entry.table}}
+                <a class="tbl-open" [routerLink]="tableLink(entry)" (click)="$event.stopPropagation()"
+                   title="open the table">↗</a>
+              </td>
+              <td class="drift-summary">{{summary(entry)}}</td>
               <td>
                 @for (variant of entry.variants; track $index) {
                   <span class="drift-variant" [class.absent]="!variant.present">
@@ -34,6 +45,50 @@
                 }
               </td>
             </tr>
+            @if (open.has(entry.table)) {
+              <tr class="detail-row">
+                <td colspan="3">
+                  @for (variant of others(entry); track $index) {
+                    <div class="variant-detail">
+                      <div class="variant-head">
+                        <span class="mono">{{variant.clusters.join(', ')}}</span>
+                        <span class="dim">against {{usedVariant(entry)?.clusters?.join(', ')}} (used)</span>
+                      </div>
+                      @if (!variant.present) {
+                        <div class="dim">The table does not exist on {{variant.clusters.length === 1 ? 'this cluster' : 'these clusters'}}.</div>
+                      } @else if (variant.differences == null) {
+                        <div class="dim">The definitions differ, but a structure to compare could not be read.</div>
+                      } @else if (!variant.differences.length) {
+                        <div class="dim">
+                          The definitions differ by fingerprint in a detail the loaded schema does not keep —
+                          an index's prefix length or type, say, or a column's <span class="mono">ON UPDATE</span>.
+                        </div>
+                      } @else {
+                        <table class="data-table diff">
+                          <thead>
+                            <tr>
+                              <th></th><th>name</th>
+                              <th>on {{usedVariant(entry)?.clusters?.join(', ')}}</th>
+                              <th>on {{variant.clusters.join(', ')}}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (difference of variant.differences; track difference.kind + difference.name) {
+                              <tr>
+                                <td class="dim">{{difference.kind}}</td>
+                                <td class="mono">{{difference.name}}</td>
+                                <td class="mono" [class.missing]="difference.base === null">{{difference.base ?? 'absent'}}</td>
+                                <td class="mono" [class.missing]="difference.other === null">{{difference.other ?? 'absent'}}</td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      }
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
           }
         </tbody>
       </table>

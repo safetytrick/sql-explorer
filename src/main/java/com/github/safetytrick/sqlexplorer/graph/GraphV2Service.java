@@ -2,6 +2,7 @@ package com.github.safetytrick.sqlexplorer.graph;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.stream.Stream;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.JoinColumns;
+import com.github.safetytrick.sqlexplorer.avro.RuntimeMetrics;
 import com.github.safetytrick.sqlexplorer.avro.SqlProfile;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryService;
@@ -22,6 +24,7 @@ import com.github.safetytrick.sqlexplorer.schema.ForeignKey;
 import com.github.safetytrick.sqlexplorer.schema.ForeignKeyDetailService;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
+import com.github.safetytrick.sqlexplorer.schema.TableIndex;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +37,9 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class GraphV2Service {
+
+    /** Performance Schema times are in picoseconds. */
+    private static final double PICOS_PER_MILLI = 1_000_000_000d;
 
     private final SqlRepositoryService sqlRepositoryService;
     private final SqlSchemaService sqlSchemaService;
@@ -93,10 +99,16 @@ public class GraphV2Service {
             }
             boolean warn = Boolean.TRUE.equals(profile.getAnalysisFailed())
                 || (profile.getMismatchedJoins() != null && !profile.getMismatchedJoins().isEmpty());
+            RuntimeMetrics metrics = profile.getRuntimeMetrics();
+            long executions = metrics == null ? 0 : metrics.getExecuted();
+            double timeMs = metrics == null || metrics.getTotalTime() == null
+                ? 0 : metrics.getTotalTime().doubleValue() / PICOS_PER_MILLI;
             for (TableReference table : tables) {
                 NodeBuilder node = node(nodes, table.getNormalizedSchemaName(), table.getNormalizedTableName());
                 node.queryCount++;
                 node.warn |= warn;
+                node.executions += executions;
+                node.queryTimeMs += timeMs;
             }
             for (int i = 0; i < tables.size(); i++) {
                 for (int j = i + 1; j < tables.size(); j++) {
@@ -149,6 +161,9 @@ public class GraphV2Service {
             }
             node.columnCount = structure.columns() == null ? null : structure.columns().size();
             node.view = "VIEW".equalsIgnoreCase(structure.type());
+            node.sizeBytes = structure.sizeBytes();
+            node.dataBytes = structure.dataBytes();
+            node.indexBytes = structure.indexBytes();
         }
 
         // FK edges between displayed nodes; column type comparison over the loaded structures
@@ -156,6 +171,9 @@ public class GraphV2Service {
         for (TableStructure structure : structures) {
             columnsByTable.put(key(structure.schema(), structure.name()), columnsOf(structure));
         }
+        SchemaFacts facts = new SchemaFacts(structures);
+        // declared foreign key column pairs, as "from.column>to.column"
+        Set<String> declared = new HashSet<>();
         List<GraphV2.FkEdge> fkEdges = new ArrayList<>();
         for (TableStructure structure : structures) {
             if (!nodes.containsKey(key(structure.schema(), structure.name()))) {
@@ -174,22 +192,40 @@ public class GraphV2Service {
                         lookup(columnsByTable, fk.from().get(i)),
                         lookup(columnsByTable, fk.to().get(i)));
                 }
+                String fromKey = key(structure.schema(), structure.name());
+                String toKey = key(target.getNormalizedSchemaName(), target.getNormalizedTableName());
+                List<String> fromColumns = fk.from().stream().map(GraphV2Service::columnName).toList();
+                List<String> toColumns = fk.to().stream().map(GraphV2Service::columnName).toList();
+                List<GraphV2.ColumnPair> pairs = new ArrayList<>();
+                for (int i = 0; i < fromColumns.size(); i++) {
+                    pairs.add(facts.pair(fromKey, fromColumns.get(i), fromColumns, toKey, toColumns.get(i), toColumns, "a"));
+                    declared.add(fromKey + "." + fromColumns.get(i) + ">" + toKey + "." + toColumns.get(i));
+                    nodes.get(fromKey).keyColumns.add(fromColumns.get(i));
+                    nodes.get(toKey).keyColumns.add(toColumns.get(i));
+                }
                 fkEdges.add(new GraphV2.FkEdge(structure.schema(), structure.name(),
                     target.getNormalizedSchemaName(), target.getNormalizedTableName(),
                     from.getNormalizedColumn() + "→" + to.getNormalizedColumn(),
-                    mismatch, joinedOn(joins, structure.schema(), structure.name(), target, fk)));
+                    mismatch, joinedOn(joins, structure.schema(), structure.name(), target, fk), pairs));
             }
         }
 
-        List<GraphV2.Node> nodeList = nodes.values().stream()
-            .map(NodeBuilder::build)
-            .toList();
         List<GraphV2.CoQueryEdge> coQueryEdges = coQueries.values().stream()
             .map(CoQueryBuilder::build)
             .toList();
         List<GraphV2.JoinEdge> joinEdges = joins.values().stream()
             .filter(pair -> nodes.containsKey(pair.aKey) && nodes.containsKey(pair.bKey))
-            .map(JoinBuilder::build)
+            .map(pair -> {
+                pair.pairs.forEach(columns -> {
+                    nodes.get(pair.aKey).keyColumns.add(columns.get(0));
+                    nodes.get(pair.bKey).keyColumns.add(columns.get(1));
+                });
+                return pair.build(facts, declared);
+            })
+            .toList();
+        // last, once every drawn relationship has named the columns it attaches to
+        List<GraphV2.Node> nodeList = nodes.entrySet().stream()
+            .map(entry -> entry.getValue().build(facts.keyColumns(entry.getKey(), entry.getValue().keyColumns)))
             .toList();
         return new GraphV2(nodeList, fkEdges, coQueryEdges, viewEdges, joinEdges);
     }
@@ -294,14 +330,122 @@ public class GraphV2Service {
         private boolean warn;
         private boolean selfJoin;
         private boolean view;
+        private long executions;
+        private double queryTimeMs;
+        private Long sizeBytes;
+        private Long dataBytes;
+        private Long indexBytes;
+        /** The columns a drawn relationship attaches to, lower-cased. */
+        private final Set<String> keyColumns = new TreeSet<>();
 
         private NodeBuilder(String schema, String table) {
             this.schema = schema;
             this.table = table;
         }
 
-        private GraphV2.Node build() {
-            return new GraphV2.Node(schema, table, columnCount, queryCount, warn, selfJoin, view);
+        private GraphV2.Node build(List<GraphV2.KeyColumn> columns) {
+            return new GraphV2.Node(schema, table, columnCount, queryCount, warn, selfJoin, view, columns,
+                executions, queryTimeMs, sizeBytes, dataBytes, indexBytes);
+        }
+    }
+
+    /**
+     * What the schema says about columns, for an ERD: which are unique, which
+     * nullable, which start a foreign key. Everything is keyed by the
+     * lower-cased {@link #key table key} and column name.
+     */
+    private static final class SchemaFacts {
+        private final Map<String, TableStructure> tables = new HashMap<>();
+        private final Map<String, List<Set<String>>> uniqueIndexes = new HashMap<>();
+        private final Map<String, Set<String>> primary = new HashMap<>();
+        private final Map<String, Set<String>> foreignKeyColumns = new HashMap<>();
+
+        private SchemaFacts(List<TableStructure> structures) {
+            for (TableStructure structure : structures) {
+                String table = key(structure.schema(), structure.name());
+                tables.put(table, structure);
+                List<Set<String>> unique = new ArrayList<>();
+                if (structure.indices() != null) {
+                    for (TableIndex index : structure.indices()) {
+                        if (!index.unique() || index.columns() == null || index.columns().isEmpty()) {
+                            continue;
+                        }
+                        Set<String> columns = new HashSet<>();
+                        index.columns().forEach(column -> columns.add(column.toLowerCase(Locale.ROOT)));
+                        unique.add(columns);
+                        if ("PRIMARY".equalsIgnoreCase(index.name())) {
+                            primary.put(table, columns);
+                        }
+                    }
+                }
+                uniqueIndexes.put(table, unique);
+                Set<String> starts = new HashSet<>();
+                if (structure.foreignKeys() != null) {
+                    structure.foreignKeys().forEach(fk -> fk.from().forEach(column -> starts.add(columnName(column))));
+                }
+                foreignKeyColumns.put(table, starts);
+            }
+        }
+
+        /** Whether {@code joined} covers a unique index that includes {@code column}; false for an unknown table. */
+        private boolean unique(String table, String column, Collection<String> joined) {
+            return uniqueIndexes.getOrDefault(table, List.of()).stream()
+                .anyMatch(index -> index.contains(column) && joined.containsAll(index));
+        }
+
+        private boolean nullable(String table, String column) {
+            TableColumn found = column(table, column);
+            return found != null && "YES".equalsIgnoreCase(found.isNullable());
+        }
+
+        private TableColumn column(String table, String column) {
+            TableStructure structure = tables.get(table);
+            if (structure == null || structure.columns() == null) {
+                return null;
+            }
+            return structure.columns().stream()
+                .filter(candidate -> candidate.columnName().equalsIgnoreCase(column))
+                .findFirst().orElse(null);
+        }
+
+        private GraphV2.ColumnPair pair(String aTable, String a, Collection<String> aJoined,
+                                        String bTable, String b, Collection<String> bJoined, String declared) {
+            // nothing is known of a table whose structure was never read, which is not the same as "not unique"
+            boolean aKnown = tables.containsKey(aTable);
+            boolean bKnown = tables.containsKey(bTable);
+            return new GraphV2.ColumnPair(a, b,
+                aKnown ? unique(aTable, a, aJoined) : null, bKnown ? unique(bTable, b, bJoined) : null,
+                aKnown ? nullable(aTable, a) : null, bKnown ? nullable(bTable, b) : null, declared);
+        }
+
+        /**
+         * A card's rows: the primary key, the foreign keys and the columns
+         * relationships attach to, in table order. A table whose structure is
+         * not known still lists the columns it is joined on, so its lines have
+         * rows to end at.
+         */
+        private List<GraphV2.KeyColumn> keyColumns(String table, Set<String> attached) {
+            TableStructure structure = tables.get(table);
+            if (structure == null || structure.columns() == null || structure.columns().isEmpty()) {
+                return attached.stream()
+                    .map(name -> new GraphV2.KeyColumn(name, null, false, false, false, false))
+                    .toList();
+            }
+            Set<String> keys = primary.getOrDefault(table, Set.of());
+            Set<String> starts = foreignKeyColumns.getOrDefault(table, Set.of());
+            return structure.columns().stream()
+                .sorted(Comparator.comparingInt(TableColumn::ordinal))
+                .filter(column -> {
+                    String name = column.columnName().toLowerCase(Locale.ROOT);
+                    return keys.contains(name) || starts.contains(name) || attached.contains(name);
+                })
+                .map(column -> {
+                    String name = column.columnName().toLowerCase(Locale.ROOT);
+                    return new GraphV2.KeyColumn(column.columnName(), column.typeName(),
+                        "YES".equalsIgnoreCase(column.isNullable()), keys.contains(name),
+                        unique(table, name, Set.of(name)), starts.contains(name));
+                })
+                .toList();
         }
     }
 
@@ -311,6 +455,9 @@ public class GraphV2Service {
         private final String aKey;
         private final String bKey;
         private final Set<String> columns = new TreeSet<>();
+        /** The same pairs as {@code columns}, as [a column, b column], in the same order. */
+        private final Map<String, List<String>> pairsByLabel = new TreeMap<>();
+        private final Collection<List<String>> pairs = pairsByLabel.values();
         private int queries;
         private long executions;
 
@@ -325,7 +472,10 @@ public class GraphV2Service {
         private void addColumns(ColumnReference left, ColumnReference right) {
             boolean leftIsA = key(left.getTable().getNormalizedSchemaName(), left.getTable().getNormalizedTableName())
                 .equals(aKey);
-            columns.add(leftIsA ? columnName(left) + "=" + columnName(right) : columnName(right) + "=" + columnName(left));
+            String aColumn = columnName(leftIsA ? left : right);
+            String bColumn = columnName(leftIsA ? right : left);
+            columns.add(aColumn + "=" + bColumn);
+            pairsByLabel.put(aColumn + "=" + bColumn, List.of(aColumn, bColumn));
         }
 
         private void add(SqlProfile profile) {
@@ -335,9 +485,18 @@ public class GraphV2Service {
             }
         }
 
-        private GraphV2.JoinEdge build() {
+        private GraphV2.JoinEdge build(SchemaFacts facts, Set<String> declared) {
+            List<String> aJoined = pairs.stream().map(List::getFirst).toList();
+            List<String> bJoined = pairs.stream().map(List::getLast).toList();
+            List<GraphV2.ColumnPair> built = pairs.stream().map(pair -> {
+                String aColumn = pair.getFirst();
+                String bColumn = pair.getLast();
+                String side = declared.contains(aKey + "." + aColumn + ">" + bKey + "." + bColumn) ? "a"
+                    : declared.contains(bKey + "." + bColumn + ">" + aKey + "." + aColumn) ? "b" : null;
+                return facts.pair(aKey, aColumn, aJoined, bKey, bColumn, bJoined, side);
+            }).toList();
             return new GraphV2.JoinEdge(a.getNormalizedSchemaName(), a.getNormalizedTableName(),
-                b.getNormalizedSchemaName(), b.getNormalizedTableName(), List.copyOf(columns), queries, executions);
+                b.getNormalizedSchemaName(), b.getNormalizedTableName(), List.copyOf(columns), queries, executions, built);
         }
     }
 

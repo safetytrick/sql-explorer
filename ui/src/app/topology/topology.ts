@@ -85,6 +85,11 @@ export function serverQueriesParams(server: TopologyServer): Params {
   return {sources: server.name};
 }
 
+/** The workbench comparing this cluster's servers (sqlx-a9h.2). */
+export function compareParams(cluster: TopologyCluster): Params {
+  return {view: 'servers', 'var-cluster': cluster.name};
+}
+
 /** A server with figures has statements to open; one with none (not captured, unreachable) does not. */
 export function opensQueries(server: TopologyServer): boolean {
   return server.load !== null;

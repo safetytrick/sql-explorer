@@ -113,6 +113,50 @@ describe('routeEdges', () => {
     expect(verticalXs(one)).not.toEqual(verticalXs(two));
   });
 
+  // ── ports: an ERD line meets a column's row (sqlx-929) ──
+
+  describe('ports', () => {
+    const tall = (key: string, col: number, row: number): GridNode => ({ key, size: { w: 190, h: 120 }, slot: { col, row } });
+
+    it('ends a route on a side edge at the port, never the top or bottom', () => {
+      // b sits directly below a, where a centre-to-centre route would leave a's bottom edge
+      const boxes = layoutGrid([schema('s:a', [tall('a', 0, 0), tall('b', 0, 1)])], SPACING);
+      const [a, b] = leaves(boxes);
+      const route = routeEdges(boxes, [{ id: 'ab', from: 'a', to: 'b', fromPort: a.y + 40, toPort: b.y + 72 }]).get('ab')!;
+      expectOrthogonal(route);
+      expectClearOf(route, boxes, []);
+      const first = route[0];
+      const last = route[route.length - 1];
+      expect(first.y).toBe(a.y + 40);
+      expect(last.y).toBe(b.y + 72);
+      expect(first.x === a.x || first.x === a.x + a.w).toBeTrue();
+      expect(last.x === b.x || last.x === b.x + b.w).toBeTrue();
+    });
+
+    it('brings every route into one port at the same point', () => {
+      const boxes = layoutGrid([schema('s:a', [tall('hub', 1, 0), tall('a', 0, 0), tall('b', 0, 1), tall('c', 0, 2)])], SPACING);
+      const hub = leaves(boxes).find(box => box.key === 'hub')!;
+      const port = hub.y + 32;
+      const routes = routeEdges(boxes, ['a', 'b', 'c'].map(from =>
+        ({ id: from, from, to: 'hub', fromPort: leaves(boxes).find(box => box.key === from)!.y + 32, toPort: port })));
+      expect(routes.size).toBe(3);
+      for (const route of routes.values()) {
+        expect(route[route.length - 1]).toEqual({ x: hub.x, y: port });
+      }
+    });
+
+    it('keeps a box\'s centre lines for a route that names no port on it', () => {
+      const boxes = layoutGrid([schema('s:a', [tall('a', 0, 0), tall('b', 1, 0), tall('c', 2, 0)])], SPACING);
+      const [a, b] = leaves(boxes);
+      const routes = routeEdges(boxes, [
+        { id: 'port', from: 'a', to: 'b', fromPort: a.y + 20, toPort: b.y + 20 },
+        { id: 'centre', from: 'b', to: 'c' }
+      ]);
+      expect(routes.get('port')![0].y).toBe(a.y + 20);
+      expect(routes.get('centre')![0]).toEqual({ x: b.x + b.w, y: b.y + b.h / 2 });
+    });
+  });
+
   it('routes nothing for a missing table or a self-loop', () => {
     const boxes = layoutGrid([schema('s:a', [leaf('a', 0, 0)])], SPACING);
     const routes = routeEdges(boxes, [{ id: 'x', from: 'a', to: 'gone' }, { id: 'y', from: 'a', to: 'a' }]);

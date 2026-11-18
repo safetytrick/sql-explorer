@@ -1,0 +1,115 @@
+<div class="compare">
+  <div class="cmp-bar">
+    @if (report && report.clusters.length > 1) {
+      <label class="bar-label" for="cmp-cluster">cluster:</label>
+      <select id="cmp-cluster" class="mono" [value]="report.cluster ?? ''" (change)="setCluster($any($event.target).value)">
+        @for (name of report.clusters; track name) { <option [value]="name">{{name}}</option> }
+      </select>
+    } @else if (report?.cluster) {
+      <span class="bar-label">cluster:</span> <span class="mono">{{report?.cluster}}</span>
+    }
+    <span class="bar-label">rows:</span>
+    <span class="tri-btn" [class.on]="state.by === 'QUERY'" (click)="setBy('QUERY')" title="one row per query">query</span>
+    <span class="tri-btn" [class.on]="state.by === 'TABLE'" (click)="setBy('TABLE')"
+          title="one row per table: its queries' figures added and their flags pooled">table</span>
+    <span class="bar-label">sort:</span>
+    <span class="tri-btn" [class.on]="state.sort === 'DIFFERENCE'" (click)="setSort('DIFFERENCE')"
+          [title]="glossary.compareDifference">difference</span>
+    <span class="tri-btn" [class.on]="state.sort === 'TIME'" (click)="setSort('TIME')"
+          title="time per day on the cluster's servers, added">time</span>
+    <span class="tri-btn" [class.on]="state.all" (click)="toggleAll()"
+          title="also show the rows with no flag: queries that run alike everywhere">show all</span>
+  </div>
+
+  @if (report) {
+    <div class="cmp-flags" role="group" aria-label="flags">
+      @for (flag of FLAGS; track flag) {
+        <button type="button" class="flag-chip" [attr.data-flag]="flag" [class.on]="state.flags.includes(flag)"
+                [class.none]="!report.flagCounts[flag]" (click)="toggleFlag(flag)" [title]="flagTitle(flag)">
+          {{FLAG_LABELS[flag]}} <span class="count">{{report.flagCounts[flag] ?? 0}}</span>
+        </button>
+      }
+      <span class="cmp-summary">
+        <span class="term" [title]="glossary.compareServers">{{report.compared | number}} {{state.by === 'TABLE' ? 'tables' : 'queries'}}</span>
+        ran on {{report.cluster}}
+        @if (state.by === 'QUERY' && report.compared < report.matched) { (of {{report.matched | number}} matched) }
+        @if (!state.all && !state.flags.length && report.unflagged) { · {{report.unflagged | number}} with no flag hidden }
+        @if (report.rows.length < report.total) { · first {{report.rows.length}} of {{report.total | number}} }
+      </span>
+    </div>
+  }
+
+  <div class="cmp-scroll">
+    @if (loading && !report) {
+      <div class="list-note">comparing…</div>
+    } @else if (failed) {
+      <div class="list-note">The comparison could not be loaded.</div>
+    } @else if (report && !report.cluster) {
+      <div class="list-note">This environment has no clusters to compare.</div>
+    } @else if (report && !report.rows.length) {
+      <div class="list-note">
+        @if (report.compared === 0) { None of the matching queries ran on {{report.cluster}}. }
+        @else if (state.flags.length) { No row carries the chosen flags. }
+        @else { Every matching query runs alike on {{report.cluster}}'s servers: nothing is flagged. Show all to see them. }
+      </div>
+    } @else if (report) {
+      <table class="data-table cmp-table" [class.stale]="loading">
+        <thead>
+          <tr>
+            <th class="col-text">{{state.by === 'TABLE' ? 'table' : 'query'}}</th>
+            <th class="num"><span class="term" [title]="glossary.compareDifference">difference</span></th>
+            @for (server of report.servers; track server.name) {
+              <th class="num col-server" [class.unread]="!server.read">
+                @if (server.read) {
+                  <a class="mono" routerLink="/queries" [queryParams]="serverQueries(server)"
+                     [title]="'these queries as ' + server.name + ' alone recorded them'">{{server.name}}</a>
+                } @else {
+                  <span class="mono">{{server.name}}</span>
+                }
+                <span class="roles">
+                  @for (role of server.roles; track role) { <span class="role" [attr.data-role]="role">{{role}}</span> }
+                </span>
+                <span class="window dim" [title]="windowTitle(server)">
+                  {{server.read ? (server.windowDays == null ? '—' : (server.windowDays | number:'1.0-1') + ' d') : 'not read'}}
+                </span>
+              </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of report.rows; track row.key) {
+            <tr>
+              <td class="col-text">
+                <div class="flags">
+                  @for (flag of row.flags; track flag) {
+                    <span class="flag-chip small" [attr.data-flag]="flag" [title]="flagTitle(flag)">{{FLAG_LABELS[flag]}}</span>
+                  }
+                </div>
+                @if (state.by === 'TABLE') {
+                  <a class="mono row-text" routerLink="/queries" [queryParams]="tableQueries(row)"
+                     title="compare this table's queries one by one">{{row.text}}</a>
+                  <span class="dim"> · {{row.queries}} {{row.queries === 1 ? 'query' : 'queries'}}</span>
+                } @else {
+                  <a class="mono row-text" [routerLink]="['/analyzed-sql', row.key]" [title]="row.text">{{row.text}}</a>
+                }
+              </td>
+              <td class="num">{{row.difference > 0 ? formatSeconds(row.difference) + '/d' : '—'}}</td>
+              @for (server of report.servers; track server.name; let i = $index) {
+                <td class="num cell" [class.hot]="isHot(row, i)" [class.empty]="!row.cells[i]" [title]="cellTitle(server, row, i)">
+                  @if (row.cells[i]; as cell) {
+                    <span class="per-day">{{formatSeconds(cell.secondsPerDay)}}/d</span>
+                    <span class="sub dim">{{compact(cell.executionsPerDay)}} ×/d · {{compact(cell.rowsExaminedPerExecution)}} rows · {{formatMs(cell.msPerExecution)}}</span>
+                    <span class="share"><span [style.width.%]="share(row, i) * 100"></span></span>
+                  } @else {
+                    <span class="dim">—</span>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+      <p class="basis">{{report.basis}}</p>
+    }
+  </div>
+</div>

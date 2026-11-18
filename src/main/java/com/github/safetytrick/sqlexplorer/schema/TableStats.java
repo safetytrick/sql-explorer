@@ -54,6 +54,16 @@ public record TableStats(String server, Instant readAt, Long rowsEstimate, Long 
         return sum(stats, TableStats::totalLength);
     }
 
+    /** {@code DATA_LENGTH} across the servers that report the table; null when none does. */
+    public static Long totalDataLength(List<TableStats> stats) {
+        return sum(stats, TableStats::dataLength);
+    }
+
+    /** {@code INDEX_LENGTH} across the servers that report the table; null when none does. */
+    public static Long totalIndexLength(List<TableStats> stats) {
+        return sum(stats, TableStats::indexLength);
+    }
+
     private static Long sum(List<TableStats> stats, java.util.function.Function<TableStats, Long> figure) {
         if (stats == null) {
             return null;

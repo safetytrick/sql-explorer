@@ -71,6 +71,16 @@ public record TableStructure(String schema,
         return TableStats.totalSize(stats);
     }
 
+    /** {@link TableStats#totalDataLength}: the rows' bytes, summed over the servers reporting it. */
+    public Long dataBytes() {
+        return TableStats.totalDataLength(stats);
+    }
+
+    /** {@link TableStats#totalIndexLength}: the secondary indexes' bytes, summed over the servers reporting it. */
+    public Long indexBytes() {
+        return TableStats.totalIndexLength(stats);
+    }
+
     public static Builder builder() {
         return new Builder();
     }

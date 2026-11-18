@@ -56,6 +56,10 @@
           <span class="card-head-note">{{headline(cluster.load)}}
             @if (cluster.load.secondsPerDay !== null && state.by === 'time') { · {{formatSeconds(cluster.load.secondsPerDay)}}/day }
             @if (readWrite(cluster.load)) { · {{readWrite(cluster.load)}} }</span>
+          @if (cluster.servers.length > 1) {
+            <a class="compare-link" routerLink="/queries" [queryParams]="compareParams(cluster)"
+               title="its queries compared across these servers, where they run differently first">compare servers →</a>
+          }
         </div>
         <div class="tree">
           @let rows = arrange(cluster);

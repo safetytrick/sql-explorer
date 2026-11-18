@@ -22,7 +22,8 @@ export type HintAction = 'ANY' | 'USE' | 'FORCE' | 'IGNORE';
 export type Activity = 'ANY' | 'ACTIVE' | 'DORMANT';
 export type TagMode = 'ANY' | 'ALL';
 export type TableMode = 'ANY' | 'ALL';
-export type SortKey = 'IMPACT' | 'AVG_TIME' | 'MAX_TIME' | 'AVG_ROWS_SCANNED' | 'SELECTIVITY' | 'LAST_SEEN';
+export type SortKey = 'IMPACT' | 'AVG_TIME' | 'MAX_TIME' | 'AVG_ROWS_SCANNED' | 'SELECTIVITY' | 'SELECTIVITY_ASC'
+  | 'EXECUTIONS' | 'LAST_SEEN';
 
 export interface QuerySearchRequest {
   queryRegex?: string | null;   // regex over SqlProfile.query (case-insensitive, literal fallback)
@@ -31,6 +32,8 @@ export interface QuerySearchRequest {
   avgRowsScanned?: Range | null;
   selectivity?: Range | null;
   rowsSorted?: Range | null;
+  /** Executions in the captured period, inclusive. */
+  executed?: Range | null;
   activity?: Activity | null;
   types?: string[] | null;
   firstSeen?: DateRange | null;

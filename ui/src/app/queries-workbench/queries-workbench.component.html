@@ -139,6 +139,14 @@
 
       <div class="section-hdr">Performance</div>
       <div class="fg">
+        <div class="fg-label"><span class="term" [title]="glossary.executed">Executions</span></div>
+        <ng-container *ngTemplateOutlet="presets; context: {key: 'executed'}"></ng-container>
+        <div class="range-row">
+          <input type="number" placeholder="min" min="0" step="1" [(ngModel)]="executed.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" min="0" step="1" [(ngModel)]="executed.max" (change)="filtersChanged()">
+        </div>
+      </div>
+      <div class="fg">
         <div class="fg-label"><span class="term" [title]="glossary.averageTime">Avg time (ms)</span></div>
         <ng-container *ngTemplateOutlet="presets; context: {key: 'avgTime'}"></ng-container>
         <div class="range-row">
@@ -292,7 +300,7 @@
         </select>
       }
       <div class="bar-right">
-        @if (!graphView) {
+        @if (view === 'list') {
         <span class="tri-btn" [class.on]="detailPane" (click)="toggleDetailPane()"
               title="a detail pane under the list; without it, clicking a query opens its full page">pane</span>
         <span class="bar-label">sql:</span>
@@ -304,15 +312,19 @@
           <option value="AVG_TIME">avg time ↓</option>
           <option value="MAX_TIME">max time ↓</option>
           <option value="AVG_ROWS_SCANNED">rows scanned ↓</option>
+          <option value="EXECUTIONS">executions ↓</option>
           <option value="SELECTIVITY">selectivity ↓</option>
+          <option value="SELECTIVITY_ASC">selectivity ↑</option>
           <option value="LAST_SEEN">last seen ↓</option>
         </select>
         }
-        <span class="result-count">{{graphView ? total : hits.length + '/' + total}}</span>
+        <span class="result-count">{{view !== 'list' ? total : hits.length + '/' + total}}</span>
         <span class="bar-label">view:</span>
-        <span class="tri-btn" [class.on]="!graphView" (click)="setGraphView(false)" title="the matching queries, one per row">list</span>
-        <span class="tri-btn" [class.on]="graphView" (click)="setGraphView(true)"
+        <span class="tri-btn" [class.on]="view === 'list'" (click)="setView('list')" title="the matching queries, one per row">list</span>
+        <span class="tri-btn" [class.on]="view === 'graph'" (click)="setView('graph')"
               title="the tables the matching queries touch, and how they join">graph</span>
+        <span class="tri-btn" [class.on]="view === 'servers'" (click)="setView('servers')"
+              title="the matching queries compared across a cluster's servers, where they run differently first">servers</span>
         <!-- Acts on the whole match set, not the loaded page; the server
              resolves it from the same filters the count above came from. -->
         <app-bulk-tag-bar [search]="bulkSearch" [count]="total" [setLabel]="bulkLabel"
@@ -325,6 +337,12 @@
          left decide what it draws, and its own var- params how. -->
     <div class="graph-pane">
       <app-graph-lens></app-graph-lens>
+    </div>
+    } @else if (serversView) {
+    <!-- The comparison is a view of this search too (sqlx-a9h.2): the filters
+         decide which queries are compared, its var- params the cluster and flags. -->
+    <div class="servers-pane">
+      <app-server-compare></app-server-compare>
     </div>
     } @else {
     <div class="list-and-detail">

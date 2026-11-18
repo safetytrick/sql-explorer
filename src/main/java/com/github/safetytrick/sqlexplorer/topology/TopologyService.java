@@ -136,7 +136,7 @@ public class TopologyService {
     }
 
     /** Primary first, then replicas, then the rest, keeping config order within each. */
-    private static List<DatabaseServer> ordered(List<DatabaseServer> servers) {
+    static List<DatabaseServer> ordered(List<DatabaseServer> servers) {
         return servers.stream().sorted(Comparator.comparingInt(TopologyService::rank)).toList();
     }
 
@@ -150,7 +150,7 @@ public class TopologyService {
         return server.hasRole(ServerRole.ANALYTICS) ? 2 : 3;
     }
 
-    private static List<String> roles(DatabaseServer server) {
+    static List<String> roles(DatabaseServer server) {
         return server.getRoles().stream().map(ServerRole::configName).toList();
     }
 

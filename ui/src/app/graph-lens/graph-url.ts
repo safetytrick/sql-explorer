@@ -23,14 +23,31 @@ export interface GraphLayers {
   view: boolean;
 }
 
-export type GraphLayout = 'force' | 'grid';
+/**
+ * How the graph is placed: the force simulation, nested grids, or the grids
+ * with each table drawn as an ERD entity (sqlx-929). ERD is the grid with
+ * different cards, so it shares the grid's arrangement.
+ */
+export type GraphLayout = 'force' | 'grid' | 'erd' | 'treemap';
+
+/** What a treemap tile's area measures: the matching queries' time, or the table's bytes on disk. */
+export type TreemapMeasure = 'time' | 'disk';
+
+/** `var-measure`: time when absent. */
+export function decodeMeasure(raw: string | null): TreemapMeasure {
+  return raw === 'disk' ? 'disk' : 'time';
+}
+
+/** Whether a layout places tables on the nested grids. */
+export const onGrid = (layout: GraphLayout) => layout === 'grid' || layout === 'erd';
 
 /** The workbench param that shows the graph in place of the list. */
 export const VIEW_PARAM = 'view';
 export const GRAPH_VIEW = 'graph';
 
 /** The params the graph owns, which the workbench keeps while the graph shows. */
-export const GRAPH_PARAMS = ['var-table', 'var-layers', 'var-layout', 'var-tables', 'var-depth', 'var-legend', 'var-overrides'] as const;
+export const GRAPH_PARAMS = ['var-table', 'var-layers', 'var-layout', 'var-tables', 'var-depth', 'var-legend', 'var-overrides',
+  'var-detail', 'var-measure'] as const;
 
 export interface GraphUrlState {
   /** Selected table (name only — matches node labels), null for none. */
@@ -85,7 +102,7 @@ export function graphOwnedParamPatch(state: GraphUrlState): Record<string, strin
   return {
     'var-table': state.table || null,
     'var-layers': sameLayers(state.layers, DEFAULT_LAYERS) ? null : (enabled.length ? enabled.join(',') : NO_LAYERS),
-    'var-layout': (state.layout ?? DEFAULT_LAYOUT) === 'force' ? 'force' : null,
+    'var-layout': (state.layout ?? DEFAULT_LAYOUT) === DEFAULT_LAYOUT ? null : state.layout!,
     'var-tables': state.allTables ? 'all' : null,
     'var-depth': state.depth ? String(state.depth) : null
   };
@@ -95,10 +112,14 @@ export function decodeGraphParams(params: ParamReader): GraphUrlState {
   return {
     table: params.get('var-table') ?? params.get('table'),
     layers: decodeLayers(params.get('var-layers')),
-    layout: params.get('var-layout') === 'force' ? 'force' : 'grid',
+    layout: decodeLayout(params.get('var-layout')),
     allTables: params.get('var-tables') === 'all',
     depth: decodeDepth(params.get('var-depth'))
   };
+}
+
+function decodeLayout(raw: string | null): GraphLayout {
+  return raw === 'force' || raw === 'erd' || raw === 'treemap' ? raw : DEFAULT_LAYOUT;
 }
 
 function decodeDepth(raw: string | null): number | null {

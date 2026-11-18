@@ -7,9 +7,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.schema.CompositeSchemaRepository;
 import com.github.safetytrick.sqlexplorer.schema.SchemaFingerprint;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
+import com.github.safetytrick.sqlexplorer.schema.TableDiff;
+import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 
 /**
  * A named deployment context (staging, prod, ...) containing the database
@@ -278,11 +281,13 @@ public final class Environment implements AutoCloseable {
      */
     public List<TableDrift> schemaDrift() {
         Map<String, SchemaFingerprint> byCluster = new LinkedHashMap<>();
+        Map<String, SqlSchemaRepository> schemas = new LinkedHashMap<>();
         for (Cluster cluster : clusters) {
             try {
-                SchemaFingerprint fingerprint = cluster.readSchema().fingerprint();
-                if (fingerprint != null) {
-                    byCluster.put(cluster.name(), fingerprint);
+                Cluster.SchemaSource source = cluster.readSchema();
+                if (source.fingerprint() != null) {
+                    byCluster.put(cluster.name(), source.fingerprint());
+                    schemas.put(cluster.name(), source.schema());
                 }
             } catch (RuntimeException e) {
                 // unreadable: reported by schemaStatus(), and has nothing to compare
@@ -313,13 +318,49 @@ public final class Environment implements AutoCloseable {
                     .computeIfAbsent(String.valueOf(fingerprint.tables().get(table)), hash -> new ArrayList<>())
                     .add(cluster));
                 if (variants.size() > 1) {
-                    drift.add(new TableDrift(table, variants.entrySet().stream()
-                        .map(variant -> new Variant(List.copyOf(variant.getValue()), !"null".equals(variant.getKey())))
-                        .toList()));
+                    drift.add(new TableDrift(table, describe(table, variants, schemas)));
                 }
             }
         }
         return List.copyOf(drift);
+    }
+
+    /**
+     * The variants of one table, each present one after the first diffed
+     * against the first — the one lookups use (sqlx-a6z).
+     */
+    private static List<Variant> describe(String table, Map<String, List<String>> variants,
+                                          Map<String, SqlSchemaRepository> schemas) {
+        TableReference reference = TableReference.newTableReference(
+            table.substring(0, table.indexOf('.')), table.substring(table.indexOf('.') + 1));
+        List<Variant> described = new ArrayList<>(variants.size());
+        TableStructure used = null;
+        boolean usedSeen = false;
+        for (Map.Entry<String, List<String>> variant : variants.entrySet()) {
+            List<String> clusters = List.copyOf(variant.getValue());
+            if ("null".equals(variant.getKey())) {
+                described.add(new Variant(clusters, false));
+                continue;
+            }
+            TableStructure structure = structureOf(schemas.get(clusters.getFirst()), reference);
+            if (!usedSeen) {
+                usedSeen = true;
+                used = structure;
+                described.add(new Variant(clusters, true));
+            } else {
+                described.add(new Variant(clusters, true,
+                    used == null || structure == null ? null : TableDiff.between(used, structure)));
+            }
+        }
+        return described;
+    }
+
+    private static TableStructure structureOf(SqlSchemaRepository schema, TableReference table) {
+        try {
+            return schema == null ? null : schema.getTable(table);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /**
@@ -331,8 +372,19 @@ public final class Environment implements AutoCloseable {
      */
     public record TableDrift(String table, List<Variant> variants) { }
 
-    /** @param present false for the clusters that do not have the table at all */
-    public record Variant(List<String> clusters, boolean present) { }
+    /**
+     * @param present     false for the clusters that do not have the table at all
+     * @param differences how this variant's definition differs from the one
+     *                    lookups use. Null for that variant itself, for an
+     *                    absent one, and when either structure could not be
+     *                    read. Empty when they differ only in what the loaded
+     *                    schema does not keep (sqlx-a6z)
+     */
+    public record Variant(List<String> clusters, boolean present, List<TableDiff.Difference> differences) {
+        public Variant(List<String> clusters, boolean present) {
+            this(clusters, present, null);
+        }
+    }
 
     /** Where each cluster's schema came from, or why it could not be read. */
     public List<ClusterSchemaStatus> schemaStatus() {

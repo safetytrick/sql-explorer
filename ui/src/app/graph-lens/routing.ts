@@ -35,11 +35,20 @@ export interface Point {
   y: number;
 }
 
-/** A route wanted between two leaf boxes, by their keys. */
+/**
+ * A route wanted between two leaf boxes, by their keys.
+ *
+ * <p>An end with a port attaches at that height on the box's left or right
+ * edge, whichever the route reaches first, rather than at the box's centre on
+ * any side. That is how an ERD's lines meet a column's row (sqlx-929). The
+ * port is a y in the boxes' coordinates and must lie within the box.
+ */
 export interface RouteRequest {
   id: string;
   from: string;
   to: string;
+  fromPort?: number;
+  toPort?: number;
 }
 
 export interface RoutingOptions {
@@ -71,6 +80,8 @@ interface Segment {
   width: number;
   /** A table's centre line, where routes arrive, rather than a channel between boxes. */
   stub?: boolean;
+  /** A stub at a port's height rather than the table's centre. */
+  port?: boolean;
 }
 
 /** Directions, indexed so that the opposite of d is d ^ 1. */
@@ -91,15 +102,28 @@ export function routeEdges(boxes: LayoutBox[], requests: RouteRequest[],
   const routes = new Map<string, Point[]>();
   if (!boxes.length || !requests.length) { return routes; }
 
-  const network = buildNetwork(boxes, settings.margin);
+  // the heights each box is entered at; a box no request names a port on keeps its centre lines
+  const ports = new Map<string, Set<number>>();
+  const centred = new Set<string>();
+  const want = (key: string, port: number | undefined) => {
+    if (port === undefined) { centred.add(key); return; }
+    ports.set(key, (ports.get(key) ?? new Set<number>()).add(coord(port)));
+  };
+  for (const request of requests) {
+    want(request.from, request.fromPort);
+    want(request.to, request.toPort);
+  }
+  const terminal = (key: string, port: number | undefined) => port === undefined ? key : `${key}@${coord(port)}`;
+  const network = buildNetwork(boxes, settings.margin, ports, centred);
   const used = new Uint8Array(network.count * 4);
   const paths: { id: string; path: number[]; from: LayoutBox; to: LayoutBox }[] = [];
   for (const request of requests) {
     const from = network.leaves.get(request.from);
     const to = network.leaves.get(request.to);
     if (!from || !to || from === to) { continue; }
-    const start = network.terminalOf.get(request.from)!;
-    const goal = network.terminalOf.get(request.to)!;
+    const start = network.terminalOf.get(terminal(request.from, request.fromPort));
+    const goal = network.terminalOf.get(terminal(request.to, request.toPort));
+    if (start === undefined || goal === undefined) { continue; }
     const path = search(network, used, start, goal, settings);
     if (!path) { continue; }
     for (let i = 1; i < path.length; i++) {
@@ -113,7 +137,7 @@ export function routeEdges(boxes: LayoutBox[], requests: RouteRequest[],
   // Runs: the straight stretches of each path, which is what lanes attach to.
   const runsOf = paths.map(({ path }) => runs(network, path));
   const offsets = assignLanes(runsOf, network.widthAt, settings.laneSpacing,
-    network.stubLines, settings.arrivalSpacing);
+    network.stubLines, settings.arrivalSpacing, network.portLines);
   paths.forEach(({ id, from, to }, index) => {
     routes.set(id, polyline(runsOf[index], offsets[index], from, to));
   });
@@ -135,6 +159,8 @@ interface Network {
   widthAt: Map<string, number>;
   /** The lines, keyed as `widthAt`, that are only tables' centre lines. */
   stubLines: Set<string>;
+  /** The lines, keyed as `widthAt`, that are only ports: routes arriving on one share it. */
+  portLines: Set<string>;
 }
 
 interface ContainerLines {
@@ -142,7 +168,8 @@ interface ContainerLines {
   horizontal: number[];
 }
 
-function buildNetwork(boxes: LayoutBox[], margin: number): Network {
+function buildNetwork(boxes: LayoutBox[], margin: number,
+                      ports: Map<string, Set<number>> = new Map(), centred: Set<string> | null = null): Network {
   const segments: Segment[] = [];
   const leaves = new Map<string, LayoutBox>();
   const centres: { key: string; x: number; y: number }[] = [];
@@ -166,7 +193,10 @@ function buildNetwork(boxes: LayoutBox[], margin: number): Network {
         visit(child, lines);
       } else {
         leaves.set(child.key, child);
-        centres.push(leafStubs(child, lines, segments));
+        const own = ports.get(child.key);
+        // a box with ports keeps its centre lines only if some route still wants them
+        if (!own || centred?.has(child.key)) { centres.push(leafStubs(child, lines, segments)); }
+        for (const port of own ?? []) { centres.push(portStub(child, port, lines, segments)); }
       }
     }
   };
@@ -210,10 +240,11 @@ function buildNetwork(boxes: LayoutBox[], margin: number): Network {
   const widthAt = new Map<string, number>();
   const channelLines = new Set<string>();
   const stubLines = new Set<string>();
+  const portLines = new Set<string>();
   for (const segment of segments) {
     const key = `${segment.vertical ? 'v' : 'h'}:${coord(segment.c)}`;
     widthAt.set(key, Math.min(widthAt.get(key) ?? Infinity, segment.width));
-    (segment.stub ? stubLines : channelLines).add(key);
+    (segment.port ? portLines : segment.stub ? stubLines : channelLines).add(key);
     const along = [...new Set(onSegment.get(segment)!)]
       .sort((a, b) => segment.vertical ? ys[a] - ys[b] : xs[a] - xs[b]);
     for (let i = 1; i < along.length; i++) {
@@ -231,13 +262,11 @@ function buildNetwork(boxes: LayoutBox[], margin: number): Network {
       terminalOf.set(centre.key, id);
     }
   }
-  for (const key of [...leaves.keys()]) {
-    if (!terminalOf.has(key)) { leaves.delete(key); }
-  }
   // a line shared with a channel keeps the channel's spacing
-  channelLines.forEach(key => stubLines.delete(key));
+  channelLines.forEach(key => { stubLines.delete(key); portLines.delete(key); });
+  stubLines.forEach(key => portLines.delete(key));
   return { count, xs: Float64Array.from(xs), ys: Float64Array.from(ys), next, terminals, terminalOf, leaves, widthAt,
-    stubLines };
+    stubLines, portLines };
 }
 
 /**
@@ -322,6 +351,21 @@ function leafStubs(leaf: LayoutBox, lines: ContainerLines, segments: Segment[]):
   segments.push({ vertical: false, c: cy, a: before, b: after, width: leaf.h, stub: true });
   segments.push({ vertical: true, c: cx, a: above, b: below, width: leaf.w, stub: true });
   return { key: leaf.key, x: cx, y: cy };
+}
+
+/**
+ * A port's stub: a line across the table at the port's height, out to the
+ * channels either side, so a route enters from the left or the right and
+ * never from above or below. The zero-length vertical is only there to put a
+ * vertex on the stub at the table's middle, which is the route's end.
+ */
+function portStub(leaf: LayoutBox, port: number, lines: ContainerLines, segments: Segment[]): { key: string; x: number; y: number } {
+  const cx = leaf.x + leaf.w / 2;
+  const before = Math.max(...lines.vertical.filter(x => x <= leaf.x));
+  const after = Math.min(...lines.vertical.filter(x => x >= leaf.x + leaf.w));
+  segments.push({ vertical: false, c: port, a: before, b: after, width: 0, stub: true, port: true });
+  segments.push({ vertical: true, c: cx, a: port, b: port, width: leaf.w, stub: true });
+  return { key: `${leaf.key}@${coord(port)}`, x: cx, y: port };
 }
 
 // ── search ──
@@ -485,9 +529,13 @@ function runs(network: Network, path: number[]): Run[] {
  * that turns west at the end of a vertical run takes a lane on the west, so it
  * does not cut across a neighbour's lane to get there; ordered by start, as
  * this first was, bundled routes crossed at the turns.
+ *
+ * <p>A port's line has no lanes at all: every route arriving at a column
+ * meets it at the same point, the way an ERD draws many lines into one key.
  */
 export function assignLanes(runsOf: Run[][], widthAt: Map<string, number>, spacing: number,
-                            stubLines: Set<string> = new Set(), arrivalSpacing = spacing): number[][] {
+                            stubLines: Set<string> = new Set(), arrivalSpacing = spacing,
+                            portLines: Set<string> = new Set()): number[][] {
   const byLine = new Map<string, { route: number; index: number; low: number; high: number }[]>();
   runsOf.forEach((routeRuns, route) => routeRuns.forEach((run, index) => {
     const key = `${run.vertical ? 'v' : 'h'}:${coord(run.c)}`;
@@ -496,6 +544,7 @@ export function assignLanes(runsOf: Run[][], widthAt: Map<string, number>, spaci
   }));
   const offsets = runsOf.map(routeRuns => routeRuns.map(() => 0));
   for (const [key, entries] of byLine) {
+    if (portLines.has(key)) { continue; }
     entries.sort((a, b) => a.low - b.low || a.route - b.route);
     const laneEnds: number[] = [];
     const laneOf = entries.map(entry => {

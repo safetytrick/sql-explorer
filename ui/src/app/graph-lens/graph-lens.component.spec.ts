@@ -106,12 +106,23 @@ describe('GraphLensComponent — scope legibility', () => {
       component.onClick(new MouseEvent('click'));
       expect(open).not.toHaveBeenCalled();
     });
+
+    it('a second plain click on the selected table unpins it rather than opening it', () => {
+      (component as unknown as {nodes: unknown[]}).nodes = [node];
+      component.onClick(new MouseEvent('click'));
+      expect(component.selectedTable).toBe('orders');
+
+      component.onClick(new MouseEvent('click'));
+      expect(component.selectedTable).toBeNull();
+      expect(router.navigate).not.toHaveBeenCalledWith(['/table', 'app', 'orders']);
+      expect(open).not.toHaveBeenCalled();
+    });
   });
 
   // an edge opens the queries behind it (sqlx-aoy.4)
   describe('clicking an edge', () => {
     const node = (table: string, x: number) => ({id: 'app.' + table, schema: 'app', table, columnCount: 3,
-      queryCount: 2, warn: false, selfJoin: false, view: false, x, y: 0});
+      queryCount: 2, warn: false, selfJoin: false, view: false, x, y: 0, w: 130, h: 44, columns: [], more: 0});
     let at: (x: number, y: number, init?: MouseEventInit) => MouseEvent;
 
     beforeEach(() => {
@@ -298,6 +309,46 @@ describe('GraphLensComponent — scope legibility', () => {
     expect(component.selectedNode()?.table).toBe('note');
   });
 
+  it('keeps relationships as the default detail tab, and reads every column for the Columns tab once', () => {
+    const node = {id: 'app.account', schema: 'app', table: 'account', columnCount: 2, queryCount: 2, warn: false,
+      selfJoin: false, view: false, x: 0, y: 0, w: 130, h: 44, more: 0,
+      columns: [{name: 'site_id', type: 'int', nullable: false, primary: false, unique: false, foreignKey: true}]};
+    const internals = component as unknown as {nodes: unknown[]; coEdges: unknown[]; fkEdges: unknown[]; joinEdges: unknown[]};
+    internals.nodes = [node];
+    internals.coEdges = [];
+    internals.fkEdges = [];
+    internals.joinEdges = [];
+    component.selectedTable = 'account';
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(component.detailTab).toBe('relationships');
+    expect(root.querySelector('.nd-tab.on')?.textContent).toBe('Relationships');
+    expect([...root.querySelectorAll('.nd-actions .btn')].map(el => el.textContent?.trim()))
+      .toEqual(['open table', 'queries', '⊘ exclude queries']);
+
+    (root.querySelectorAll('.nd-tab')[1] as HTMLElement).click();
+    const [, extras] = (router.navigate as jasmine.Spy).calls.mostRecent().args;
+    expect(extras.queryParams).toEqual({'var-detail': 'columns'});
+    navigateTo({}, {'var-detail': 'columns', 'var-table': 'account'});
+    internals.nodes = [node];
+    fixture.detectChanges();
+
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(req => req.url.endsWith('metadata/table/app/account')).flush({
+      indices: [{name: 'PRIMARY', unique: true, columns: ['id']}], type: 'TABLE', remarks: null,
+      underlyingTables: null, viewColumns: null,
+      columns: [{columnName: 'id', remarks: '', typeName: 'INT', columnSize: 10, isNullable: 'NO', ordinal: 1},
+        {columnName: 'site_id', remarks: '', typeName: 'INT', columnSize: 10, isNullable: 'YES', ordinal: 2}]
+    });
+    fixture.detectChanges();
+
+    const rows = [...root.querySelectorAll('.nd-cols tr')]
+      .map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent?.trim()).join(' '));
+    expect(rows).toEqual(['id int PK', 'site_id int? FK']);
+    fixture.detectChanges();
+    http.expectNone(req => req.url.endsWith('metadata/table/app/account'));
+  });
+
   // joins, queried-together and unjoined foreign keys are told apart (sqlx-aoy.3)
   it('draws a joined pair once, as a join, and marks a foreign key nothing joins on', () => {
     const graph = {
@@ -331,6 +382,42 @@ describe('GraphLensComponent — scope legibility', () => {
     const detail = component.selectedDetail()!;
     expect(detail.joins.map(partner => partner.other.table)).toEqual(['site']);
     expect(detail.co.map(partner => partner.other.table)).toEqual(['note']);
+  });
+
+  // the treemap layout: a tile per table, its area what it measures (sqlx-7o0)
+  it('lays tables out as tiles sized by query time or by disk size, leaving out what measures nothing', () => {
+    const node = (table: string, queryTimeMs: number, sizeBytes: number | null) =>
+      ({schema: 'app_main', table, columnCount: 2, queryCount: 1, warn: false, selfJoin: false, view: false,
+        executions: 10, queryTimeMs, sizeBytes});
+    const graph = {
+      nodes: [node('account', 300, 1_000), node('site', 100, 3_000), node('note', 0, null)],
+      fkEdges: [], coQueryEdges: [], viewEdges: [], joinEdges: []
+    };
+    type Placed = {table: string; w: number; h: number};
+    const internals = component as unknown as {buildLayout(graph: unknown): void; nodes: Placed[]};
+    const areaOf = (table: string) => {
+      const placed = internals.nodes.find(candidate => candidate.table === table)!;
+      return placed.w * placed.h;
+    };
+
+    component.layout = 'treemap';
+    internals.buildLayout(graph);
+    expect(areaOf('account') / areaOf('site')).toBeCloseTo(3, 1);
+    expect(areaOf('note')).toBe(0);
+    expect(component.unmeasured).toBe(1);
+
+    component.measure = 'disk';
+    internals.buildLayout(graph);
+    expect(areaOf('site') / areaOf('account')).toBeCloseTo(3, 1);
+    expect(component.unmeasured).toBe(1);
+    expect(component.formatMeasure(3_072)).toBe('3.0 KiB');
+  });
+
+  it('switches the treemap between its measures through the URL', () => {
+    component.setMeasure('disk');
+    expect((router.navigate as jasmine.Spy).calls.mostRecent().args[1].queryParams).toEqual({'var-measure': 'disk'});
+    component.setMeasure('time');
+    expect((router.navigate as jasmine.Spy).calls.mostRecent().args[1].queryParams).toEqual({'var-measure': null});
   });
 
   // the grid layout: schemas, then aggregates, then tables (sqlx-aoy.13)
@@ -557,6 +644,106 @@ describe('GraphLensComponent — scope legibility', () => {
       expect(component.layoutError).toContain('not saved');
       http().expectOne(req => req.method === 'GET' && req.url.endsWith('graph/layout')).flush([]);
       expect(component.aggregatesForTest.map(box => box.root)).toEqual(['invoice']);
+    });
+  });
+
+  // ── the ERD: the grid with entities, lines at column rows, ends inferred (sqlx-929) ──
+
+  describe('ERD', () => {
+    const key = (name: string, over = {}) =>
+      ({name, type: 'BIGINT', nullable: false, primary: false, unique: false, foreignKey: false, ...over});
+    const pair = (a: string, b: string, declared: 'a' | 'b' | null = null) =>
+      ({a, b, aUnique: false, bUnique: true, aNullable: false, bNullable: false, declared});
+    const graph = {
+      nodes: [
+        {schema: 'app_main', table: 'account', columnCount: 9, queryCount: 4, warn: false, selfJoin: false, view: false,
+          columns: [key('id', {primary: true, unique: true})]},
+        {schema: 'app_main', table: 'account_site', columnCount: 3, queryCount: 2, warn: false, selfJoin: false, view: false,
+          columns: [key('id', {primary: true, unique: true}), key('account_id', {foreignKey: true}), key('site_id')]},
+        {schema: 'app_main', table: 'site', columnCount: 5, queryCount: 2, warn: false, selfJoin: false, view: false,
+          columns: [key('id', {primary: true, unique: true})]}
+      ],
+      fkEdges: [{fromSchema: 'app_main', fromTable: 'account_site', toSchema: 'app_main', toTable: 'account',
+        label: 'account_id→id', mismatch: false, joined: true, pairs: [pair('account_id', 'id', 'a')]}],
+      coQueryEdges: [],
+      viewEdges: [],
+      joinEdges: [
+        {aSchema: 'app_main', aTable: 'account_site', bSchema: 'app_main', bTable: 'account',
+          columns: ['account_id=id'], queries: 1, executions: 10, pairs: [pair('account_id', 'id', 'a')]},
+        {aSchema: 'app_main', aTable: 'account_site', bSchema: 'app_main', bTable: 'site',
+          columns: ['id=id', 'site_id=id'], queries: 2, executions: 30, pairs: [pair('id', 'id'), pair('site_id', 'id')]}
+      ]
+    };
+    type Card = {table: string; x: number; y: number; w: number; h: number; more: number};
+    const lay = () => {
+      const internals = component as unknown as {buildLayout(graph: unknown): void; nodes: Card[]};
+      component.layout = 'erd';
+      internals.buildLayout(graph);
+      return internals.nodes;
+    };
+    const card = (nodes: Card[], table: string) => nodes.find(node => node.table === table)!;
+
+    it('sizes each card by its key columns and never lets two overlap', () => {
+      const nodes = lay();
+      // account lists one of nine columns and counts the rest; account_site lists all three
+      expect(card(nodes, 'account').more).toBe(8);
+      expect(card(nodes, 'account_site').more).toBe(0);
+      expect(card(nodes, 'account_site').h).toBeGreaterThan(card(nodes, 'account').h);
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          expect(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y)
+            .withContext(`${a.table} and ${b.table}`).toBeTrue();
+        }
+      }
+    });
+
+    it('draws one line per column pair, each ending on a side edge at its column\'s row', () => {
+      const nodes = lay();
+      const routes = [...component.routesForTest()!];
+      // joins only by default: one pair to account, two to site
+      expect(routes.length).toBe(3);
+      const link = card(nodes, 'account_site');
+      for (const [edge, path] of routes) {
+        const from = (edge as unknown as {from: Card}).from;
+        expect(from.table).toBe('account_site');
+        const start = path[0];
+        expect(start.x === link.x || start.x === link.x + link.w).withContext(edge.label).toBeTrue();
+        expect(start.y).toBeGreaterThan(link.y + 24);
+        expect(start.y).toBeLessThan(link.y + link.h);
+      }
+      // the two pairs to site leave from different rows
+      const toSite = routes.filter(([edge]) => (edge as unknown as {to: Card}).to.table === 'site').map(([, path]) => path[0].y);
+      expect(new Set(toSite).size).toBe(2);
+    });
+
+    it('draws a foreign key some query joins on once, as the join', () => {
+      lay();
+      component.toggle('fk');
+      expect(component.routesForTest()!.size).toBe(3);
+      // with joins off, the key is the only line left for its pair
+      component.toggle('join');
+      expect([...component.routesForTest()!.keys()].map(edge => edge.label)).toEqual(['account_id→id']);
+    });
+
+    it('lists a table once in the selected table\'s detail, however many pairs join it', () => {
+      lay();
+      component.selectedTable = 'account_site';
+      const joins = component.selectedDetail()!.joins;
+      expect(joins.map(partner => partner.other.table).sort()).toEqual(['account', 'site']);
+      expect(joins.find(partner => partner.other.table === 'site')!.edge.label).toBe('id=id, site_id=id');
+    });
+
+    it('is the grid for arranging: var-layout=erd, and back to the grid', () => {
+      const navigate = router.navigate as jasmine.Spy;
+      lay();
+      component.layout = 'grid';
+      component.setLayout('erd');
+      expect(component.grid).toBeTrue();
+      expect(navigate.calls.mostRecent().args[1].queryParams['var-layout']).toBe('erd');
+      component.toggleLayout();
+      expect(component.layout).toBe('force');
     });
   });
 

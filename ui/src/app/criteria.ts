@@ -89,6 +89,7 @@ const SCALARS: ScalarKind[] = [
   { key: 'sel', label: 'selectivity', value: s => range(s.selectivityPct, '%'),
     clear: s => { s.selectivityPct = ANY_RANGE(); } },
   { key: 'sorted', label: 'rows sorted', value: s => range(s.rowsSorted, ''), clear: s => { s.rowsSorted = ANY_RANGE(); } },
+  { key: 'exec', label: 'executions', value: s => range(s.executed, ''), clear: s => { s.executed = ANY_RANGE(); } },
   { key: 'fullScan', label: 'full scan', value: s => flag(s.fullScan), clear: s => { s.fullScan = 'ANY'; } },
   { key: 'tmpTable', label: 'tmp table', value: s => flag(s.tmpTable), clear: s => { s.tmpTable = 'ANY'; } },
   { key: 'tmpDisk', label: 'tmp on disk', value: s => flag(s.tmpDisk), clear: s => { s.tmpDisk = 'ANY'; } },

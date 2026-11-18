@@ -1,5 +1,6 @@
 package com.github.safetytrick.sqlexplorer.profiles;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -90,8 +91,8 @@ class ProfilesMcpTools implements McpToolProvider {
                 .optionalStrings("excludeTags", "query tags to leave out")
                 .optionalEnum("fullScan", "queries with (YES) or without (NO) full table scans", List.of("YES", "NO"))
                 .optionalBoolean("analysisFailed", "only queries the analyzer could not analyze")
-                .optionalEnum("sort", "default IMPACT",
-                    List.of("IMPACT", "AVG_TIME", "MAX_TIME", "AVG_ROWS_SCANNED", "SELECTIVITY", "LAST_SEEN"))
+                .optionalEnum("sort", "default IMPACT; all descending except SELECTIVITY_ASC",
+                    Arrays.stream(QuerySearchRequest.Sort.values()).map(Enum::name).toList())
                 .optionalInteger("limit", "default 25", 1, 100)
                 .optionalInteger("offset", null, 0, Integer.MAX_VALUE)
                 .handler(args -> search.search(args.as(QuerySearchRequest.class, Map.of("limit", 25)))),
