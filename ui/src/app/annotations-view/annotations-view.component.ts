@@ -1,9 +1,10 @@
-import {Component, Input, OnChanges, OnDestroy} from '@angular/core';
+import {Component, inject, Input, OnChanges, OnDestroy} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {Subscription} from 'rxjs';
 import {Annotation, AnnotationService} from '../annotation.service';
-import type {TagTarget} from '../tag-path';
+import {targetKey, type TagTarget} from '../tag-path';
 import {GLOSSARY} from '../glossary';
+import {EnvironmentService} from '../environment.service';
 
 /**
  * The current annotations on one target, beside its tags (sqlx-n5j.13).
@@ -30,10 +31,23 @@ export class AnnotationsViewComponent implements OnChanges, OnDestroy {
   confirming = new Set<number>();
   readonly definition = GLOSSARY.annotations;
   private subscription = new Subscription();
+  private readonly environmentService = inject(EnvironmentService, {optional: true});
+  /** The target last asked about, by value, in the environment it was asked in. */
+  private loadedKey: string | null = null;
 
   constructor(private service: AnnotationService) {}
 
+  /**
+   * Asks again only when the target is a different one. Hosts bind
+   * `[target]="tableTarget(schema, table)"`, a fresh object on every change
+   * detection; comparing by reference re-asked on each pass, each answer ran
+   * another pass, and an open page posted about a thousand requests a second
+   * until nginx ran out of ports.
+   */
   ngOnChanges() {
+    const key = (this.environmentService?.getCurrent() ?? '') + '\u0000' + targetKey(this.target);
+    if (key === this.loadedKey) { return; }
+    this.loadedKey = key;
     this.subscription.unsubscribe();
     this.subscription = new Subscription();
     this.annotations = [];

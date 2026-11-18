@@ -35,6 +35,17 @@ describe('AnnotationsViewComponent', () => {
     expect(el().querySelector('.ann')?.classList).toContain('inferred');
   });
 
+  it('asks once for a target bound as a fresh object on every change detection', () => {
+    http.expectOne(r => r.url.endsWith('annotations/targets')).flush([[]]);
+    fixture.componentRef.setInput('target', columnTarget('app_main', 'account', 'status'));
+    fixture.detectChanges();
+    http.expectNone(r => r.url.endsWith('annotations/targets'));
+
+    fixture.componentRef.setInput('target', columnTarget('app_main', 'account', 'code'));
+    fixture.detectChanges();
+    http.expectOne(r => r.url.endsWith('annotations/targets'));
+  });
+
   it('renders nothing when nothing is recorded', () => {
     http.expectOne(r => r.url.endsWith('annotations/targets')).flush([[]]);
     fixture.detectChanges();
