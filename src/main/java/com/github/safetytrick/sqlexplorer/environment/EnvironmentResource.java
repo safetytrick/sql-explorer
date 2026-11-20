@@ -64,9 +64,13 @@ class EnvironmentResource {
     }
 
     private EnvironmentSummary summarize(Environment environment) {
+        java.util.Map<DatabaseServer, String> clusterOf = new java.util.HashMap<>();
+        for (Cluster cluster : environment.getClusters()) {
+            cluster.servers().forEach(server -> clusterOf.putIfAbsent(server, cluster.name()));
+        }
         List<ServerSummary> servers = environment.getServers().stream()
             .map(server -> new ServerSummary(server.getName(), server.isSchemaLoaded(),
-                server.getRoles().stream().map(ServerRole::configName).toList()))
+                server.getRoles().stream().map(ServerRole::configName).toList(), clusterOf.get(server)))
             .toList();
         SqlRepositoryManager.LoadState state = sqlRepositoryManager.getLoadState(environment.getName());
         SourcesSummary sources = state == null
@@ -133,8 +137,11 @@ class EnvironmentResource {
                               com.github.safetytrick.sqlexplorer.evidence.EnvironmentHealth health,
                               Environment.SamplingStatus sampling) { }
 
-    /** @param roles what config says the server is for, lowercase: primary, replica, analytics, sampling */
-    record ServerSummary(String name, boolean schemaLoaded, List<String> roles) { }
+    /**
+     * @param roles   what config says the server is for, lowercase: primary, replica, analytics, sampling
+     * @param cluster the cluster it belongs to: its primary and replicas share one schema
+     */
+    record ServerSummary(String name, boolean schemaLoaded, List<String> roles, String cluster) { }
 
     /**
      * @param resident whether the corpus is in heap right now. An environment

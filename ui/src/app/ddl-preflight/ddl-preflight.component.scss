@@ -133,3 +133,24 @@
 }
 
 .locked-tables .hot { color: var(--amber); }
+
+/* Open transactions now (sqlx-9gk) */
+.lock-holders {
+  .holders-form { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+  .holders-tables, .holders-servers, .holders-action { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); min-width: 52px; }
+  .chip { background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius); padding: 1px 6px; }
+  .cluster-name { color: var(--text3); font-style: italic; }
+  .server-pick { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .role { color: var(--text3); font-size: 11px; }
+  .dim { color: var(--text3); }
+  .holders-read { padding: 8px 14px; font-size: 12px; border-top: 1px solid var(--border); }
+  .holders-server { border-top: 1px solid var(--border); }
+  .holders-server-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 8px 14px; font-size: 12px; }
+  .holders-verdict { margin-left: auto; }
+  .holders-verdict[data-verdict="busy"] { color: var(--amber); }
+  .holders-verdict[data-verdict="clear"] { color: var(--green); }
+  .holders-verdict[data-verdict="unknown"] { color: var(--text3); }
+  .holders-error { color: var(--red); }
+  tr.old td { color: var(--amber); }
+}

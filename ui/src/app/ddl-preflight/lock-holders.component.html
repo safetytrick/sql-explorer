@@ -1,0 +1,106 @@
+@if (tables.length) {
+  <div class="lens-card lock-holders">
+    <div class="card-head"><span class="card-head-title">Open transactions now</span>
+      <span class="card-head-note">who holds a metadata lock on these tables right now, read live from the
+        servers you choose; nothing is read until you press the button</span></div>
+
+    <div class="holders-form">
+      <div class="holders-tables">
+        <span class="label">tables</span>
+        @for (t of tables; track t.schema + '.' + t.table) {
+          <span class="mono chip">{{t.schema}}.{{t.table}}</span>
+        }
+      </div>
+
+      @if (servers.length) {
+        <div class="holders-servers" role="group" aria-label="servers to check">
+          <span class="label">servers</span>
+          @if (clusters.length) {
+            @for (c of clusters; track c) {
+              <span class="cluster-name">{{c}}</span>
+              @for (s of serversIn(c); track s.name) {
+                <label class="server-pick">
+                  <input type="checkbox" [checked]="isSelected(s.name)" (change)="toggle(s.name)">
+                  <span class="mono">{{s.name}}</span>
+                  @if (roleLabel(s)) { <span class="role">{{roleLabel(s)}}</span> }
+                </label>
+              }
+            }
+          } @else {
+            @for (s of servers; track s.name) {
+              <label class="server-pick">
+                <input type="checkbox" [checked]="isSelected(s.name)" (change)="toggle(s.name)">
+                <span class="mono">{{s.name}}</span>
+                @if (roleLabel(s)) { <span class="role">{{roleLabel(s)}}</span> }
+              </label>
+            }
+          }
+        </div>
+      }
+
+      <div class="holders-action">
+        <button type="button" class="btn primary" [disabled]="!canCheck" (click)="check()">
+          {{loading ? 'Checking…' : 'Check for open transactions'}}</button>
+        @if (cached) {
+          <span class="dim">{{environment}} is served from its cache; pull it to go live before checking.</span>
+        } @else if (!selected.length) {
+          <span class="dim">Choose at least one server.</span>
+        } @else {
+          <span class="dim">Runs one read-only query against performance_schema on each chosen server.</span>
+        }
+      </div>
+    </div>
+
+    @if (error) {
+      <div class="card-empty holders-error">{{error}}</div>
+    }
+
+    @if (report; as r) {
+      <div class="holders-read dim">Read at {{r.readAt}}. True at that moment only: a transaction can open
+        right after. Run the change with a short <span class="mono">lock_wait_timeout</span> and retry.</div>
+      @for (s of r.servers; track s.server) {
+        <div class="holders-server">
+          <div class="holders-server-head">
+            <span class="mono">{{s.server}}</span>
+            @if (s.roles.length) { <span class="role">{{s.roles.join(', ')}}</span> }
+            <span class="holders-verdict" [attr.data-verdict]="verdictClass(s)">{{verdict(s)}}</span>
+          </div>
+          @if (s.error) {
+            <div class="card-empty holders-error">{{s.error}}</div>
+          }
+          @if (s.note) {
+            <div class="card-empty">{{s.note}}</div>
+          }
+          @if (s.holders.length) {
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr>
+                  <th>table</th>
+                  <th>lock</th>
+                  <th title="GRANTED: held. PENDING: that session is itself waiting for it">status</th>
+                  <th>connection</th>
+                  <th title="what the session is doing: Sleep means idle, and a Sleep with an open transaction is the classic blocker">command</th>
+                  <th class="num" title="time in the current state; for an idle connection, since its last statement">in state</th>
+                  <th class="num" title="how long its transaction has been open; the change waits at least this long for it">transaction</th>
+                </tr></thead>
+                <tbody>
+                  @for (h of s.holders; track $index) {
+                    <tr [class.old]="isOld(h)">
+                      <td class="mono">{{h.schema}}.{{h.table}}</td>
+                      <td class="mono">{{h.lockType}} <span class="dim">{{h.duration.toLowerCase()}}</span></td>
+                      <td class="mono">{{h.status}}</td>
+                      <td class="mono">{{h.processlistId ?? '—'}} {{h.user ?? ''}}{{h.host ? '@' + h.host : ''}}</td>
+                      <td>{{h.command ?? '—'}}@if (h.state) { <span class="dim"> · {{h.state}}</span> }</td>
+                      <td class="num mono">{{fmtAge(h.secondsInState)}}</td>
+                      <td class="num mono">{{fmtAge(h.transactionSeconds)}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      }
+    }
+  </div>
+}

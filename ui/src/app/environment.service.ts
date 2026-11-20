@@ -14,6 +14,8 @@ export interface ServerSummary {
   schemaLoaded: boolean;
   /** Empty when config names none. */
   roles?: ServerRole[];
+  /** The cluster it belongs to: a primary and its replicas share one schema. Absent from older responses. */
+  cluster?: string;
 }
 
 /** Which server sampling queries would go to, or why none would (sqlx-n5j.4). */

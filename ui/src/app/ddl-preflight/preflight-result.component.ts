@@ -4,6 +4,7 @@ import {DecimalPipe} from '@angular/common';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {formatBytes, formatRowsEstimate} from '../table-size';
 import {fmtPerDay, fmtTime} from '../table-workload/table-workload.service';
+import {LockHoldersComponent} from './lock-holders.component';
 import {algorithmLabel, choiceOutcomeLabel, Preflight, PreflightCheck, sortChecks} from './ddl-preflight';
 
 /**
@@ -15,7 +16,7 @@ import {algorithmLabel, choiceOutcomeLabel, Preflight, PreflightCheck, sortCheck
   selector: 'app-preflight-result',
   templateUrl: './preflight-result.component.html',
   styleUrls: ['./ddl-preflight.component.scss'],
-  imports: [RouterLink, DecimalPipe, SqlHighlightDirective]
+  imports: [RouterLink, DecimalPipe, SqlHighlightDirective, LockHoldersComponent]
 })
 export class PreflightResultComponent implements OnChanges {
   @Input() result: Preflight | null = null;

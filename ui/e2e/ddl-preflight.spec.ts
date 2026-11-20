@@ -151,3 +151,64 @@ test('the change page drops a foreign key constraint and keeps its column', asyn
   await expect(page).toHaveURL(/var-op=drop-index/);
   await expect(page.locator('.preview code')).toHaveText('DROP INDEX `fk_orders_site` ON `app`.`orders`');
 });
+
+/**
+ * "Open transactions now" (sqlx-9gk): opening the page, even from a link that
+ * carries a server selection, reads nothing from any server. Only the button
+ * does, and only the servers chosen.
+ */
+test('open transactions are read only on request, from the servers chosen', async ({page}) => {
+  await stubApi(page);
+  await page.route('**/api/sql-explorer/environments', route => route.fulfill({contentType: 'application/json',
+    body: JSON.stringify({defaultEnvironment: 'regression', environments: [
+      {name: 'regression', sources: {loaded: true, sourceCount: 1, loadedOn: '2026-08-30T12:00:00Z',
+        importStats: null, resident: true},
+        servers: [
+          {name: 'db-primary', schemaLoaded: true, roles: ['primary'], cluster: 'main'},
+          {name: 'db-replica', schemaLoaded: true, roles: ['replica'], cluster: 'main'}]}]})}));
+  await page.route(`${BASE}/ddl/preflight`, route => route.fulfill({contentType: 'application/json',
+    body: JSON.stringify({
+      statement: 'ALTER TABLE app.orders ADD COLUMN note VARCHAR(40)', error: null, schema: 'app', table: 'orders',
+      clauses: [], algorithm: 'INSTANT', rebuildsTable: false, concurrentDml: true, requestedAlgorithm: null,
+      requestedLock: null, tableFacts: null, workload: null, checks: [], recommendations: [], unknowns: [],
+      lockedTables: [
+        {schema: 'app', table: 'order_line', role: 'CHILD', reach: 'EVERY_QUERY', waits: 'every query',
+          constraints: ['fk_order_line_order'], reason: '', workload: null},
+        {schema: 'app', table: 'account', role: 'PARENT', reach: 'WRITES', waits: 'UPDATE and DELETE',
+          constraints: ['fk_orders_account'], reason: '', workload: null}]
+    })}));
+  const requests: {tables: {schema: string; table: string}[]; servers: string[]}[] = [];
+  await page.route(`${BASE}/ddl/lock-holders`, async route => {
+    requests.push(JSON.parse(route.request().postData() || '{}'));
+    await route.fulfill({contentType: 'application/json', body: JSON.stringify({
+      environment: 'regression', readAt: '2026-11-20T10:00:00Z', tookMillis: 12,
+      tables: requests[0].tables,
+      servers: [{server: 'db-replica', roles: ['replica'], error: null, note: null, holders: [
+        {schema: 'app', table: 'order_line', lockType: 'SHARED_READ', duration: 'TRANSACTION', status: 'GRANTED',
+          processlistId: 7, user: 'reader', host: '10.0.0.1', command: 'Sleep', state: null,
+          secondsInState: 300, transactionSeconds: 725}]}]
+    })});
+  });
+
+  await page.goto('/ddl-preflight?var-servers=db-replica&var-ddl='
+    + encodeURIComponent('ALTER TABLE app.orders ADD COLUMN note VARCHAR(40)'));
+
+  const card = page.locator('.lock-holders');
+  await expect(card).toContainText('app.order_line');
+  await expect(card.locator('.chip')).toHaveText(['app.orders', 'app.order_line']);
+  await expect(card.getByRole('checkbox', {name: /db-replica/})).toBeChecked();
+  await expect(card.getByRole('checkbox', {name: /db-primary/})).not.toBeChecked();
+  await page.waitForTimeout(300);
+  expect(requests).toHaveLength(0);
+
+  await card.getByRole('button', {name: 'Check for open transactions'}).click();
+
+  await expect(card.locator('.holders-verdict')).toHaveText('oldest open transaction: 12m 05s, on app.order_line');
+  expect(requests).toHaveLength(1);
+  expect(requests[0].servers).toEqual(['db-replica']);
+  expect(requests[0].tables).toEqual([{schema: 'app', table: 'orders'}, {schema: 'app', table: 'order_line'}]);
+
+  await card.getByRole('checkbox', {name: /db-primary/}).check();
+  await expect(page).toHaveURL(/var-servers=db-primary%2Cdb-replica|var-servers=db-primary,db-replica/);
+  expect(requests).toHaveLength(1);
+});
