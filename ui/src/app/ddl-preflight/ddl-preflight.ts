@@ -39,6 +39,27 @@ export interface Workload {
   maxTimeMs: number;
 }
 
+/**
+ * Another table a change reaches through a foreign key. EVERY_QUERY: the
+ * change takes an exclusive metadata lock on it too, so it waits for that
+ * table's open transactions and queues all its queries meanwhile. WRITES: only
+ * the writes there that check or cascade through the key lock this table, so
+ * those wait, and an open transaction that ran one holds the change up.
+ */
+export interface LockedTable {
+  schema: string;
+  table: string;
+  /** PARENT: this table references it. CHILD: it references this table. */
+  role: 'PARENT' | 'CHILD';
+  reach: 'EVERY_QUERY' | 'WRITES';
+  /** Which of its statements wait, in words: "every query", "UPDATE and DELETE". */
+  waits: string;
+  constraints: string[];
+  reason: string;
+  /** Null when nothing is known of it. */
+  workload: Workload | null;
+}
+
 /** What MySQL would do with one ALGORITHM= on this statement. */
 export type ChoiceOutcome = 'CHOSEN' | 'NEEDED' | 'SLOWER' | 'REFUSED' | 'UNPREDICTED';
 
@@ -78,6 +99,8 @@ export interface Preflight {
   unknowns: string[];
   /** Absent from responses older than the field. */
   choices?: AlgorithmChoice[];
+  /** Absent from responses older than the field. */
+  lockedTables?: LockedTable[];
 }
 
 /** The page's state in the link: the statement and the long-statement threshold. */

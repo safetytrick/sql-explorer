@@ -121,3 +121,18 @@ pre.create {
   overflow: auto;
   white-space: pre;
 }
+
+.link-btn {
+  border: 0; padding: 0; background: none; font: inherit; color: var(--blue, inherit);
+  text-decoration: underline; cursor: pointer;
+}
+
+.fk-card {
+  .fk-group { padding: 6px 12px 2px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text3); }
+  .fk-row { padding: 5px 12px; border-top: 1px solid var(--border); font-size: 12px; }
+  .fk-row.pick { cursor: pointer; }
+  .fk-row.pick:hover { background: var(--bg2); }
+  .fk-row.pick.on { background: var(--blue-dim, var(--bg2)); }
+  .fk-map { color: var(--text2); overflow-wrap: anywhere; }
+  .fk-rules { font-size: 11px; }
+}

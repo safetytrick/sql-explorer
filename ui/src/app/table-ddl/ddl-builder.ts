@@ -8,7 +8,8 @@
  */
 
 export type BuilderOp =
-  'add-column' | 'modify-column' | 'rename-column' | 'drop-column' | 'convert' | 'add-index' | 'drop-index';
+  'add-column' | 'modify-column' | 'rename-column' | 'drop-column' | 'convert' | 'add-index' | 'drop-index'
+  | 'drop-foreign-key';
 
 export const BUILDER_OPS: {op: BuilderOp; label: string}[] = [
   {op: 'add-column', label: 'Add column'},
@@ -17,7 +18,8 @@ export const BUILDER_OPS: {op: BuilderOp; label: string}[] = [
   {op: 'drop-column', label: 'Drop column'},
   {op: 'convert', label: 'Convert charset'},
   {op: 'add-index', label: 'Create index'},
-  {op: 'drop-index', label: 'Drop index'}
+  {op: 'drop-index', label: 'Drop index'},
+  {op: 'drop-foreign-key', label: 'Drop foreign key'}
 ];
 
 export interface BuilderState {
@@ -41,6 +43,8 @@ export interface BuilderState {
   /** The new index's columns, in order. */
   indexColumns: string[];
   unique: boolean;
+  /** The foreign key constraint to drop; its columns and their index stay. */
+  foreignKey: string;
   /** ALGORITHM= to state; empty to let MySQL choose. */
   algorithm: BuilderAlgorithm;
 }
@@ -50,7 +54,7 @@ export const BUILDER_ALGORITHMS: BuilderAlgorithm[] = ['', 'INSTANT', 'INPLACE',
 
 export const EMPTY_BUILDER: BuilderState = {
   op: 'add-column', column: '', newName: '', type: '', nullable: true, defaultValue: '', charset: '',
-  collation: '', after: '', index: '', indexColumns: [], unique: false, algorithm: ''
+  collation: '', after: '', index: '', indexColumns: [], unique: false, foreignKey: '', algorithm: ''
 };
 
 /** `name`, with any backtick doubled as MySQL escapes it. */
@@ -113,6 +117,9 @@ export function builderMissing(state: BuilderState): string[] {
     case 'drop-index':
       need(!!state.index, 'an index');
       break;
+    case 'drop-foreign-key':
+      need(!!state.foreignKey, 'a foreign key');
+      break;
   }
   return missing;
 }
@@ -148,6 +155,10 @@ export function buildStatement(schema: string, table: string, state: BuilderStat
       return state.index.toUpperCase() === 'PRIMARY'
         ? alter('DROP PRIMARY KEY')
         : `DROP INDEX ${quote(state.index)} ON ${target}` + option;
+    case 'drop-foreign-key':
+      // only the constraint: the columns keep their data, and the index MySQL
+      // made or used for the key stays until dropped on its own
+      return alter(`DROP FOREIGN KEY ${quote(state.foreignKey)}`);
   }
 }
 
@@ -190,6 +201,19 @@ export function fromExistingColumn(state: BuilderState, column: ExistingColumn):
     charset: column.characterSet ?? '',
     collation: column.collation ?? ''
   };
+}
+
+/**
+ * The index a foreign key leaves behind when it is dropped: MySQL needs one
+ * whose leading columns are the key's, and keeps it after the constraint is
+ * gone. Null when the snapshot shows none.
+ */
+export function backingIndex(fkColumns: string[], indexes: {name: string; columns: string[]}[]): string | null {
+  const want = fkColumns.map(c => c.toLowerCase());
+  const leads = (index: {columns: string[]}) =>
+    want.length > 0 && want.every((c, i) => index.columns[i]?.toLowerCase() === c);
+  return indexes.find(i => i.name.toUpperCase() !== 'PRIMARY' && leads(i))?.name
+    ?? indexes.find(leads)?.name ?? null;
 }
 
 /** A conventional name for a new index: idx_<table>_<first two columns>. */

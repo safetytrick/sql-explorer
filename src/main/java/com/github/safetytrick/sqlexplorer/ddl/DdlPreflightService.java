@@ -1,6 +1,8 @@
 package com.github.safetytrick.sqlexplorer.ddl;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -8,6 +10,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.ddl.AlterParser.Clause;
@@ -88,7 +92,28 @@ public class DdlPreflightService {
                             Algorithm algorithm, boolean rebuildsTable, boolean concurrentDml,
                             String requestedAlgorithm, String requestedLock, TableFacts tableFacts,
                             Workload workload, List<Check> checks, List<String> recommendations,
-                            List<String> unknowns, List<AlgorithmChoice> choices) { }
+                            List<String> unknowns, List<AlgorithmChoice> choices, List<LockedTable> lockedTables) { }
+
+    /** Which side of a foreign key the other table is on: PARENT is referenced by the altered table. */
+    public enum Role { PARENT, CHILD }
+
+    /**
+     * Which of the other table's queries wait while the statement waits for or holds its locks.
+     * EVERY_QUERY: it takes an exclusive metadata lock on that table too. WRITES: only its writes that check
+     * or cascade through the foreign key, because each takes a metadata lock on the altered table.
+     */
+    public enum Reach { EVERY_QUERY, WRITES }
+
+    /**
+     * Another table a schema change reaches through a foreign key (MySQL 8.0.3+; read from 8.4's
+     * {@code sql_table.cc} and {@code sql_base.cc}).
+     *
+     * @param waits       which of its statements wait, in words: "every query", "UPDATE and DELETE"
+     * @param constraints the foreign keys that tie it to the altered table; empty when unnamed in the snapshot
+     * @param workload    how it is queried, as for the altered table; null when nothing is known of it
+     */
+    public record LockedTable(String schema, String table, Role role, Reach reach, String waits,
+                              List<String> constraints, String reason, Workload workload) { }
 
     /** What MySQL would accept for a choice of algorithm. */
     public enum Outcome { CHOSEN, NEEDED, SLOWER, REFUSED, UNPREDICTED }
@@ -105,7 +130,7 @@ public class DdlPreflightService {
         ParsedAlter parsed = AlterParser.parse(sql);
         if (parsed.error() != null && parsed.clauses().isEmpty()) {
             return new Preflight(sql, parsed.error(), null, null, List.of(), Algorithm.UNKNOWN, false, false, null,
-                null, null, null, List.of(), List.of(), List.of(), List.of());
+                null, null, null, List.of(), List.of(), List.of(), List.of(), List.of());
         }
         TableReference reference = TableReference.newTableReference(parsed.schema(), parsed.table());
         TableStructure structure = schemaService.getTable(reference);
@@ -159,14 +184,18 @@ public class DdlPreflightService {
                     + "is not captured."));
         }
         foreignKeys(facts, overall, rebuilds, checks);
+        List<LockedTable> locked = structure == null ? List.of()
+            : lockedTables(parsed, structure, longStatementMs);
+        lockedTablesCheck(locked, checks);
 
         List<String> recommendations = recommendations(overall, rebuilds, concurrent, requestedAlgorithm, facts,
-            workload);
+            workload, locked);
         unknowns.add("Triggers on the table are not captured; pt-online-schema-change and gh-ost refuse tables "
             + "that already have them.");
         return new Preflight(sql, parsed.error(), parsed.schema(), parsed.table(), verdicts, overall, rebuilds,
             concurrent, requestedAlgorithm, requestedLock, facts, workload, checks, recommendations,
-            List.copyOf(unknowns), choices(overall, hasInstantColumnChange, concurrent, requestedAlgorithm, facts));
+            List.copyOf(unknowns), choices(overall, hasInstantColumnChange, concurrent, requestedAlgorithm, facts),
+            locked);
     }
 
     // ── each ALGORITHM= this statement could carry ──
@@ -533,8 +562,192 @@ public class DdlPreflightService {
                     + "repoint the referencing tables.")));
     }
 
+    // ── metadata locks reaching related tables ──
+
+    /**
+     * The other tables a change to this one reaches through foreign keys, as MySQL 8.4 takes its metadata locks
+     * (with foreign_key_checks on, the default):
+     *
+     * <ul>
+     *   <li>At the end of any ALTER, CREATE INDEX or DROP INDEX, an exclusive lock on every table that
+     *       references this one ({@code collect_fk_children}), and on the parents of keys added or dropped, or
+     *       of every key when the table is renamed. Every query on those tables waits.</li>
+     *   <li>Every UPDATE or DELETE on a table this one references, and every INSERT or UPDATE on one that
+     *       references it, takes a metadata lock on this table for its whole transaction, to check or cascade
+     *       through the key ({@code process_table_fks}). Those wait behind the change, and an open transaction
+     *       that ran one holds the change up until it commits.</li>
+     * </ul>
+     */
+    List<LockedTable> lockedTables(ParsedAlter parsed, TableStructure structure, double longStatementMs) {
+        Map<String, LockedTable> out = new LinkedHashMap<>();
+        boolean renames = parsed.clauses().stream().anyMatch(c -> c.kind() == Kind.RENAME_TABLE);
+        for (Clause clause : parsed.clauses()) {
+            if (clause.kind() == Kind.ADD_FOREIGN_KEY && clause.referencedTable() != null) {
+                String[] parts = clause.referencedTable().split("\\.", 2);
+                String schema = parts.length == 2 ? parts[0] : structure.schema();
+                String table = parts.length == 2 ? parts[1] : parts[0];
+                if (!(table.equalsIgnoreCase(structure.name()) && schema.equalsIgnoreCase(structure.schema()))) {
+                    add(out, schema, table, Role.PARENT, Reach.EVERY_QUERY, clause.name(),
+                        "Adding a foreign key to it takes an exclusive lock on it.", longStatementMs);
+                }
+            }
+            if (clause.kind() == Kind.DROP_FOREIGN_KEY || clause.kind() == Kind.DROP_CONSTRAINT) {
+                ownForeignKeys(structure).stream()
+                    .filter(fk -> fk.constraintName() != null && fk.constraintName().equalsIgnoreCase(clause.name()))
+                    .findFirst()
+                    .map(fk -> fk.to().get(0).getTable())
+                    .filter(parent -> !sameTableRef(parent, structure))
+                    .ifPresent(parent -> add(out, schemaOf(parent, structure), parent.getNormalizedTableName(),
+                        Role.PARENT, Reach.EVERY_QUERY, clause.name(),
+                        "Dropping its foreign key takes an exclusive lock on it.", longStatementMs));
+            }
+        }
+        for (ForeignKey fk : ownForeignKeys(structure)) {
+            TableReference parent = fk.to().get(0).getTable();
+            if (sameTableRef(parent, structure)) {
+                continue;
+            }
+            if (renames) {
+                add(out, schemaOf(parent, structure), parent.getNormalizedTableName(), Role.PARENT,
+                    Reach.EVERY_QUERY, fk.constraintName(),
+                    "Renaming a table takes an exclusive lock on every table it references.", longStatementMs);
+            } else {
+                add(out, schemaOf(parent, structure), parent.getNormalizedTableName(), Role.PARENT, Reach.WRITES,
+                    fk.constraintName(), "This table references it, so each UPDATE or DELETE there locks this "
+                        + "table to check or cascade through the key: those wait behind the change, and a "
+                        + "transaction that ran one holds the change up until it commits.", longStatementMs);
+            }
+        }
+        for (Map.Entry<TableReference, List<String>> child : referencingTables(structure).entrySet()) {
+            TableReference ref = child.getKey();
+            for (String constraint : child.getValue().isEmpty() ? Collections.<String>singletonList(null)
+                : child.getValue()) {
+                add(out, schemaOf(ref, structure), ref.getNormalizedTableName(), Role.CHILD, Reach.EVERY_QUERY,
+                    constraint, "It references this table, so the change takes an exclusive lock on it as well, "
+                        + "and its INSERTs and UPDATEs lock this table to check the key.", longStatementMs);
+            }
+        }
+        // every query waiting is the larger risk: those first
+        return out.values().stream()
+            .sorted(Comparator.comparing((LockedTable t) -> t.reach() != Reach.EVERY_QUERY))
+            .toList();
+    }
+
+    private void add(Map<String, LockedTable> out, String schema, String table, Role role, Reach reach,
+                     String constraint, String reason, double longStatementMs) {
+        String key = lower(schema) + "." + lower(table);
+        LockedTable seen = out.get(key);
+        if (seen != null) {
+            // the first rule to name a table is the strongest; later ones only add their constraint
+            if (constraint != null && !seen.constraints().contains(constraint)) {
+                List<String> constraints = new ArrayList<>(seen.constraints());
+                constraints.add(constraint);
+                out.put(key, new LockedTable(seen.schema(), seen.table(), seen.role(), seen.reach(), seen.waits(),
+                    List.copyOf(constraints), seen.reason(), seen.workload()));
+            }
+            return;
+        }
+        TableReference reference = TableReference.newTableReference(schema, table);
+        boolean known = schemaService.getTable(reference) != null;
+        String waits = reach == Reach.EVERY_QUERY ? "every query" : "UPDATE and DELETE";
+        out.put(key, new LockedTable(schema, table, role, reach, waits,
+            constraint == null ? List.of() : List.of(constraint), reason,
+            workload(reference, longStatementMs, known)));
+    }
+
+    /** The keys the table owns, as the child: a snapshot can also list keys of other tables pointing here. */
+    private static List<ForeignKey> ownForeignKeys(TableStructure structure) {
+        return structure.foreignKeys() == null ? List.of() : structure.foreignKeys().stream()
+            .filter(fk -> !fk.from().isEmpty() && !fk.to().isEmpty() && sameTable(fk.from().get(0), structure))
+            .toList();
+    }
+
+    /** Each table whose foreign keys reference this one, with those keys' names. */
+    private Map<TableReference, List<String>> referencingTables(TableStructure structure) {
+        Map<String, TableReference> refs = new LinkedHashMap<>();
+        Map<String, List<String>> names = new LinkedHashMap<>();
+        BiConsumer<TableReference, String> note = (ref, name) -> {
+            String key = lower(schemaOf(ref, structure)) + "." + lower(ref.getNormalizedTableName());
+            refs.putIfAbsent(key, ref);
+            List<String> list = names.computeIfAbsent(key, k -> new ArrayList<>());
+            if (name != null && !list.contains(name)) {
+                list.add(name);
+            }
+        };
+        for (TableStructure other : schemaService.getTables()) {
+            if (other.foreignKeys() == null || sameName(other, structure)) {
+                continue;
+            }
+            for (ForeignKey fk : other.foreignKeys()) {
+                if (fk.to().stream().anyMatch(c -> sameTable(c, structure))
+                    && fk.from().stream().anyMatch(c -> sameTable(c, other))) {
+                    note.accept(TableReference.newTableReference(other.schema(), other.name()), fk.constraintName());
+                }
+            }
+        }
+        if (structure.foreignKeys() != null) {
+            for (ForeignKey fk : structure.foreignKeys()) {
+                if (fk.to().stream().anyMatch(c -> sameTable(c, structure))) {
+                    fk.from().stream().filter(c -> !sameTable(c, structure)).findFirst()
+                        .ifPresent(c -> note.accept(c.getTable(), fk.constraintName()));
+                }
+            }
+        }
+        Map<TableReference, List<String>> out = new LinkedHashMap<>();
+        refs.forEach((key, ref) -> out.put(ref, names.get(key)));
+        return out;
+    }
+
+    private static String schemaOf(TableReference ref, TableStructure fallback) {
+        return ref.getSchemaName() == null ? fallback.schema() : ref.getSchemaName();
+    }
+
+    private static boolean sameTableRef(TableReference ref, TableStructure table) {
+        return ref != null && ref.getNormalizedTableName() != null
+            && ref.getNormalizedTableName().equalsIgnoreCase(table.name())
+            && (ref.getSchemaName() == null || ref.getSchemaName().equalsIgnoreCase(table.schema()));
+    }
+
+    private static void lockedTablesCheck(List<LockedTable> locked, List<Check> checks) {
+        if (locked.isEmpty()) {
+            return;
+        }
+        List<LockedTable> all = locked.stream().filter(t -> t.reach() == Reach.EVERY_QUERY).toList();
+        List<LockedTable> writes = locked.stream().filter(t -> t.reach() == Reach.WRITES).toList();
+        List<String> parts = new ArrayList<>();
+        if (!all.isEmpty()) {
+            parts.add("MySQL also takes an exclusive metadata lock on " + names(all) + ": while the statement waits "
+                + "for " + (all.size() == 1 ? "its" : "their") + " open transactions, every query arriving there "
+                + "waits behind it.");
+        }
+        if (!writes.isEmpty()) {
+            parts.add("Each UPDATE or DELETE on " + names(writes) + " locks this table to check or cascade "
+                + "through the foreign key, so those writes wait behind the change too, and a transaction that "
+                + "ran one holds the change up until it commits.");
+        }
+        parts.add("This holds even when the change itself is instant. SET foreign_key_checks = 0 in the session "
+            + "running the change does not avoid it: MySQL takes these locks to keep the foreign key metadata "
+            + "consistent whatever the setting, and the waiting writes take theirs under their own sessions' "
+            + "settings.");
+        LockedTable slowest = locked.stream().filter(t -> t.workload() != null)
+            .max(Comparator.comparingDouble(t -> t.workload().maxTimeMs())).orElse(null);
+        if (slowest != null && slowest.workload().maxTimeMs() > 0) {
+            parts.add("The slowest captured statement on them ran " + seconds(slowest.workload().maxTimeMs())
+                + " (" + slowest.table() + ").");
+        }
+        boolean anyLong = locked.stream().anyMatch(t -> t.workload() != null && t.workload().longStatements() > 0);
+        checks.add(new Check(anyLong ? Severity.WARN : Severity.INFO,
+            "Metadata locks reach " + locked.size() + (locked.size() == 1 ? " other table" : " other tables"),
+            String.join(" ", parts)));
+    }
+
+    private static String names(List<LockedTable> tables) {
+        return tables.stream().map(t -> t.schema() + "." + t.table()).collect(Collectors.joining(", "));
+    }
+
     private List<String> recommendations(Algorithm overall, boolean rebuilds, boolean concurrent,
-                                         String requestedAlgorithm, TableFacts facts, Workload workload) {
+                                         String requestedAlgorithm, TableFacts facts, Workload workload,
+                                         List<LockedTable> locked) {
         List<String> out = new ArrayList<>();
         boolean large = facts.sizeBytes() != null && facts.sizeBytes() > LARGE_TABLE_BYTES
             || facts.rowsEstimate() != null && facts.rowsEstimate() > LARGE_TABLE_ROWS;
@@ -546,6 +759,11 @@ public class DdlPreflightService {
                 + (workload.longStatements() == 1 ? " has" : "s have") + " run longer than "
                 + seconds(workload.longThresholdMs()) + " (slowest " + seconds(workload.maxTimeMs())
                 + "); check the process list first and run at a quiet time.";
+        }
+        if (!locked.isEmpty()) {
+            lockTimeout += " The locks also reach " + locked.stream().map(LockedTable::table)
+                .collect(Collectors.joining(", ")) + " through foreign keys: look for long transactions there too "
+                + "(sys.schema_table_lock_waits, information_schema.INNODB_TRX).";
         }
         switch (overall) {
             case INSTANT -> {

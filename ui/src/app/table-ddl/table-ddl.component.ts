@@ -11,12 +11,13 @@ import {EnvironmentService} from '../environment.service';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {TableWorkloadComponent} from '../table-workload/table-workload.component';
 import {IndexCardComponent} from '../index-card/index-card.component';
-import {IndexUsage, SchemaLensService} from '../schema-lens.service';
+import {TableStorageCardComponent} from '../table-storage-card/table-storage-card.component';
+import {ForeignKeyDetail, IndexUsage, SchemaLensService} from '../schema-lens.service';
 import {decodePreflightParams, encodePreflightParams, Preflight, PREFLIGHT_ENDPOINT} from '../ddl-preflight/ddl-preflight';
 import {PreflightResultComponent} from '../ddl-preflight/preflight-result.component';
 import {
-  BUILDER_ALGORITHMS, BUILDER_OPS, BuilderAlgorithm, BuilderOp, BuilderState, builderMissing, buildStatement, declaredType, EMPTY_BUILDER,
-  fromExistingColumn, suggestIndexName
+  backingIndex, BUILDER_ALGORITHMS, BUILDER_OPS, BuilderAlgorithm, BuilderOp, BuilderState, builderMissing,
+  buildStatement, declaredType, EMPTY_BUILDER, fromExistingColumn, suggestIndexName
 } from './ddl-builder';
 
 /** Whether the CREATE TABLE statement is open; omitted when closed. */
@@ -44,7 +45,7 @@ export const COLLATIONS = ['utf8mb4_0900_ai_ci', 'utf8mb4_0900_as_ci', 'utf8mb4_
   templateUrl: './table-ddl.component.html',
   styleUrls: ['./table-ddl.component.scss', '../ddl-preflight/ddl-preflight.component.scss'],
   imports: [FormsModule, NgTemplateOutlet, RouterLink, SqlHighlightDirective, PreflightResultComponent, TableWorkloadComponent,
-    IndexCardComponent]
+    IndexCardComponent, TableStorageCardComponent]
 })
 export class TableDdlComponent implements OnInit {
   readonly ops = BUILDER_OPS;
@@ -59,6 +60,10 @@ export class TableDdlComponent implements OnInit {
   structure: TableStructure | null = null;
   /** The indexes as the table page shows them, with the hints that name each. */
   indexUsage: IndexUsage[] = [];
+  /** The constraints this table owns (it is the child), the only ones it can drop. */
+  foreignKeys: ForeignKeyDetail[] = [];
+  /** Other tables' constraints that reference this one: any change here locks those tables too. */
+  referencingKeys: ForeignKeyDetail[] = [];
   structureFailed = false;
   structureResolved = false;
 
@@ -125,6 +130,13 @@ export class TableDdlComponent implements OnInit {
       next: indexes => { this.indexUsage = indexes ?? []; },
       error: () => { this.indexUsage = []; }
     });
+    this.schemaLensService.getForeignKeys(this.schema, this.table).subscribe({
+      next: fks => {
+        this.foreignKeys = (fks ?? []).filter(fk => fk.direction === 'out' && !!fk.constraintName);
+        this.referencingKeys = (fks ?? []).filter(fk => fk.direction === 'in');
+      },
+      error: () => { this.foreignKeys = []; this.referencingKeys = []; }
+    });
     if (this.showCreate) { this.loadCreate(); }
   }
 
@@ -175,6 +187,7 @@ export class TableDdlComponent implements OnInit {
         return;
       case 'convert':
       case 'drop-index':
+      case 'drop-foreign-key':
         this.setOp('modify-column');
         break;
     }
@@ -184,6 +197,52 @@ export class TableDdlComponent implements OnInit {
   useIndex(index: {name: string}) {
     this.setOp('drop-index');
     this.builder = {...this.builder, index: index.name};
+  }
+
+  useForeignKey(fk: ForeignKeyDetail) {
+    this.setOp('drop-foreign-key');
+    this.builder = {...this.builder, foreignKey: fk.constraintName ?? ''};
+  }
+
+  fkColumns(fk: ForeignKeyDetail): string {
+    return fk.columns.map(c => c.fromColumn).join(', ');
+  }
+
+  /** The referenced side: `(id)`, or `(a, b)` for a composite key. */
+  fkReferenced(fk: ForeignKeyDetail): string {
+    return '(' + fk.columns.map(c => c.toColumn).join(', ') + ')';
+  }
+
+  /** The other table, schema-qualified only when it is in another schema. */
+  fkOther(fk: ForeignKeyDetail): string {
+    return fk.otherSchema && fk.otherSchema.toLowerCase() !== this.schema.toLowerCase()
+      ? `${fk.otherSchema}.${fk.otherTable}` : fk.otherTable;
+  }
+
+  /** ON DELETE / ON UPDATE, leaving out MySQL's default (RESTRICT / NO ACTION). */
+  fkRules(fk: ForeignKeyDetail): string {
+    const rule = (what: string, value: string | null) =>
+      value && !/^(RESTRICT|NO ACTION)$/i.test(value) ? `on ${what} ${value.toLowerCase()}` : '';
+    return [rule('delete', fk.onDelete), rule('update', fk.onUpdate)].filter(Boolean).join(' · ');
+  }
+
+  /** The constraint picked to drop, as the snapshot describes it. */
+  get pickedForeignKey(): ForeignKeyDetail | null {
+    return this.foreignKeys.find(fk => fk.constraintName === this.builder.foreignKey) ?? null;
+  }
+
+  /** The index that stays behind once the picked constraint is dropped. */
+  get leftIndex(): string | null {
+    const fk = this.pickedForeignKey;
+    return fk ? backingIndex(fk.columns.map(c => c.fromColumn), this.indexes) : null;
+  }
+
+  /** Drop the index the dropped constraint left, as the next change. */
+  dropLeftIndex() {
+    const index = this.leftIndex;
+    if (!index) { return; }
+    this.setOp('drop-index');
+    this.builder = {...this.builder, index};
   }
 
   toggleIndexColumn(name: string) {

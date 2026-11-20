@@ -10,6 +10,9 @@ import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Algorithm;
 import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.AlgorithmChoice;
 import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Outcome;
 import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Check;
+import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.LockedTable;
+import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Reach;
+import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Role;
 import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Preflight;
 import com.github.safetytrick.sqlexplorer.ddl.DdlPreflightService.Severity;
 import com.github.safetytrick.sqlexplorer.profiles.TableWorkloadService;
@@ -50,7 +53,8 @@ class DdlPreflightServiceTest {
     private static final TableStructure ACCOUNT_SITE = new TableStructure("app_main", "account_site", "TABLE", null,
         List.of(new ForeignKey.Builder().addFromAndTo(
             new ColumnReference(TableReference.newTableReference("app_main", "account_site"), "account_id", "account_id"),
-            new ColumnReference(TableReference.newTableReference("app_main", "account"), "id", "id")).build()),
+            new ColumnReference(TableReference.newTableReference("app_main", "account"), "id", "id"))
+            .constraintName("fk_account_site_account").build()),
         List.of(), List.of(column("account_site", "account_id", "BIGINT", 19, null, null)), null, null);
 
     @BeforeEach
@@ -59,7 +63,8 @@ class DdlPreflightServiceTest {
         TableWorkloadService workload = mock(TableWorkloadService.class);
         when(schema.getTable(any())).thenAnswer(inv -> {
             TableReference ref = inv.getArgument(0);
-            return "account".equals(ref.getNormalizedTableName()) ? ACCOUNT : null;
+            return "account".equals(ref.getNormalizedTableName()) ? ACCOUNT
+                : "account_site".equals(ref.getNormalizedTableName()) ? ACCOUNT_SITE : null;
         });
         when(schema.getTables()).thenReturn(List.of(ACCOUNT, ACCOUNT_SITE));
         when(workload.getWriteRate(any())).thenReturn(new WriteRate(9_000, 9_000, 300, 300, null, null, List.of(),
@@ -82,6 +87,72 @@ class DdlPreflightServiceTest {
             "Row size within the limit");
         assertThat(String.join(" ", preflight.recommendations())).contains("lock_wait_timeout = 2")
             .contains("2 captured statements have run longer than 1 s (slowest 2 min)");
+    }
+
+    @Test
+    void droppingAForeignKeyAlsoLocksItsParent() {
+        Preflight preflight = service.check("ALTER TABLE app_main.account_site DROP FOREIGN KEY "
+            + "fk_account_site_account", 1_000);
+
+        assertThat(preflight.algorithm()).isEqualTo(Algorithm.INPLACE);
+        assertThat(preflight.lockedTables()).singleElement().satisfies(t -> {
+            assertThat(t.schema() + "." + t.table()).isEqualTo("app_main.account");
+            assertThat(t.role()).isEqualTo(Role.PARENT);
+            assertThat(t.reach()).isEqualTo(Reach.EVERY_QUERY);
+            assertThat(t.constraints()).containsExactly("fk_account_site_account");
+            assertThat(t.workload().maxTimeMs()).isEqualTo(95_000);
+        });
+        assertThat(preflight.checks()).anyMatch(c -> c.severity() == Severity.WARN
+            && c.title().equals("Metadata locks reach 1 other table")
+            && c.detail().contains("app_main.account") && c.detail().contains("2 min"));
+        assertThat(String.join(" ", preflight.recommendations())).contains("also reach account through foreign keys");
+    }
+
+    @Test
+    void addingAForeignKeyLocksTheTableItReferences() {
+        Preflight preflight = service.check("ALTER TABLE app_main.account_site ADD CONSTRAINT fk_site_account "
+            + "FOREIGN KEY (account_id) REFERENCES app_main.account (id)", 1_000);
+
+        assertThat(preflight.lockedTables()).extracting(LockedTable::table, LockedTable::role)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple("account", Role.PARENT));
+    }
+
+    @Test
+    void anyChangeToAReferencedTableLocksTheTablesReferencingIt() {
+        Preflight preflight = service.check("ALTER TABLE app_main.account ADD COLUMN flag TINYINT NULL", 1_000);
+
+        assertThat(preflight.lockedTables()).singleElement().satisfies(t -> {
+            assertThat(t.table()).isEqualTo("account_site");
+            assertThat(t.role()).isEqualTo(Role.CHILD);
+            assertThat(t.reach()).isEqualTo(Reach.EVERY_QUERY);
+            assertThat(t.constraints()).containsExactly("fk_account_site_account");
+        });
+    }
+
+    @Test
+    void anyChangeToAChildHoldsUpWritesOnTheTablesItReferences() {
+        Preflight preflight = service.check("ALTER TABLE app_main.account_site ADD COLUMN note VARCHAR(20) NULL",
+            1_000);
+
+        assertThat(preflight.lockedTables()).singleElement().satisfies(t -> {
+            assertThat(t.table()).isEqualTo("account");
+            assertThat(t.role()).isEqualTo(Role.PARENT);
+            assertThat(t.reach()).isEqualTo(Reach.WRITES);
+            assertThat(t.waits()).isEqualTo("UPDATE and DELETE");
+        });
+        assertThat(preflight.checks()).anyMatch(c -> c.title().equals("Metadata locks reach 1 other table")
+            && c.detail().contains("Each UPDATE or DELETE on app_main.account locks this table")
+            && !c.detail().contains("exclusive")
+            && c.detail().contains("SET foreign_key_checks = 0 in the session running the change does not avoid it"));
+    }
+
+    @Test
+    void renamingAChildLocksEveryTableItReferencesOutright() {
+        Preflight preflight = service.check("ALTER TABLE app_main.account_site RENAME TO app_main.account_link",
+            1_000);
+
+        assertThat(preflight.lockedTables()).extracting(LockedTable::table, LockedTable::reach)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple("account", Reach.EVERY_QUERY));
     }
 
     @Test

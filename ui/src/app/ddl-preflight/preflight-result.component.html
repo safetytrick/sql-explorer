@@ -35,6 +35,45 @@
       </ul>
     </div>
 
+    @if (r.lockedTables?.length) {
+      <div class="lens-card locked-tables">
+        <div class="card-head"><span class="card-head-title">Also locked</span>
+          <span class="card-head-note">through foreign keys: the change waits for these tables' open
+            transactions too, and the queries named under "waits" queue behind it</span></div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr>
+              <th>table</th><th>side</th>
+              <th title="which of the table's statements queue behind the change, and whose open transactions hold it up">waits</th>
+              <th>constraint</th>
+              <th class="num" title="the slowest captured execution of a statement on the table">slowest</th>
+              <th class="num" title="captured statements on the table whose slowest execution reached the long-statement threshold">long</th>
+              <th class="num" title="INSERT, UPDATE, DELETE and REPLACE executions per day">writes / day</th>
+            </tr></thead>
+            <tbody>
+              @for (t of r.lockedTables; track t.schema + '.' + t.table) {
+                <tr [title]="t.reason">
+                  <td><a class="mono" [routerLink]="['/table', t.schema, t.table, 'ddl']">{{t.schema}}.{{t.table}}</a></td>
+                  <td>{{t.role === 'PARENT' ? 'referenced' : 'references this'}}</td>
+                  <td [class.hot]="t.reach === 'EVERY_QUERY'">{{t.waits}}</td>
+                  <td class="mono dim">{{t.constraints.join(', ') || '—'}}</td>
+                  @if (t.workload; as w) {
+                    <td class="num mono" [class.hot]="w.longStatements > 0">{{fmtTime(w.maxTimeMs)}}</td>
+                    <td class="num mono" [class.hot]="w.longStatements > 0">{{w.longStatements}}</td>
+                    <td class="num mono">{{fmtPerDay(w.writesPerDay)}}</td>
+                  } @else {
+                    <td class="num dim" colspan="3">not in the snapshot</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="card-empty">Statement times only: a transaction left open after reading or writing one of
+          these holds its lock until it commits. "Open transactions now", below, reads who holds one.</div>
+      </div>
+    }
+
     @if (r.choices?.length) {
       <div class="lens-card">
         <div class="card-head"><span class="card-head-title">ALGORITHM= choices</span>

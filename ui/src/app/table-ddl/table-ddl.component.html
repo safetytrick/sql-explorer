@@ -87,6 +87,32 @@
                 </select>
               </label>
             }
+            @case ('drop-foreign-key') {
+              <label>constraint
+                <select [(ngModel)]="builder.foreignKey">
+                  <option value="">choose…</option>
+                  @for (fk of foreignKeys; track fk.constraintName) {
+                    <option [value]="fk.constraintName">{{fk.constraintName}} → {{fk.otherTable}}</option>
+                  }
+                </select>
+              </label>
+              @if (pickedForeignKey; as fk) {
+                <div class="hint">Drops only the constraint.
+                  <span class="mono">{{fkColumns(fk)}}</span>
+                  keeps its data, and nothing checks it against
+                  <span class="mono">{{fk.otherTable}}</span> afterwards. While it runs MySQL also locks
+                  <span class="mono">{{fk.otherTable}}</span>, so it waits for that table's open transactions too.
+                  @if (leftIndex; as ix) {
+                    The index <span class="mono">{{ix}}</span> stays;
+                    <button type="button" class="link-btn" (click)="dropLeftIndex()">drop it next</button>
+                    if no query needs it.
+                  }
+                </div>
+              } @else if (!foreignKeys.length) {
+                <div class="hint">This table declares no foreign keys in the snapshot. A constraint pointing at it
+                  belongs to the other table: drop it from there.</div>
+              }
+            }
           }
           <label class="algorithm" title="what each choice means for this change is listed once you check it">algorithm
             <select [ngModel]="builder.algorithm" (ngModelChange)="setAlgorithm($event)">
@@ -165,6 +191,38 @@
     <app-index-card [indexes]="indexUsage" [selected]="builder.op === 'drop-index' ? builder.index : null"
                     clickable="existing" clickTitle="drop it in the builder" note="ordered by their columns"
                     (picked)="useIndex($event)"></app-index-card>
+
+    @if (foreignKeys.length || referencingKeys.length) {
+      <div class="lens-card fk-card">
+        <div class="card-head"><span class="card-head-title">Foreign keys</span>
+          <span class="card-head-note">a change here also locks the tables they name</span></div>
+        @if (foreignKeys.length) {
+          <div class="fk-group">references</div>
+          @for (fk of foreignKeys; track fk.constraintName) {
+            <div class="fk-row pick" [class.on]="builder.op === 'drop-foreign-key' && builder.foreignKey === fk.constraintName"
+                 (click)="useForeignKey(fk)" title="drop the constraint in the builder">
+              <div class="mono fk-name">{{fk.constraintName}}</div>
+              <div class="mono fk-map">({{fkColumns(fk)}}) → <a [routerLink]="['/table', fk.otherSchema, fk.otherTable, 'ddl']"
+                  (click)="$event.stopPropagation()" title="plan a change there">{{fkOther(fk)}}</a>{{fkReferenced(fk)}}</div>
+              @if (fkRules(fk); as rules) { <div class="dim fk-rules">{{rules}}</div> }
+            </div>
+          }
+        }
+        @if (referencingKeys.length) {
+          <div class="fk-group">referenced by</div>
+          @for (fk of referencingKeys; track $index) {
+            <div class="fk-row">
+              <div class="mono fk-name">{{fk.constraintName ?? '(unnamed)'}}</div>
+              <div class="mono fk-map"><a [routerLink]="['/table', fk.otherSchema, fk.otherTable, 'ddl']"
+                  title="plan a change there">{{fkOther(fk)}}</a>({{fkColumns(fk)}}) → {{fkReferenced(fk)}}</div>
+              @if (fkRules(fk); as rules) { <div class="dim fk-rules">{{rules}}</div> }
+            </div>
+          }
+        }
+      </div>
+    }
+
+    <app-table-storage-card [stats]="structure?.stats"></app-table-storage-card>
 
     <div class="lens-card">
       <div class="card-head">

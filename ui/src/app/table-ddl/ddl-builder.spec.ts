@@ -1,4 +1,4 @@
-import {buildStatement, builderMissing, declaredType, EMPTY_BUILDER, fromExistingColumn, quote} from './ddl-builder';
+import {backingIndex, buildStatement, builderMissing, declaredType, EMPTY_BUILDER, fromExistingColumn, quote} from './ddl-builder';
 
 describe('ddl-builder', () => {
   const build = (change: Partial<typeof EMPTY_BUILDER>) =>
@@ -33,6 +33,23 @@ describe('ddl-builder', () => {
       .toBe('CREATE UNIQUE INDEX `idx_account_code`\n  ON `app_main`.`account` (`code`, `site_id`)');
     expect(build({op: 'drop-index', index: 'idx_account_code'})).toBe('DROP INDEX `idx_account_code` ON `app_main`.`account`');
     expect(build({op: 'drop-index', index: 'PRIMARY'})).toBe('ALTER TABLE `app_main`.`account`\n  DROP PRIMARY KEY');
+  });
+
+  it('drops a foreign key constraint and nothing else', () => {
+    expect(build({op: 'drop-foreign-key', foreignKey: 'fk_account_site'}))
+      .toBe('ALTER TABLE `app_main`.`account`\n  DROP FOREIGN KEY `fk_account_site`');
+    expect(build({op: 'drop-foreign-key', foreignKey: 'fk_account_site', algorithm: 'INPLACE'}))
+      .toBe('ALTER TABLE `app_main`.`account`\n  DROP FOREIGN KEY `fk_account_site`,\n  ALGORITHM=INPLACE');
+    expect(builderMissing({...EMPTY_BUILDER, op: 'drop-foreign-key'})).toEqual(['a foreign key']);
+  });
+
+  it('finds the index a dropped foreign key leaves behind', () => {
+    const indexes = [{name: 'PRIMARY', columns: ['id']}, {name: 'idx_site', columns: ['site_id', 'code']},
+      {name: 'idx_code', columns: ['code']}];
+    expect(backingIndex(['site_id'], indexes)).toBe('idx_site');
+    expect(backingIndex(['SITE_ID', 'code'], indexes)).toBe('idx_site');
+    expect(backingIndex(['code', 'site_id'], indexes)).toBeNull();
+    expect(backingIndex(['id'], indexes)).toBe('PRIMARY');
   });
 
   it('converts the whole table', () => {

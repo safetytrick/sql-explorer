@@ -3,6 +3,7 @@ import {RouterLink} from '@angular/router';
 import {DecimalPipe} from '@angular/common';
 import {SqlHighlightDirective} from '../sql-highlight/sql-highlight.directive';
 import {formatBytes, formatRowsEstimate} from '../table-size';
+import {fmtPerDay, fmtTime} from '../table-workload/table-workload.service';
 import {algorithmLabel, choiceOutcomeLabel, Preflight, PreflightCheck, sortChecks} from './ddl-preflight';
 
 /**
@@ -25,6 +26,8 @@ export class PreflightResultComponent implements OnChanges {
   readonly choiceOutcomeLabel = choiceOutcomeLabel;
   readonly formatBytes = formatBytes;
   readonly formatRowsEstimate = formatRowsEstimate;
+  readonly fmtPerDay = fmtPerDay;
+  readonly fmtTime = fmtTime;
 
   checks: PreflightCheck[] = [];
 
