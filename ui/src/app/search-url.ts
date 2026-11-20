@@ -80,6 +80,10 @@ export interface SearchUrlState {
   warnings: Flag;
   truncated: Flag;
   multiSchema: Flag;
+  /** Distinct tables the statement references: `tableCountMin`/`tableCountMax`. */
+  tableCount: RangeState;
+  /** Joins a table to itself: `selfJoin=YES|NO`. */
+  selfJoin: Flag;
   analyzerWarnings: boolean;
   /** Only queries that have at least one stored example — the ones that can be planned. */
   hasExamples: boolean;
@@ -140,6 +144,7 @@ export function defaultSearchState(): SearchUrlState {
     executed: { min: null, max: null },
     fullScan: 'ANY', tmpTable: 'ANY', tmpDisk: 'ANY', errors: 'ANY',
     warnings: 'ANY', truncated: 'ANY', multiSchema: 'ANY',
+    tableCount: { min: null, max: null }, selfJoin: 'ANY',
     hasExamples: false,
     analyzerWarnings: false, analysisFailed: false, cleanAnalysis: false, analysisSkipped: false,
     failureKind: null,
@@ -185,7 +190,8 @@ export function encodeSearchParams(state: SearchUrlState): Record<string, string
   putRange('sel', state.selectivityPct);
   putRange('sorted', state.rowsSorted);
   putRange('exec', state.executed);
-  for (const key of ['fullScan', 'tmpTable', 'tmpDisk', 'errors', 'warnings', 'truncated', 'multiSchema'] as const) {
+  putRange('tableCount', state.tableCount);
+  for (const key of ['fullScan', 'tmpTable', 'tmpDisk', 'errors', 'warnings', 'truncated', 'multiSchema', 'selfJoin'] as const) {
     if (state[key] !== 'ANY') { params[key] = state[key]; }
   }
   if (state.analyzerWarnings) { params['analWarn'] = '1'; }
@@ -254,6 +260,8 @@ export function decodeSearchParams(params: ParamReader): SearchUrlState {
     warnings: (params.get('warnings') as Flag) || 'ANY',
     truncated: (params.get('truncated') as Flag) || 'ANY',
     multiSchema: (params.get('multiSchema') as Flag) || 'ANY',
+    tableCount: readRange('tableCount'),
+    selfJoin: (params.get('selfJoin') as Flag) || 'ANY',
     analyzerWarnings: params.get('analWarn') === '1',
     hasExamples: params.get('hasExamples') === '1',
     analysisFailed: params.get('analFail') === '1',
@@ -371,6 +379,8 @@ export function buildSearchRequest(asWritten: SearchUrlState,
     warnings: flag(state.warnings),
     truncated: flag(state.truncated),
     multiSchema: flag(state.multiSchema),
+    tableCount: range(state.tableCount),
+    selfJoin: flag(state.selfJoin),
     hasExamples: state.hasExamples || null,
     analyzerWarnings: state.analyzerWarnings || null,
     analysisFailed: state.analysisFailed || null,

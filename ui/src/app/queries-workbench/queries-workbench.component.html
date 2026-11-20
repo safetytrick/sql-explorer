@@ -206,9 +206,18 @@
       }
 
       <div class="section-hdr">Statement</div>
+      <div class="fg">
+        <div class="fg-label"><span class="term" [title]="glossary.tableCount">Tables</span> <span class="hint">distinct</span></div>
+        <ng-container *ngTemplateOutlet="presets; context: {key: 'tableCount'}"></ng-container>
+        <div class="range-row">
+          <input type="number" placeholder="min" min="0" step="1" [(ngModel)]="tableCount.min" (change)="filtersChanged()">
+          <input type="number" placeholder="max" min="0" step="1" [(ngModel)]="tableCount.max" (change)="filtersChanged()">
+        </div>
+      </div>
       @for (flagDef of [
         {key: 'truncated', label: 'Truncated capture', help: glossary.truncated},
-        {key: 'multiSchema', label: 'Multi-schema', help: glossary.multiSchema}
+        {key: 'multiSchema', label: 'Multi-schema', help: glossary.multiSchema},
+        {key: 'selfJoin', label: 'Self-join', help: glossary.selfJoin}
       ]; track flagDef.key) {
         <div class="fg">
           <div class="fg-label"><span class="term" [title]="flagDef.help">{{flagDef.label}}</span></div>

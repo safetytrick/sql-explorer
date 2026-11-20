@@ -123,6 +123,18 @@ public record QuerySearchRequest(
     Flag warnings,
     Flag truncated,
     Flag multiSchema,
+    /**
+     * How many distinct tables the statement references, inclusive bounds:
+     * a table named twice (a self-join) counts once
+     * ({@code SqlProfile.distinctTableCount}).
+     */
+    Range tableCount,
+    /**
+     * Statements that join a table to itself: a join column pair whose two
+     * sides resolve to the same table ({@code SqlProfile.selfJoinedTables}),
+     * the same definition as the graph's self-join flag.
+     */
+    Flag selfJoin,
     Boolean analyzerWarnings,
     /**
      * Only queries that have at least one stored example — the ones that can
@@ -206,7 +218,7 @@ public record QuerySearchRequest(
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
     /** The sources this search reads, as a scope over the environment's corpus. */
     public SourceScope sourceScope() {

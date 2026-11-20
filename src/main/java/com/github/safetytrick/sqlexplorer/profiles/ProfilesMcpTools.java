@@ -90,6 +90,7 @@ class ProfilesMcpTools implements McpToolProvider {
                 .optionalStrings("tags", "query tags to require")
                 .optionalStrings("excludeTags", "query tags to leave out")
                 .optionalEnum("fullScan", "queries with (YES) or without (NO) full table scans", List.of("YES", "NO"))
+                .optionalEnum("selfJoin", "queries that join a table to itself (YES) or do not (NO)", List.of("YES", "NO"))
                 .optionalBoolean("analysisFailed", "only queries the analyzer could not analyze")
                 .optionalEnum("sort", "default IMPACT; all descending except SELECTIVITY_ASC",
                     Arrays.stream(QuerySearchRequest.Sort.values()).map(Enum::name).toList())

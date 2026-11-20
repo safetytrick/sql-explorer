@@ -52,7 +52,7 @@ export interface RangePreset { label: string; title: string; min: number | null;
  * where the steps matter most: the interesting range is near zero, where
  * 0.01% and 0.1% are very different queries.
  */
-export const RANGE_PRESETS: Record<'avgTime' | 'maxTime' | 'avgRows' | 'selectivityPct' | 'rowsSorted' | 'executed', RangePreset[]> = {
+export const RANGE_PRESETS: Record<'avgTime' | 'maxTime' | 'avgRows' | 'selectivityPct' | 'rowsSorted' | 'executed' | 'tableCount', RangePreset[]> = {
   avgTime: [
     { label: 'slow >1s', title: 'average execution over a second', min: 1000, max: null },
     { label: 'chatty <20ms', title: 'average execution under 20ms: cheap, so only costly in bulk', min: null, max: 20 },
@@ -81,11 +81,16 @@ export const RANGE_PRESETS: Record<'avgTime' | 'maxTime' | 'avgRows' | 'selectiv
     { label: '>1k', title: 'ran over a thousand times', min: 1000, max: null },
     { label: '>1M', title: 'ran over a million times', min: 1000000, max: null },
   ],
+  tableCount: [
+    { label: '1', title: 'references a single table', min: 1, max: 1 },
+    { label: '2+', title: 'references two or more tables', min: 2, max: null },
+    { label: '5+', title: 'references five or more tables', min: 5, max: null },
+  ],
 };
 type RangeKey = keyof typeof RANGE_PRESETS;
 
 /** Component fields holding a tri-state Flag, toggled generically from the template. */
-type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'truncated' | 'multiSchema';
+type FlagKey = 'fullScan' | 'tmpTable' | 'tmpDisk' | 'errors' | 'warnings' | 'truncated' | 'multiSchema' | 'selfJoin';
 
 @Component({
   selector: 'app-queries-workbench',
@@ -151,6 +156,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
   warnings: Flag = 'ANY';
   truncated: Flag = 'ANY';
   multiSchema: Flag = 'ANY';
+  selfJoin: Flag = 'ANY';
+  tableCount: RangeState = { min: null, max: null };
   analyzerWarnings = false;
   /**
    * Only queries with a stored example. Its own section rather than living
@@ -393,6 +400,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.warnings = state.warnings;
     this.truncated = state.truncated;
     this.multiSchema = state.multiSchema;
+    this.selfJoin = state.selfJoin;
+    this.tableCount = state.tableCount;
     this.analyzerWarnings = state.analyzerWarnings;
     this.hasExamples = state.hasExamples;
     this.analysisFailed = state.analysisFailed;
@@ -525,6 +534,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
       warnings: this.warnings,
       truncated: this.truncated,
       multiSchema: this.multiSchema,
+      selfJoin: this.selfJoin,
+      tableCount: this.tableCount,
       analyzerWarnings: this.analyzerWarnings,
       hasExamples: this.hasExamples,
       analysisFailed: this.analysisFailed,
@@ -705,7 +716,8 @@ export class QueriesWorkbenchComponent implements OnInit, OnDestroy {
     this.rowsSorted = { min: null, max: null };
     this.executed = { min: null, max: null };
     this.fullScan = this.tmpTable = this.tmpDisk = this.errors = this.warnings = 'ANY';
-    this.truncated = this.multiSchema = 'ANY';
+    this.truncated = this.multiSchema = this.selfJoin = 'ANY';
+    this.tableCount = { min: null, max: null };
     this.hasExamples = false;
     this.analyzerWarnings = this.analysisFailed = this.cleanAnalysis = this.analysisSkipped = false;
     this.failureKind = null;

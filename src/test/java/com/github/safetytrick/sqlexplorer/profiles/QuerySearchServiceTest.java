@@ -251,6 +251,34 @@ class QuerySearchServiceTest {
     }
 
     @Test
+    void tableCountCountsDistinctTablesWithInclusiveBounds() {
+        repositoryReturns(
+            withTables("none"),
+            withTables("one", "app.account"),
+            withTables("self", "app.account", "app.account"), // one table, named twice
+            withTables("two", "app.account", "app.site"),
+            withTables("three", "app.account", "app.site", "app.account_site"));
+
+        assertThat(searchIds(request().tableCount(new Range(2.0, null)).build()))
+            .containsExactlyInAnyOrder("two", "three");
+        assertThat(searchIds(request().tableCount(new Range(null, 1.0)).build()))
+            .containsExactlyInAnyOrder("none", "one", "self");
+        assertThat(searchIds(request().tableCount(new Range(2.0, 2.0)).build())).containsExactly("two");
+    }
+
+    @Test
+    void selfJoinTriStateMatchesAJoinBetweenTwoInstancesOfOneTable() {
+        SqlProfile self = withColumns("self", "app.account", List.of(),
+            List.of("app.account.parent_id = app.account.id"), List.of());
+        SqlProfile other = withColumns("other", "app.account", List.of(),
+            List.of("app.account.id = app.account_site.account_id"), List.of());
+        repositoryReturns(self, other, withTables("plain", "app.account"));
+
+        assertThat(searchIds(request().selfJoin(Flag.YES).build())).containsExactly("self");
+        assertThat(searchIds(request().selfJoin(Flag.NO).build())).containsExactlyInAnyOrder("other", "plain");
+    }
+
+    @Test
     void analysisSkippedAndFailureKindsMirrorTheReports() {
         SqlProfile skipped = profile("skipped", metrics().build());
         skipped.setAnalysisSkipped(true);
@@ -778,7 +806,8 @@ class QuerySearchServiceTest {
         private String generator;
         private Boolean untaggedOnly, analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped;
         private QuerySearchRequest.FailureKind failureKind;
-        private Flag fullScan, truncated, multiSchema;
+        private Flag fullScan, truncated, multiSchema, selfJoin;
+        private Range tableCount;
         private Sort sort;
         private Integer limit, offset;
 
@@ -814,6 +843,8 @@ class QuerySearchServiceTest {
         RequestBuilder fullScan(Flag v) { this.fullScan = v; return this; }
         RequestBuilder truncated(Flag v) { this.truncated = v; return this; }
         RequestBuilder multiSchema(Flag v) { this.multiSchema = v; return this; }
+        RequestBuilder tableCount(Range v) { this.tableCount = v; return this; }
+        RequestBuilder selfJoin(Flag v) { this.selfJoin = v; return this; }
         RequestBuilder hasExamples(Boolean v) { this.hasExamples = v; return this; }
         RequestBuilder sort(Sort v) { this.sort = v; return this; }
         RequestBuilder sources(List<String> v) { this.sources = v; return this; }
@@ -827,7 +858,7 @@ class QuerySearchServiceTest {
                 excludeTableTags, excludeTypes, excludeTags, excludeQueries, sources, excludeSources,
                 schemas, excludeSchemas, tables, tableMode, excludeTables, columns, indexes, hinted, generator,
                 fullScan, null, null, null, null,
-                truncated, multiSchema,
+                truncated, multiSchema, tableCount, selfJoin,
                 analyzerWarnings, hasExamples, analysisFailed, cleanAnalysis, analysisSkipped, failureKind, sort, limit, offset);
         }
     }

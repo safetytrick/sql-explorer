@@ -126,8 +126,7 @@ public class GraphV2Service {
                     continue;
                 }
                 if (left.equalsNormalized(right)) {
-                    node(nodes, left.getNormalizedSchemaName(), left.getNormalizedTableName()).selfJoin = true;
-                    continue;
+                    continue; // a self-join is a node flag, not an edge: below
                 }
                 JoinBuilder pair = joinPair(joins, left, right);
                 pair.addColumns(join.getLeft(), join.getRight());
@@ -135,6 +134,11 @@ public class GraphV2Service {
             }
             // a query joining two tables on several columns is still one query
             joinedHere.forEach(pair -> pair.add(profile));
+            for (TableReference table : profile.selfJoinedTables()) {
+                if (named(table)) {
+                    node(nodes, table.getNormalizedSchemaName(), table.getNormalizedTableName()).selfJoin = true;
+                }
+            }
         });
 
         // view→base edges: a displayed view pulls its base tables into the graph

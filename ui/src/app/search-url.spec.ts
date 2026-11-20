@@ -89,6 +89,19 @@ describe('search-url codec', () => {
       .toBeNull();
   });
 
+  it('spells the table count as tableCountMin/Max and self-joins as selfJoin, and sends both', () => {
+    const state: SearchUrlState = { ...defaultSearchState(), tableCount: { min: 3, max: null }, selfJoin: 'YES' };
+    const encoded = encodeSearchParams(state);
+    expect(encoded).toEqual({ tableCountMin: '3', selfJoin: 'YES' });
+    expect(decodeSearchParams(reader(encoded))).toEqual(state);
+    const request = buildSearchRequest(state, UNCONSTRAINED_TAG_SCOPE, { limit: null, offset: null });
+    expect(request.tableCount).toEqual({ min: 3, max: null });
+    expect(request.selfJoin).toBe('YES');
+    const bare = buildSearchRequest(defaultSearchState(), UNCONSTRAINED_TAG_SCOPE, { limit: null, offset: null });
+    expect(bare.tableCount).toBeNull();
+    expect(bare.selfJoin).toBeNull();
+  });
+
   it('decodes a bare URL to the default state', () => {
     expect(decodeSearchParams(reader({}))).toEqual(defaultSearchState());
   });

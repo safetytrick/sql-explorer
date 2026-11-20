@@ -82,6 +82,13 @@ export const GLOSSARY = {
     'Performance Schema cut the statement text off at its digest length limit, so the end of the query is '
     + 'missing and it cannot be fully analyzed.',
   multiSchema: 'The statement touches tables in more than one schema.',
+  tableCount:
+    'How many different tables the statement references, in joins, subqueries and CTEs alike. A table it names '
+    + 'twice, as in a self-join, counts once.',
+  selfJoin:
+    'The statement joins a table to itself: a join condition between two instances of the same table, such as '
+    + 'a child row to its parent. An IN or correlated subquery on the same table counts, since it relates the '
+    + 'two instances by a column; a second read of the table with no condition between them does not.',
   indexHint: 'The statement carries a USE, FORCE or IGNORE INDEX hint on one of its tables.',
   hasExamples:
     'A real statement, with its literal values, is stored for the pattern. Only those can be EXPLAINed: the '

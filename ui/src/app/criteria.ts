@@ -97,6 +97,8 @@ const SCALARS: ScalarKind[] = [
   { key: 'warnings', label: 'warnings', value: s => flag(s.warnings), clear: s => { s.warnings = 'ANY'; } },
   { key: 'truncated', label: 'truncated', value: s => flag(s.truncated), clear: s => { s.truncated = 'ANY'; } },
   { key: 'multiSchema', label: 'multi-schema', value: s => flag(s.multiSchema), clear: s => { s.multiSchema = 'ANY'; } },
+  { key: 'tableCount', label: 'tables', value: s => range(s.tableCount, ''), clear: s => { s.tableCount = ANY_RANGE(); } },
+  { key: 'selfJoin', label: 'self-join', value: s => flag(s.selfJoin), clear: s => { s.selfJoin = 'ANY'; } },
   { key: 'analWarn', label: 'analyzer warnings', value: s => s.analyzerWarnings ? 'yes' : null,
     clear: s => { s.analyzerWarnings = false; } },
   { key: 'hasExamples', label: 'has examples', value: s => s.hasExamples ? 'yes' : null,

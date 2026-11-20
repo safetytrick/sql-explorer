@@ -68,6 +68,8 @@ export interface QuerySearchRequest {
   warnings?: Flag | null;
   truncated?: Flag | null;
   multiSchema?: Flag | null;
+  tableCount?: Range | null;      // distinct tables referenced, a self-joined table once
+  selfJoin?: Flag | null;        // a join between two instances of one table
   analyzerWarnings?: boolean | null;
     /** Only queries with at least one stored example — the ones that can be planned. */
   hasExamples?: boolean | null;

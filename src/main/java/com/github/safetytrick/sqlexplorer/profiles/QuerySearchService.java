@@ -229,6 +229,8 @@ public class QuerySearchService {
 
         if (!matchesFlag(r.truncated(), profile.getTruncated())) return false;
         if (!matchesFlag(r.multiSchema(), profile.getIsMultiSchema())) return false;
+        if (!matchesRange(r.tableCount(), (double) profile.distinctTableCount())) return false;
+        if (!matchesFlag(r.selfJoin(), !profile.selfJoinedTables().isEmpty())) return false;
 
         boolean hasAnalyzerWarnings = !profile.getMismatchedJoins().isEmpty();
         if (Boolean.TRUE.equals(r.analyzerWarnings()) && !hasAnalyzerWarnings) return false;

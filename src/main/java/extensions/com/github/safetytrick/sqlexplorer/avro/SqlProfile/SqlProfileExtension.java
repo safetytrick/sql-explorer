@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 import com.github.safetytrick.sqlexplorer.analysis.parser.NormalizedQueryDigest;
 import com.github.safetytrick.sqlexplorer.analysis.NameNormalizer;
@@ -56,6 +57,57 @@ public class SqlProfileExtension {
         return profile.getCriteriaColumns().stream().anyMatch(
             column -> ColumnReferenceExtension.comparator.compare(column, reference) == 0
         );
+    }
+
+    /**
+     * How many distinct tables the statement references, by normalized schema
+     * and table name, so a table named twice — a self-join, or a table read
+     * again in a subquery — counts once. A table with no schema (a statement
+     * with no default database) still counts.
+     */
+    public static int distinctTableCount(@This SqlProfile profile) {
+        if (profile.getTables() == null) {
+            return 0;
+        }
+        return (int) profile.getTables().stream()
+            .filter(table -> table.getNormalizedTableName() != null)
+            .map(table -> (table.getNormalizedSchemaName() + "." + table.getNormalizedTableName()).toLowerCase(Locale.ROOT))
+            .distinct()
+            .count();
+    }
+
+    /**
+     * The tables the statement joins to themselves: a join column pair whose
+     * two sides resolve, through their aliases, to the same table. One entry
+     * per table however many columns it joins on. The graph's self-join flag
+     * and the workbench's {@code selfJoin} filter both read this.
+     *
+     * <p>The analyzer records an {@code IN (SELECT ...)} semi-join and a
+     * correlated subquery's condition as join pairs, so those count when the
+     * subquery reads the same table. A table repeated with no condition
+     * between its instances (a cross join, an uncorrelated scalar subquery)
+     * does not.
+     */
+    public static List<TableReference> selfJoinedTables(@This SqlProfile profile) {
+        if (profile.getJoinColumns() == null) {
+            return List.of();
+        }
+        List<TableReference> tables = new ArrayList<>();
+        for (JoinColumns join : profile.getJoinColumns()) {
+            if (join.getLeft() == null || join.getRight() == null) {
+                continue;
+            }
+            TableReference left = join.getLeft().getTable();
+            TableReference right = join.getRight().getTable();
+            if (left == null || left.getNormalizedTableName() == null
+                || !TableReferenceExtension.equalsNormalized(left, right)) {
+                continue;
+            }
+            if (tables.stream().noneMatch(seen -> TableReferenceExtension.equalsNormalized(seen, left))) {
+                tables.add(left);
+            }
+        }
+        return tables;
     }
 
     /**
