@@ -152,7 +152,17 @@
 }
 
 .sql-main { flex: 3 1 0; min-width: 0; }
-.sql-side { flex: 1 1 0; min-width: 240px; }
+.sql-side { flex: 1 1 0; min-width: 240px; align-self: stretch; }
+
+// The index card stays in view beside a long statement: sticky within the
+// column, which stretches to the SQL's height, and scrolling on its own when
+// it is taller than the screen. .main-content is the scroller; 44px is the nav.
+.idx-card {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 44px - 32px);
+  overflow-y: auto;
+}
 
 
 
@@ -476,6 +486,7 @@
 @media (max-width: 1100px) {
   .sql-body, .lens-grid { flex-direction: column; }
   .sql-side, .lens-rail { width: 100%; min-width: 0; }
+  .idx-card { position: static; max-height: none; }
 }
 
 

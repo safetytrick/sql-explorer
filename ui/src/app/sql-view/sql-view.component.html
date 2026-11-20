@@ -130,8 +130,8 @@
 
     <!-- … relevant indexes at 1/4, beside the SQL. Each table's name is its
          section header and its link, which is where the old Tables list went. -->
-    <div class="sql-side">
-      <div class="lens-card">
+    <div class="sql-side" #sqlSide [style.min-height.px]="sideHold">
+      <div class="lens-card idx-card" #idxCard>
         <div class="card-head">
           <span class="card-head-title">Relevant indexes</span>
           @if (focused && hovered) {

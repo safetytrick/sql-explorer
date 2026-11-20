@@ -1,6 +1,6 @@
 import {GLOSSARY} from '../glossary';
 import {formatPageTitle} from '../page-title';
-import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
+import {ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
 import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ActivatedRoute} from '@angular/router';
 import {Title} from '@angular/platform-browser';
@@ -112,6 +112,7 @@ export class SqlViewComponent implements OnInit {
     this.panelColors = new Map();
     this.painted = null;
     this.hovered = null;
+    this.sideHold = null;
     this.visiblePanels = [];
     this.loading = true;
     this.notFound = false;
@@ -209,9 +210,29 @@ export class SqlViewComponent implements OnInit {
 
   // ── pointing at a table in the SQL narrows the index pane (sqlx-ee3) ──
 
+  /**
+   * The index column's height when focusing began, held while a table is
+   * hovered. Narrowing the pane would otherwise shrink the page under a
+   * reader scrolled to its foot; the browser then scrolls to make up for it,
+   * the SQL moves out from under the pointer, the pane widens again, and the
+   * two flicker against each other.
+   */
+  sideHold: number | null = null;
+  @ViewChild('sqlSide') private sqlSide?: ElementRef<HTMLElement>;
+  @ViewChild('idxCard') private idxCard?: ElementRef<HTMLElement>;
+
   onTableHover(table: TableColor | null) {
+    if (table && !this.hovered) {
+      this.sideHold = this.sqlSide?.nativeElement.offsetHeight ?? null;
+    } else if (!table) {
+      this.sideHold = null;
+    }
     this.hovered = table;
     this.visiblePanels = this.focusPanels();
+    // the narrowed list starts at the card's top, so show it from there
+    if (this.focused && this.idxCard) {
+      this.idxCard.nativeElement.scrollTop = 0;
+    }
   }
 
   /**
