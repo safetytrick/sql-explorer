@@ -13,12 +13,19 @@
 # docker-compose.local-build.yml is added if it is missing, since this script
 # only ever runs host builds. Unset, the stack is docker-compose.yml alone.
 #
+# docker-compose.dev-idp.yml is left out even when COMPOSE_FILE names it,
+# unless --idp is given. The overlay turns sign-in on in the backend, and
+# with it on, every client without a session gets 401 "Sign in to continue"
+# — the Claude Code MCP client among them, which has no way to sign in.
+# A restart that silently picked it up is how the MCP once went dark.
+#
 # Usage:
 #   ./dev-restart.sh              # auto: whatever is stale or not served
 #   ./dev-restart.sh backend      # force the backend: build the jar, recreate
 #   ./dev-restart.sh ui           # force the UI: build the bundle, recreate
 #   ./dev-restart.sh all          # both
 #   ./dev-restart.sh --dry-run    # say what auto would do, and do nothing
+#   ./dev-restart.sh --idp        # keep the dev IdP overlay (sign-in on)
 #
 # Why the backend is stopped before its jar is built: the JVM loads classes
 # from the jar lazily, so overwriting it under a running container breaks
@@ -40,16 +47,19 @@ cd "$ROOT"
 
 MODE=auto
 DRY_RUN=0
+WITH_IDP=0
 for arg in "$@"; do
   case "$arg" in
     auto|backend|ui|all) MODE="$arg" ;;
     --dry-run|-n) DRY_RUN=1 ;;
+    --idp) WITH_IDP=1 ;;
     -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $arg (try --help)" >&2; exit 2 ;;
   esac
 done
 
 LOCAL_BUILD=docker-compose.local-build.yml
+DEV_IDP=docker-compose.dev-idp.yml
 JAR=build/libs/sql-explorer.jar
 UI_OUT=ui/build/sql-explorer-ui/browser
 BACKEND=sql-explorer
@@ -68,6 +78,14 @@ if [ -f .env ]; then
   compose_files=$(grep -E '^[[:space:]]*COMPOSE_FILE=' .env | tail -1 | sed -E 's/^[^=]*=//; s/^["'\'']//; s/["'\'']$//') || true
 fi
 [ -n "$compose_files" ] || compose_files=docker-compose.yml
+IDP_DROPPED=0
+if [ "$WITH_IDP" = 0 ]; then
+  case ":$compose_files:" in
+    *":$DEV_IDP:"*)
+      compose_files=$(printf '%s' ":$compose_files:" | sed "s#:$DEV_IDP:#:#g; s#^:##; s#:\$##")
+      IDP_DROPPED=1 ;;
+  esac
+fi
 case ":$compose_files:" in
   *":$LOCAL_BUILD:"*) ;;
   *) compose_files="$compose_files:$LOCAL_BUILD" ;;
@@ -94,6 +112,14 @@ stale() {
   [ -n "$(find "$@" -newer "$marker" -type f -print -quit 2>/dev/null)" ]
 }
 
+# Epoch seconds: a file's mtime, and when a container's process started (GNU, then BSD/macOS).
+mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"; }
+started_at() {
+  local ts
+  ts=$(docker inspect -f '{{.State.StartedAt}}' "$1" 2>/dev/null | cut -c1-19) || return 1
+  date -u -d "$ts" +%s 2>/dev/null || date -j -u -f '%Y-%m-%dT%H:%M:%S' "$ts" +%s
+}
+
 served_bundle() { curl -fsS --max-time 5 "$UI_URL" 2>/dev/null | grep -o 'main-[A-Za-z0-9]*\.js' | head -1 || true; }
 local_bundle() { ls "$UI_OUT"/main-*.js 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true; }
 
@@ -113,6 +139,12 @@ if [ "$MODE" = auto ]; then
     recreate_backend=1; why+=("backend: not running")
   elif [ "$(config_files "$BACKEND")" != "$WANTED_LABEL" ]; then
     recreate_backend=1; why+=("backend: started from other compose files ($(config_files "$BACKEND"))")
+  elif [ -e "$JAR" ] && [ "$(mtime "$JAR")" -gt "$(started_at "$BACKEND" || echo 0)" ]; then
+    # built under a running backend (a gate's ./gradlew build, say): that process is
+    # already broken, failing with NoClassDefFoundError / ClassNotFoundException, and
+    # sources older than the jar do not say so (CLAUDE.md, "Rebuilding the jar while
+    # the backend is running")
+    recreate_backend=1; why+=("backend: $JAR was rebuilt after the running process started")
   fi
   if stale "$UI_OUT/index.html" ui/src ui/angular.json ui/package.json ui/package-lock.json; then
     build_ui=1; recreate_ui=1; why+=("ui: sources newer than its build")
@@ -122,10 +154,15 @@ if [ "$MODE" = auto ]; then
     recreate_ui=1; why+=("ui: started from other compose files")
   elif [ "$(served_bundle)" != "$(local_bundle)" ]; then
     recreate_ui=1; why+=("ui: serving $(served_bundle), built $(local_bundle)")
+  elif [ "$(mtime "$UI_OUT/index.html")" -gt "$(started_at "$UI" || echo 0)" ]; then
+    # main-*.js can keep its hash when only a lazy chunk changed, and the container
+    # still holds the replaced directory: it is built later than it was mounted
+    recreate_ui=1; why+=("ui: built after $UI started (its mount holds the previous build)")
   fi
 fi
 
 say "stack: ${compose_files//:/ + }"
+[ "$IDP_DROPPED" = 0 ] || echo "    left out $DEV_IDP (sign-in); --idp keeps it"
 if [ ${#why[@]} -eq 0 ]; then
   say "nothing to do: both containers run the current builds"
   exit 0

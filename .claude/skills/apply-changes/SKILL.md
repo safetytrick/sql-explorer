@@ -8,7 +8,15 @@ description: Apply local code changes to the running docker stack with the minim
 `./dev-restart.sh` at the repo root does the work. It reads the stack's compose
 files from `COMPOSE_FILE` in the git-ignored `.env`, adds
 `docker-compose.local-build.yml`, and then rebuilds and recreates only what is
-stale:
+stale.
+
+**The dev IdP is left out by default.** Even when `COMPOSE_FILE` names
+`docker-compose.dev-idp.yml`, the script drops it and says so on the stack line.
+That overlay turns sign-in on, and every client without a session then gets 401
+"Sign in to continue", including the Claude Code MCP client, which cannot sign
+in. Pass `--idp` only when the user asks to test sign-in.
+
+What it rebuilds and recreates:
 
 - **Backend:** if sources under `src/main/java`, `src/main/resources`,
   `models/src` or the Gradle files are newer than `build/libs/sql-explorer.jar`.
