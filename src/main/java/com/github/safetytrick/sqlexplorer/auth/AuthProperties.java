@@ -43,6 +43,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                              at the provider narrows the token only when the
  *                              owner next signs in, and this caps how long that
  *                              can take for someone who never does.
+ * @param anonymous             what a visitor who is not signed in may read, as
+ *                              grants in the groups syntax: {@code viewer} for
+ *                              every environment, {@code viewer:prod} for one
+ *                              (sqlx-2lc). Empty, the default, means a visitor
+ *                              must sign in for anything. Whatever role is
+ *                              named, a visitor gets {@link Role#READER} at
+ *                              most: reading only, never a write, since there
+ *                              is no one to author it. Only with {@code oidc};
+ *                              with {@code none} everything is open anyway.
  */
 @ConfigurationProperties("sql-explorer.auth")
 public record AuthProperties(
@@ -52,10 +61,12 @@ public record AuthProperties(
         @DefaultValue("{baseScheme}://{baseHost}{basePort}/") String postLogoutRedirectUri,
         @DefaultValue("sqlx:") String groupPrefix,
         Map<String, List<String>> groupGrants,
-        @DefaultValue("90d") Duration tokenMaxLifetime) {
+        @DefaultValue("90d") Duration tokenMaxLifetime,
+        List<String> anonymous) {
 
     public AuthProperties {
         groupGrants = groupGrants == null ? Map.of() : Map.copyOf(groupGrants);
+        anonymous = anonymous == null ? List.of() : List.copyOf(anonymous);
         if (tokenMaxLifetime == null || tokenMaxLifetime.isNegative() || tokenMaxLifetime.isZero()) {
             tokenMaxLifetime = Duration.ofDays(90);
         }

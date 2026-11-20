@@ -36,10 +36,42 @@ public class GroupGrants {
     private final String prefix;
     private final AuthProperties properties;
     private final Set<String> warned = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final Grants anonymous;
 
     public GroupGrants(AuthProperties properties) {
         this.properties = properties;
         this.prefix = properties.groupPrefix() == null ? "" : properties.groupPrefix();
+        this.anonymous = anonymous(properties.anonymous());
+        if (properties.oidc() && !anonymous.grants().isEmpty()) {
+            log.warn("Visitors who are not signed in may read: {} (sql-explorer.auth.anonymous)", anonymous.grants());
+        }
+    }
+
+    /**
+     * What a visitor who is not signed in may do (sqlx-2lc): the configured
+     * {@code sql-explorer.auth.anonymous} grants, each capped at
+     * {@link Role#READER}. Nothing unless configured.
+     */
+    public Grants anonymous() {
+        return anonymous;
+    }
+
+    /**
+     * Unlike a group, which may be meant for another application, this is
+     * written for this one: a grant that does not parse fails startup rather
+     * than quietly opening less, or more, than intended.
+     */
+    static Grants anonymous(List<String> configured) {
+        List<Grant> grants = new ArrayList<>();
+        for (String text : configured) {
+            Grant grant = parse(text);
+            if (grant == null) {
+                throw new IllegalStateException("sql-explorer.auth.anonymous: '" + text
+                    + "' is not <role>[:<environment>[/<datasource>]], e.g. viewer or viewer:prod");
+            }
+            grants.add(grant);
+        }
+        return new Grants(grants).intersect(new Grants(List.of(new Grant(Role.READER, Scope.GLOBAL))));
     }
 
     public Grants of(Collection<String> groups) {

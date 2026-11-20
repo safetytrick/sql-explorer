@@ -23,6 +23,7 @@
 sql-explorer:
   auth:
     mode: oidc
+    anonymous: ["viewer:production"]
     issuer: ${DEV_IDP_ISSUER:http://localhost:18190/idp}
     end-session-uri: ${DEV_IDP_BROWSER_BASE:${DEV_IDP_ISSUER:http://localhost:18190/idp}}/connect/logout
 

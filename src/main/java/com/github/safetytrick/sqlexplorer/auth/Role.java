@@ -8,14 +8,21 @@ import java.util.Set;
 import static com.github.safetytrick.sqlexplorer.auth.Permission.*;
 
 /**
- * The four roles, each a fixed set of {@link Permission}s, each including the
- * one before it (sqlx-e13.2, sqlx-e13.4). Fixed in code, not configurable:
- * what a role means is part of the product, and groups only say who has it
- * where.
+ * The roles, each a fixed set of {@link Permission}s, each including the one
+ * before it (sqlx-e13.2, sqlx-e13.4). Fixed in code, not configurable: what a
+ * role means is part of the product, and groups only say who has it where.
+ * Declaration order is strength order: {@link Grant#includes} compares them.
  */
 public enum Role {
 
-    VIEWER(EnumSet.of(EXPLORER_READ, COMMENTARY_WRITE, QUERY_READ)),
+    /**
+     * Reads, and writes nothing. What visitors who are not signed in get
+     * (sqlx-2lc): a write needs someone to author it, and without a sign-in
+     * it would be stamped as the legacy admin.
+     */
+    READER(EnumSet.of(EXPLORER_READ, QUERY_READ)),
+    /** Reads, and tags, notes and annotates. */
+    VIEWER(with(READER, COMMENTARY_WRITE)),
     /** Also runs things against the servers: saved queries, EXPLAIN, sampling. */
     RUNNER(with(VIEWER, QUERY_RUN, ENV_EXPLAIN, ENV_SAMPLE)),
     AUTHOR(with(RUNNER, QUERY_AUTHOR)),

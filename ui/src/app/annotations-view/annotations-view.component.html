@@ -10,7 +10,7 @@
         <span class="ann-value mono">{{annotation.value}}</span>
         <span class="ann-meta">{{annotation.confidence}} · {{source(annotation)}}
           @if (annotation.recordedOn) { · {{annotation.recordedOn | date: 'MMM d, y'}} }</span>
-        @if (annotation.confidence !== 'confirmed') {
+        @if (annotation.confidence !== 'confirmed' && !readOnly) {
           <button type="button" class="ann-confirm" [disabled]="confirming.has(annotation.id)"
                   (click)="confirm(annotation)" title="confirm: record this value again as yours, confirmed">confirm</button>
         }

@@ -2,7 +2,7 @@
   <div class="card-head">
     <span class="card-head-title">{{heading}}</span>
     @if (notes.length) { <span class="card-head-note">{{notes.length}}</span> }
-    @if (!adding) {
+    @if (!adding && !readOnly) {
       <button type="button" class="btn add-note" (click)="adding = true">+ note</button>
     }
   </div>

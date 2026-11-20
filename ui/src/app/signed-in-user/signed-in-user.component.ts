@@ -1,9 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { CurrentUser, UserService } from '../user.service';
+import { BrowserNavigation, CurrentUser, UserService } from '../user.service';
 
 /**
  * Who is signed in, and Sign out, at the end of the nav (sqlx-e13.1).
+ *
+ * <p>A visitor who is not signed in, where visitors may read (sqlx-2lc),
+ * sees "read-only" and a Sign in link.
  *
  * <p>With sign-in off it shows only a quiet "sign-in not configured": the
  * server is open to anyone who can reach it and records everything as the
@@ -22,7 +25,19 @@ export class SignedInUserComponent implements OnInit {
   signingOut = false;
   signOutError: string | null = null;
 
-  constructor(private users: UserService) { }
+  constructor(private users: UserService, private navigation: BrowserNavigation) { }
+
+  /** Sign in, then come back here. Read at render, so it follows the route. */
+  loginUrl(): string {
+    return this.navigation.loginUrl();
+  }
+
+  /** Hover text for a visitor: what they can read without signing in. */
+  visitorDetail(current: CurrentUser): string {
+    const envs = Object.keys(current.environments ?? {});
+    return 'Not signed in. Visitors may read ' + (envs.length ? envs.join(', ') : 'nothing here')
+      + '. Sign in to tag, take notes, and reach what your groups grant.';
+  }
 
   ngOnInit() {
     // a 401 here is handled by the auth interceptor, which goes to sign in
@@ -39,7 +54,7 @@ export class SignedInUserComponent implements OnInit {
 
   /** Signed in, but granted no environment: everything would be refused (sqlx-e13.4). */
   noAccess(current: CurrentUser): boolean {
-    return current.mode === 'oidc' && !current.admin && Object.keys(current.environments ?? {}).length === 0;
+    return current.mode === 'oidc' && !current.anonymous && !current.admin && Object.keys(current.environments ?? {}).length === 0;
   }
 
   /** Hover text: the email and the groups as the provider sent them. */

@@ -5,6 +5,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {ChipStyle, TagColorsService} from '../tag-colors.service';
 import type {TagTarget} from '../tag-path';
 import {Tag} from '../api-types';
+import {UserService} from '../user.service';
 
 /**
  * Tag editor: chips with a hover `×`, and a `+` that summons a typeahead
@@ -30,6 +31,13 @@ import {Tag} from '../api-types';
   imports: [RouterLink]
 })
 export class TagFieldComponent implements OnInit, OnDestroy {
+  private readonly users = inject(UserService);
+
+  /** Tags, notes and confirmations are known to be refused here: a visitor (sqlx-387). */
+  get readOnly(): boolean {
+    return this.users.denied('commentary:write');
+  }
+
 
   /**
    * What this field tags, stated typed.

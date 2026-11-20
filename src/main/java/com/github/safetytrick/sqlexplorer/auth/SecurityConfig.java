@@ -74,6 +74,10 @@ import tools.jackson.databind.json.JsonMapper;
  *       EXPLAIN and profiling the Runner permissions, pulls and loads Admin.
  *       Anything not classified is Admin's, so a new endpoint is closed until
  *       someone decides otherwise.</li>
+ *   <li><b>Visitors</b> (sqlx-2lc): with {@code sql-explorer.auth.anonymous}
+ *       set, a request without a session reads what it grants, as
+ *       {@link Role#READER} at most. Anything more answers 401, so the UI
+ *       sends them to sign in; the nav offers a Sign in link meanwhile.</li>
  *   <li>Sign-out is a POST to {@code /logout}, answered with JSON naming where
  *       to go next: the provider's end-session endpoint (RP-initiated logout)
  *       where one is known, else the UI's root.</li>
@@ -115,6 +119,8 @@ class SecurityConfig {
         "/env/{env}/tags/path", "/env/{env}/tags/targets", "/env/{env}/notes/paths",
         "/env/{env}/annotations/targets", "/env/{env}/annotations/history",
         "/env/{env}/query-examples", "/env/{env}/ddl/preflight", "/env/{env}/unused-indexes/read",
+        // a workbench search compared across servers; a reader without commentary was refused it (sqlx-387)
+        "/env/{env}/topology/compare",
     };
 
     /**
@@ -126,9 +132,24 @@ class SecurityConfig {
     private static AuthorizationManager<RequestAuthorizationContext> may(Permission permission, Authorizations authorizations) {
         return (authentication, context) -> {
             String env = context.getVariables().get("env");
+            // not signed in, the grants are sql-explorer.auth.anonymous's, reading at most (sqlx-2lc);
+            // refused, a visitor gets the 401 that sends the UI to sign in, not a 403
+            return new AuthorizationDecision(env != null && authorizations.of(authentication.get()).allows(permission, env));
+        };
+    }
+
+    /**
+     * Signed in, or a visitor when visitors may read something (sqlx-2lc): for
+     * the global reads every page makes, {@code /user} and {@code /environments}
+     * among them. Without anonymous grants this is {@code authenticated()}, and
+     * the 401 on {@code /user} is what sends a visitor to sign in.
+     */
+    private static AuthorizationManager<RequestAuthorizationContext> signedInOrVisitor(GroupGrants groupGrants) {
+        boolean visitors = !groupGrants.anonymous().grants().isEmpty();
+        return (authentication, context) -> {
             Authentication who = authentication.get();
             boolean signedIn = who != null && who.isAuthenticated() && !(who instanceof AnonymousAuthenticationToken);
-            return new AuthorizationDecision(signedIn && env != null && authorizations.of(who).allows(permission, env));
+            return new AuthorizationDecision(signedIn || visitors);
         };
     }
 
@@ -178,7 +199,7 @@ class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, AuthProperties auth, JsonMapper json,
                                             ObjectProvider<ClientRegistrationRepository> registrations,
-                                            UserService users, Authorizations authorizations,
+                                            UserService users, Authorizations authorizations, GroupGrants groupGrants,
                                             AccessTokenService accessTokens) throws Exception {
         // never save an API request to "return to" after sign-in; /login says where to go
         http.requestCache(cache -> cache.requestCache(new NullRequestCache()));
@@ -202,8 +223,10 @@ class SecurityConfig {
                 .requestMatchers("/tokens", "/tokens/**").access(browserSession())
                 // MCP: a token, or a session (the MCP page lists the tools); each tool checks its own permission
                 .requestMatchers("/mcp").authenticated()
-                .requestMatchers(HttpMethod.GET, "/environments", "/user", "/graph/layout").authenticated()
-                .requestMatchers("/util/**", "/graph/layout/**").authenticated()
+                // global reads, and the SQL utilities, which are pure functions of their arguments
+                .requestMatchers(HttpMethod.GET, "/environments", "/user", "/graph/layout").access(signedInOrVisitor(groupGrants))
+                .requestMatchers("/util/**").access(signedInOrVisitor(groupGrants))
+                .requestMatchers("/graph/layout/**").authenticated()
                 // ── one environment: /env/{env}/… ───────────────────────────
                 // loading sources rewrites the environment, as a pull does
                 .requestMatchers(HttpMethod.POST, "/env/{env}/sources", "/env/{env}/sources/load",

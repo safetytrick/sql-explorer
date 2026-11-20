@@ -56,6 +56,14 @@ sql-explorer:
     #     dba-team: [admin]
     #     engineering: [viewer:production, runner:staging]
     group-prefix: "sqlx:"
+    # With oidc, what visitors who are not signed in may read (sqlx-2lc), as
+    # grants in the same syntax: `viewer` for every environment, `viewer:prod`
+    # for one. Visitors get the `reader` role at most, whatever is named here:
+    # Viewer's reads without its tags and notes, since a write needs someone
+    # to author it. Anything more answers 401 and the UI sends them to sign
+    # in; the nav shows a Sign in link meanwhile. Empty: sign in for anything.
+    #   anonymous: [viewer]
+    anonymous: []
     # The longest a personal access token may live; a user may choose shorter.
     # A token acts within its owner's grants as of the owner's LATEST SIGN-IN:
     # groups only arrive in an ID token, so a group removed at the provider

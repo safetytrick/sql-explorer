@@ -1,3 +1,4 @@
+@if (!readOnly) {
 <span class="bulk-bar">
   @if (pending) {
     <span class="confirm">
@@ -31,3 +32,4 @@
     @if (failed) { <span class="note bad">{{failed}}</span> }
   }
 </span>
+}

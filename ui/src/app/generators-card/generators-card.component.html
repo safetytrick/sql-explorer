@@ -38,11 +38,11 @@
               </td>
               <td class="actions">
                 <a class="matches-link" [routerLink]="['/queries']" [queryParams]="queriesParams(generator)">matching queries</a>
-                @if (generator.status !== 'used') {
+                @if (generator.status !== 'used' && !readOnly) {
                   <button type="button" class="btn primary" [disabled]="saving === generator.name"
                           (click)="set(generator, true)">confirm used</button>
                 }
-                @if (generator.status !== 'not-used') {
+                @if (generator.status !== 'not-used' && !readOnly) {
                   <button type="button" class="btn" [disabled]="saving === generator.name"
                           (click)="set(generator, false)">not used</button>
                 }

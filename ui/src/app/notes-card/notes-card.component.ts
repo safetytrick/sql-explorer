@@ -1,7 +1,8 @@
-import {Component, EventEmitter, Input, OnChanges, Output} from '@angular/core';
+import {Component, EventEmitter, Input, OnChanges, Output, inject} from '@angular/core';
 import {HttpClient, HttpHeaders} from '@angular/common/http';
 import {DatePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
+import {UserService} from '../user.service';
 
 const endpoint = '/api/sql-explorer/';
 
@@ -30,6 +31,13 @@ export interface Note {
   imports: [DatePipe, FormsModule]
 })
 export class NotesCardComponent implements OnChanges {
+  private readonly users = inject(UserService);
+
+  /** Tags, notes and confirmations are known to be refused here: a visitor (sqlx-387). */
+  get readOnly(): boolean {
+    return this.users.denied('commentary:write');
+  }
+
   @Input({required: true}) path!: string;
   /** The card's title; a column's notes say which column (sqlx-n5j.1). */
   @Input() heading = 'Notes';

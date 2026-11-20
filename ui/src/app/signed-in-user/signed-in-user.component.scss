@@ -22,6 +22,21 @@
   &:hover { color: var(--blue); }
 }
 
+.visitor {
+  color: var(--text2);
+  cursor: help;
+}
+
+.sign-in {
+  border: 1px solid var(--blue);
+  border-radius: var(--radius);
+  color: var(--blue);
+  padding: 0.15rem 0.5rem;
+  text-decoration: none;
+
+  &:hover { background: var(--blue-dim); }
+}
+
 .sign-out {
   background: none;
   border: 1px solid var(--border2);

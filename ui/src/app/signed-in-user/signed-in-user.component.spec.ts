@@ -35,6 +35,18 @@ const SIGN_IN_OFF: CurrentUser = {
   environments: {},
 };
 
+const VISITOR: CurrentUser = {
+  mode: 'oidc',
+  user: null,
+  issuer: null,
+  subject: null,
+  groups: [],
+  grants: ['reader:local'],
+  admin: false,
+  environments: {local: ['explorer:read']},
+  anonymous: true,
+};
+
 describe('SignedInUserComponent', () => {
   let fixture: ComponentFixture<SignedInUserComponent>;
   let backend: HttpTestingController;
@@ -65,6 +77,20 @@ describe('SignedInUserComponent', () => {
 
   const el = () => fixture.nativeElement as HTMLElement;
 
+  it('offers a visitor Sign in, coming back to this page, and no Sign out (sqlx-2lc)', () => {
+    spyOn(navigation, 'here').and.returnValue('/queries?q=x');
+    answer(VISITOR);
+
+    const signIn = el().querySelector('a.sign-in')!;
+    expect(signIn.textContent!.trim()).toBe('Sign in');
+    expect(signIn.getAttribute('href')).toBe('/api/sql-explorer/login?return=%2Fqueries%3Fq%3Dx');
+    expect(el().querySelector('.visitor')!.getAttribute('title')).toContain('read local');
+    expect(el().querySelector('.sign-out')).toBeNull();
+    expect(el().querySelector('.who')).toBeNull();
+    expect(el().querySelector('.no-access')).toBeNull();
+    expect(el().querySelector('.tokens')).toBeNull();
+  });
+
   it('shows who is signed in, with their groups on hover, and Sign out', () => {
     answer(SIGNED_IN);
 
@@ -87,7 +113,7 @@ describe('SignedInUserComponent', () => {
   });
 
   it('falls back to the email when the provider sends no name', () => {
-    answer({ ...SIGNED_IN, user: { ...SIGNED_IN.user, name: null } });
+    answer({ ...SIGNED_IN, user: { ...SIGNED_IN.user!, name: null } });
 
     expect(el().querySelector('.who')!.textContent!.trim()).toBe('reader@example.com');
   });

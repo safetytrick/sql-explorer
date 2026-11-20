@@ -11,12 +11,16 @@
       } @else {
         {{tag.name}}
       }
-      <button type="button" class="chip-x" title="remove {{tag.name}}"
-              (click)="detach(tag, $event)">×</button>
+      @if (!readOnly) {
+        <button type="button" class="chip-x" title="remove {{tag.name}}"
+                (click)="detach(tag, $event)">×</button>
+      }
     </span>
   }
 
-  <button type="button" class="tag-add" title="add a tag" (click)="toggle($event)">+</button>
+  @if (!readOnly) {
+    <button type="button" class="tag-add" title="add a tag" (click)="toggle($event)">+</button>
+  }
 
   @if (open) {
     <div class="tag-pop" [style.top.px]="popTop" [style.left.px]="popLeft" (click)="$event.stopPropagation()">

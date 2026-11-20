@@ -2,6 +2,10 @@
   @if (current.mode === 'none') {
     <span class="auth-off"
           title="Sign-in is not configured on this server (sql-explorer.auth.mode: none). Anyone who can reach it can use it, and everything is recorded as the legacy admin user.">sign-in not configured</span>
+  } @else if (current.anonymous) {
+    <!-- a visitor reading what sql-explorer.auth.anonymous allows (sqlx-2lc) -->
+    <span class="visitor" [title]="visitorDetail(current)">read-only</span>
+    <a class="sign-in" [href]="loginUrl()" title="sign in to tag, take notes, and reach what your groups grant">Sign in</a>
   } @else {
     <span class="who" [title]="detail(current)">{{displayName(current)}}</span>
     @if (noAccess(current)) {

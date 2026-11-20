@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 /**
  * What the current request may do (sqlx-e13.4): the grants its groups carry,
  * or everything when sign-in is off. A request made with an access token may
- * do what both its owner and the token's ceiling allow (sqlx-e13.5).
+ * do what both its owner and the token's ceiling allow (sqlx-e13.5). One not
+ * signed in at all may do what {@code sql-explorer.auth.anonymous} grants,
+ * reading only (sqlx-2lc).
  *
  * <p>Enforcement is by URL, in {@link SecurityConfig}; this is for the places
  * that shape an answer to the caller rather than refuse it, such as listing
@@ -40,6 +42,7 @@ public class Authorizations {
         if (authentication != null && authentication.getPrincipal() instanceof OidcUser user) {
             return groupGrants.of(UserService.groups(user));
         }
-        return Grants.NOTHING;
+        // not signed in: what visitors may read, if anything (sqlx-2lc)
+        return groupGrants.anonymous();
     }
 }

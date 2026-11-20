@@ -5,6 +5,7 @@ import {Annotation, AnnotationService} from '../annotation.service';
 import {targetKey, type TagTarget} from '../tag-path';
 import {GLOSSARY} from '../glossary';
 import {EnvironmentService} from '../environment.service';
+import {UserService} from '../user.service';
 
 /**
  * The current annotations on one target, beside its tags (sqlx-n5j.13).
@@ -24,6 +25,13 @@ import {EnvironmentService} from '../environment.service';
   imports: [DatePipe]
 })
 export class AnnotationsViewComponent implements OnChanges, OnDestroy {
+  private readonly users = inject(UserService);
+
+  /** Tags, notes and confirmations are known to be refused here: a visitor (sqlx-387). */
+  get readOnly(): boolean {
+    return this.users.denied('commentary:write');
+  }
+
   @Input({required: true}) target!: TagTarget;
 
   annotations: Annotation[] = [];

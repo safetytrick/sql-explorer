@@ -6,6 +6,7 @@ import {AnalyzedSqlService} from '../analyzed-sql.service';
 import {TagColorsService} from '../tag-colors.service';
 import {Tag} from '../api-types';
 import {queryTarget, schemaTarget, tableTarget} from '../tag-path';
+import {UserService} from '../user.service';
 
 function tag(id: number, name: string): Tag {
   return {id, name, path: '/schema/app_other', type: 'schema', author: null, createdOn: null};
@@ -16,6 +17,7 @@ describe('TagFieldComponent', () => {
   let fixture: ComponentFixture<TagFieldComponent>;
   let component: TagFieldComponent;
   let sqlService: jasmine.SpyObj<AnalyzedSqlService>;
+  let refused = false;
 
   beforeEach(async () => {
     sqlService = jasmine.createSpyObj('AnalyzedSqlService',
@@ -28,6 +30,7 @@ describe('TagFieldComponent', () => {
       providers: [
         provideRouter([]),
         {provide: AnalyzedSqlService, useValue: sqlService},
+        {provide: UserService, useValue: {denied: () => refused}},
         {
           provide: TagColorsService,
           useValue: {
@@ -44,6 +47,27 @@ describe('TagFieldComponent', () => {
     fixture = TestBed.createComponent(TagFieldComponent);
     component = fixture.componentInstance;
     component.target = schemaTarget('app_other');
+    refused = false;
+  });
+
+  it('shows a visitor the chips but no + or × (sqlx-387)', () => {
+    refused = true;
+    component.tags = [tag(7, 'clickhouse')];
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.tag-chip')!.textContent).toContain('clickhouse');
+    expect(el.querySelector('.tag-add')).toBeNull();
+    expect(el.querySelector('.chip-x')).toBeNull();
+  });
+
+  it('offers + and × to someone who may tag', () => {
+    component.tags = [tag(7, 'clickhouse')];
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.tag-add')).not.toBeNull();
+    expect(el.querySelector('.chip-x')).not.toBeNull();
   });
 
   it('removes by association id, which is the only signal the delete worked', () => {

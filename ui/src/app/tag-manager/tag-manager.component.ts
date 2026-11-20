@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, OnInit, inject} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -10,6 +10,7 @@ import { PicoViewComponent } from '../pico-view/pico-view.component';
 import { SchemaRollup, Tag, TableRollup } from '../api-types';
 import { orderMembers, queryMembers, queryTargetOf, schemaMembers, TagMember, tableMembers } from './tag-members';
 import {schemaTarget, tableTarget, type TagTarget} from '../tag-path';
+import {UserService} from '../user.service';
 
 const TAG_COLORS = ['#f5a623', '#2dd4bf', '#a78bfa', '#4a9eff', '#f56565', '#3dd68c', '#8b93a8'];
 
@@ -26,6 +27,13 @@ interface Target {
   imports: [FormsModule, DatePipe, RouterLink, PicoViewComponent]
 })
 export class TagManagerComponent implements OnInit {
+  private readonly users = inject(UserService);
+
+  /** Tags, notes and confirmations are known to be refused here: a visitor (sqlx-387). */
+  get readOnly(): boolean {
+    return this.users.denied('commentary:write');
+  }
+
 
   readonly colors = TAG_COLORS;
 

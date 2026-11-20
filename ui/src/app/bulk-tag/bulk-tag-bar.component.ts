@@ -1,9 +1,10 @@
-import {Component, EventEmitter, Input, Output} from '@angular/core';
+import {Component, EventEmitter, Input, Output, inject} from '@angular/core';
 import {BulkTagResult, BulkTagService} from './bulk-tag.service';
 import {TagPickerComponent} from './tag-picker.component';
 import {TagColorsService} from '../tag-colors.service';
 import type {QuerySearchRequest} from '../query-search.service';
 import type {TagTarget} from '../tag-path';
+import {UserService} from '../user.service';
 
 /** What the pending action would do, held until the user confirms it. */
 interface Pending {
@@ -38,6 +39,13 @@ interface Pending {
   imports: [TagPickerComponent]
 })
 export class BulkTagBarComponent {
+  private readonly users = inject(UserService);
+
+  /** Tags, notes and confirmations are known to be refused here: a visitor (sqlx-387). */
+  get readOnly(): boolean {
+    return this.users.denied('commentary:write');
+  }
+
 
   /** Enumerated mode: every path the current view matched. */
   @Input() targets: TagTarget[] | null = null;

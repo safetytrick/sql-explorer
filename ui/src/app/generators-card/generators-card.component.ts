@@ -1,8 +1,9 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, inject} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {RouterLink} from '@angular/router';
 import {AnnotationService, GeneratorInfo} from '../annotation.service';
 import {GLOSSARY} from '../glossary';
+import {UserService} from '../user.service';
 
 /**
  * Which generators this environment uses, as a person has confirmed them
@@ -26,6 +27,13 @@ import {GLOSSARY} from '../glossary';
   imports: [DatePipe, RouterLink]
 })
 export class GeneratorsCardComponent implements OnInit {
+  private readonly users = inject(UserService);
+
+  /** Tags, notes and confirmations are known to be refused here: a visitor (sqlx-387). */
+  get readOnly(): boolean {
+    return this.users.denied('commentary:write');
+  }
+
   generators: GeneratorInfo[] = [];
   failed = false;
   saving: string | null = null;

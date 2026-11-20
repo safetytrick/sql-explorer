@@ -52,10 +52,13 @@ class UserResource {
      *                (sqlx-e13.5); then {@code grants} are what the token may
      *                do, its owner's narrowed by its ceiling, and
      *                {@code groups} are those of the owner's latest sign-in
+     * @param anonymous true for a visitor who is not signed in, reading what
+     *                {@code sql-explorer.auth.anonymous} grants (sqlx-2lc);
+     *                then {@code user} is null and the UI offers Sign in
      */
     record CurrentUser(String mode, User user, String issuer, String subject, List<String> groups,
                        List<String> grants, boolean admin, Map<String, List<String>> environments,
-                       TokenInfo token) {}
+                       TokenInfo token, boolean anonymous) {}
 
     record TokenInfo(Integer id, String name) {}
 
@@ -79,14 +82,17 @@ class UserResource {
             var holder = token.get().getPrincipal();
             return new CurrentUser(auth.mode().value(), owner, owner.getIssuer(), owner.getSubject(),
                 owner.getGroupsSnapshot() == null ? List.of() : owner.getGroupsSnapshot(), granted, grants.admin(),
-                environments, new TokenInfo(holder.tokenId(), holder.tokenName()));
+                environments, new TokenInfo(holder.tokenId(), holder.tokenName()), false);
         }
         return userService.signedInPrincipal()
             .map(oidc -> new CurrentUser(auth.mode().value(), userService.currentUser(),
                 oidc.getIssuer() == null ? null : oidc.getIssuer().toExternalForm(),
-                oidc.getSubject(), UserService.groups(oidc), granted, grants.admin(), environments, null))
-            .orElseGet(() -> new CurrentUser(auth.mode().value(), userService.currentUser(), null, null, List.of(),
-                granted, grants.admin(), environments, null));
+                oidc.getSubject(), UserService.groups(oidc), granted, grants.admin(), environments, null, false))
+            // sign-in on and none here: a visitor, who is nobody, not the legacy admin (sqlx-2lc)
+            .orElseGet(() -> auth.oidc()
+                ? new CurrentUser(auth.mode().value(), null, null, null, List.of(), granted, false, environments, null, true)
+                : new CurrentUser(auth.mode().value(), userService.currentUser(), null, null, List.of(),
+                    granted, grants.admin(), environments, null, false));
     }
 
 }

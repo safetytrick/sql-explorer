@@ -16,14 +16,17 @@
                   [style.color]="chip(tag.name, tag.color).color">{{tag.name}}</span>
             @if (!tag.color) { <span class="no-def">no color</span> }
             <span class="tag-count">{{total(tag)}}</span>
-            <span class="delete" (click)="deleteTag(tag.name); $event.stopPropagation()">
-              {{confirmingDelete === tag.name ? 'really?' : 'delete'}}
-            </span>
+            @if (!readOnly) {
+              <span class="delete" (click)="deleteTag(tag.name); $event.stopPropagation()">
+                {{confirmingDelete === tag.name ? 'really?' : 'delete'}}
+              </span>
+            }
           </div>
         }
       }
     </div>
 
+    @if (!readOnly) {
     <div class="lens-card create-card">
       <div class="create-title">Create or recolor tag</div>
       <input class="name-input" placeholder="tag name…" maxlength="48" [(ngModel)]="newTagName">
@@ -43,6 +46,7 @@
       </div>
       <button class="btn primary" (click)="createTag()">Save tag</button>
     </div>
+    }
   </div>
 
   <div class="detail">
@@ -83,7 +87,9 @@
                  title="graph the queries touching the tables carrying this tag">graph ↗</a>
             }
             <span class="dim last-used">{{tag.lastUsed ? (tag.lastUsed | date:'MMM d, yy') : '—'}}</span>
-            <button type="button" class="btn add-btn" (click)="openAdd(); $event.stopPropagation()">+ add</button>
+            @if (!readOnly) {
+              <button type="button" class="btn add-btn" (click)="openAdd(); $event.stopPropagation()">+ add</button>
+            }
           </span>
         </div>
 
@@ -135,8 +141,10 @@
                     </td>
                     <td class="act-col">
                       @if (member.assocId !== null) {
-                        <button type="button" class="detach" title="remove this tag from {{member.label}}"
-                                (click)="detach(member)">×</button>
+                        @if (!readOnly) {
+                          <button type="button" class="detach" title="remove this tag from {{member.label}}"
+                                  (click)="detach(member)">×</button>
+                        }
                       } @else {
                         <span class="dim" title="no tag association was found for this member">—</span>
                       }

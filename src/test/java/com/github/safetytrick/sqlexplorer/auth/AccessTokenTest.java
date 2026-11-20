@@ -148,7 +148,7 @@ class AccessTokenTest {
         assertThat(secret).startsWith(listed.path("prefix").asString());
         assertThat(list.path("maxLifetimeDays").asLong()).isEqualTo(30);
         assertThat(list.path("grants").valueStream().map(JsonNode::asString).toList()).containsExactly("viewer:alpha");
-        assertThat(list.path("ceilingOptions").valueStream().map(JsonNode::asString).toList()).containsExactly("viewer:alpha");
+        assertThat(list.path("ceilingOptions").valueStream().map(JsonNode::asString).toList()).containsExactly("viewer:alpha", "reader:alpha");
         // shown once: the listing never carries the secret or its hash
         assertThat(list.toString()).doesNotContain(secret).doesNotContain(AccessTokenService.hash(secret));
 
