@@ -78,7 +78,7 @@ class AnalysisReuseTest {
         return row;
     }
 
-    private SqlRepository load(AnalysisContext context, MeteredSql... rows) {
+    private SqlRepository loadAndCapture(AnalysisContext context, MeteredSql... rows) {
         List<SqlInput> inputs = new java.util.ArrayList<>();
         for (int i = 0; i < rows.length; i++) {
             inputs.add(new SqlInput(i, rows[i], source));
@@ -93,7 +93,7 @@ class AnalysisReuseTest {
     }
 
     private SqlProfile priorAnalysis(String version, String sessionSchema) {
-        SqlProfile analysed = only(load(AnalysisContext.ANALYSE_EVERYTHING, row(sessionSchema, 10)));
+        SqlProfile analysed = only(loadAndCapture(AnalysisContext.ANALYSE_EVERYTHING, row(sessionSchema, 10)));
         return SqlProfile.newBuilder(analysed)
             .setTables(List.of(TableReference.newTableReference("app", "users")))
             .setAnalyzerVersion(version)
@@ -102,7 +102,7 @@ class AnalysisReuseTest {
 
     @Test
     void aFreshAnalysisRecordsItsVersionAndTheRowsOwnSchema() throws Exception {
-        SqlProfile profile = only(load(AnalysisContext.ANALYSE_EVERYTHING, row("app", 10)));
+        SqlProfile profile = only(loadAndCapture(AnalysisContext.ANALYSE_EVERYTHING, row("app", 10)));
 
         assertThat(profile.getAnalyzerVersion()).isEqualTo(AnalyzerVersion.CURRENT);
         assertThat(profile.getSessionSchema()).isEqualTo("app");
@@ -114,7 +114,7 @@ class AnalysisReuseTest {
         SqlProfile prior = priorAnalysis(AnalyzerVersion.CURRENT, "app");
         org.mockito.Mockito.clearInvocations(analysis);
 
-        SqlRepository repository = load(new AnalysisContext(AnalysisReuse.of(List.of(prior)), true), row("app", 99));
+        SqlRepository repository = loadAndCapture(new AnalysisContext(AnalysisReuse.of(List.of(prior)), true), row("app", 99));
 
         verify(analysis, never()).analyzeSql(any(), any(), any());
         SqlProfile reused = only(repository);
@@ -128,7 +128,7 @@ class AnalysisReuseTest {
     void reuseDoesNotWaitForACurrentSchema() throws Exception {
         SqlProfile prior = priorAnalysis(AnalyzerVersion.CURRENT, "app");
 
-        SqlRepository repository = load(new AnalysisContext(AnalysisReuse.of(List.of(prior)), false), row("app", 99));
+        SqlRepository repository = loadAndCapture(new AnalysisContext(AnalysisReuse.of(List.of(prior)), false), row("app", 99));
 
         assertThat(only(repository).getTables()).isEqualTo(prior.getTables());
         assertThat(repository.getImportStats().pending()).isZero();
@@ -139,7 +139,7 @@ class AnalysisReuseTest {
         SqlProfile prior = priorAnalysis("a0.n" + QueryNormalizer.VERSION, "app");
         org.mockito.Mockito.clearInvocations(analysis);
 
-        SqlRepository repository = load(new AnalysisContext(AnalysisReuse.of(List.of(prior)), true), row("app", 99));
+        SqlRepository repository = loadAndCapture(new AnalysisContext(AnalysisReuse.of(List.of(prior)), true), row("app", 99));
 
         verify(analysis, times(1)).analyzeSql(any(), any(), any());
         assertThat(only(repository).getAnalyzerVersion()).isEqualTo(AnalyzerVersion.CURRENT);
@@ -151,7 +151,7 @@ class AnalysisReuseTest {
         SqlProfile prior = priorAnalysis(AnalyzerVersion.CURRENT, "app");
         org.mockito.Mockito.clearInvocations(analysis);
 
-        SqlRepository repository = load(new AnalysisContext(AnalysisReuse.of(List.of(prior)), true), row("audit", 99));
+        SqlRepository repository = loadAndCapture(new AnalysisContext(AnalysisReuse.of(List.of(prior)), true), row("audit", 99));
 
         verify(analysis, times(1)).analyzeSql(any(), any(), any());
         assertThat(repository.getImportStats().reused()).isZero();
@@ -159,7 +159,7 @@ class AnalysisReuseTest {
 
     @Test
     void aNewStatementWaitsWhenTheSchemaIsNotCurrent() throws Exception {
-        SqlRepository repository = load(new AnalysisContext(AnalysisReuse.NONE, false), row("app", 99));
+        SqlRepository repository = loadAndCapture(new AnalysisContext(AnalysisReuse.NONE, false), row("app", 99));
 
         verify(analysis, never()).analyzeSql(any(), any(), any());
         assertThat(repository.getAllAnalyzedSql()).isEmpty();
@@ -181,11 +181,11 @@ class AnalysisReuseTest {
 
     @Test
     void theNextLoadReusesWhatTheLastLoadsCaptureRecorded() throws Exception {
-        load(AnalysisContext.ANALYSE_EVERYTHING, row("app", 10));    // writes shard1's capture
+        loadAndCapture(AnalysisContext.ANALYSE_EVERYTHING, row("app", 10));
         org.mockito.Mockito.clearInvocations(analysis);
 
         AnalysisReuse fromCapture = new CaptureRehydrator(config, sink).reuseFor(List.of("shard1", "never-captured"));
-        SqlRepository repository = load(new AnalysisContext(fromCapture, true), row("app", 99));
+        SqlRepository repository = loadAndCapture(new AnalysisContext(fromCapture, true), row("app", 99));
 
         assertThat(fromCapture.find(DIGEST, "app")).isNotNull();
         verify(analysis, never()).analyzeSql(any(), any(), any());
