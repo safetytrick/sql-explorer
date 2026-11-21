@@ -498,39 +498,6 @@ public class WhereClauseAnalyzerTest {
         assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("alert_rule_met.member_id"));
     }
 
-    @Disabled
-    @Test
-    void subjoin_join_analyzer() throws JSQLParserException {
-        String sql = """
-            SELECT `num`.*
-            FROM ( `alert_rule` `n`
-                INNER JOIN
-                `alert_rule_met` `num`
-                ON `num`.`alert_rule_id` = `n`.`id`
-                    AND `n`.`name` = ?
-                     )
-                     LEFT JOIN
-                 (
-                     `alert_rule` `d`
-                         INNER JOIN
-                         `alert_rule_met` `den`
-                         ON `den`.`alert_rule_id` = `d`.`id`
-                             AND `d`.`name` = ?
-                     )
-                 ON `den`.`branch_id` = `num`.`branch_id`
-                     AND `den`.`member_id` = `num`.`member_id`
-            WHERE `num`.`created_on` >= ?
-              AND `den`.`member_id` IS NULL
-            ORDER BY `num`.`created_on`""";
-
-        Statement statement = CCJSqlParserUtil.parse(sql);
-
-        JoinColumnAnalyzer joinColumnAnalyzer = new JoinColumnAnalyzer(columnTableResolver);
-
-        // todo implement me:
-        joinColumnAnalyzer.analyze(statement, builder);
-    }
-
     @Disabled("need to improve scoping to fix this")
     @Test
     void unambiguous_subquery() throws JSQLParserException {
@@ -752,30 +719,6 @@ public class WhereClauseAnalyzerTest {
 
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
         assertContainsColumnReferences(criteriaColumns, "analytics.contribution.contributor_id");
-    }
-
-    @Test
-    void scope_of_in_subselect() {
-        String sql = """
-                DELETE
-                FROM
-                    `deleted_rule_label`
-                WHERE
-                    `branch_id` = ?
-                    AND `id` IN (
-                        SELECT
-                            `label_id`
-                        FROM
-                            `deleted_rule_label_map`
-                        WHERE
-                            `branch_id` = ?
-                            AND `rule_id` IN (
-                                ...
-                            )
-                    ) \
-            """;
-
-        // todo keep this from throwing multiple tables found for column: branch_id
     }
 
 

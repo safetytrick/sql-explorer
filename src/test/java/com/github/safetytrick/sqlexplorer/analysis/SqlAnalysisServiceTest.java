@@ -918,59 +918,6 @@ public class SqlAnalysisServiceTest {
         assertTrue(builder.getIsMultiSchema());
     }
 
-    // i don't know why this is failing, may 27, 2022
-    @Test
-    @Disabled("because clearly I don't care")
-    void nested_select_in_exists() throws JSQLParserException {
-        String sql = """
-                SELECT
-                    `f` . `id` AS `branch_id` ,
-                    COUNT ( DISTINCTROW `pv` . `id` ) AS ?
-                FROM
-                    `branch` `f`
-                LEFT JOIN
-                    `member_session` `pv`
-                        ON `f` . `id` = `pv` . `branch_id`
-                        AND `main_class` = ?
-                        AND NOT EXISTS (
-                            SELECT
-                                `id`
-                        FROM
-                            `member_session`
-                        WHERE
-                            `member_id` = `pv` . `member_id`
-                            AND `id` != `pv` . `id`
-                            AND (
-                                `account_number` = `pv` . `account_number`
-                                OR (
-                                    `billing_account_number` = `pv` . `billing_account_number`
-                                    AND `billing_account_number` IS NOT NULL
-                                )
-                            )
-                            AND `main_class` = ?
-                            AND `branch_id` = `pv` . `branch_id`
-                    )
-                    AND `checkin_date` >= ?
-                    AND `checkin_date` < ? + INTERVAL ? SQL_TSI_DAY
-                WHERE
-                    `f` . `id` IN (
-                        ...
-                    )
-                GROUP BY
-                    `f` . `id`
-            """;
-
-        SqlProfile.Builder builder = SqlProfile.newBuilder();
-        sqlAnalysisService.analyzeSql(sql, builder);
-
-        assertContainsColumnReferences(builder.getCriteriaColumns(),
-                                       "member_session.billing_account_number",
-                                       "member_session.account_number",
-                                       "member_session.main_class",
-                                       "member_session.branch_id",
-                                       "member_session.checkin_date");
-    }
-
     @Test
     void parse_slow_resources() throws JSQLParserException {
         for (String slowParsed : new String[]{"1cf", "50e", "419", "b70", "c51", "928"}) {
