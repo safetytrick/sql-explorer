@@ -157,12 +157,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-	  The original "create-source_ref" changeset was a no-op SELECT, so the
-	  source_ref table backing SourceRefEntity was never created. Create it now
-	  with environment_name (replacing the dropped environment_type concept).
-	-->
-	<!-- Tag definitions: name-level attributes (color) for the path-based tag rows. -->
 	<changeSet id="create-tag_def" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<not><tableExists tableName="tag_def"/></not>
@@ -214,19 +208,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		Capture context for an uploaded source. A TSV export of
-		sys.x$statement_analysis says nothing about the server it came from or
-		when, and looking those facts up later against a live connection
-		attributes one server's settings to another's data — a confident wrong
-		answer (sqlx-sy5). Recorded at upload instead.
-
-		Nullable on purpose: every source uploaded before this existed has no
-		capture context and must read as unknown rather than as zero. New
-		uploads are required to supply it at the API, which is where the
-		requirement belongs — a NOT NULL here would only make old rows
-		unreadable.
-	-->
 	<changeSet id="sql_source-capture-context" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<not><columnExists tableName="sql_source" columnName="captured_at"/></not>
@@ -241,25 +222,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		Commentary is scoped to an environment.
-
-		tags.path and notes.path were keyed by path alone, so a tag applied while
-		looking at one environment attached to every environment having a schema
-		of that name. That is not theoretical: regression and local share four
-		schema names (information_schema, mysql, performance_schema, sys), and
-		those are exactly the schemas the unqueried page tells you to tag.
-
-		The alternative considered and REJECTED was a nullable column where null
-		means "everywhere". It preserves existing rows without a backfill and
-		makes `system` a single tag across environments — but it makes every
-		reader ask which kind of tag it is looking at, for a concept nobody
-		asked for. Michael's call (2026-08-31): no everywhere-tag.
-
-		The backfill is a literal 'regression' rather than anything derived.
-		Nothing in a row says where it was created, and every row that exists
-		was created against that environment (sqlx-rad).
-	-->
 	<changeSet id="tags-environment_name" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<not><columnExists tableName="tags" columnName="environment_name"/></not>
@@ -272,18 +234,10 @@
 	</changeSet>
 
 	<!--
-		The unique key moves from (path, name) to (environment_name, path, name):
-		the same tag name on the same path in two environments is two distinct
-		associations, and the old key would have made the second one fail to save.
-
-		DROP AND CREATE ARE SEPARATE CHANGESETS, each conditioned on its own end
-		state. A single one conditioned on the OLD index existing is the trap:
-		MySQL DDL is not transactional, so a failure between the two statements
-		leaves the index dropped and the changeset unrecorded — and on the next
-		start its precondition is false, so onFail="MARK_RAN" marks it done and
-		the table keeps no unique key at all. That is not hypothetical; it is
-		what happened here, because (environment_name, path, name) at the
-		declared widths is 4088 bytes of utf8mb4 against InnoDB's 3072 limit.
+		Drop and create are separate changesets, each conditioned on its own end
+		state: MySQL DDL is not transactional, so a single one conditioned on the
+		old index would, after failing between its statements, be marked ran by
+		onFail="MARK_RAN" on the next start and leave no unique key at all.
 	-->
 	<changeSet id="tags-drop-legacy-unique" author="claude">
 		<preConditions onFail="MARK_RAN">
@@ -296,14 +250,7 @@
 
 	<!--
 		`path` is indexed by prefix because the full three columns do not fit:
-		(255 + 512 + 255) * 4 bytes exceeds InnoDB's 3072-byte key limit, and the
-		old two-column key fit only by 4 bytes.
-
-		191 is chosen against the data rather than pulled from the air. The
-		longest path shape the application produces is a query digest —
-		`/query/v3:` plus 64 hex characters, 74 — and the longest path in the
-		corpus today is 52. So for every path this application creates, the
-		prefix IS the whole path and the key is exactly as strict as it reads.
+		(255 + 512 + 255) * 4 bytes exceeds InnoDB's 3072-byte key limit.
 	-->
 	<changeSet id="tags-unique-includes-environment" author="claude">
 		<preConditions onFail="MARK_RAN">
@@ -327,27 +274,10 @@
 	</changeSet>
 
 	<!--
-		A tag addresses a typed target, not a string.
-
-		tags.path packed the target type, schema, table and digest into one
-		string that was parsed back out in four places. Michael questioned the
-		design after asking whether a 191-character unique-key prefix was enough
-		(sqlx-11v). The prefix WAS enough — MySQL caps identifiers at 64, so the
-		longest path the application can build is 143 — but the reasoning only
-		held while paths stayed unencoded, and the columns below remove the
-		question rather than answer it again later.
-
-		THE INAPPLICABLE COLUMNS ARE '' AND NOT NULL, and that is load-bearing:
-		MySQL treats NULLs as DISTINCT in a unique index, so a nullable
-		table_name would let the same schema tag be inserted twice. This reads
-		like pedantry until someone "tidies" it to nullable.
-
-		EVERY CHANGESET BELOW IS A SINGLE STATEMENT. MySQL DDL is not
-		transactional, and a two-statement changeset already left this table with
-		no unique key at all when its second statement failed — and then would
-		have been marked as run, because its precondition described the state the
-		first statement had already changed. One statement cannot partially
-		succeed, so its precondition still describes reality on a retry.
+		The inapplicable columns are '' and NOT NULL: MySQL treats NULLs as
+		distinct in a unique index, so a nullable table_name would let the same
+		schema tag be inserted twice. Every changeset below is a single statement,
+		because MySQL DDL is not transactional.
 	-->
 	<changeSet id="tags-typed-target-columns" author="claude">
 		<preConditions onFail="MARK_RAN">
@@ -361,11 +291,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		Backfilled from the paths themselves, which are all well-formed: `/schema/`
-		is 8 characters and `/query/` is 7, hence the offsets. Idempotent, so a
-		retry after a failure produces the same rows.
-	-->
 	<changeSet id="tags-backfill-typed-target" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<columnExists tableName="tags" columnName="path"/>
@@ -382,10 +307,8 @@
 	</changeSet>
 
 	<!--
-		`type` holds 'schema', 'table' or 'query' — at most six characters — and
-		has to shrink for the new key to fit: at varchar(255) the six columns
-		would be 3860 bytes of utf8mb4 against InnoDB's 3072 limit, and at
-		varchar(16) they are 2904.
+		At varchar(255) the six key columns would be 3860 bytes of utf8mb4 against
+		InnoDB's 3072 limit; at varchar(16) they are 2904.
 	-->
 	<changeSet id="tags-narrow-type" author="claude">
 		<preConditions onFail="MARK_RAN">
@@ -399,11 +322,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		The key moves onto the typed columns, in one statement so the table is
-		never left without one. No prefix now, which is the point: the question
-		of whether 191 characters is enough stops existing.
-	-->
 	<changeSet id="tags-unique-on-typed-target" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<indexExists tableName="tags" indexName="tags_env_path_name"/>
@@ -416,17 +334,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		`path` becomes a STORED GENERATED column: derived by the database from the
-		typed columns, so it cannot drift from them, and still indexed so the
-		batched lookup the list pages make — `where path in (...)` with a few
-		hundred paths — stays one query rather than a tuple match or an
-		over-fetch.
-
-		Dropped and re-added in ONE statement. Done as two, a failure between them
-		would leave the table with no `path` at all, which breaks every read
-		rather than merely a constraint.
-	-->
 	<changeSet id="tags-path-becomes-generated" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<sqlCheck expectedResult="0">
@@ -448,21 +355,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		`path` is null for a target it cannot represent.
-
-		Once a tag can address a table whose name contains '/' (sqlx-3ai), the
-		old expression produced strings like `/schema/x/table/a/b` — which
-		TagPath refuses to parse, and which is ambiguous with a table `b` in a
-		schema named `x/table/a`. Uniqueness was never at risk (it is on the
-		typed columns), but the value would have been one no caller could round-
-		trip, silently.
-
-		Null instead, and the API says so: "this target has no path form". That
-		makes the ambiguity unreachable rather than latent, and it is why the
-		batched lookup moved off `path in (…)` and onto the typed columns in the
-		same change — a path-keyed lookup cannot find these rows at all.
-	-->
 	<changeSet id="tags-path-null-when-unrepresentable" author="claude">
 		<preConditions onFail="MARK_RAN">
 			<sqlCheck expectedResult="0">
@@ -489,20 +381,7 @@
 	</changeSet>
 
 	<!--
-		The graph's hand-arranged grid layout (sqlx-aoy.15).
-
-		Keyed by schema name with no environment column, unlike tags and notes:
-		a layout describes a schema's shape, and the same schema in staging and
-		production should look the same. Shared by everyone, by the user's
-		decision (2026-11-05).
-
-		One row per arranged item. `kind` says which grid the slot is in:
-		`schema` (the environment's grid; item_name is ''), `aggregate` (its
-		schema's grid, named by its root table) or `table` (its aggregate's grid,
-		or its schema's when it is in none). A table row can also carry an
-		aggregate override: `aggregate_override` set, and `aggregate_parent` the
-		table it belongs under, null for "a root of its own". The slot columns
-		avoid the name `row`, a reserved word in MySQL 8.
+		The slot columns avoid the name `row`, a reserved word in MySQL 8.
 	-->
 	<changeSet id="create-graph_layout" author="claude">
 		<sql>
@@ -527,18 +406,8 @@
 	</changeSet>
 
 	<!--
-		Tags on columns (sqlx-n5j.1): `/schema/{s}/table/{t}/column/{c}`.
-
-		column_name joins the typed target, '' and NOT NULL like the others (a
-		NULL would let the same tag be stored twice — see tags-typed-target-
-		columns). It has to join the unique key too, and that key was already at
-		2904 of InnoDB's 3072 bytes, so environment_name narrows from 255 to 128
-		characters to make room: 128 is far longer than any environment name, and
-		a longer one would fail this statement loudly rather than truncate.
-
-		The generated path learns the column shape in the same statement. ONE
-		statement, for the reason given above tags-typed-target-columns: a failure
-		part way through must not leave the table without its key or its path.
+		environment_name narrows to 128 to fit column_name into the unique key
+		under InnoDB's 3072-byte limit.
 	-->
 	<changeSet id="n5j-d-tags-column-target" author="claude">
 		<preConditions onFail="MARK_RAN">
@@ -570,21 +439,6 @@
 	</changeSet>
 
 	<!--
-		Annotations (sqlx-n5j.13): facts recorded about an object, kept apart from
-		tags. A tag is a person's label, present or absent; an annotation is a
-		record — what was stated (namespace, key, value), how sure (confidence:
-		inferred, sampled, confirmed), why (basis), and who said so (source: a
-		rule, a sampler, or a person, who is then also the author).
-
-		APPEND-ONLY. A confirmation or a correction is a new row, and the latest
-		row for (target, namespace, key) is the current answer; nothing is updated
-		in place, so how a fact came to be believed stays readable.
-
-		Addressed by the same typed target as tags, plus the environment itself
-		(target_type 'environment', every part ''), and scoped by environment the
-		same way. No unique key: history is the point. The two indexes are the two
-		reads, by target and by namespace.
-
 		`key` is a reserved word in MySQL, hence ann_key.
 	-->
 	<changeSet id="n5j-d-create-annotations" author="claude">
@@ -620,14 +474,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		The `system` schema tag becomes an annotation (sqlx-n5j.14). It states a
-		fact — this schema belongs to MySQL — rather than a person's label, so it
-		moves to namespace schema-role, key role, value system, confirmed, keeping
-		who applied it and when. Only schema tags: that is the only place the tag
-		was ever applied, and a `system` tag anywhere else is someone's label
-		that this change has no business reinterpreting.
-	-->
 	<changeSet id="n5j-d-system-tag-to-annotation" author="claude">
 		<sql>
 			insert into annotations
@@ -640,17 +486,12 @@
 		</sql>
 	</changeSet>
 
-	<!-- Then the tag rows go: the annotation is the only record now. -->
 	<changeSet id="n5j-d-remove-system-schema-tags" author="claude">
 		<sql>
 			delete from tags where name = 'system' and type = 'schema';
 		</sql>
 	</changeSet>
 
-	<!--
-		And its colour, unless a `system` tag survives somewhere else — the
-		definition is per name, so it stays while any row still uses the name.
-	-->
 	<changeSet id="n5j-d-remove-system-tag-def" author="claude">
 		<sql>
 			delete from tag_def
@@ -660,17 +501,8 @@
 	</changeSet>
 
 	<!--
-		Tag names and environment names are capped at 48 characters (Names.MAX_LENGTH),
-		and every column holding one narrows to match. Both are chosen by people and
-		shown as chips and headers, and both lead unique keys, so the spare width was
-		only ever key length.
-
-		HALTS rather than truncating: a longer name already stored must be renamed
-		by a person, because a cut-off name could collide with another one. Each
-		table is its own statement inside one changeset; MySQL commits DDL per
-		statement, and each statement is safe to repeat (modify to the same type).
-		Nullability is restated as it was: notes, tags and annotations not null,
-		source_ref and query_example nullable.
+		MySQL commits DDL per statement, so each table is its own statement and
+		each is safe to repeat.
 	-->
 	<changeSet id="names-limited-to-48" author="claude">
 		<preConditions onFail="HALT" onFailMessage="A tag or environment name is longer than 48 characters; rename it before upgrading">
@@ -696,11 +528,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		Every profile run (sqlx-n5j.3): who asked, which servers, the plan that was
-		shown and agreed to, the statements issued, the rows read and what was
-		found. Kept for good: nothing deletes or replaces a run.
-	-->
 	<changeSet id="n5j-3-profile-run" author="claude">
 		<sql>
 			create table profile_run
@@ -730,13 +557,8 @@
 	</changeSet>
 
 	<!--
-		Signed-in users (sqlx-e13.1). A user from the OIDC provider is identified
-		by issuer + subject, the pair OIDC guarantees stable and unique; email and
-		name are only for display. So email stops being unique (two providers may
-		share an address) and stops being required (a provider need not send it).
-		The legacy 'admin' row keeps a null issuer and stays the author of
-		everything written before sign-in (sqlx-e13.2, decision 6). MySQL allows
-		any number of nulls in a unique index, so legacy rows do not collide.
+		MySQL allows any number of nulls in a unique index, so legacy rows with a
+		null issuer do not collide.
 	-->
 	<changeSet id="e13-1-users-oidc-identity" author="claude">
 		<sql>
@@ -750,22 +572,6 @@
 		</sql>
 	</changeSet>
 
-	<!--
-		Personal access tokens (sqlx-e13.5).
-
-		users.groups_snapshot: the groups claim as of the user's latest sign-in,
-		a JSON array. Groups only arrive in the ID token, so a token, which has no
-		session, is evaluated against this snapshot: losing a group narrows the
-		user's tokens at their next sign-in, not before. That is why tokens have a
-		maximum lifetime. groups_seen_on is the issue time of the ID token the
-		snapshot came from, so an older session can never overwrite a newer one.
-
-		access_tokens: only the SHA-256 of the secret is kept (token_hash, hex),
-		never the secret. token_prefix is its first characters, for telling
-		tokens apart in a list. ceiling is the most the token may do, as grants in
-		the groups syntax (viewer:prod, runner:prod/reporting, admin:*), comma
-		separated; what it may actually do is that and the owner's grants both.
-	-->
 	<changeSet id="e13-5-access-tokens" author="claude">
 		<sql>
 			alter table users

@@ -1,41 +1,20 @@
-# this config file should contain non-secret environment specific configuration (visible to both development and devops)
-
-
 environments:
   production:
     default: true
 
-  # second environment backed by the local explorer database, used to exercise
-  # environment switching (the /env/{env}/ path segment selects it)
   local:
-    # EXPLAIN is allowed here and nowhere else. This environment points at the
-    # disposable explorer-mysql container that docker compose brings up, so
-    # planning a statement against it costs nothing and reaches nobody's data.
-    # `regression` above is a real server and is deliberately left off — the
-    # flag defaults to false, so leaving it unmentioned is what keeps it off.
     explainEnabled: true
     servers:
       explorer:
-        # Roles (ServerRole) describe what each server is for; only `sampling`
-        # grants SQL Explorer anything: the right to run its own queries against
-        # table data there, through Environment.samplingTarget().
         roles: [primary]
         jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
-        # Stated explicitly. Left off, the pool sends no user at all and the
-        # driver falls back to mysql_native_password, which MySQL 8.4 removed —
-        # so the connection fails with a message about a missing plugin rather
-        # than about missing credentials. Not a secret: this is the disposable
-        # compose container, and the same password is in docker-compose.yml.
+        # Left off, the driver falls back to mysql_native_password, which MySQL
+        # 8.4 removed, and fails on a missing plugin rather than on credentials.
         username: root
         password: password
         sources:
           - type: x-statement-analysis
-      # A SECOND CONNECTION, pointing at the same container under another name.
-      # Not redundancy — it is the only two-connection environment there is, and
-      # the unused-index report's whole rule is "read on no connection", which a
-      # single-server environment cannot exercise at all (sqlx-vjr).
       replica:
-        # the sampling server: never the primary, which the registry refuses
         roles: [replica, sampling]
         jdbcUrl: "jdbc:mysql://explorer-mysql:3306"
         username: root
@@ -51,7 +30,4 @@ parquet-sink:
   filename: /parquet/sql-repository.parquet
 
 sql-explorer:
-  # Michael, 2026-09-01. Captures accumulate one per pull; this deletes the ones
-  # a newer capture already contains. Never the capture before a reset — see
-  # CaptureRetention.
   prune-redundant-captures: true

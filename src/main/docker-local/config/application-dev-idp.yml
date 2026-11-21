@@ -1,25 +1,7 @@
-# Sign-in through the dummy OIDC provider in dev-idp/ (sqlx-e13.1). Loaded
-# only by the `dev-idp` profile:
-#
-#   in docker   docker-compose.dev-idp.yml sets SPRING_PROFILES_ACTIVE=dev-idp
-#               on sql-explorer, and DEV_IDP_BACKCHANNEL to the in-network name
-#   on the host -Dspring.config.additional-location=src/main/docker-local/config/
-#               -Dspring.profiles.include=local,dev-idp
-#
-# The logins are in dev-idp/README.md; the password is the username.
-#
-# The endpoints are given one by one, never through issuer-uri. The browser
-# and a backend in a container reach the IdP by different names, so the
-# browser-facing ones (authorize, logout, the issuer every token names) use
-# DEV_IDP_ISSUER and the back channel (token, JWKS, userinfo) uses
-# DEV_IDP_BACKCHANNEL. On the host both are localhost. issuer-uri would also
-# make Boot fetch discovery from inside the container, from localhost.
-#
-# The two endpoints the browser follows, authorize and logout, are under
-# DEV_IDP_BROWSER_BASE, which defaults to the issuer. docker-compose.dev-idp.yml
-# sets it to the root-relative /idp: the browser then stays on whatever origin
-# it used, localhost:4200 or a tunnel such as ngrok, and the issuer is only the
-# name tokens carry.
+# The endpoints are given one by one, never through issuer-uri: the browser
+# and a backend in a container reach the IdP by different names, and
+# issuer-uri would make Boot fetch discovery from inside the container, from
+# localhost.
 sql-explorer:
   auth:
     mode: oidc
@@ -38,8 +20,6 @@ spring:
             # a public client: no secret, so Spring uses PKCE (S256)
             client-authentication-method: none
             authorization-grant-type: authorization_code
-            # under the context path: http://localhost:4200/api/sql-explorer/login/oauth2/code/sql-explorer
-            # through the UI's nginx, :18180 directly. dev-idp registers both.
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             scope: openid,profile,email
         provider:
