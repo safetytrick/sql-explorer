@@ -16,11 +16,11 @@ import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.statement.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-// todo this misses column comparison in where clause
-@Order(20000) // last!
+@Order(Ordered.LOWEST_PRECEDENCE)
 @Component
 public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(JoinAcrossTypesAnalyzer.class);
