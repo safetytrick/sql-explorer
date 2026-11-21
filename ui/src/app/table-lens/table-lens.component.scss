@@ -9,8 +9,6 @@
 .tbl-name { color: var(--teal); }
 
 .view-header {
-  .view-title { font-size: 14px; font-weight: 500; }
-  .view-sub { font-size: 11px; color: var(--text3); }
   .type-badge {
     font-size: 9px;
     padding: 1px 6px;
@@ -31,19 +29,6 @@
     color: var(--text2);
 
     &:hover { color: var(--link-hover); }
-  }
-  .view-actions { margin-left: auto; display: flex; gap: 6px; }
-  .btn {
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border2);
-    background: var(--bg3);
-    color: var(--text2);
-    cursor: pointer;
-    text-decoration: none;
-
-    &:hover { border-color: var(--blue); color: var(--blue); }
   }
 }
 
@@ -77,20 +62,7 @@ td.lineage {
 .lens-rail { display: flex; flex-direction: column; gap: 10px; }
 
 
-.card-head {
-  padding: 8px 14px;
-  background: var(--bg3);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  .card-head-title { font-size: 11px; font-weight: 500; color: var(--text2); }
-  .card-head-note { font-size: 10px; color: var(--text3); margin-left: auto; }
-  .col-filters { margin-left: auto; display: flex; gap: 4px; }
-}
-
-.card-empty { padding: 12px 14px; font-size: 11px; color: var(--text3); }
+.card-head .col-filters { margin-left: auto; display: flex; gap: 4px; }
 
 // this card *is* the page in the not-found state, so it gets a readable
 // measure rather than stretching across a wide monitor
@@ -113,25 +85,7 @@ td.lineage {
 }
 
 
-.data-table {
-  th {
-    padding: 6px 12px;
-    text-align: left;
-    font-size: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text3);
-    background: var(--bg3);
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
-  tr:last-child td { border-bottom: none; }
-  tbody tr:hover td { background: var(--bg3); cursor: pointer; }
-  .num { text-align: right; }
-  .ctr { text-align: center; font-size: 11px; }
-}
+.data-table tbody tr:hover td { cursor: pointer; }
 
 .badge {
   font-size: 9px;
@@ -169,11 +123,6 @@ td.lineage {
   &.rp-force    { background: var(--amber-dim); color: var(--amber); }
   &.rp-use      { background: var(--blue-dim); color: var(--blue); }
   &.rp-ignore   { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
-}
-
-.tri-btn {
-  &:hover { border-color: var(--blue); color: var(--blue); }
-  &.on { background: var(--blue-dim2); border-color: var(--blue); color: var(--blue); }
 }
 
 .q-bar {
