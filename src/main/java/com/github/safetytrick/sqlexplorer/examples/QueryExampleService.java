@@ -20,15 +20,6 @@ import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.JSQLParserException;
 import org.springframework.stereotype.Service;
 
-/**
- * Turns a submitted statement into a stored {@link QueryExample}.
- *
- * <p>The whole point of this class is that the caller supplies a statement and
- * <em>nothing else that matters</em>. The digest, the environment and — when
- * not stated — the session schema are all derived here, because each of them is
- * a claim the server can check and the caller cannot be trusted to get right.
- * A digest taken from a request would attach any statement to any group.
- */
 @Service
 class QueryExampleService {
 
@@ -59,36 +50,15 @@ class QueryExampleService {
         this.userService = userService;
     }
 
-    /**
-     * Why a submission could not be stored. Each of these is a genuinely
-     * different situation for the caller and they are deliberately not collapsed
-     * into one "bad request" — the fix differs.
-     */
     enum Failure {
-        /** jsqlparser could not read the statement, so no digest exists to derive. */
         UNPARSEABLE,
-        /** The statement parsed, but an analyzer threw and the schema is unknowable. */
         ANALYSIS_FAILED,
-        /** The statement's tables live in more than one schema. Candidates are listed. */
         AMBIGUOUS_SCHEMA,
-        /** No schema in the active environment contains the statement's tables. */
         NO_MATCHING_SCHEMA,
-        /** The active environment has no schema loaded, so nothing can be inferred. */
         SCHEMA_UNAVAILABLE,
-        /**
-         * The digest derived from this statement matches no profile the active
-         * environment has loaded. Stored anyway — see the note on the field —
-         * but reported, because the common cause is a parameterization this
-         * pipeline got wrong, and a silent orphan looks identical to success.
-         */
         NO_MATCHING_PROFILE
     }
 
-    /**
-     * The outcome of a submission: either a stored example, or a failure with
-     * enough detail to act on. {@code candidateSchemas} is populated for
-     * {@link Failure#AMBIGUOUS_SCHEMA} so the caller can pick one and resubmit.
-     */
     record Result(QueryExample stored, Failure failure, String detail, List<String> candidateSchemas,
                   boolean matchedAProfile) {
 
@@ -107,8 +77,6 @@ class QueryExampleService {
 
     Result create(String queryText, String sessionSchema, String description) {
         SqlProfile.Builder builder = SqlProfile.newBuilder();
-        // supplied wins: UnknownSchemaAnalyzer only infers when schemaName is null,
-        // so setting it here skips inference rather than competing with it
         boolean supplied = sessionSchema != null && !sessionSchema.isBlank();
         if (supplied) {
             builder.setSchemaName(sessionSchema);
@@ -119,8 +87,6 @@ class QueryExampleService {
         } catch (JSQLParserException e) {
             return Result.failed(Failure.UNPARSEABLE, rootMessage(e), List.of());
         } catch (RuntimeException e) {
-            // schemaRepository access is lazy; a server that cannot be reached
-            // surfaces here rather than as a missing schema
             return Result.failed(Failure.SCHEMA_UNAVAILABLE, rootMessage(e), List.of());
         }
 
@@ -128,13 +94,6 @@ class QueryExampleService {
         if (supplied) {
             resolved = sessionSchema;
         } else {
-            // Inference cannot be trusted to report ambiguity: when a table name
-            // exists in several schemas, findSchemaForTablesAndColumns returns
-            // whichever schema first satisfies the columns rather than null. That
-            // is fine for the corpus, where the session schema usually arrives
-            // from Performance Schema and inference is a fallback — it is not
-            // fine here, where an arbitrary pick silently attaches the example to
-            // possibly the wrong group. So ambiguity is detected independently.
             List<String> candidates = candidateSchemas(builder.getTables());
             if (candidates.size() > 1) {
                 return Result.failed(Failure.AMBIGUOUS_SCHEMA,
@@ -174,21 +133,10 @@ class QueryExampleService {
         return Result.ok(repository.save(example), carriedByALoadedProfile(digest));
     }
 
-    /**
-     * Whether any loaded profile carries this digest.
-     *
-     * <p>Not a precondition for storing — the corpus is a live window over
-     * `sys.x$statement_analysis` and a statement leaves it as soon as it stops
-     * being among the top consumers, so an example for one that has aged out is
-     * still worth keeping. It is reported instead, because the other reason a
-     * digest matches nothing is that the parameterization was wrong, and that
-     * failure is otherwise completely silent.
-     */
     private boolean carriedByALoadedProfile(String digest) {
         try {
             return sqlRepositoryService.getByDigest(digest) != null;
         } catch (RuntimeException e) {
-            // no corpus loaded is not evidence about the digest either way
             return false;
         }
     }
@@ -201,24 +149,7 @@ class QueryExampleService {
         return repository.countByNormalizedDigest(digest);
     }
 
-    /**
-     * Inference produced nothing. {@code findSchemaForTablesAndColumns} returns
-     * null for "ambiguous" and for "no such tables" alike — it even carries a
-     * {@code // todo, why doesn't this throw an exception?} — so the two are
-     * separated here by enumerating candidates directly.
-     *
-     * <p>An analyzer failure is checked first because {@code analyzeSql} catches
-     * every analyzer exception and records a reason rather than propagating it.
-     * Without this check a statement whose analysis blew up would be reported as
-     * an ambiguous schema, which is a confusing lie: the schema was never the
-     * problem.
-     */
     private Result inferenceFailure(SqlProfile.Builder builder) {
-        // Table names first, analyzer failure second. analyzeSql catches every
-        // analyzer exception and records a reason rather than propagating, and a
-        // statement naming an unknown table reliably trips one (see sqlx-as7).
-        // Reporting that as ANALYSIS_FAILED would bury the useful answer: we know
-        // the tables, and no schema has them.
         List<TableReference> tables = builder.getTables();
         if (tables != null && !tables.isEmpty()) {
             return Result.failed(Failure.NO_MATCHING_SCHEMA,
@@ -232,21 +163,12 @@ class QueryExampleService {
             "no tables could be resolved from this statement", List.of());
     }
 
-    /**
-     * Every schema that contains a table this statement names. Insertion-ordered
-     * and de-duplicated so the list a caller is shown is stable between two
-     * identical requests — a set that reordered itself would make the 4xx look
-     * non-deterministic.
-     */
     private List<String> candidateSchemas(List<TableReference> tables) {
         if (tables == null) {
             return List.of();
         }
         Set<String> schemas = new LinkedHashSet<>();
         for (TableReference table : tables) {
-            // A qualified reference names its own schema; looking it up by name
-            // would find same-named tables elsewhere and invent an ambiguity that
-            // the statement does not actually have.
             if (table.getSchemaName() != null && !table.getSchemaName().isBlank()) {
                 schemas.add(table.getSchemaName());
                 continue;

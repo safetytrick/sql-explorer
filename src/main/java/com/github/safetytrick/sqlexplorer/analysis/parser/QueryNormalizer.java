@@ -28,62 +28,13 @@ import net.sf.jsqlparser.statement.select.Values;
 import net.sf.jsqlparser.statement.update.Update;
 import org.springframework.stereotype.Component;
 
-/**
- * Normalizes a parsed statement so structurally-equivalent query patterns
- * serialize identically (the serialized form feeds
- * {@link NormalizedQueryDigest} and, formatted, becomes the stored display
- * text):
- *
- * <ul>
- *   <li>select-item aliases are stripped (Hibernate's {@code AS id92_0_}
- *       suffixes vary per entity revision);</li>
- *   <li>repeated blocks collapse — duplicate predicates in AND/OR chains,
- *       duplicate CASE WHEN arms, duplicate IN-list elements, and duplicate
- *       batched-INSERT VALUES rows all reduce to one occurrence, so a
- *       10-condition variant of a query hashes like its 12-condition
- *       sibling.</li>
- * </ul>
- *
- * Collapsing is by exact serialized form of the (recursively normalized)
- * sibling, so distinct literals stay distinct. Function argument lists are
- * never collapsed — arity is semantic there. Each collapse is reported as a
- * {@link Repeat} (kept snippet + occurrence count in the sample), in
- * serialization order, so callers can locate the surviving instance in the
- * output (see {@link RepeatLocator}). The pass mutates the statement, which
- * is why {@code NormalizedQueryDigest} reparses rather than sharing the
- * analysis AST.
- */
 @Component
 public class QueryNormalizer {
 
-    /**
-     * The normalization scheme's version. <b>Bump this on any change that
-     * alters the serialized output</b>, because the serialized output is what
-     * {@link NormalizedQueryDigest} hashes — so any such change re-keys part of
-     * the corpus, and a digest produced before it is not comparable with one
-     * produced after.
-     *
-     * <table>
-     *   <caption>What each version does</caption>
-     *   <tr><th>v1</th><td>select-item alias stripping</td></tr>
-     *   <tr><th>v2</th><td>+ repeat collapsing (duplicate predicates, CASE arms,
-     *       IN-list elements, batched VALUES rows) and repeat metadata</td></tr>
-     *   <tr><th>v3</th><td>+ identifier rendering canonicalized into the hash —
-     *       backticks dropped and case folded, so MySQL's {@code `id`} and a
-     *       hand-written {@code id} are one query rather than two
-     *       ({@code sqlx-65t})</td></tr>
-     * </table>
-     *
-     * <p>Digests carry this as a {@code v<N>:} prefix, which makes them
-     * self-describing and makes an accidental cross-scheme comparison
-     * impossible — the strings simply differ.
-     */
     public static final int VERSION = 3;
 
-    /** A collapsed block: the kept snippet's serialized form and how often it occurred. */
     public record Repeat(String snippet, int count) { }
 
-    /** The normalized serialization plus every collapse that happened, in order. */
     public record NormalizedSql(String sql, List<Repeat> repeats) { }
 
     public String normalize(Statement sql) {
@@ -151,8 +102,6 @@ public class QueryNormalizer {
             this.repeats = repeats;
         }
 
-        // children are visited in serialization order (select items, from,
-        // joins, where, having) so collected repeats line up with the text
         @Override
         public <S> Void visit(PlainSelect plainSelect, S context) {
             if (plainSelect.getSelectItems() != null) {
@@ -317,10 +266,8 @@ public class QueryNormalizer {
     }
 
     /**
-     * Batched inserts: {@code VALUES (?, ?), (?, ?)} rows that serialize
-     * identically collapse to one row. Rows are the elements when every
-     * element is itself an expression list; a single-row VALUES has scalar
-     * elements and is left alone.
+     * Rows are the elements when every element is itself an expression list;
+     * a single-row VALUES has scalar elements.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static void collapseValuesRows(Values values, List<Repeat> repeats) {

@@ -48,7 +48,6 @@ public class SqlRepositoryService {
         this.ignoredSchemas = ignoredSchemas;
     }
 
-    /** The SQL repository for the environment selected on the current request. */
     private SqlRepository repository() {
         return sqlRepositoryManager.getSqlRepository(environmentContext.current().getName());
     }
@@ -57,7 +56,6 @@ public class SqlRepositoryService {
         return repository().getByDigest(id);
     }
 
-    // todo refactor threshold into a predicate to filter AnalyzedSql
     public Table getTable(int threshold, TableReference table) {
         return buildTableWithQueries(threshold, table, repository().getTableQueries(table)
             .toList());
@@ -84,7 +82,6 @@ public class SqlRepositoryService {
         List<TableReference> foreignKeyTables = getForeignKeysTables(tableStructure);
         List<TableReference> joinTables = new ArrayList<>(deriveJoinTables(threshold, table, sqlList));
         List<TableReference> relatedTables = new ArrayList<>(relatedTablesFromQueries(threshold, table, sqlList));
-        // todo, describe these multiple relationships instead of discarding them
         relatedTables.removeAll(joinTables);
         relatedTables.removeAll(foreignKeyTables);
         joinTables.removeAll(foreignKeyTables);
@@ -115,9 +112,6 @@ public class SqlRepositoryService {
             .toList();
     }
 
-    /**
-     * Does *NOT* return self-joins
-     */
     private List<TableReference> deriveJoinTables(int threshold, TableReference table, List<SqlProfile> sqlList) {
         return getAllJoinColumnsFromQueries(threshold, sqlList)
             .filter(join -> isExternalReference(table, join))
@@ -158,29 +152,12 @@ public class SqlRepositoryService {
         } else if (join.getRight().getTable().equals(table)) {
             columnReference = join.getLeft();
         } else {
-            // this is a join that doesn't involve the table we are interested in
             return false;
         }
 
-        // todo, check that the pk for the table is named id !!!!!!! eff
         return !columnReference.getNormalizedColumn().equals("id");
     }
 
-    /**
-     * A profile's total query time, or zero when it has no runtime metrics.
-     *
-     * <p>{@code runtimeMetrics} is a nullable Avro union. In practice nothing
-     * currently produces a null — {@code complete()} and {@code MergedSqlProfile}
-     * both populate it, and a sweep of 1,000 live profiles found none — so this
-     * guards a state the pipeline does not reach today rather than a live crash.
-     * It is worth having because nothing *enforces* that: a source that ever
-     * yields a metrics-less row would otherwise NPE four rollup endpoints,
-     * which is a poor way to discover the invariant.
-     *
-     * <p>Zero rather than skipping the row: these are sums over a table's
-     * queries, and a query whose time is unknown contributes nothing to the
-     * total but is still one of the queries counted alongside it.
-     */
     private static double totalQueryTimeOf(SqlProfile profile) {
         RuntimeMetrics metrics = profile.getRuntimeMetrics();
         return metrics == null || metrics.getTotalTime() == null ? 0d : metrics.getTotalTime().doubleValue();
@@ -190,7 +167,6 @@ public class SqlRepositoryService {
         return repository().getAllAnalyzedSql();
     }
 
-    /** The corpus of only the sources in scope, merged from them alone (sqlx-a9h.1). */
     public Stream<SqlProfile> getAllAnalyzedSql(SourceScope scope) {
         return sqlRepositoryManager.getSqlRepository(environmentContext.current().getName(), scope)
             .getAllAnalyzedSql();
@@ -239,10 +215,6 @@ public class SqlRepositoryService {
         return builder.tags(schemaTags).build();
     }
 
-    /**
-     * Every table the queries reference, with its rollup. With
-     * {@code columns}, only tables having every one of them (sqlx-v86).
-     */
     public Stream<TableRollup> getAllTablesWithRollup(List<String> columns) {
 
         TagLoader tagLoader = tagsService.getBulkTagLoaderByType("table");
@@ -253,7 +225,6 @@ public class SqlRepositoryService {
             ).sorted(TableRollup.comparator(ignoredSchemas));
     }
 
-    /** As {@link #getAllTablesWithRollup}, for one schema. */
     public Stream<TableRollup> getTablesForSchemaWithRollup(String schema, List<String> columns) {
         TagLoader tagLoader = tagsService.getTableTagLoaderForSchema(schema);
 
@@ -264,12 +235,6 @@ public class SqlRepositoryService {
             ).sorted(TableRollup.comparator(ignoredSchemas));
     }
 
-    /**
-     * Whether the table has every named column, compared as MySQL compares
-     * column names. No columns asked for is no constraint; a table the schema
-     * does not know has none. Checked before the rollup, which reads every
-     * query on the table and is the expensive part of a listing.
-     */
     private boolean hasColumns(TableReference reference, List<String> columns) {
         if (columns == null || columns.isEmpty()) {
             return true;

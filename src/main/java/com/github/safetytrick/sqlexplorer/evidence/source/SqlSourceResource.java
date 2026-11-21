@@ -94,7 +94,6 @@ class SqlSourceResource {
             .sorted(Comparator.comparing(source -> source.getImportStats().count()));
     }
 
-    /** All persisted sources, each labeled with the environment it is attributed to. */
     @GetMapping("/sources")
     public Stream<PersistedSource> listPersistentImportedSqlSources() {
         Map<String, String> attribution = attributionByRef();
@@ -111,10 +110,6 @@ class SqlSourceResource {
                 .filter(str -> !Strings.isNullOrEmpty(str))
                 .findFirst().orElse(body.sourceRef());
 
-        // Required rather than optional. An export whose capture time is
-        // unknown can never have one attached later — nobody but the uploader
-        // knows it — and a corpus that cannot say when it was taken cannot be
-        // reasoned about at all (sqlx-sy5).
         Instant capturedAt = parseCapturedAt(body.capturedAt());
 
         SqlSourceEntity entity = sqlSourceEntityService.saveUploadedSqlSource(body.sourceRef(),
@@ -129,19 +124,7 @@ class SqlSourceResource {
         return ResponseEntity.created(uriComponents.toUri()).build();
     }
 
-    /**
-     * The capture instant, or a 400 saying what is missing and why.
-     *
-     * <p>Deliberately not defaulted to "now". Upload time is already recorded
-     * as {@code createdOn}, and the two are routinely months apart — silently
-     * conflating them would put a confident wrong timestamp on the one field
-     * the confidence signals hang off.
-     */
     private static Instant parseCapturedAt(String capturedAt) {
-        // 400, not the 500 an IllegalArgumentException produces here. The
-        // uploader supplied a bad request and the message tells them how to fix
-        // it; reporting that as a server fault sends them looking at logs they
-        // have no access to and cannot act on.
         if (Strings.isNullOrEmpty(capturedAt)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "capturedAt is required: when the export was taken off the source server, ISO-8601. "
@@ -161,7 +144,6 @@ class SqlSourceResource {
         return environmentLoader.load(environmentName, resolveSources(environmentName, sourceParam));
     }
 
-    /** Load configured + persisted sources into a specific environment (independent of the request's selection). */
     @PostMapping("/environments/{name}/load")
     public SqlImportStats loadEnvironment(@PathVariable String name,
                                           @RequestBody(required = false) List<SourceRefRequest> sourceParam) {
@@ -171,13 +153,6 @@ class SqlSourceResource {
         return environmentLoader.load(name, resolveSources(name, sourceParam));
     }
 
-    /**
-     * Resolve the latest persisted source for each requested ref. When no refs are
-     * given, all refs attributed to the environment are used; explicitly requested
-     * refs are honored regardless of attribution. The environment's configured
-     * sources (x-statement-analysis, performance-schema files) are added by
-     * {@link EnvironmentLoader#load}.
-     */
     private Stream<SqlSource> resolveSources(String environmentName, List<SourceRefRequest> sourceParam) {
         List<? extends SourceRefProjection> sources;
         if (sourceParam == null || sourceParam.isEmpty()) {
@@ -190,7 +165,6 @@ class SqlSourceResource {
         ).flatMap(Optional::stream);
     }
 
-    /** Persisted source refs attributed to the environment. */
     private List<SourceRefProjection> sourceRefsForEnvironment(String environmentName) {
         Map<String, String> attribution = attributionByRef();
         return sqlSourceEntityRepository.findDistinctBy().stream()
@@ -198,11 +172,6 @@ class SqlSourceResource {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Environment attribution for every persisted source ref. Unattributed
-     * (legacy) refs belong to the default environment; encountering one
-     * persists that attribution.
-     */
     private Map<String, String> attributionByRef() {
         String defaultEnvironment = environmentRegistry.getDefaultName();
         Map<String, String> attribution = new HashMap<>();
@@ -220,7 +189,7 @@ class SqlSourceResource {
     record PersistedSource(SqlSourceEntity source, String environmentName) { }
 
 
-    @SuppressWarnings("ClassCanBeRecord") // todo, test if this works with SourceRefProjection and SqlSourceEntityRepository
+    @SuppressWarnings("ClassCanBeRecord")
     public static class SourceRefRequest implements SourceRefProjection {
         private final String sourceRef;
 
@@ -234,25 +203,6 @@ class SqlSourceResource {
         }
     }
 
-    /**
-     * An uploaded source, and the capture context it must arrive with.
-     *
-     * <p>A TSV export of {@code sys.x$statement_analysis} carries nothing about
-     * the server it came from or when it was taken, and those facts cannot be
-     * recovered afterwards — reading them off a live connection later would
-     * attribute one server's settings to another's data. So they are supplied
-     * here, by whoever ran the export and is the only party that knows
-     * (sqlx-sy5).
-     *
-     * @param capturedAt              when the export was taken, ISO-8601. Required.
-     * @param serverVersion           the source server's version. Optional.
-     * @param serverDigestsSize       its `performance_schema_digests_size` at
-     *                                capture. Optional, and the signal for
-     *                                whether digests were being evicted.
-     * @param serverMaxDigestLength   its `performance_schema_max_digest_length`
-     *                                at capture. Optional, and what says
-     *                                whether truncation was expected.
-     */
     record SqlSourceUpload(String sourceRef, String sourceUrl, MultipartFile file,
                            String capturedAt,
                            String serverVersion,

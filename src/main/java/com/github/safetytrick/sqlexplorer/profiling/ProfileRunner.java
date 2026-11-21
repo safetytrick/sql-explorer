@@ -26,21 +26,9 @@ import com.github.safetytrick.sqlexplorer.profiling.ProfileSql.Window;
 import com.github.safetytrick.sqlexplorer.profiling.ProfileSql.WindowKind;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Runs a {@link ProfilePlan} on one sampling server (sqlx-n5j.3): a read-only
- * session with a statement time limit ({@link SamplingTarget#openSession()}),
- * one statement at a time, a pause between them, and nothing but SELECTs over
- * key-bounded windows.
- *
- * <p>Windows are placed so they never overlap: each starts after the last key
- * the previous one read. That keeps every count additive, and when the
- * windows meet end to end — a small table — the run has read every row and
- * says so ({@link ServerResult#complete()}).
- */
 @Slf4j
 final class ProfileRunner {
 
-    /** Statements kept as text on the record; a full scan issues thousands of the same shape. */
     static final int STATEMENTS_KEPT = 40;
 
     private final ProfilePlan plan;
@@ -89,7 +77,6 @@ final class ProfileRunner {
             status = "cancelled";
         }
         if (plan.method() == Method.WINDOWS) {
-            // read head, tail, then between: listed in key order
             windows.sort(java.util.Comparator.comparing(w -> w.from() == null ? Long.MAX_VALUE
                 : Long.parseLong(w.from())));
         }
@@ -100,14 +87,6 @@ final class ProfileRunner {
             tallies.stream().map(t -> t.result(server, whole)).toList());
     }
 
-    // ── methods ──
-
-    /**
-     * The first rows, then the last rows after them, then ten windows spaced
-     * evenly between the two, each starting after the last key read and
-     * stopping short of the tail. Nothing is read twice; when the windows meet
-     * end to end, every row has been read.
-     */
     private boolean windows(Connection connection) throws SQLException, InterruptedException {
         Statement bounds = sql.bounds();
         Object min;
@@ -151,13 +130,11 @@ final class ProfileRunner {
             if (window.rows > 0) {
                 last = window.maxKey;
             }
-            // fewer rows than asked for: nothing more before the tail
             met = window.rows < ProfilePlan.MIDDLE_ROWS;
         }
         return contiguous && met && !cancelled.getAsBoolean();
     }
 
-    /** Head and tail only. They can overlap on a table smaller than both together, which the coverage says. */
     private boolean ends(Connection connection) throws SQLException, InterruptedException {
         WindowRead head = read(connection, new Window(WindowKind.HEAD, null, ProfilePlan.HEAD_ROWS, "first rows"));
         if (head == null || head.rows < ProfilePlan.HEAD_ROWS) {
@@ -169,7 +146,6 @@ final class ProfileRunner {
         return false;
     }
 
-    /** Every row in key order, a chunk at a time, each chunk after the last key read. */
     private boolean fullScan(Connection connection) throws SQLException, InterruptedException {
         Object after = null;
         int chunk = 1;
@@ -187,11 +163,8 @@ final class ProfileRunner {
         return false;
     }
 
-    // ── one window ──
-
     private record WindowRead(long rows, long minKey, long maxKey, Object maxKeyObject) { }
 
-    /** One window's counts, then the characters behind any listed signature it matched. Null when it failed. */
     private WindowRead read(Connection connection, Window window) throws InterruptedException {
         Statement aggregate = sql.aggregate(window);
         long started = System.nanoTime();
@@ -235,12 +208,10 @@ final class ProfileRunner {
                     result.getString("matched"), result.getLong("n_rows"));
             }
         } catch (SQLException e) {
-            // the counts stand without the characters behind them
             log.warn("Listing characters of {} failed: {}", plan.columns().get(column).name(), e.getMessage());
         }
     }
 
-    /** Every statement goes through here: kept for the record, counted, paced. */
     private PreparedStatement prepare(Connection connection, Statement statement)
         throws SQLException, InterruptedException {
         if (statementCount > 0) {
@@ -283,7 +254,6 @@ final class ProfileRunner {
         return value == null ? null : value.toString();
     }
 
-    /** One column's running totals across windows. */
     private static final class Tally {
         private final ProfiledColumn column;
         private long rows;
@@ -304,7 +274,6 @@ final class ProfileRunner {
             });
         }
 
-        /** Adds one window's figures; answers the window's rows per signature. */
         EnumMap<Signature, Long> add(ResultSet result, String prefix) throws SQLException {
             long windowRows = result.getLong("n_rows");
             rows += windowRows;
@@ -355,7 +324,6 @@ final class ProfileRunner {
         }
     }
 
-    /** Keys as read are in window order (head, tail, then between); listed in key order. */
     static List<String> inKeyOrder(List<String> keys) {
         boolean numeric = keys.stream().allMatch(k -> k.matches("-?\\d{1,18}"));
         return numeric ? keys.stream().sorted(java.util.Comparator.comparingLong(Long::parseLong)).toList()

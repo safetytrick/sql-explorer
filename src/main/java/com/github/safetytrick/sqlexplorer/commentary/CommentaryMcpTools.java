@@ -8,17 +8,6 @@ import com.github.safetytrick.sqlexplorer.mcp.McpTool;
 import com.github.safetytrick.sqlexplorer.mcp.McpToolProvider;
 import org.springframework.stereotype.Component;
 
-/**
- * Tags as MCP tools: reading them, and the only writes the endpoint has.
- *
- * <p>Tagging is how a person curates what the queries mean, so a model that
- * can read every query but not label what it found would leave them retyping
- * its conclusions. The writes are small and reversible: a tag is an
- * annotation, re-adding one is a no-op, and removing one deletes that one
- * tagging rather than the tag everywhere. Notes and source loading are not
- * exposed. Targets go to the API typed ({@link TagTarget}), so a name with a
- * {@code /} in it is addressed correctly.
- */
 @Component
 class CommentaryMcpTools implements McpToolProvider {
 
@@ -78,7 +67,6 @@ class CommentaryMcpTools implements McpToolProvider {
             .optionalString("table", "tag this table inside `schema`");
     }
 
-    /** A query by digest, or a schema, or a table in one: exactly one of those. */
     static TagTarget targetOf(McpArgs args) {
         String digest = args.optionalString("queryDigest");
         String schema = args.optionalString("schema");

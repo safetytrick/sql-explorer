@@ -14,18 +14,9 @@ import java.util.regex.Pattern;
 import com.github.safetytrick.sqlexplorer.auth.UserService;
 import org.springframework.stereotype.Service;
 
-/**
- * Reads and writes annotations (sqlx-n5j.13), in the selected environment.
- *
- * <p>The whole surface outside this package: rules, samplers and the REST
- * resource all write through {@link #record}, and readers ask for the
- * <em>current</em> answers — the latest row per (target, namespace, key) —
- * unless they ask for {@link #history} explicitly.
- */
 @Service
 public class AnnotationService {
 
-    /** Lower-case words joined by '-', '_' or '.': a vocabulary, not prose. */
     private static final Pattern NAME = Pattern.compile("[a-z0-9][a-z0-9._-]*");
     private static final int MAX_NAMESPACE = 64;
     private static final int MAX_KEY = 128;
@@ -46,7 +37,6 @@ public class AnnotationService {
         this.clock = clock;
     }
 
-    /** Who stated a fact: a rule or a sampler by name, or the current person. */
     public record Source(String kind, String name) {
         public static Source rule(String name) {
             return new Source(Annotation.SOURCE_RULE, name);
@@ -61,17 +51,10 @@ public class AnnotationService {
         }
     }
 
-    /** What to record. The target is validated; the source is given by the caller, not the client. */
     public record Statement(TagTarget target, String namespace, String key, String value,
                             String confidence, String basis) {
     }
 
-    /**
-     * Append one fact. Never updates: the previous answer, if any, stays as
-     * history and this one becomes current.
-     *
-     * @throws IllegalArgumentException naming what was wrong with the statement
-     */
     public Annotation record(Statement statement, Source source) {
         TagTarget target = statement.target() == null ? null : statement.target().validated();
         if (target == null) {
@@ -109,12 +92,6 @@ public class AnnotationService {
         return repository.save(annotation);
     }
 
-    /**
-     * A person confirms an existing answer: the same value, now confirmed and
-     * theirs, appended as the newest row.
-     *
-     * @throws IllegalArgumentException when this environment has no such row
-     */
     public Annotation confirm(int id) {
         Annotation confirmed = repository.findByIdAndEnvironmentName(id, environment.name())
             .orElseThrow(() -> new IllegalArgumentException(
@@ -124,11 +101,6 @@ public class AnnotationService {
             Source.person());
     }
 
-    /**
-     * The current answers on each target, answered POSITIONALLY like
-     * {@link TagTargetLookup}: one list per target, in the order asked, empty
-     * where nothing is recorded.
-     */
     public List<List<Annotation>> currentFor(List<TagTarget> targets) {
         if (targets == null || targets.isEmpty()) {
             return List.of();
@@ -158,12 +130,10 @@ public class AnnotationService {
         return List.copyOf(answer);
     }
 
-    /** The current answers on one target. */
     public List<Annotation> current(TagTarget target) {
         return currentFor(List.of(target)).getFirst();
     }
 
-    /** The current answer for every target in one namespace, in this environment. */
     public List<Annotation> currentInNamespace(String namespace) {
         requireName("namespace", namespace, MAX_NAMESPACE);
         Map<TagTarget, List<Annotation>> byTarget = new LinkedHashMap<>();
@@ -173,7 +143,6 @@ public class AnnotationService {
         return byTarget.values().stream().flatMap(rows -> current(rows).stream()).toList();
     }
 
-    /** Every row ever recorded for one (target, namespace, key), newest first. */
     public List<Annotation> history(TagTarget target, String namespace, String key) {
         TagTarget wanted = target.validated();
         return rowsOn(wanted).stream()
@@ -182,7 +151,6 @@ public class AnnotationService {
             .toList();
     }
 
-    /** Every row on one target, history included. */
     private List<Annotation> rowsOn(TagTarget target) {
         String environmentName = environment.name();
         List<Annotation> rows = switch (target.type()) {
@@ -195,10 +163,6 @@ public class AnnotationService {
         return rows.stream().filter(row -> row.getTarget().equals(target)).toList();
     }
 
-    /**
-     * The latest row per (namespace, key) among rows about one target,
-     * ordered by namespace then key so a page lists them stably.
-     */
     static List<Annotation> current(Collection<Annotation> rows) {
         Map<String, Annotation> latest = new HashMap<>();
         for (Annotation row : rows) {

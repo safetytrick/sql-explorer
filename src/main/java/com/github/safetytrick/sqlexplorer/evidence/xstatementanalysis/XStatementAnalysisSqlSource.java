@@ -19,11 +19,6 @@ class XStatementAnalysisSqlSource implements SqlSource, AutoCloseable {
     private Instant createdOn;
     private final Object lock = new Object();
 
-    /**
-     * Read alongside the rows and then frozen. Reading it later would describe
-     * the server as it is now rather than as it was at capture, which is the
-     * whole distinction (sqlx-sy5).
-     */
     private volatile java.util.Map<String, String> serverContext = java.util.Map.of();
 
     private final SingleConnectionDataSource dataSource;
@@ -45,8 +40,6 @@ class XStatementAnalysisSqlSource implements SqlSource, AutoCloseable {
         synchronized (lock) {
             try {
                 XStatementAnalysisDao saDao = new XStatementAnalysisDao(dataSource.getConnection());
-                // On the same connection, in the same breath as the rows: the
-                // settings describe the capture, not the moment someone asks.
                 serverContext = saDao.getCaptureContext();
                 List<MeteredSql> statementAnalysis = saDao.getXStatementAnalysis();
                 List<SqlInput> result = new ArrayList<>(statementAnalysis.size());
@@ -70,7 +63,6 @@ class XStatementAnalysisSqlSource implements SqlSource, AutoCloseable {
         return serverContext;
     }
 
-    /** Read off a live server, so no hops: this is the origin table itself. */
     @Override
     public com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin getCaptureOrigin() {
         return com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext.Origin.PERFORMANCE_SCHEMA;

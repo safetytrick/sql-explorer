@@ -26,19 +26,10 @@ public record TableStructure(String schema,
                              List<ForeignKey> foreignKeys,
                              List<TableIndex> indices,
                              List<TableColumn> columns,
-                             /** Base tables a view selects from; null for base tables. */
                              List<TableReference> underlyingTables,
-                             /** Per-column lineage for views; null for base tables. */
                              List<ViewColumn> viewColumns,
-                             /**
-                              * Size and row estimate, one entry per server that reported the
-                              * table — one per cluster carrying it (sqlx-n5j.2). Null when
-                              * none was read: a structure built from DDL, or a snapshot
-                              * written before stats were kept.
-                              */
                              List<TableStats> stats) {
 
-    /** Without stats: a structure built from DDL or a test, which no server has reported on. */
     public TableStructure(String schema, String name, String type, String remarks, List<ForeignKey> foreignKeys,
                           List<TableIndex> indices, List<TableColumn> columns, List<TableReference> underlyingTables,
                           List<ViewColumn> viewColumns) {
@@ -49,34 +40,28 @@ public record TableStructure(String schema,
         return TableReference.newTableReference(schema, name);
     }
 
-    /** Copy with the view's base tables and column lineage attached (see {@link ViewDefinitionService}). */
     public TableStructure withViewDefinition(List<TableReference> underlyingTables, List<ViewColumn> viewColumns) {
         return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns,
             underlyingTables, viewColumns, stats);
     }
 
-    /** Copy with these stats in place of any it had. */
     public TableStructure withStats(List<TableStats> stats) {
         return new TableStructure(schema, name, type, remarks, foreignKeys, indices, columns,
             underlyingTables, viewColumns, stats == null ? null : List.copyOf(stats));
     }
 
-    /** {@link TableStats#totalRowsEstimate}: an estimate, summed over the servers reporting it. */
     public Long rowsEstimate() {
         return TableStats.totalRowsEstimate(stats);
     }
 
-    /** {@link TableStats#totalSize}: data plus index bytes, summed over the servers reporting it. */
     public Long sizeBytes() {
         return TableStats.totalSize(stats);
     }
 
-    /** {@link TableStats#totalDataLength}: the rows' bytes, summed over the servers reporting it. */
     public Long dataBytes() {
         return TableStats.totalDataLength(stats);
     }
 
-    /** {@link TableStats#totalIndexLength}: the secondary indexes' bytes, summed over the servers reporting it. */
     public Long indexBytes() {
         return TableStats.totalIndexLength(stats);
     }
@@ -175,7 +160,6 @@ public record TableStructure(String schema,
                         String columnName = index.getColumnsNames().get(i);
                         indexBuilder.addColumn((short) i, NameNormalizer.normalize(columnName));
                     }
-                    // mirror the JDBC path: the primary key is named PRIMARY and is unique
                     String indexType = index.getType() == null ? "" : index.getType().toUpperCase(Locale.ROOT);
                     boolean primary = indexType.contains("PRIMARY");
                     indexBuilder.name(primary ? "PRIMARY" : NameNormalizer.normalize(index.getName()));
@@ -199,9 +183,6 @@ public record TableStructure(String schema,
                     ColDataType dt = column.getColDataType();
 
                     // jsqlparser embeds the type arguments in the data type
-                    // string, e.g. "BIGINT (19)" or "DECIMAL (10, 2)"; split them
-                    // apart so the structure mirrors the JDBC path (base type name
-                    // with a separate size/scale).
                     String rawType = dt.getDataType();
                     int[] sizeAndScale = typeArguments(rawType);
                     ColumnSpecs specs = ColumnSpecs.of(column.getColumnSpecs());
@@ -232,8 +213,6 @@ public record TableStructure(String schema,
                 if (view.getSchemaName() == null) {
                     view.setSchemaName(defaultSchema);
                 }
-                // columns are not derivable without resolving the view's select;
-                // callers get the name/type/underlying tables and an empty structure.
                 builder.name(NameNormalizer.normalize(view.getName()))
                     .schema(NameNormalizer.normalize(view.getSchemaName()))
                     .type("VIEW")
@@ -250,7 +229,6 @@ public record TableStructure(String schema,
         return builder;
     }
 
-    /** The NOT NULL / AUTO_INCREMENT / DEFAULT / GENERATED parts of a column definition's trailing specs. */
     private record ColumnSpecs(boolean notNull, boolean autoIncrement, boolean generated, String columnDefault) {
 
         static ColumnSpecs of(List<String> specs) {
@@ -272,7 +250,6 @@ public record TableStructure(String schema,
                 columnDefault);
         }
 
-        /** Mirror JDBC: a NULL default is null, string defaults come back unquoted. */
         private static String unquote(String value) {
             if (value == null || "NULL".equalsIgnoreCase(value)) {
                 return null;
@@ -284,10 +261,6 @@ public record TableStructure(String schema,
         }
     }
 
-    /**
-     * The {@link JDBCType} the MySQL JDBC driver would report for a MySQL type
-     * name, so DDL-built structures mirror introspected ones.
-     */
     private static JDBCType jdbcType(String baseTypeName) {
         if (baseTypeName == null) {
             return JDBCType.OTHER;
@@ -315,7 +288,6 @@ public record TableStructure(String schema,
         };
     }
 
-    /** The base type name from a jsqlparser data type string, e.g. {@code "BIGINT (19)"} yields {@code "BIGINT"}. */
     private static String baseTypeName(String rawType) {
         if (rawType == null) {
             return null;
@@ -324,13 +296,6 @@ public record TableStructure(String schema,
         return (open < 0 ? rawType : rawType.substring(0, open)).trim();
     }
 
-    /**
-     * The numeric size and scale from a jsqlparser data type string:
-     * {@code "INT (10)"} yields {@code [10, 0]}, {@code "DECIMAL (10, 2)"}
-     * yields {@code [10, 2]}. Non-numeric arguments (such as {@code ENUM(...)}
-     * values) and missing arguments yield 0, matching the default an
-     * unspecified size would carry.
-     */
     private static int[] typeArguments(String rawType) {
         int[] sizeAndScale = {0, 0};
         if (rawType == null) {
@@ -346,7 +311,6 @@ public record TableStructure(String schema,
             try {
                 sizeAndScale[i] = Integer.parseInt(arguments[i].trim());
             } catch (NumberFormatException e) {
-                // non-numeric argument (e.g. ENUM values); leave as 0
             }
         }
         return sizeAndScale;

@@ -7,11 +7,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Undoes a character-set mistake on the few characters a {@link Signature}
- * matched, to say which character was meant: {@code Ã©} → é. Works in the
- * application, on the matched characters only — never on a stored value.
- *
- * <p>Windows-1252 is spelt out rather than taken from the JDK: MySQL's latin1
+ * Windows-1252 is spelt out rather than taken from the JDK: MySQL's latin1
  * keeps the five bytes Windows-1252 leaves undefined (81, 8D, 8F, 90, 9D) as
  * U+0081 … U+009D, and the JDK's {@code windows-1252} refuses to encode them.
  */
@@ -27,11 +23,6 @@ final class Mojibake {
 
     private Mojibake() { }
 
-    /**
-     * The text after undoing {@code passes} rounds of "UTF-8 read as
-     * Windows-1252"; null when a round does not produce valid UTF-8, which
-     * means the guess was wrong.
-     */
     static String undo(String text, int passes) {
         String current = text;
         for (int i = 0; i < passes && current != null; i++) {
@@ -41,10 +32,6 @@ final class Mojibake {
         return current;
     }
 
-    /**
-     * {@link #undo} on the longest prefix that decodes: a greedy match may run
-     * into the next character's sequence.
-     */
     static String undoLongest(String text, int passes) {
         for (int end = text.length(); end > 1; end--) {
             String decoded = undo(text.substring(0, end), passes);
@@ -55,7 +42,6 @@ final class Mojibake {
         return null;
     }
 
-    /** C1 code points read as the Windows-1252 bytes they were: U+0093 → “. Null for an undefined byte. */
     static String windows1252(String text) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < text.length(); i++) {
@@ -90,7 +76,6 @@ final class Mojibake {
             return c;
         }
         if (c <= 0x9F) {
-            // only the undefined five survive as C1 code points
             return HIGH[c - 0x80] < 0 ? c : -1;
         }
         for (int i = 0; i < HIGH.length; i++) {

@@ -13,11 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * Loads the {@code show create table} statement for a table on demand.
- * Stateless: caching lives in {@link LoadedSchema}, which calls this per
- * server with that server's DataSource.
- */
 @Service
 public class CreateStatementService {
 

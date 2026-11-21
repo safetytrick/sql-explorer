@@ -14,32 +14,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Keeps the last unused-index report of each environment on disk, so a
- * restart does not forget it (sqlx-1bo.2). Reading one connects to every
- * server in the environment, which is why the page shows the kept report
- * rather than reading on every visit, and a report lost to a restart would
- * cost exactly that read.
- *
- * <p>One JSON file per environment in an {@code unused-indexes/} directory
- * beside the capture archive, like the schema snapshots. JSON rather than the
- * snapshots' Parquet: this is one small nested document, read whole and
- * written whole, with nothing columnar about it.
- *
- * <p>A cache, so a missing, unreadable or other-format file is simply no
- * report: the page offers to read the connections, as it does for an
- * environment never read.
- */
 @Service
 public class UnusedIndexReportStore {
 
-    /** Bump when {@link UnusedIndexes.Report} changes shape; older files are then ignored. */
     public static final int FORMAT = 1;
 
     private static final Logger log = LoggerFactory.getLogger(UnusedIndexReportStore.class);
     private static final Pattern UNSAFE = Pattern.compile("[^A-Za-z0-9._-]");
 
-    /** What is written: the report and the format it was written in. */
     record Stored(int format, UnusedIndexes.Report report) {
     }
 
@@ -81,7 +63,6 @@ public class UnusedIndexReportStore {
         }
     }
 
-    /** Written to a sibling and moved into place, so a reader never sees half a report. */
     public void write(UnusedIndexes.Report report) {
         Path file = fileFor(report.environment());
         Path partial = file.resolveSibling(file.getFileName() + ".partial");
@@ -90,12 +71,10 @@ public class UnusedIndexReportStore {
             json.writeValue(partial.toFile(), new Stored(FORMAT, report));
             Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException | RuntimeException e) {
-            // A report that cannot be kept costs one more read after a restart, nothing more.
             log.warn("Unused-index report {} could not be written: {}", file, e.toString());
             try {
                 Files.deleteIfExists(partial);
             } catch (IOException ignored) {
-                // the next write overwrites it
             }
         }
     }

@@ -40,7 +40,6 @@ class SqlProfileResource {
         return sqlProfile;
     }
 
-    /** Where the statement runs: its figures on each source, the most time first (sqlx-rw2.9). */
     @GetMapping("/analyzed-sql/{id}/sources")
     public List<QuerySourcesService.QuerySource> getSources(@PathVariable String id) {
         List<QuerySourcesService.QuerySource> sources = querySourcesService.whereItRuns(id);
@@ -52,7 +51,6 @@ class SqlProfileResource {
     @GetMapping("/schemas")
     public Stream<SchemaRollup> getSchemas() { return sqlRepositoryService.getAllSchemasWithRollup(); }
 
-    /** Every table the queries reference; {@code columns} keeps tables having all of them. */
     @GetMapping("/tables")
     public Stream<TableRollup> getTableNames(@RequestParam(required = false) List<String> columns) {
         return sqlRepositoryService.getAllTablesWithRollup(columns);

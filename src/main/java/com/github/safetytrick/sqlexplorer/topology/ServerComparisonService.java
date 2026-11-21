@@ -35,33 +35,16 @@ import com.github.safetytrick.sqlexplorer.topology.ServerComparison.Flag;
 import com.github.safetytrick.sqlexplorer.topology.ServerComparison.Row;
 import com.github.safetytrick.sqlexplorer.topology.ServerComparison.Sort;
 
-/**
- * Lines the queries a search matched up against each server of a cluster
- * and flags how they differ (sqlx-a9h.2). Reads only what is loaded.
- *
- * <p>A query is matched across servers by the key the merged corpus groups
- * on (normalized digest, else digest, else id), so the row a search returns
- * and its figures on each server are the same query even where a version
- * difference changed the raw digest.
- */
 @Service
 public class ServerComparisonService {
 
-    /** Below this many executions on a server, its per-execution figures are too noisy to compare. */
     static final long MIN_EXECUTIONS = 10;
-    /** Rows examined per execution differing by this factor reads as a different plan. */
     static final double PLAN_FACTOR = 10;
-    /** ...provided the larger is at least this many rows: 1 against 12 is not a plan problem. */
     static final double PLAN_MIN_ROWS = 100;
-    /** Rows examined within this factor count as the same work. */
     static final double SAME_ROWS_FACTOR = 2;
-    /** Time per execution differing by this factor, with the same rows examined. */
     static final double LATENCY_FACTOR = 3;
-    /** ...provided the slower is at least this many milliseconds. */
     static final double LATENCY_MIN_MS = 1;
-    /** The busiest replica running this many times the quietest's executions per day. */
     static final double SKEW_FACTOR = 3;
-    /** Replica executions below this, summed, are too few to call a spread uneven. */
     static final long SKEW_MIN_EXECUTIONS = 20;
 
     static final int DEFAULT_LIMIT = 200;
@@ -83,12 +66,8 @@ public class ServerComparisonService {
         this.environments = environments;
     }
 
-    /** The options a request may carry; nulls take the defaults. */
     public record Options(String cluster, By by, Set<Flag> flags, boolean all, Sort sort, Integer limit) { }
 
-    /**
-     * @param matched the profiles the search matched, from the merged corpus
-     */
     public ServerComparison.Report compare(String environmentName, List<SqlProfile> matched, Options options) {
         Environment environment = environments.get(environmentName);
         List<Cluster> clusters = environment == null ? List.of() : environment.getClusters();
@@ -171,13 +150,6 @@ public class ServerComparisonService {
             shown.subList(0, Math.min(limit, shown.size())), BASIS);
     }
 
-    // ── flags ──
-
-    /**
-     * Each flag the row carries, with its cost: the seconds per day it is
-     * about. Insertion order is the enum's, so the badges read the same way
-     * on every row.
-     */
     static Map<Flag, Double> flags(QueryKind kind, List<DatabaseServer> servers, List<ServerCorpus> columns,
                                    List<Cell> cells) {
         Map<Flag, Double> flags = new EnumMap<>(Flag.class);
@@ -195,7 +167,6 @@ public class ServerComparisonService {
             }
         }
 
-        // a read on the primary, where a replica could take it
         if (kind.isRead() && !replicas.isEmpty()) {
             double onPrimary = 0;
             for (int i = 0; i < servers.size(); i++) {
@@ -208,8 +179,6 @@ public class ServerComparisonService {
             }
         }
 
-        // uneven over the replicas: a replica it never ran on counts as zero. Reads only: where a
-        // read runs is routing, where a write shows up is replication, which REPLICA_WRITES covers
         if (kind.isRead() && replicas.size() >= 2) {
             long executions = 0;
             double max = 0;
@@ -224,7 +193,6 @@ public class ServerComparisonService {
                 min = Math.min(min, rate);
             }
             if (executions >= SKEW_MIN_EXECUTIONS && max > 0 && max >= SKEW_FACTOR * min) {
-                // the time above an even split
                 double even = seconds / replicas.size();
                 double excess = 0;
                 for (int i : replicas) {
@@ -235,7 +203,6 @@ public class ServerComparisonService {
             }
         }
 
-        // only one of several non-primary servers: a job pinned to one place
         if (kind.isRead() && secondaries.size() >= 2) {
             List<Integer> ranOn = secondaries.stream().filter(i -> cells.get(i) != null).toList();
             boolean onPrimary = false;
@@ -247,14 +214,12 @@ public class ServerComparisonService {
             }
         }
 
-        // per-execution figures, from the servers that ran it often enough to say
         List<Cell> steady = cells.stream()
             .filter(cell -> cell != null && cell.executions() >= MIN_EXECUTIONS).toList();
         if (steady.size() >= 2) {
             double minRows = steady.stream().mapToDouble(Cell::rowsExaminedPerExecution).min().orElse(0);
             double maxRows = steady.stream().mapToDouble(Cell::rowsExaminedPerExecution).max().orElse(0);
             if (maxRows >= PLAN_MIN_ROWS && maxRows >= PLAN_FACTOR * Math.max(minRows, 1)) {
-                // the time spent beyond what the leanest server's plan would take
                 flags.put(Flag.PLAN_DIFFERS, steady.stream()
                     .mapToDouble(cell -> cell.secondsPerDay() * (1 - Math.max(minRows, 1)
                         / Math.max(cell.rowsExaminedPerExecution(), 1)))
@@ -271,7 +236,6 @@ public class ServerComparisonService {
             }
         }
 
-        // a replica changing rows
         double replicaWrites = 0;
         boolean wrote = false;
         for (int i = 0; i < servers.size(); i++) {
@@ -292,9 +256,6 @@ public class ServerComparisonService {
         return flags;
     }
 
-    // ── rows ──
-
-    /** A table's row: its queries' cells added, their flags pooled, their differences summed. */
     private static Row tableRow(String table, List<Row> queries, List<ServerCorpus> columns) {
         List<Cell> cells = new ArrayList<>();
         for (int i = 0; i < columns.size(); i++) {
@@ -360,7 +321,6 @@ public class ServerComparisonService {
         return flat.length() <= TEXT_LENGTH ? flat : flat.substring(0, TEXT_LENGTH) + "…";
     }
 
-    /** The {@code schema.table} keys a profile touches, as the search's table scope spells them. */
     private static Set<String> tables(SqlProfile profile) {
         Set<String> keys = new LinkedHashSet<>();
         if (profile.getTables() == null) {
@@ -375,15 +335,11 @@ public class ServerComparisonService {
         return keys;
     }
 
-    // ── servers ──
-
-    /** The key {@code CompositeSqlRepository} merges on, so rows line up with the merged corpus. */
     static String key(SqlProfile profile) {
         return profile.getNormalizedDigest() != null ? profile.getNormalizedDigest()
             : profile.getDigest() != null ? profile.getDigest() : profile.getId();
     }
 
-    /** One server's corpus, keyed for lookup, with the window its counters cover. */
     record ServerCorpus(Map<String, SqlProfile> byKey, Double windowDays, double seconds) { }
 
     private ServerCorpus corpus(String environmentName, String server) {
@@ -423,10 +379,6 @@ public class ServerComparisonService {
         return refs;
     }
 
-    /**
-     * The cluster asked for; else the one whose servers recorded the most
-     * query time, which is where differences cost the most.
-     */
     private Cluster chooseCluster(String environmentName, List<Cluster> clusters, String asked, Set<String> loaded,
                                   Map<String, ServerCorpus> corpora) {
         if (asked != null && !asked.isBlank()) {

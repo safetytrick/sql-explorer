@@ -4,32 +4,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.StringTokenizer;
 
-/**
- * A statement's type read from its text, before and without parsing: the
- * operation it performs — SELECT, INSERT, UPDATE, DELETE, REPLACE, or the
- * first keyword of anything else (SET, COMMIT, CREATE, …).
- *
- * <p>Two openings do not name the operation. {@code WITH} only says the
- * statement has CTEs, which can feed a SELECT, an UPDATE or a DELETE; and
- * {@code (} opens a parenthesised SELECT. For those the text is scanned past
- * the CTE list, tracking nothing but parenthesis depth and quoting, to the
- * keyword that follows it. Nothing inside a CTE body is interpreted, which is
- * why this still works on statements the parser rejects — parse failures are
- * almost always inside a body.
- *
- * <p>When even that cannot find the operation the type is {@link #UNKNOWN}:
- * usually because Performance Schema truncated the text before reaching it
- * (its digest text stops at 1024 bytes by default, and long CTEs are what
- * reach that). The statement's {@code truncated} and {@code analysisFailed}
- * flags say why.
- *
- * <p>A statement that does parse is typed from the parsed statement instead
- * ({@link StatementTypeAnalyzer}); this is what it starts from, and what a
- * statement keeps when it is not parsed.
- */
 public final class StatementTypes {
 
-    /** The type of a statement whose operation could not be determined. */
     public static final String UNKNOWN = "UNKNOWN";
 
     /** What can follow a CTE list in MySQL. INSERT and REPLACE put theirs after the target. */
@@ -50,7 +26,6 @@ public final class StatementTypes {
         return operation == null ? UNKNOWN : operation;
     }
 
-    /** The first whitespace-delimited token, upper-cased: the type as it was before CTEs were read. */
     static String firstWord(String sql) {
         if (sql == null) {
             return null;
@@ -75,13 +50,11 @@ public final class StatementTypes {
         }
         if (word.equals("WITH")) {
             String operation = afterCtes(lexer);
-            // a parenthesised statement is a query expression: only a SELECT fits
             return parenthesised && operation != null && !operation.equals("SELECT") ? null : operation;
         }
         return null;
     }
 
-    /** WITH [RECURSIVE] name [(columns)] AS (body) [, …] then the operation. */
     private static String afterCtes(Lexer lexer) {
         Token token = lexer.next();
         if (token.isWord("RECURSIVE")) {
@@ -110,7 +83,6 @@ public final class StatementTypes {
                 continue;
             }
             if (token.kind == Kind.OPEN) {
-                // WITH … (SELECT …): a parenthesised query expression
                 token = lexer.next();
                 return token.isWord("SELECT") ? "SELECT" : null;
             }
@@ -133,11 +105,6 @@ public final class StatementTypes {
         }
     }
 
-    /**
-     * Just enough of MySQL's lexical rules to find the top level: words,
-     * quoted strings and identifiers (so a parenthesis inside one is not
-     * counted), comments, and the punctuation the CTE list is made of.
-     */
     private static final class Lexer {
         private final String sql;
         private int at;
@@ -182,7 +149,6 @@ public final class StatementTypes {
             return new Token(Kind.OTHER, String.valueOf(c));
         }
 
-        /** Past the group whose ( was just read; false when the text ends inside it. */
         boolean skipGroup() {
             int depth = 1;
             while (depth > 0) {
@@ -208,7 +174,6 @@ public final class StatementTypes {
                     continue;
                 }
                 if (c == quote) {
-                    // a doubled quote is an escaped one
                     if (at + 1 < sql.length() && sql.charAt(at + 1) == quote) {
                         at += 2;
                         continue;

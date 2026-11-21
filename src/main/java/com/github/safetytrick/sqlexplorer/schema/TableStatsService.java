@@ -12,21 +12,6 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-/**
- * Reads every table's size and row estimate from {@code information_schema.TABLES}
- * in one query (sqlx-n5j.2).
- *
- * <p><b>Rides along with the schema check; never a read of its own.</b> It runs
- * only where the schema loader already holds a live connection to the server
- * — right after the fingerprint, on every load and pull — so it adds one
- * metadata query to a read that was happening anyway, and nothing at all to
- * an environment served from its cache, which never reaches this code
- * ({@code DatabaseServer.getDataSource} refuses first).
- *
- * <p>It reads the server's bookkeeping, never table data: MySQL 8 answers
- * from {@code mysql.table_stats}, refreshed at most every
- * {@code information_schema_stats_expiry} seconds.
- */
 @Service
 public class TableStatsService {
 
@@ -38,10 +23,6 @@ public class TableStatsService {
            AND TABLE_TYPE = 'BASE TABLE'
         """;
 
-    /**
-     * @return each base table's figures, keyed as {@link SchemaFingerprint#key}
-     *         keys a table: lowercase {@code schema.table}
-     */
     public Map<String, TableStats> read(DataSource dataSource, String server) {
         Instant readAt = Instant.now();
         Map<String, TableStats> stats = new HashMap<>();

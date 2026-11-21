@@ -23,11 +23,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Column data profiles over HTTP (sqlx-n5j.3). Reading a plan connects to
- * nothing; a run starts only on a POST that says it was confirmed, and reads
- * only sampling servers.
- */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Profiles")
 @EnvironmentScoped
 @RestController
@@ -46,7 +41,6 @@ class ProfileResource {
         this.users = users;
     }
 
-    /** What a run would do, before it does anything. */
     @GetMapping("/profile/table/{schemaName}/{tableName}/plan")
     public ProfileRequestPlan plan(@PathVariable String schemaName, @PathVariable String tableName,
                                    @RequestParam(required = false) String server,
@@ -56,7 +50,6 @@ class ProfileResource {
         return profiles.plan(environment, table(schemaName, tableName), server, columns, fullScan);
     }
 
-    /** Starts a run. {@code confirmed} must be true: the plan was shown and agreed to. */
     @PostMapping("/profile/table/{schemaName}/{tableName}/runs")
     public RunSummary start(@PathVariable String schemaName, @PathVariable String tableName,
                             @RequestBody StartRequest request) {
@@ -71,7 +64,6 @@ class ProfileResource {
         return profiles.run(run.getId()).orElseThrow().run();
     }
 
-    /** Every run of the table in this environment, newest first. */
     @GetMapping("/profile/table/{schemaName}/{tableName}/runs")
     public List<RunSummary> runs(@PathVariable String schemaName, @PathVariable String tableName) {
         return profiles.runs(environments.current().getName(), schemaName, tableName);
@@ -108,11 +100,8 @@ class ProfileResource {
 
     @Data
     public static class StartRequest {
-        /** One server to probe; absent to sample every cluster. */
         private String server;
-        /** The columns to profile; absent for every character column. */
         private List<String> columns;
-        /** The one column to read in full; absent to sample. */
         private String fullScan;
         private boolean confirmed;
     }

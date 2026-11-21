@@ -28,43 +28,22 @@ public class Tag {
 
     private String name;
 
-    /**
-     * The address, derived by the database from the typed columns below.
-     *
-     * <p>A STORED GENERATED column, so it cannot disagree with them, and read
-     * back after a write rather than assigned — {@code @Generated} is what makes
-     * a freshly created tag carry its path in the response the UI consumes.
-     * Kept because the list pages look up a few hundred addresses at once, and
-     * one indexed {@code path in (...)} beats a tuple match (sqlx-11v).
-     */
     @Column(insertable = false, updatable = false)
     @org.hibernate.annotations.Generated(event = {org.hibernate.generator.EventType.INSERT,
         org.hibernate.generator.EventType.UPDATE})
     private String path;
 
-    /** {@code schema}, {@code table}, {@code column} or {@code query} — what this tag addresses. */
     private String type;
 
     /**
-     * The addressed target, in typed columns rather than packed into
-     * {@link #path}.
-     *
-     * <p>EMPTY STRING, NEVER NULL, for the parts a target does not use. MySQL
-     * treats NULLs as distinct in a unique index, so a nullable
-     * {@code tableName} would let the same schema tag be stored twice.
+     * Empty, never null: MySQL treats NULLs as distinct in a unique index, so a
+     * nullable {@code tableName} would let the same schema tag be stored twice.
      */
     private String schemaName = "";
     private String tableName = "";
     private String queryDigest = "";
-    /** The column, for a column tag (sqlx-n5j.1). Empty otherwise, for the same reason. */
     private String columnName = "";
 
-    /**
-     * Which environment this association belongs to.
-     *
-     * <p>Not nullable, and there is deliberately no "everywhere" value: a tag
-     * is about an object in one corpus. See {@link CommentaryEnvironment}.
-     */
     private String environmentName;
 
     @ManyToOne
@@ -73,14 +52,6 @@ public class Tag {
     @CreatedDate
     private Instant createdOn;
 
-    /**
-     * The addressed parts, keyed by the type names that address them.
-     *
-     * <p>Read from the typed columns now, not parsed back out of the path —
-     * which is the whole point of sqlx-11v. Kept on the API because callers look
-     * a part up by the tag's own type: {@code getPathElements().get(getType())}
-     * is how a query tag's digest is read.
-     */
     public Map<String,String> getPathElements() {
         Map<String,String> elements = new java.util.LinkedHashMap<>();
         if (schemaName != null && !schemaName.isEmpty()) {
@@ -98,7 +69,6 @@ public class Tag {
         return elements;
     }
 
-    /** Point this tag at a target. */
     public void target(TagTarget target) {
         TagTarget normalized = target.normalized();
         this.type = normalized.type();
@@ -108,7 +78,6 @@ public class Tag {
         this.columnName = normalized.column();
     }
 
-    /** What this tag points at. */
     public TagTarget getTarget() {
         return new TagTarget(type, schemaName, tableName, queryDigest, columnName).normalized();
     }

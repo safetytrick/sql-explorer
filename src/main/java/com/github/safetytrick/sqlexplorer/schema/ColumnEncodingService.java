@@ -24,27 +24,6 @@ public class ColumnEncodingService {
         log.info("Reading ColumnEncodings from database...");
         long start = System.nanoTime();
         try (Connection connection = dataSource.getConnection()) {
-            /*
-            select TABLE_SCHEMA,
-               TABLE_NAME,
-               COLUMN_NAME,
-               ORDINAL_POSITION,
-               COLUMN_DEFAULT,
-               IS_NULLABLE,
-               DATA_TYPE,
-               CHARACTER_MAXIMUM_LENGTH,
-               CHARACTER_OCTET_LENGTH,
-               NUMERIC_PRECISION,
-               NUMERIC_SCALE,
-               DATETIME_PRECISION,
-               CHARACTER_SET_NAME,
-               COLLATION_NAME,
-               COLUMN_KEY,
-               EXTRA,
-               COLUMN_COMMENT
-            from information_schema.COLUMNS
-            where table_name = ?;
-            */
             String sql = """
             SELECT TABLE_SCHEMA, \
                TABLE_NAME, \

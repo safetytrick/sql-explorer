@@ -19,12 +19,6 @@ import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
-/**
- * Builds the sidebar tree for the active environment: the union of tables the
- * schema metadata knows (contributing column counts) and tables seen in
- * analyzed queries (contributing query counts and analyzer-warning flags).
- * Query references without a resolvable schema are omitted.
- */
 @Service
 public class SchemaTreeService {
 
@@ -46,7 +40,6 @@ public class SchemaTreeService {
     public SchemaTree getTree() {
         Map<String, Map<String, TableStats>> stats = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 
-        // one pass over the queries: per-table distinct query count + warn flag
         sqlRepositoryService.getAllAnalyzedSql().forEach(profile -> {
             boolean warn = hasAnalyzerFinding(profile);
             Set<String> seen = new HashSet<>();
@@ -54,7 +47,6 @@ public class SchemaTreeService {
                 if (table.getNormalizedSchemaName() == null || table.getNormalizedTableName() == null) {
                     continue;
                 }
-                // count each table once per profile (self-joins list it twice)
                 if (seen.add((table.getNormalizedSchemaName() + "." + table.getNormalizedTableName())
                                  .toLowerCase(Locale.ROOT))) {
                     stats.computeIfAbsent(table.getNormalizedSchemaName(), s -> newTableMap())
@@ -64,7 +56,6 @@ public class SchemaTreeService {
             }
         });
 
-        // schema metadata: column counts and view flags (and tables with no queries at all)
         for (TableStructure structure : sqlSchemaService.getTables()) {
             if (structure.schema() == null) {
                 continue;
@@ -73,15 +64,9 @@ public class SchemaTreeService {
                 .computeIfAbsent(structure.name(), t -> new TableStats());
             tableStats.columnCount = structure.columns() == null ? null : structure.columns().size();
             tableStats.view = "VIEW".equalsIgnoreCase(structure.type());
-            // reaching here at all is what makes it a schema table; the column
-            // count cannot stand in for that, since a real table whose columns
-            // did not load also has none
             tableStats.inSchema = true;
         }
 
-        // What earlier captures remember, for the tables this corpus cannot
-        // speak for. Empty until a reset has actually happened, so the common
-        // case costs one map lookup per node and no I/O at all.
         Map<String, java.time.LocalDateTime> archived = archivedActivity.lastTouchedBeforeThisRun();
 
         List<SchemaNode> schemas = stats.entrySet().stream()
@@ -92,8 +77,6 @@ public class SchemaTreeService {
                     table.getValue().warn,
                     table.getValue().view,
                     table.getValue().inSchema,
-                    // only where it changes the answer: a table with queries in
-                    // the current run is not in question
                     table.getValue().queryCount > 0 ? null
                         : archived.get((schema.getKey() + "." + table.getKey()).toLowerCase(Locale.ROOT))))
                 .toList()))

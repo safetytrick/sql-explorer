@@ -10,10 +10,6 @@ import com.github.safetytrick.sqlexplorer.evidence.source.SqlSource;
 import com.github.safetytrick.sqlexplorer.evidence.source.SqlSourceFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * Reads x$statement_analysis over a server's own connection. Configured as
- * {@code - type: x-statement-analysis} under a server's sources.
- */
 @Component
 class XStatementAnalysisSourceFactory implements SqlSourceFactory {
 

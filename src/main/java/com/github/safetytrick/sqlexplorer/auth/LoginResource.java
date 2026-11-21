@@ -10,25 +10,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * The login entry point, {@code GET /api/sql-explorer/login?return=/queries}.
- * A browser navigates here; the UI sends it here on a 401.
- *
- * <p>It remembers where to come back to, then hands over to Spring's
- * {@code /oauth2/authorization/sql-explorer}, which redirects to the provider.
- * Spring's own entry point has no "come back to" of its own, and the place the
- * user was is a page of the UI, which the backend never saw requested: the API
- * call that failed is not somewhere to return a browser to.
- *
- * <p>With sign-in off it just goes back.
- */
 @Tag(name="User")
 @RestController
 class LoginResource {
 
     static final String PATH = "/login";
 
-    /** Session attribute: where to send the browser once signed in. */
     static final String RETURN_TO = LoginResource.class.getName() + ".RETURN_TO";
 
     private final AuthProperties auth;
@@ -49,7 +36,6 @@ class LoginResource {
         response.sendRedirect(request.getContextPath() + "/oauth2/authorization/" + SecurityConfig.REGISTRATION);
     }
 
-    /** Where a completed sign-in goes, taken from the session once. */
     static String takeReturn(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session == null) {

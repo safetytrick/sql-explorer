@@ -36,32 +36,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * Persists one {@link SchemaSnapshot} per cluster, as Parquet in a
- * {@code schema-snapshots/<environment>/} directory beside the capture
- * archive — the same format, written the same way, as the captures themselves
- * (sqlx-7o3).
- *
- * <p>One row per table, typed by the {@code Snapshot*} Avro records; what the
- * snapshot describes — its cluster, the server it was read from, when, and the
- * fingerprint it was read at — is in the footer's key-value metadata, as a
- * capture's provenance is in {@code CaptureContext}.
- *
- * <p>A snapshot is a cache, so a missing, unreadable or other-format file is
- * simply no snapshot: the cluster is read in full and a new one is written.
- */
 @Service
 public class SchemaSnapshotStore {
 
-    /**
-     * Bump when {@link SchemaSnapshot} or what it holds changes shape; older
-     * files are then ignored. 2: Parquet, replacing the JSON of format 1.
-     *
-     * <p>Not bumped for an added nullable field: files are read with the
-     * current {@link SnapshotTable} schema as the reader schema, so a field the
-     * file lacks takes its default. Table stats (sqlx-n5j.2) came that way —
-     * a snapshot written before them loads with {@code stats} null.
-     */
     public static final int FORMAT = 2;
 
     private static final Logger log = LoggerFactory.getLogger(SchemaSnapshotStore.class);
@@ -73,7 +50,6 @@ public class SchemaSnapshotStore {
     private static final String CLUSTER_KEY = META + "cluster";
     private static final String SERVER_KEY = META + "server";
     private static final String READ_AT_KEY = META + "readAt";
-    /** One {@code table<TAB>hash} line per table: a map in a single footer value. */
     private static final String FINGERPRINT_KEY = META + "fingerprint";
 
     private final Path directory;
@@ -108,7 +84,6 @@ public class SchemaSnapshotStore {
                 return Optional.empty();
             }
             List<TableStructure> tables = new ArrayList<>();
-            // the current schema as the reader's, so a file written before a field was added still reads
             PlainParquetConfiguration conf = new PlainParquetConfiguration();
             conf.set("parquet.avro.read.schema", SnapshotTable.getClassSchema().toString());
             try (ParquetReader<SnapshotTable> rows = AvroParquetReader.<SnapshotTable>builder(
@@ -126,11 +101,6 @@ public class SchemaSnapshotStore {
         }
     }
 
-    /**
-     * Written to a sibling and moved into place, so a reader never sees half a
-     * snapshot. Removes the cluster's format-1 JSON snapshot, which nothing
-     * reads any more.
-     */
     public void write(SchemaSnapshot snapshot) {
         SchemaSnapshot.Key key = new SchemaSnapshot.Key(snapshot.environment(), snapshot.cluster());
         Path file = fileFor(key);
@@ -154,12 +124,10 @@ public class SchemaSnapshotStore {
             Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             Files.deleteIfExists(legacyJsonFor(key));
         } catch (IOException | RuntimeException e) {
-            // A snapshot that cannot be written costs the next start a full read, nothing more.
             log.warn("Schema snapshot {} could not be written: {}", file, e.toString());
             try {
                 Files.deleteIfExists(partial);
             } catch (IOException ignored) {
-                // the next write overwrites it
             }
         }
     }
@@ -175,8 +143,6 @@ public class SchemaSnapshotStore {
     private static String safe(String name) {
         return UNSAFE.matcher(name).replaceAll("_");
     }
-
-    // ── footer ────────────────────────────────────────────────────────────
 
     private static Map<String, String> footerOf(SchemaSnapshot snapshot) {
         Map<String, String> footer = new LinkedHashMap<>();
@@ -202,8 +168,6 @@ public class SchemaSnapshotStore {
         }
         return new SchemaFingerprint(tables);
     }
-
-    // ── rows ──────────────────────────────────────────────────────────────
 
     static SnapshotTable toRow(TableStructure table) {
         return SnapshotTable.newBuilder()
@@ -232,7 +196,6 @@ public class SchemaSnapshotStore {
             .setViewColumns(table.viewColumns() == null ? null : table.viewColumns().stream()
                 .map(view -> SnapshotViewColumn.newBuilder().setName(view.name())
                     .setSources(listOf(view.sources())).setComputed(view.computed()).build()).toList())
-            // a cluster's snapshot holds the one server it was read from: one entry at most
             .setStats(table.stats() == null || table.stats().isEmpty() ? null : toRow(table.stats().getFirst()))
             .build();
     }

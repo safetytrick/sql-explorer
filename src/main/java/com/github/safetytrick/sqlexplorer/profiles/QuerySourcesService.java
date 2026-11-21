@@ -24,19 +24,9 @@ import com.github.safetytrick.sqlexplorer.evidence.SqlRepository;
 import com.github.safetytrick.sqlexplorer.evidence.SqlRepositoryManager;
 import com.github.safetytrick.sqlexplorer.evidence.sink.CaptureContext;
 
-/**
- * Where one statement runs: its figures on each source it was captured from
- * (sqlx-rw2.9).
- *
- * <p>Each source's figures come from the corpus scoped to that source, the
- * same one a search with {@code sources=<ref>} and the topology page read
- * (sqlx-a9h.1), so the three agree. A share is of the statement's time
- * across every source.
- */
 @Service
 public class QuerySourcesService {
 
-    /** Performance Schema times are picoseconds. */
     private static final BigDecimal PICOS_PER_SECOND = BigDecimal.valueOf(1_000_000_000_000L);
 
     private final SqlRepositoryManager repositories;
@@ -47,19 +37,11 @@ public class QuerySourcesService {
         this.environmentContext = environmentContext;
     }
 
-    /**
-     * @param source     the source ref; for a live source, the server's name
-     * @param cluster    the configured cluster the server belongs to, or null when no configured server has this name
-     * @param roles      the server's roles in config
-     * @param capturedAt when this source's figures were read
-     * @param shareOfTime this source's part of the statement's time across every source, 0..1
-     */
     public record QuerySource(String source, String cluster, List<String> roles, Instant capturedAt,
                               long executions, double seconds, double averageMillis, long rowsScanned,
                               long rowsSent, long rowsAffected, LocalDateTime firstSeen, LocalDateTime lastSeen,
                               double shareOfTime) { }
 
-    /** The statement's figures per source, the most time first; null when the environment has no such statement. */
     public List<QuerySource> whereItRuns(String id) {
         Environment environment = environmentContext.current();
         String name = environment.getName();
@@ -118,7 +100,6 @@ public class QuerySourcesService {
             .map(Cluster::name).findFirst().orElse(null);
     }
 
-    /** When the source's loaded figures were read: the capture's own record, else the source's creation. */
     private static Instant capturedAt(List<SqlRepository> loaded, String ref) {
         for (SqlRepository repository : loaded) {
             if (ref.equals(repository.sourceRef())) {

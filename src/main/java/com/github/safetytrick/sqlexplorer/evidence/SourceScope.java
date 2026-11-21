@@ -5,21 +5,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Which of an environment's sources a question is about, by source ref — for
- * a live source, the server's name (sqlx-a9h.1).
- *
- * <p>A scope narrows the <em>data</em>, not the matches: the corpus is merged
- * from the chosen sources' repositories alone, so a statement that ran on the
- * primary and a replica, scoped to the replica, carries the replica's
- * executions and time only. Filtering the merged corpus by "ran there" would
- * instead keep both servers' totals, which answers no question about where
- * load lands.
- *
- * <p>{@code include} empty means every source; {@code exclude} then removes
- * some. Refs compare case-insensitively, as server names are written by hand
- * in config and in links.
- */
 public record SourceScope(Set<String> include, Set<String> exclude) {
 
     public static final SourceScope EVERYTHING = new SourceScope(Set.of(), Set.of());

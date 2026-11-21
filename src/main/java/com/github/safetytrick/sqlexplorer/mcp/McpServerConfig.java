@@ -22,30 +22,14 @@ import org.springframework.web.filter.RequestContextFilter;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The MCP endpoint: {@code POST /api/sql-explorer/mcp}, streamable HTTP in its
- * stateless form. Each request is one JSON-RPC message answered in its own
- * response, with no session to keep, so it sits behind nginx and ngrok like
- * any other call.
- *
- * <p>It replaces the Node sidecar that proxied the REST API over stdio, which
- * needed an install, a checkout path and environment variables in every
- * client's config. Now a client is given a URL.
- *
- * <p>Tools run on the request's own thread ({@code immediateExecution}), so
- * request-scoped beans — {@code EnvironmentContext} above all — see the MCP
- * request as they see a REST one: its {@code X-Sql-Explorer-Environment}
- * header picks the environment, and a tool's {@code environment} argument
- * overrides it.
+ * {@code immediateExecution}: tools run on the request's own thread, so
+ * request-scoped beans resolve as they do for a REST call.
  */
 @Configuration
 class McpServerConfig {
 
     static final String PATH = "/mcp";
 
-    /**
-     * A browser page on another site must not be able to drive the endpoint
-     * (DNS rebinding); {@link McpOriginValidator} says which pages may.
-     */
     @Bean
     HttpServletStatelessServerTransport mcpTransport(JsonMapper jsonMapper, AuthProperties auth) {
         return HttpServletStatelessServerTransport.builder()
@@ -65,7 +49,6 @@ class McpServerConfig {
         return registration;
     }
 
-    /** The request's own address, for {@link McpOriginValidator}. */
     @Bean
     FilterRegistrationBean<McpOriginValidator.OwnOrigin> mcpOwnOrigin() {
         FilterRegistrationBean<McpOriginValidator.OwnOrigin> registration =

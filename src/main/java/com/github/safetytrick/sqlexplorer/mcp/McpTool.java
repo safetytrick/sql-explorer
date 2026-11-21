@@ -7,17 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-/**
- * One tool of the MCP endpoint ({@code /api/sql-explorer/mcp}): its name and
- * description as a client sees them, the arguments it takes, and what it does.
- *
- * <p>Tools are contributed by the domain packages through
- * {@link McpToolProvider}, next to the resources they call, so a tool is the
- * same operation as the REST endpoint beside it rather than a second copy of
- * it. Unless {@link Builder#environmentFree()} says otherwise every tool also
- * takes an optional {@code environment}, which {@link McpToolRunner} applies
- * before the handler runs.
- */
 public record McpTool(String name, String description, Map<String, Object> inputSchema,
                       boolean environmentScoped, boolean writes, Function<McpArgs, Object> handler) {
 
@@ -44,7 +33,6 @@ public record McpTool(String name, String description, Map<String, Object> input
             this.description = description;
         }
 
-        /** A string argument the caller must give. */
         public Builder string(String argument, String description) {
             required.add(argument);
             return optionalString(argument, description);
@@ -54,7 +42,6 @@ public record McpTool(String name, String description, Map<String, Object> input
             return property(argument, "string", description);
         }
 
-        /** A string the caller must give, matching {@code pattern}. */
         public Builder string(String argument, String description, String pattern) {
             required.add(argument);
             Map<String, Object> schema = schema("string", description);
@@ -94,13 +81,11 @@ public record McpTool(String name, String description, Map<String, Object> input
             return property(argument, "boolean", description);
         }
 
-        /** Takes no {@code environment}: the tool reads nothing an environment holds. */
         public Builder environmentFree() {
             this.environmentScoped = false;
             return this;
         }
 
-        /** Changes something (only tags do), so a client can ask before calling it. */
         public Builder writes() {
             this.writes = true;
             return this;

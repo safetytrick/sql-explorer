@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Write rate and lock risk for one table (sqlx-n5j.9, sqlx-n5j.10). Zeros, not 404, for an unknown table. */
 @Tag(name = "Table")
 @EnvironmentScoped
 @RestController

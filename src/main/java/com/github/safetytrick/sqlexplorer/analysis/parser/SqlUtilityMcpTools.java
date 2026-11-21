@@ -6,7 +6,6 @@ import com.github.safetytrick.sqlexplorer.mcp.McpTool;
 import com.github.safetytrick.sqlexplorer.mcp.McpToolProvider;
 import org.springframework.stereotype.Component;
 
-/** The stateless SQL utilities, as MCP tools: no environment involved. */
 @Component
 class SqlUtilityMcpTools implements McpToolProvider {
 

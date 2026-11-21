@@ -12,32 +12,12 @@ import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 
-/**
- * What differs between two definitions of one table, element by element:
- * columns, indexes and foreign keys, each described the way a person reads
- * DDL (sqlx-a6z). Schema drift says <em>that</em> clusters disagree, by
- * fingerprint; this says <em>how</em>.
- *
- * <p>Only what the loaded schema keeps can be compared. The fingerprint also
- * hashes a few things it does not — column comments among them — so two
- * structures can differ by fingerprint and still diff to nothing here. The
- * caller says so rather than showing an empty diff as agreement.
- */
 public final class TableDiff {
 
-    /**
-     * One element defined differently.
-     *
-     * @param kind  {@code table}, {@code column}, {@code index} or {@code foreign key}
-     * @param name  the element's name
-     * @param base  its definition in the base table; null where the base lacks it
-     * @param other its definition in the other; null where the other lacks it
-     */
     public record Difference(String kind, String name, String base, String other) { }
 
     private TableDiff() { }
 
-    /** Every element defined differently in {@code other} than in {@code base}, in kind then name order. */
     public static List<Difference> between(TableStructure base, TableStructure other) {
         List<Difference> differences = new ArrayList<>();
         if (!Objects.equals(blankToNull(base.remarks()), blankToNull(other.remarks()))) {
@@ -66,7 +46,6 @@ public final class TableDiff {
         }
     }
 
-    /** Keyed by lowercase name, as MySQL compares them; an element repeated by name keeps its first. */
     private static <T> Map<String, String> described(List<T> elements, Function<T, String> name,
                                                      Function<T, String> describe) {
         Map<String, String> byName = new LinkedHashMap<>();
@@ -106,7 +85,6 @@ public final class TableDiff {
         if (blankToNull(column.remarks()) != null) {
             text.append(" COMMENT ").append(quote(column.remarks()));
         }
-        // position last: a column moved but otherwise alike should read as moved
         return text.append(" · position ").append(column.ordinal()).toString();
     }
 
@@ -129,7 +107,6 @@ public final class TableDiff {
         return text;
     }
 
-    /** Its constraint name, or — when the schema's source gave none — its columns, which is what identifies it. */
     private static String foreignKeyName(ForeignKey key) {
         return key.constraintName() != null ? key.constraintName() : "(" + columns(key.from()) + ")";
     }

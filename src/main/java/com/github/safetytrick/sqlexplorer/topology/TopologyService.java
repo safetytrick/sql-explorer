@@ -28,18 +28,9 @@ import com.github.safetytrick.sqlexplorer.topology.Topology.Load;
 import com.github.safetytrick.sqlexplorer.topology.Topology.Share;
 import com.github.safetytrick.sqlexplorer.topology.Topology.Status;
 
-/**
- * Sums each server's own statements, never the merged corpus (sqlx-a9h).
- *
- * <p>A load keeps one repository per source, and a live source is named after
- * its server ({@code XStatementAnalysisSourceFactory}), so a server's
- * statements are the repositories whose source ref is its name. Reads only
- * what is already loaded: no server is contacted.
- */
 @Service
 public class TopologyService {
 
-    /** Performance Schema times are picoseconds. */
     private static final BigDecimal PICOS_PER_SECOND = BigDecimal.valueOf(1_000_000_000_000L);
 
     private final SqlRepositoryManager repositories;
@@ -115,11 +106,6 @@ public class TopologyService {
         + "DDL) is other. Unknown is a statement whose operation could not be read, usually because its text was "
         + "truncated; it counts as a write if it changed any rows. Statements a full digest table discarded are not counted; see Captured.";
 
-    /**
-     * Each loaded source's tally, by source ref. Read from the corpus scoped
-     * to that source — the one a search with {@code sources=<ref>} reads — so
-     * the page and the workbench it links to cannot disagree (sqlx-a9h.1).
-     */
     private Map<String, Tally> talliesBySource(String environmentName) {
         Map<String, Tally> tallies = new LinkedHashMap<>();
         for (SqlRepository repository : repositories.getRepositories(environmentName)) {
@@ -135,7 +121,6 @@ public class TopologyService {
         return tallies;
     }
 
-    /** Primary first, then replicas, then the rest, keeping config order within each. */
     static List<DatabaseServer> ordered(List<DatabaseServer> servers) {
         return servers.stream().sorted(Comparator.comparingInt(TopologyService::rank)).toList();
     }
@@ -182,13 +167,11 @@ public class TopologyService {
             share, why);
     }
 
-    /** Running sums for one server, a cluster or the environment. */
     static final class Tally {
         private final Map<QueryKind, long[]> counts = new EnumMap<>(QueryKind.class);
         private final Map<QueryKind, double[]> seconds = new EnumMap<>(QueryKind.class);
         private LocalDateTime from;
         private LocalDateTime to;
-        /** Seconds per day, summed over the servers added; null until one has a window. */
         private Double perDay;
         private boolean single = true;
 
@@ -216,11 +199,6 @@ public class TopologyService {
             }
         }
 
-        /**
-         * Another server's figures folded in. Its rate is added as its own
-         * total over its own window — a cluster's seconds per day is the sum of
-         * its servers' — and the combined window is no longer one server's.
-         */
         void add(Tally other) {
             for (QueryKind kind : QueryKind.values()) {
                 counts.get(kind)[0] += other.counts.get(kind)[0];

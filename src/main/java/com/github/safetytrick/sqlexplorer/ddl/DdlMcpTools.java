@@ -6,7 +6,6 @@ import com.github.safetytrick.sqlexplorer.mcp.McpTool;
 import com.github.safetytrick.sqlexplorer.mcp.McpToolProvider;
 import org.springframework.stereotype.Component;
 
-/** The DDL pre-flight check as an MCP tool: advice only, nothing runs. */
 @Component
 class DdlMcpTools implements McpToolProvider {
 

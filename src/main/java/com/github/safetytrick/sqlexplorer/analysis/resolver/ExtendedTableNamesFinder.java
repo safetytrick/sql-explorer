@@ -23,7 +23,6 @@ import net.sf.jsqlparser.statement.truncate.Truncate;
 import net.sf.jsqlparser.util.TablesNamesFinder;
 
 class ExtendedTableNamesFinder extends TablesNamesFinder<Void> {
-    // not safe for reuse.
     private Map<String, String> aliasMappings = new LinkedHashMap<>();
     private boolean inWhere;
 
@@ -87,8 +86,6 @@ class ExtendedTableNamesFinder extends TablesNamesFinder<Void> {
         }
         if (plainSelect.getWhere() != null) {
             try {
-                // this is an ugly hack because I'm not supporting scopes correctly,
-                // the where clause analyzer should be keeping track of the scope here
                 inWhere = true;
                 plainSelect.getWhere().accept(this);
             } finally {
@@ -157,7 +154,6 @@ class ExtendedTableNamesFinder extends TablesNamesFinder<Void> {
 
     @Override
     public <S> Void visit(Execute execute, S context) {
-        // still unsupported
         super.visit(execute, context);
         return null;
     }

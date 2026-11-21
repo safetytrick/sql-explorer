@@ -18,13 +18,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * Loads the full schema (tables, columns, indexes, foreign keys) from a
- * database server into an immutable {@link LoadedSchema}. Stateless: the
- * DataSource is supplied per call so each
- * {@link com.github.safetytrick.sqlexplorer.environment.DatabaseServer} loads
- * its own schema.
- */
 @Service
 public class SchemaRepositoryFactory {
 
@@ -37,10 +30,8 @@ public class SchemaRepositoryFactory {
     private final ViewDefinitionService viewDefinitionService;
     private final SchemaFingerprintService fingerprintService;
     private final SchemaSnapshotStore snapshotStore;
-    /** Null: no table stats are read (sqlx-n5j.2). */
     private final TableStatsService tableStatsService;
 
-    /** Without snapshots: every load reads the server in full. */
     public SchemaRepositoryFactory(TableColumnService tableColumnService,
                                    IndexLoadingService indexLoadingService,
                                    ForeignKeyLoadingService foreignKeyLoadingService,
@@ -50,7 +41,6 @@ public class SchemaRepositoryFactory {
             viewDefinitionService, null, null);
     }
 
-    /** Without table stats. */
     public SchemaRepositoryFactory(TableColumnService tableColumnService,
                                    IndexLoadingService indexLoadingService,
                                    ForeignKeyLoadingService foreignKeyLoadingService,
@@ -81,29 +71,9 @@ public class SchemaRepositoryFactory {
         this.snapshotStore = snapshotStore;
     }
 
-    /**
-     * A schema and how it was obtained.
-     *
-     * @param fingerprint  the server's fingerprint when it was loaded; null when
-     *                     snapshots are off, and then there is nothing to revalidate against
-     * @param fromSnapshot read from the cluster's snapshot rather than the server
-     * @param current      whether it is known to match the server now — false
-     *                     only for {@link #lastKnown}, which no server confirmed
-     * @param readAt       when the schema itself was read from a server
-     * @param readFrom     which server it was read from
-     */
     public record SchemaLoad(LoadedSchema schema, SchemaFingerprint fingerprint, boolean fromSnapshot,
                              boolean current, Instant readAt, String readFrom) { }
 
-    /**
-     * The cluster's schema as the server has it now: from the snapshot when the
-     * server's fingerprint still matches it, otherwise read in full and
-     * snapshotted (sqlx-sqy.4).
-     *
-     * <p>The fingerprint is taken before a full read, so a schema changing
-     * mid-read leaves the snapshot labelled with the older fingerprint — the
-     * next check sees the difference and reads again, rather than trusting it.
-     */
     public SchemaLoad loadCurrent(DataSource dataSource, SchemaSnapshot.Key key, String server) {
         if (snapshotStore == null || fingerprintService == null || key == null) {
             Map<String, TableStats> stats = readStats(dataSource, server);
@@ -111,8 +81,6 @@ public class SchemaRepositoryFactory {
                 null, false, true, Instant.now(), server);
         }
         SchemaFingerprint fingerprint = fingerprintService.fingerprint(dataSource);
-        // read beside the fingerprint, on the connection a load makes anyway: stats move
-        // with the data, so a snapshot that is still current structurally is not current here
         Map<String, TableStats> stats = readStats(dataSource, server);
         Optional<SchemaSnapshot> snapshot = snapshotStore.read(key);
         if (snapshot.isPresent() && snapshot.get().fingerprint().equals(fingerprint)) {
@@ -131,13 +99,6 @@ public class SchemaRepositoryFactory {
         return new SchemaLoad(withCreateStatements(tables, dataSource), fingerprint, false, true, readAt, server);
     }
 
-    /**
-     * A schema still current, with its table stats read again — what a pull
-     * does for a server whose schema it keeps in memory, so that sizes and row
-     * estimates move with the data while the structure is not re-read
-     * (sqlx-n5j.2). The cluster's snapshot is rewritten with them, so a later
-     * cached start shows them too. A failed read keeps the stats it had.
-     */
     public SchemaLoad withFreshStats(DataSource dataSource, SchemaLoad loaded, SchemaSnapshot.Key key,
                                      String server) {
         Map<String, TableStats> stats = readStats(dataSource, server);
@@ -153,7 +114,6 @@ public class SchemaRepositoryFactory {
             loaded.current(), loaded.readAt(), loaded.readFrom());
     }
 
-    /** The snapshot's tables with these stats, rewriting the snapshot so it keeps them; as it was when there are none. */
     private List<TableStructure> refreshedStats(SchemaSnapshot snapshot, Map<String, TableStats> stats) {
         if (stats.isEmpty()) {
             return snapshot.tables();
@@ -164,10 +124,6 @@ public class SchemaRepositoryFactory {
         return tables;
     }
 
-    /**
-     * Stats are an extra, not part of the schema: one that cannot be read
-     * leaves the tables without them, and the load goes on.
-     */
     private Map<String, TableStats> readStats(DataSource dataSource, String server) {
         if (tableStatsService == null) {
             return Map.of();
@@ -180,7 +136,6 @@ public class SchemaRepositoryFactory {
         }
     }
 
-    /** Each table with the one server's stats for it; a table it did not report (a view) has none. */
     static List<TableStructure> withStats(List<TableStructure> tables, Map<String, TableStats> stats) {
         if (stats.isEmpty()) {
             return tables;
@@ -193,12 +148,6 @@ public class SchemaRepositoryFactory {
             .toList();
     }
 
-    /**
-     * The cluster's last snapshot, for when no server can be reached to confirm
-     * it. Not current — it may describe a schema since changed — so it serves
-     * what was already analysed and nothing new is analysed against it.
-     * {@code SHOW CREATE} is unavailable through it: there is no connection.
-     */
     public Optional<SchemaLoad> lastKnown(SchemaSnapshot.Key key) {
         if (snapshotStore == null || key == null) {
             return Optional.empty();
@@ -207,7 +156,6 @@ public class SchemaRepositoryFactory {
             snapshot.fingerprint(), true, false, snapshot.readAt(), snapshot.server()));
     }
 
-    /** Whether the server's schema still matches the one loaded; any failure to tell is a no. */
     public boolean stillCurrent(DataSource dataSource, SchemaFingerprint loaded) {
         if (fingerprintService == null || loaded == null) {
             return false;
@@ -223,25 +171,6 @@ public class SchemaRepositoryFactory {
         return new LoadedSchema(tables, table -> createStatementService.loadCreateStatement(dataSource, table));
     }
 
-    /*
-     *  <OL>
-     *  <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be <code>null</code>)
-     *  <LI><B>TABLE_SCHEM</B> String {@code =>} table schema (may be <code>null</code>)
-     *  <LI><B>TABLE_NAME</B> String {@code =>} table name
-     *  <LI><B>TABLE_TYPE</B> String {@code =>} table type.  Typical types are "TABLE",
-     *                  "VIEW", "SYSTEM TABLE", "GLOBAL TEMPORARY",
-     *                  "LOCAL TEMPORARY", "ALIAS", "SYNONYM".
-     *  <LI><B>REMARKS</B> String {@code =>} explanatory comment on the table (may be {@code null})
-     *  <LI><B>TYPE_CAT</B> String {@code =>} the types catalog (may be <code>null</code>)
-     *  <LI><B>TYPE_SCHEM</B> String {@code =>} the types schema (may be <code>null</code>)
-     *  <LI><B>TYPE_NAME</B> String {@code =>} type name (may be <code>null</code>)
-     *  <LI><B>SELF_REFERENCING_COL_NAME</B> String {@code =>} name of the designated
-     *                  "identifier" column of a typed table (may be <code>null</code>)
-     *  <LI><B>REF_GENERATION</B> String {@code =>} specifies how values in
-     *                  SELF_REFERENCING_COL_NAME are created. Values are
-     *                  "SYSTEM", "USER", "DERIVED". (may be <code>null</code>)
-     *  </OL>
-     */
     public LoadedSchema load(DataSource dataSource) {
         TableColumnService.TableColumnsFetcher columnFetcher = tableColumnService.getColumnFetcher(dataSource);
         ForeignKeyLoadingService.ForeignKeysFetcher foreignKeysFetcher = foreignKeyLoadingService.getForeignKeysFetcher(dataSource);
@@ -266,17 +195,9 @@ public class SchemaRepositoryFactory {
 
         tableStructures = attachViewDependencies(dataSource, tableStructures);
 
-        // The create statement is loaded lazily and cached by LoadedSchema;
-        // running `show create table` per table here is slow and only needed on demand.
         return withCreateStatements(tableStructures, dataSource);
     }
 
-    /**
-     * Resolve each view's base tables and column lineage from
-     * information_schema.VIEWS (one bulk query, views only). Column lineage
-     * resolves against the structures loaded so far, so view columns map onto
-     * base-table columns; views over views resolve one level only.
-     */
     private List<TableStructure> attachViewDependencies(DataSource dataSource, List<TableStructure> structures) {
         if (structures.stream().noneMatch(structure -> "VIEW".equalsIgnoreCase(structure.type()))) {
             return structures;

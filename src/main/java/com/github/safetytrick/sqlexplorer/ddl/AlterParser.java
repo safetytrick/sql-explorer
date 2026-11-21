@@ -7,22 +7,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reads an {@code ALTER TABLE}, {@code CREATE INDEX} or {@code DROP INDEX}
- * statement into the clauses the DDL pre-flight check reasons about
- * (sqlx-n5j.11).
- *
- * <p>Hand-written rather than jsqlparser: the pre-flight needs every clause
- * MySQL accepts, recognised by kind, and jsqlparser rejects common forms
+ * Hand-written rather than jsqlparser: jsqlparser rejects common MySQL forms
  * outright ({@code CHANGE name full_name …} fails on the keyword {@code name}).
- * MySQL's ALTER grammar is a comma-separated list of clauses each introduced
- * by a keyword, which is enough to classify them. A clause it does not
- * recognise is kept as {@link Kind#UNKNOWN} with its text, never dropped.
  */
 public final class AlterParser {
 
     private AlterParser() { }
 
-    /** What a clause does, as far as choosing an algorithm and checking limits needs. */
     public enum Kind {
         ADD_COLUMN, DROP_COLUMN, MODIFY_COLUMN, CHANGE_COLUMN, RENAME_COLUMN, COLUMN_DEFAULT, COLUMN_VISIBILITY,
         ADD_INDEX, DROP_INDEX, RENAME_INDEX, INDEX_VISIBILITY, ADD_PRIMARY_KEY, DROP_PRIMARY_KEY,
@@ -31,7 +22,6 @@ public final class AlterParser {
         ALGORITHM, LOCK, UNKNOWN
     }
 
-    /** A column definition: name, type and the attributes that decide its storage and algorithm. */
     public record ColumnDef(String name, String type, Integer length, Integer scale, String charset,
                             String collation, Boolean nullable, boolean hasDefault, boolean generated,
                             boolean stored) {
@@ -47,20 +37,11 @@ public final class AlterParser {
         }
     }
 
-    /** One index part: a column with its prefix length, or a functional expression. */
     public record IndexPart(String column, Integer prefix, boolean functional) { }
 
-    /** An index definition from ADD INDEX / UNIQUE / FULLTEXT / SPATIAL / PRIMARY KEY or CREATE INDEX. */
     public record IndexDef(String name, boolean unique, boolean fulltext, boolean spatial, boolean primary,
                            List<IndexPart> parts) { }
 
-    /**
-     * One clause.
-     *
-     * @param name      the column, index or constraint it names; for CHANGE and RENAME the old name
-     * @param newName   for CHANGE and RENAME, the new name
-     * @param value     for ALGORITHM, LOCK, ENGINE, ROW_FORMAT, CONVERT and table charset: the value given
-     */
     public record Clause(Kind kind, String text, String name, String newName, ColumnDef column, IndexDef index,
                          String value, String collation, String referencedTable) {
 
@@ -69,11 +50,6 @@ public final class AlterParser {
         }
     }
 
-    /**
-     * The statement read: its table and clauses. {@code error} is set when it could not be read at all;
-     * {@code syntaxErrors} holds mistakes MySQL would reject that the reading worked around, such as an
-     * ALGORITHM= with no comma before it, so the rest of the statement can still be judged.
-     */
     public record ParsedAlter(String schema, String table, List<Clause> clauses, String error,
                               List<String> syntaxErrors) {
 
@@ -142,7 +118,6 @@ public final class AlterParser {
             "Not an ALTER TABLE, CREATE INDEX or DROP INDEX statement");
     }
 
-    /** Trailing ALGORITHM= / LOCK= options on CREATE INDEX and DROP INDEX. */
     private static void options(String tail, List<Clause> into, List<String> syntax) {
         if (tail.trim().startsWith(",")) {
             syntax.add("CREATE INDEX and DROP INDEX take ALGORITHM= and LOCK= after a space, not a comma: "
@@ -158,26 +133,16 @@ public final class AlterParser {
         }
     }
 
-    // ── syntax MySQL rejects ──
-
     static final List<String> ALGORITHMS = List.of("DEFAULT", "INSTANT", "INPLACE", "COPY");
     static final List<String> LOCKS = List.of("DEFAULT", "NONE", "SHARED", "EXCLUSIVE");
 
-    /** An ALGORITHM= or LOCK= with one of its own values, so a column called {@code lock} is not taken for one. */
     private static final String OPTION = "(?:ALGORITHM\\s*=?\\s*(?:" + String.join("|", ALGORITHMS) + ")"
         + "|LOCK\\s*=?\\s*(?:" + String.join("|", LOCKS) + "))";
-    // FLAGS is declared further down, so spelt out here
     private static final Pattern TRAILING_OPTION = Pattern.compile("^(.*\\S)\\s+(" + OPTION + ")$",
         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern LEADING_OPTION = Pattern.compile("^(" + OPTION + ")\\s+(\\S.*)$",
         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
-    /**
-     * A clause with an ALGORITHM= or LOCK= run onto it without a comma, split into the clauses MySQL would
-     * need, with the missing comma reported. {@code CONVERT TO CHARACTER SET utf8mb4 ALGORITHM=COPY} is
-     * ERROR 1064 in MySQL; without this it read as one clause nobody recognised, and the check reported an
-     * unknown algorithm instead of the typo.
-     */
     static List<String> missingCommas(String text, List<String> syntax) {
         List<String> trailing = new ArrayList<>();
         String rest = text;
@@ -202,7 +167,6 @@ public final class AlterParser {
         return pieces;
     }
 
-    /** ALGORITHM=FAST and LOCK=WRITE are refused outright. */
     private static void optionValue(Clause clause, List<String> syntax) {
         if (clause.kind() == Kind.ALGORITHM && !ALGORITHMS.contains(clause.value())) {
             syntax.add("Unknown algorithm: MySQL rejects ALGORITHM=" + clause.value() + ". It takes "
@@ -220,8 +184,6 @@ public final class AlterParser {
         }
         return s;
     }
-
-    // ── one clause ──
 
     private static final int FLAGS = Pattern.CASE_INSENSITIVE | Pattern.DOTALL;
     private static final Pattern P_ALGORITHM = Pattern.compile("^ALGORITHM\\s*=?\\s*(\\w+)$", FLAGS);
@@ -376,8 +338,6 @@ public final class AlterParser {
         return new Clause(kind, text, Ident.unquote(name), null, null, null, null, null, null);
     }
 
-    // ── column definitions ──
-
     private static final Pattern COLUMN = Pattern.compile(
         "^(" + Ident.ONE + ")\\s+(\\w+)\\s*(?:\\(([^)]*)\\))?(.*)$", FLAGS);
     private static final Pattern CHARSET = Pattern.compile("(?:CHARACTER\\s+SET|CHARSET)\\s*=?\\s*(\\w+)", FLAGS);
@@ -418,8 +378,6 @@ public final class AlterParser {
         }
     }
 
-    // ── index parts ──
-
     private static final Pattern PART = Pattern.compile("^(" + Ident.ONE + ")\\s*(?:\\((\\d+)\\))?(?:\\s+(?:ASC|DESC))?$",
         FLAGS);
 
@@ -441,7 +399,6 @@ public final class AlterParser {
         return parts;
     }
 
-    /** The text inside the outermost parentheses of {@code (…)…}. */
     private static String inner(String parenthesised) {
         int depth = 0;
         for (int i = 0; i < parenthesised.length(); i++) {
@@ -458,7 +415,6 @@ public final class AlterParser {
         return parenthesised.length() > 1 ? parenthesised.substring(1) : "";
     }
 
-    /** Split on commas outside parentheses, quotes and backticks. */
     static List<String> splitTopLevel(String text) {
         List<String> parts = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -494,7 +450,6 @@ public final class AlterParser {
         return value == null ? null : value.toLowerCase(Locale.ROOT);
     }
 
-    /** Identifier patterns: backticked or bare, optionally schema-qualified. */
     static final class Ident {
         static final String ONE = "(?:`[^`]+`|[\\w$]+)";
         static final String QUALIFIED = ONE + "(?:\\s*\\.\\s*" + ONE + ")?";
@@ -506,7 +461,6 @@ public final class AlterParser {
             return s.startsWith("`") && s.endsWith("`") ? s.substring(1, s.length() - 1) : s;
         }
 
-        /** {schema or null, table}. */
         static String[] split(String qualified) {
             List<String> parts = new ArrayList<>();
             Matcher m = Pattern.compile(ONE).matcher(qualified);

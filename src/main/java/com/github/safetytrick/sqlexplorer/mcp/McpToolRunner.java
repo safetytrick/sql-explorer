@@ -20,29 +20,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Runs one tool call: selects its environment, calls the handler, and turns
- * what comes back — or what goes wrong — into a result the client shows.
- *
- * <p>It also authorizes the call (sqlx-e13.5): {@code /mcp} is one URL for
- * every environment and every tool, so the URL rules cannot, and a call the
- * caller's grants do not allow is a tool error naming the missing permission.
- *
- * <p>A failure is a tool result with {@code isError}, never a protocol error,
- * so the model reads why and can correct the call; the reasons a REST caller
- * would get in a 4xx are passed on as they are.
- */
 @Component
 class McpToolRunner {
 
-    /** Results are cut at this many characters, so one call cannot flood a model's context. */
     static final int MAX_RESULT_CHARS = 60_000;
 
-    /** Where the transport puts the servlet request, for the handler on the same thread. */
     static final String REQUEST = HttpServletRequest.class.getName();
 
     private static final Logger log = LoggerFactory.getLogger(McpToolRunner.class);
-    /** The same audit log as BearerTokenFilter's: a token's writes, with its owner and id. */
     private static final Logger AUDIT = LoggerFactory.getLogger("sql-explorer.audit");
 
     private final JsonMapper jsonMapper;
@@ -57,13 +42,6 @@ class McpToolRunner {
         this.users = users;
     }
 
-    /**
-     * What a tool needs on its environment (sqlx-e13.5): the same permission
-     * its REST endpoint does. Reads need {@code explorer:read}; the tag writes
-     * {@code commentary:write}. Tools that take no environment (the SQL
-     * utilities) are pure functions of their arguments and need only the
-     * authentication {@code /mcp} already asked for.
-     */
     static Permission permissionFor(McpTool tool) {
         return tool.writes() ? Permission.COMMENTARY_WRITE : Permission.EXPLORER_READ;
     }
@@ -97,27 +75,8 @@ class McpToolRunner {
         }
     }
 
-    /**
-     * The client's MCP config can pin an environment with this header; a
-     * tool's {@code environment} argument wins over it.
-     */
     public static final String ENVIRONMENT_HEADER = "X-Sql-Explorer-Environment";
 
-    /**
-     * The environment the call names, else the one the client's config pins
-     * with {@link #ENVIRONMENT_HEADER}, else the default. Checked: an unknown
-     * name is refused rather than answered from another environment.
-     *
-     * <p>{@code /mcp} is one servlet URL for every environment, so unlike the
-     * REST API it does not carry the environment in its path (sqlx-e13.6).
-     * That is the one exception, so authorization cannot be a URL rule here:
-     * {@link #run} checks each call against the environment chosen.
-     *
-     * <p>With none named, the default is used if the caller may use it there,
-     * else the first environment they may, as {@code /environments} picks a
-     * default for the UI. Unknown names list only environments the caller can
-     * see.
-     */
     private String selectEnvironment(String name, McpTransportContext context, Grants grants, Permission needed) {
         HttpServletRequest request = context.get(REQUEST) instanceof HttpServletRequest r ? r : null;
         if ((name == null || name.isBlank()) && request != null) {

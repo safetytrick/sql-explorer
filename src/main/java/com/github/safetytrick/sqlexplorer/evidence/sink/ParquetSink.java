@@ -36,25 +36,6 @@ public class ParquetSink {
         this.config = config;
     }
 
-    /**
-     * Write one capture: open, write every row, close.
-     *
-     * <p>ONE WRITER PER CALL, and that is the whole fix for sqlx-fx2. This used
-     * to hold a single lazily-built writer for the life of the process, so the
-     * first import owned the file and every later one was appended to it —
-     * across sources and across environments. Proven on a running instance:
-     * loading a second environment put 4,366 rows in one capture, 4,244 from
-     * {@code primary} and 122 from {@code explorer}, under a footer claiming
-     * {@code sourceRef=primary, rowCount=4244}.
-     *
-     * <p>Closing here rather than at {@code @PreDestroy} fixes a second problem
-     * the old shape had. Parquet buffers its row group until close, so a
-     * process that did not shut down cleanly left a 4-byte file holding nothing
-     * — the whole capture lost. Nine such stubs accumulated during development.
-     * A capture is now readable the moment its import finishes.
-     *
-     * @return where it was written, or null when nothing was
-     */
     public Path write(CaptureContext capture, Iterable<SqlProfile> profiles) {
         Path file = fileFor(config.getFilename(), capture);
         try (ParquetWriter<Object> writer = writerFor(file, capture)) {
@@ -78,35 +59,13 @@ public class ParquetSink {
             .withDictionaryEncoding(true)
             .withConf(new Configuration(false))
             .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
-            // absent rather than empty when nothing is known: a reader must be
-            // able to tell "no provenance recorded" from "recorded as nothing",
-            // which is the distinction sqlx-sy5 turns on
             .withExtraMetaData(capture == null ? Map.of() : capture.asMetadata())
             .build();
     }
 
-    /**
-     * Where a capture is written: the configured path with the source and the
-     * capture instant folded into the stem.
-     *
-     * <p>THE SOURCE IS IN THE NAME because it is the unit a capture describes.
-     * An environment can read several servers, and two servers' statements
-     * belong together no more than two environments' do — sqlx-sy5 already
-     * argues gap detection is per datasource for exactly this reason, and
-     * mixing them in one file puts the interleaving below the level the archive
-     * reader can see.
-     *
-     * <p>The stamp is ordered lexicographically as well as chronologically, so
-     * within a source the newest capture is the last name in a sorted listing
-     * and finding it costs no parsing.
-     *
-     * <p>Falls back to the plain configured name when there is no capture
-     * instant, which keeps a context-less write working and readable.
-     */
     static Path fileFor(String configuredPath, CaptureContext context) {
         Path base = Path.of(configuredPath);
         Path fileName = base.getFileName();
-        // a root path has no file name to stamp; nothing sensible to derive
         if (context == null || context.capturedAt() == null || fileName == null) {
             return base;
         }
@@ -120,16 +79,6 @@ public class ParquetSink {
         return parent == null ? stamped : parent.resolve(stamped);
     }
 
-    /**
-     * A source ref, made safe for a file name, or empty when there is none.
-     *
-     * <p>Two different refs must never produce the same token — that would
-     * re-merge their captures and recreate the bug this exists to fix. Refs are
-     * usually already safe ({@code primary}, {@code explorer}) and pass through
-     * unchanged; anything that had to be rewritten carries a short digest of
-     * the original so it stays distinct. {@link com.github.safetytrick.sqlexplorer.evidence.sink.ParquetSqlSource}
-     * uses a file path as its ref, which is why this is not merely defensive.
-     */
     static String fileToken(String sourceRef) {
         if (sourceRef == null || sourceRef.isBlank()) {
             return "";
@@ -151,15 +100,13 @@ public class ParquetSink {
      * the profile schema is full of them: every latency on
      * {@code RuntimeMetrics} and {@code MergedChild.averageTime} is a
      * BigDecimal. Without it the read fails with "Forbidden
-     * java.math.BigDecimal" — which nothing had ever hit, because nothing
-     * had ever successfully read this file back.
+     * java.math.BigDecimal".
      */
     static PlainParquetConfiguration readerConfiguration() {
         return new PlainParquetConfiguration(
             Map.of("parquet.avro.serializable.classes", BigDecimal.class.getName()));
     }
 
-    /** Read the profiles back. A capture is sealed when {@link #write} returns. */
     public List<SqlProfile> readAll(Path parquetFile) throws IOException {
         List<SqlProfile> profiles = new ArrayList<>();
         try (ParquetReader<SqlProfile> parquetReader = AvroParquetReader.<SqlProfile>builder(

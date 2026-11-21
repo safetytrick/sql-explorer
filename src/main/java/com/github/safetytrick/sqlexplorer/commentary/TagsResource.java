@@ -62,16 +62,6 @@ class TagsResource {
         return tagRepository.findAllByPathInGroupedByPath(paths, environment.name());
     }
 
-    /**
-     * The tags on each of these targets, in the order asked.
-     *
-     * <p>Replaces keying a batch by path string, which could neither ask about
-     * nor return a tag on a table whose name contains {@code /} — the storage
-     * could hold one from sqlx-11v, but the API could not address it (sqlx-3ai).
-     *
-     * <p>Positional, so the caller zips it against its own rows. A duplicate
-     * target is legitimate and gets the same answer at both positions.
-     */
     @PostMapping("/tags/targets")
     public List<List<Tag>> tagsForTargets(@RequestBody List<TagTarget> targets) {
         try {
@@ -83,23 +73,13 @@ class TagsResource {
 
     @PostMapping("/tags")
     public Tag createTag(@RequestBody CreateTag createTag) {
-        // Not `path` specifically: a request may state its target either way,
-        // and targetOf() below reports which forms are accepted (sqlx-3ai).
         Objects.requireNonNull(createTag.name, "name is required");
 
-        // Both checks below reach the caller as a 400. A plain
-        // IllegalArgumentException is a 500 here, which sends someone with a
-        // fixable request to logs they cannot read — the same defect already
-        // corrected on the bulk path (sqlx-agl) and the upload path (sqlx-djj);
-        // this was the third instance.
         String nameProblem = Names.tagNameProblem(createTag.name);
         if (nameProblem != null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, nameProblem);
         }
 
-        // Validated before anything is looked up or written: the target is
-        // client-supplied, and one that addresses nothing produces a row no lens
-        // or filter can ever find (sqlx-0lj).
         TagTarget path;
         try {
             path = targetOf(createTag);
@@ -108,9 +88,6 @@ class TagsResource {
         }
 
         if (createTag.getType() != null && !createTag.getType().equals(path.type())) {
-            // Refused rather than silently preferred either way: a type that
-            // disagrees with the address means the caller believes something
-            // untrue about what it is tagging.
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "type " + createTag.getType() + " does not match the target, "
                     + "which addresses a " + path.type());
@@ -128,8 +105,6 @@ class TagsResource {
         tag.setAuthor(userService.currentUser());
         tag.setName(createTag.name);
         tag.setEnvironmentName(environment.name());
-        // Type and target together, from the one parsed address: the path is no
-        // longer stored, it is generated back from these (sqlx-11v).
         tag.target(path);
 
         tag = tagRepository.save(tag);
@@ -137,40 +112,16 @@ class TagsResource {
         return tag;
     }
 
-    /**
-     * Attach one tag to every path given.
-     *
-     * <p>The paths are the set, and the caller enumerates them — right for the
-     * list pages, which have already loaded every row they are showing and so
-     * know exactly what "the current result set" means. The query workbench
-     * filters server-side over thousands of rows and uses
-     * {@code POST /tags/search} instead (sqlx-agl).
-     */
     @PostMapping("/tags/bulk")
     public BulkTagService.BulkResult bulkTag(@RequestBody BulkTag request) {
         return bulkTagService.attach(request.getName(), targetsOf(request), request.getType());
     }
 
-    /** Remove one tag from every path given, and from nowhere else. */
     @PostMapping("/tags/bulk/remove")
     public BulkTagService.BulkResult bulkUntag(@RequestBody BulkTag request) {
         return bulkTagService.detach(request.getName(), targetsOf(request));
     }
 
-    /**
-     * Detach one association from the selected environment.
-     *
-     * <p>SCOPED, like every other read and write in this package. Association
-     * ids are globally unique, so an unscoped delete could not remove the wrong
-     * row by accident — but it would let an id belonging to one environment be
-     * deleted while another was selected, and it was the last destructive path
-     * that did not ask which corpus it was working in (sqlx-8p0).
-     *
-     * <p>A 404 rather than a silent no-op. The chip is removed optimistically by
-     * the client, so an id this environment does not have has to come back as
-     * something the client can react to; quietly reporting success would leave
-     * the tag on screen until the next load and then bring it back.
-     */
     @DeleteMapping("/tag/{id}")
     @Transactional
     public void deleteTag(@PathVariable int id) {
@@ -180,14 +131,6 @@ class TagsResource {
         }
     }
 
-    /**
-     * The target a request states, in either form.
-     *
-     * <p>The typed form wins when both are present; the path form stays
-     * accepted because links and older clients still carry one, and because it
-     * is what {@code /tags/bulk} sends until its own callers move over.
-     */
-    /** The targets a bulk request states, in either form. */
     static List<TagTarget> targetsOf(BulkTag request) {
         if (request.getTargets() != null && !request.getTargets().isEmpty()) {
             return request.getTargets();
@@ -214,19 +157,10 @@ class TagsResource {
     public static class BulkTag {
         private String name;
 
-        /**
-         * What to tag, stated typed.
-         *
-         * <p>Preferred over {@link #paths}. A path cannot express a name
-         * containing {@code /}, and one such row on a page would have made the
-         * whole batch fail rather than just that row (sqlx-3ai).
-         */
         private List<TagTarget> targets;
 
-        /** The legacy addresses. Still accepted; cannot express every target. */
         private List<String> paths;
 
-        /** Derived from each target when absent, as a single tag does. */
         private String type;
     }
 
@@ -234,15 +168,8 @@ class TagsResource {
     public static class CreateTag {
         private String name;
 
-        /**
-         * What to tag, stated typed.
-         *
-         * <p>Preferred over {@link #path}, and the only form that can address a
-         * name containing {@code /} (sqlx-3ai).
-         */
         private TagTarget target;
 
-        /** The legacy address. Still accepted; cannot express every target. */
         private String path;
 
         private String type;

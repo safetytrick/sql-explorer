@@ -5,17 +5,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
-/**
- * What the current request may do (sqlx-e13.4): the grants its groups carry,
- * or everything when sign-in is off. A request made with an access token may
- * do what both its owner and the token's ceiling allow (sqlx-e13.5). One not
- * signed in at all may do what {@code sql-explorer.auth.anonymous} grants,
- * reading only (sqlx-2lc).
- *
- * <p>Enforcement is by URL, in {@link SecurityConfig}; this is for the places
- * that shape an answer to the caller rather than refuse it, such as listing
- * only the environments they can see.
- */
 @Service
 public class Authorizations {
 
@@ -36,13 +25,11 @@ public class Authorizations {
             return Grants.EVERYTHING;
         }
         if (authentication instanceof AccessTokenAuthentication token) {
-            // already min(owner's grants, the token's ceiling): sqlx-e13.5
             return token.grants();
         }
         if (authentication != null && authentication.getPrincipal() instanceof OidcUser user) {
             return groupGrants.of(UserService.groups(user));
         }
-        // not signed in: what visitors may read, if anything (sqlx-2lc)
         return groupGrants.anonymous();
     }
 }

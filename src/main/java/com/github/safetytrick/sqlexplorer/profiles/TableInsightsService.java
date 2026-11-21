@@ -24,10 +24,6 @@ import com.github.safetytrick.sqlexplorer.schema.TableIndex;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
-/**
- * Table-detail rollups for the Schema view: per-column metadata merged with
- * query usage (roles + counts), and the table stat strip.
- */
 @Service
 public class TableInsightsService {
 
@@ -51,7 +47,6 @@ public class TableInsightsService {
         this.sqlSchemaService = sqlSchemaService;
     }
 
-    /** Columns of the table with metadata attributes and how queries use them. */
     public List<ColumnUsage> getColumns(TableReference table) {
         TableStructure structure = sqlSchemaService.getTable(table);
         if (structure == null || structure.columns() == null) {
@@ -92,11 +87,7 @@ public class TableInsightsService {
     }
 
     /**
-     * Indexes of the table with how queries hint them, the index counterpart
-     * of {@link #getColumns}: each hint action that names an index, and the
-     * distinct queries naming it (sqlx-yj0).
-     *
-     * <p>An index a query hints that the table does not have follows the
+     * An index a query hints that the table does not have follows the
      * table's own, flagged {@code exists = false}. MySQL rejects such a
      * statement (error 1176), so those are queries that fail — whether
      * against an index since dropped, or another server's schema.
@@ -128,7 +119,6 @@ public class TableInsightsService {
         return List.copyOf(indexes.values());
     }
 
-    /** The stat strip: query/execution/time totals and the read/write split. */
     public TableStats getStats(TableReference table) {
         int distinctQueries = 0;
         long totalExecutions = 0;
@@ -153,7 +143,6 @@ public class TableInsightsService {
         return new TableStats(distinctQueries, totalExecutions, totalTimeMs, readExecutions, writeExecutions);
     }
 
-    /** Per-column roles and distinct query counts, in one pass over the table's queries. */
     private Map<String, Usage> collectUsage(TableReference table) {
         Map<String, Usage> usage = new HashMap<>();
         sqlRepositoryService.getTableQueries(table).forEach(profile -> {
@@ -179,11 +168,6 @@ public class TableInsightsService {
         return usage;
     }
 
-    /**
-     * Qualifies the criteria role with how one query compares each column:
-     * per kind, and for LIKE whether the pattern's leading wildcard is known
-     * (sqlx-n5j.7). Every count is of distinct queries.
-     */
     private static void addComparisons(Map<String, Usage> usage, TableReference table,
                                        List<CriteriaComparison> comparisons) {
         if (comparisons == null) {
@@ -216,7 +200,6 @@ public class TableInsightsService {
         }
     }
 
-    /** Per-index hint actions and distinct query counts, in one pass over the table's queries. */
     private Map<String, Usage> collectHintUsage(TableReference table) {
         Map<String, Usage> usage = new HashMap<>();
         sqlRepositoryService.getTableQueries(table).forEach(profile -> {
@@ -252,12 +235,10 @@ public class TableInsightsService {
         }
     }
 
-    /** The usage key of a column of {@code table}; null for another table's column. */
     private static String columnKey(TableReference table, ColumnReference column) {
         if (column == null || column.getTable() == null || !column.getTable().equalsNormalized(table)) {
             return null;
         }
-        // analysis keeps raw names (possibly backticked) in column; match on the normalized name
         String name = column.getNormalizedColumn() != null ? column.getNormalizedColumn() : column.getColumn();
         return name == null ? null : lower(name);
     }
@@ -270,30 +251,13 @@ public class TableInsightsService {
         return columns == null ? List.of() : columns;
     }
 
-    /**
-     * One column and how queries use it. {@code comparisons} qualifies the
-     * criteria role: per comparison kind (equality, range, in, like, ...), the
-     * distinct queries comparing the column that way. {@code like} is null
-     * unless some query pattern-matches on it.
-     */
     public record ColumnUsage(String name, String type, int size, boolean nullable, boolean autoIncrement,
                               boolean primaryKey, boolean foreignKey, String characterSet, String collation,
                               List<String> roles, int queries, Map<String, Integer> comparisons,
                               LikeUsage like) { }
 
-    /**
-     * The criteria role's LIKE qualifier (sqlx-n5j.7): distinct queries
-     * matching the column with LIKE or NOT LIKE, those whose pattern is known
-     * to start with a wildcard (no index prefix can serve them), and those
-     * whose pattern could not be read — usually a {@code ?} parameter.
-     */
     public record LikeUsage(int queries, int leadingWildcard, int unknownWildcard) { }
 
-    /**
-     * One index and how queries hint it. {@code hints} holds the actions —
-     * {@code use}, {@code force}, {@code ignore} — and {@code queries} the
-     * distinct queries naming it in any of them.
-     */
     public record IndexUsage(String name, boolean primary, boolean unique, List<String> columns,
                              boolean exists, List<String> hints, int queries) { }
 
@@ -308,7 +272,6 @@ public class TableInsightsService {
         private int likeQueries;
         private int leadingWildcardQueries;
         private int unknownWildcardQueries;
-        /** The first spelling seen, for an index the schema does not name. */
         private String name;
     }
 }

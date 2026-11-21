@@ -79,8 +79,7 @@ public class SqlProfileExtension {
     /**
      * The tables the statement joins to themselves: a join column pair whose
      * two sides resolve, through their aliases, to the same table. One entry
-     * per table however many columns it joins on. The graph's self-join flag
-     * and the workbench's {@code selfJoin} filter both read this.
+     * per table however many columns it joins on.
      *
      * <p>The analyzer records an {@code IN (SELECT ...)} semi-join and a
      * correlated subquery's condition as join pairs, so those count when the
@@ -269,18 +268,8 @@ public class SqlProfileExtension {
             }
 
             if (thiz.getNormalizedDigest() != null) {
-                // Already scoped by the session schema at ingest.
                 thiz.setDigest(thiz.getNormalizedDigest());
             } else if (thiz.getDigest() != null) {
-                // The skip and parse-failure paths, which never reach
-                // NormalizedQueryDigest. `digest` here is MySQL's, computed
-                // from statement text alone — so it is identical for the same
-                // text in every schema, and using it unchanged merged
-                // `SHOW INDEXES FROM tokens` in `msg` with the same statement
-                // in `app_other`. Scoping it the same way the analysed path scopes
-                // its own normalized form keeps one profile per schema. The
-                // performance-schema digest stays reachable: it lives on
-                // runtimeMetrics, and the repository indexes profiles by it.
                 String scoped = NormalizedQueryDigest.scopedDigest(thiz.getSchemaName(), thiz.getDigest());
                 thiz.setNormalizedDigest(scoped);
                 thiz.setDigest(scoped);
@@ -377,41 +366,14 @@ public class SqlProfileExtension {
                 thiz.setTables(tables);
             }
 
-            // Derived from the tables, and deliberately *after* the pass above.
-            // `addSchema` skips a null schema, and a table named unqualified in
-            // the SQL only gets one from `withDefaultSchema` — so deriving
-            // earlier left `schemas` empty for the common case: half the corpus
-            // listed `search.heartbeat` in `tables` and nothing in `schemas`.
             for (TableReference table : thiz.getTables()) {
                 addSchema(thiz, table.getNormalizedSchemaName());
             }
 
-            // And the flag from the finished list. SchemaAnalyzer sets this too,
-            // but does not run for a skipped statement; deriving here covers
-            // every profile. Promotion to true only, so the two cannot disagree.
             if (thiz.getSchemas().size() > 1) {
                 thiz.setIsMultiSchema(true);
             }
 
-            // `schemaName` means *the* schema: when the statement touches
-            // exactly one, that is the answer, whoever built the profile.
-            //
-            // Ingest stamps the session's default database here (or "dual"
-            // when the row has none), and SchemaAnalyzer then overwrites it
-            // with the sole schema — so the field already meant this for an
-            // analysed statement and meant "the session it ran in" for
-            // everything else. 127 of 3,608 live profiles named a schema their
-            // own single-entry `schemas` contradicted: `information_schema`
-            // queries stamped "mysql", `performance_schema` queries stamped
-            // "dual". The skip is decided *from the tables*, so the statements
-            // that read another schema are exactly the ones the analyzer never
-            // saw.
-            //
-            // Guarded to the single-schema case for the same reason the flag
-            // above is promotion-only: it computes the identical value
-            // SchemaAnalyzer does, so it cannot contradict a correct analyzer
-            // result. A multi-schema statement has no single answer — that is
-            // what `isMultiSchema` is for — and keeps the session value.
             if (thiz.getSchemas().size() == 1) {
                 thiz.setSchemaName(thiz.getSchemas().getFirst());
             }
@@ -420,27 +382,6 @@ public class SqlProfileExtension {
         }
 
 
-        /**
-         * Give every list field an empty list rather than leaving it null.
-         *
-         * The schema declares these {@code = []}, but the default only applies
-         * to a field the builder never touched *and* only if Avro materialises
-         * it — in practice a field that no analyzer populated arrives null on
-         * the wire. Which fields those are depends on how the analyzer fills
-         * them: `setJoinColumns` / `setMismatchedJoins` are called
-         * unconditionally so those are always present, while `selectColumn`,
-         * `groupByColumn` and `addSchema` create their list on first insert, so
-         * a statement with none of them — or an analyzer that threw or never
-         * ran — left null behind.
-         *
-         * That was a real bug rather than a cosmetic one: ~5% of profiles came
-         * back with null `selectColumns` / `groupByColumns` / `schemas`, and
-         * the SQL view read `.length` off them, throwing during change
-         * detection and blanking most of the page.
-         *
-         * Normalising here covers every profile, because both build paths go
-         * through {@code completeBuild}.
-         */
         private static void emptyUnsetLists(SqlProfile.Builder thiz) {
             if (thiz.getTables() == null) { thiz.setTables(new ArrayList<>()); }
             if (thiz.getJoinColumns() == null) { thiz.setJoinColumns(new ArrayList<>()); }

@@ -19,12 +19,6 @@ import com.github.safetytrick.sqlexplorer.schema.SqlSchemaService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
-/**
- * "Commonly queried together" for a table: every other table appearing in the
- * same analyzed queries, with how often and how expensively, whether the pair
- * is actually joined (vs merely co-occurring), and any FK relationship
- * direction between the pair.
- */
 @Service
 public class CoQueriedService {
 
@@ -75,7 +69,6 @@ public class CoQueriedService {
         return false;
     }
 
-    /** Whether this join column pair connects tables {@code a} and {@code b} (either way around). */
     private static boolean pairs(JoinColumns join, TableReference a, TableReference b) {
         if (join.getLeft() == null || join.getRight() == null) {
             return false;
@@ -89,7 +82,6 @@ public class CoQueriedService {
             || (left.equalsNormalized(b) && right.equalsNormalized(a));
     }
 
-    /** "out" when {@code table} references {@code other}, "in" for the reverse, else null. */
     private String fkDirection(TableReference table, TableReference other) {
         if (referencesViaForeignKey(sqlSchemaService.getTable(table), other)) {
             return "out";

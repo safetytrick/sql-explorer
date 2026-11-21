@@ -15,11 +15,6 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Holds the known {@link Environment}s. Built from {@code environments.*}
- * config, or — when none is configured — a single "default" environment
- * synthesized from the legacy {@code datasources.metadata.*} keys.
- */
 public class EnvironmentRegistry {
 
     public static final String DEFAULT_ENVIRONMENT = "default";
@@ -41,7 +36,6 @@ public class EnvironmentRegistry {
             ConnectionInfo connectionInfo = new ConnectionInfo(legacyMetadata.getJdbcUrl(),
                 legacyMetadata.getUsername(),
                 legacyMetadata.getPassword());
-            // legacy fallback provides a connection (for schema) but no sources
             DatabaseServer server = new DatabaseServer(DEFAULT_ENVIRONMENT, connectionInfo, List.of(), schemaRepositoryFactory);
             environments.put(DEFAULT_ENVIRONMENT, new Environment(DEFAULT_ENVIRONMENT, List.of(server)));
             this.defaultEnvironmentName = DEFAULT_ENVIRONMENT;
@@ -49,11 +43,6 @@ public class EnvironmentRegistry {
         log.info("Environments configured: {} (default: {})", environments.keySet(), defaultEnvironmentName);
     }
 
-    /**
-     * The environment marked {@code default: true} wins; else one literally named
-     * "default"; else the first declared (single-file configs only — profile
-     * overlays do not preserve declaration order).
-     */
     private String resolveDefaultName(Map<String, EnvironmentDefinition> definitions) {
         List<String> marked = definitions.entrySet().stream()
             .filter(entry -> entry.getValue().isDefault())
@@ -72,15 +61,11 @@ public class EnvironmentRegistry {
 
     private static Environment toEnvironment(String name, EnvironmentDefinition definition,
                                              SchemaRepositoryFactory schemaRepositoryFactory) {
-        // Refused at startup: every commentary row is keyed by this name in a
-        // varchar(48), so a longer one would only fail later, on the first tag.
         String nameProblem = Names.environmentNameProblem(name);
         if (nameProblem != null) {
             throw new IllegalArgumentException(nameProblem);
         }
         List<Cluster> clusters = new ArrayList<>();
-        // Captures are keyed by server name, so two servers sharing one would
-        // write into each other's history — a cluster is not a namespace.
         Set<String> serverNames = new HashSet<>();
         for (Map.Entry<String, ServerDefinition> serverEntry : definition.getServers().entrySet()) {
             claim(name, serverNames, serverEntry.getKey());
@@ -118,7 +103,6 @@ public class EnvironmentRegistry {
         }
     }
 
-    /** @param snapshotKey the cluster the server's schema belongs to: snapshots are per cluster, not per server */
     private static DatabaseServer server(String name, ServerDefinition definition,
                                          SchemaRepositoryFactory schemaRepositoryFactory,
                                          SchemaSnapshot.Key snapshotKey) {
@@ -126,8 +110,6 @@ public class EnvironmentRegistry {
             definition.getPassword());
         Set<ServerRole> roles = definition.getRoles() == null ? Set.of() : definition.getRoles();
         if (roles.contains(ServerRole.PRIMARY) && roles.contains(ServerRole.SAMPLING)) {
-            // the one combination refused outright: sampling reads table data, and a
-            // primary's data is the application's working set
             throw new IllegalArgumentException("Environment " + snapshotKey.environment() + ", server " + name
                 + ": a primary cannot also have the sampling role; give it to a replica");
         }
@@ -143,7 +125,6 @@ public class EnvironmentRegistry {
         return defaultEnvironmentName;
     }
 
-    /** @return the named environment, or the default if {@code name} is null/unknown. */
     public Environment getOrDefault(String name) {
         Environment environment = name == null ? null : environments.get(name);
         return environment != null ? environment : getDefault();

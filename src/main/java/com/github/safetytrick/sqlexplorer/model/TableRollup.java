@@ -12,17 +12,8 @@ public record TableRollup(String name,
                          String schema,
                          List<Tag> tags,
                          boolean view,
-                         /**
-                          * INSERT/UPDATE/DELETE/REPLACE executions per day touching the table:
-                          * an average over each statement's captured window ({@link CapturedRate}).
-                          */
                          double writesPerDay,
-                         /**
-                          * information_schema.TABLES TABLE_ROWS — an estimate, summed over
-                          * the servers reporting the table; null when none has (sqlx-n5j.2).
-                          */
                          Long rowsEstimate,
-                         /** DATA_LENGTH + INDEX_LENGTH in bytes, summed likewise; null when unknown. */
                          Long sizeBytes) {
 
     public TableRollup(String name, int numberOfQueries, double totalQueryTime, String schema, List<Tag> tags,

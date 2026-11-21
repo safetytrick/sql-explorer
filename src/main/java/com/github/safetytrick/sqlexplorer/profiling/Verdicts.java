@@ -13,17 +13,10 @@ import com.github.safetytrick.sqlexplorer.profiling.ProfileResult.ServerResult;
 import com.github.safetytrick.sqlexplorer.profiling.ProfileResult.SignatureResult;
 import com.github.safetytrick.sqlexplorer.profiling.Signature.Family;
 
-/**
- * What a column's figures mean for a conversion to utf8mb4, in a sentence,
- * and the figures of every server added together. A sample never says a
- * column <i>is</i> anything: "no non-ASCII in 25,000 sampled rows" is not
- * "the column is ASCII", and the sentences keep that difference.
- */
 final class Verdicts {
 
     private Verdicts() { }
 
-    /** 20,000 rather than 20000. */
     private static String n(long value) {
         return String.format(java.util.Locale.ROOT, "%,d", value);
     }
@@ -68,7 +61,6 @@ final class Verdicts {
         return n(nonAscii) + " non-ASCII rows " + scope + "; no signatures are defined for " + characterSet;
     }
 
-    /** Every done server's columns added together, by column name. */
     static List<ColumnResult> combine(List<ServerResult> servers) {
         Map<String, List<ColumnResult>> byColumn = new LinkedHashMap<>();
         boolean complete = !servers.isEmpty();
@@ -107,7 +99,6 @@ final class Verdicts {
         return out;
     }
 
-    /** {@code confirmed} only when every server finished and read every row. */
     static String confidence(List<ServerResult> servers) {
         return !servers.isEmpty() && servers.stream().allMatch(s -> "done".equals(s.status()) && s.complete())
             ? "confirmed" : "sampled";

@@ -6,11 +6,6 @@ import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.github.safetytrick.sqlexplorer.environment.EnvironmentContext;
 import org.springframework.stereotype.Service;
 
-/**
- * The schema of the environment selected for the current request (resolved via
- * {@link EnvironmentContext} from the {@code /env/{env}/} segment of its path). Used on the REST query path; the
- * import path resolves its schema explicitly per server.
- */
 @Service
 public class SqlSchemaService implements SqlSchemaRepository {
 

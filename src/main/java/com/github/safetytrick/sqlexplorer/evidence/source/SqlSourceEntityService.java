@@ -44,8 +44,6 @@ public class SqlSourceEntityService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        // Discovered from disk rather than uploaded, so nobody supplied a
-        // capture context and none is invented. Unknown is the honest record.
         return doSave(sqlSource.getSourceRef(),
                 sourceUrl,
                 sqlSource.getResource(),
@@ -53,10 +51,6 @@ public class SqlSourceEntityService {
                 CaptureDetails.UNKNOWN);
     }
 
-    /**
-     * What the uploader knows about the export and nobody else can recover.
-     * Only {@code capturedAt} is required; the rest read as unknown when absent.
-     */
     public record CaptureDetails(java.time.Instant capturedAt, String serverVersion,
                                  Integer digestsSize, Integer maxDigestLength) {
         static final CaptureDetails UNKNOWN = new CaptureDetails(null, null, null, null);
@@ -84,8 +78,6 @@ public class SqlSourceEntityService {
             entity.setSourceRef(sourceRef);
             entity.setSourceUrl(sourceUrl);
             entity.setCreator(userService.currentUser());
-            // A TSV upload is one hop from sys.x$statement_analysis; the parquet
-            // we later write from it is two, and inherits this chain.
             entity.setOrigin(CaptureContext.Origin.CSV_EXPORT.name());
             entity.setCapturedAt(capture.capturedAt());
             entity.setServerVersion(capture.serverVersion());
@@ -104,12 +96,6 @@ public class SqlSourceEntityService {
         }
     }
 
-    /**
-     * Attribute the source ref to an environment. The most recent save wins so
-     * a ref can be moved by re-uploading under another environment. Also called
-     * when an unattributed (legacy) ref is encountered, to pin it to the
-     * default environment.
-     */
     public void attributeSourceRef(String sourceRef, String environmentName) {
         SourceRefEntity ref = sourceRefEntityRepository.findById(sourceRef).orElseGet(() -> {
             SourceRefEntity created = new SourceRefEntity();

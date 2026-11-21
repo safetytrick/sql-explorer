@@ -83,7 +83,6 @@ public interface SqlSchemaRepository {
             }
         }
 
-        // todo, why doesn't this throw an exception?
         return null;
     }
 

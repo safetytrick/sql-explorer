@@ -35,21 +35,10 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
     }
 
     public String resolveTableName(Column column) {
-        // we probably have truncated sql that still parsed, see
-        // com.github.safetytrick.sqlexplorer.analysis.WhereClauseAnalyzerTest.testSubSelectJoinInWhere
         if (column.getColumnName() == null) {
             return null;
         }
 
-        // columns from temp tables aren't resolved correctly here
-        //
-        // One table in scope: an unqualified column is that table's, as SQL
-        // resolves a bare name in the innermost scope first. A qualified one is
-        // only that table's at the top level. Inside a subquery the qualifier
-        // may name the enclosing query — a correlated subquery's `outer.id` —
-        // and taking the local table for it recorded a join of that table to
-        // itself (sqlx-lww); it is looked up by alias instead, here and then in
-        // the enclosing scope.
         String onlyTableName = getOnlyTableName();
         boolean qualified = column.getTable() != null && column.getTable().getName() != null;
         if (onlyTableName != null && (parent == null || !qualified)) {
@@ -60,7 +49,6 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
             if (derivedTables != null) {
                 String tempTableAlias = NameNormalizer.normalize(column.getTable().getName());
                 if (derivedTables.containsKey(tempTableAlias)) {
-                    // A column the derived table does not project resolves to nothing.
                     return tableOf(derivedTables.get(tempTableAlias).columnReference(column));
                 }
             }
@@ -85,7 +73,6 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
             .collect(Collectors.toList());
 
         String columnName = column.getColumnName().replace("`", "");
-        // todo pass the actual schema down
         String tableName = null;
         if (column.getTable() == null) {
             tableName = columnTableResolver.selectTableNameFromCandidates(filteredNames, columnName);
@@ -96,11 +83,6 @@ public class SchemaAwareTableAliasResolver implements TableAliasResolver {
         return tableName;
     }
 
-    /**
-     * The table of a {@code [schema.]table.column} reference: everything before
-     * the last dot. The first segment was taken before, which is the schema
-     * whenever the derived table read a schema-qualified one.
-     */
     private static String tableOf(String columnReference) {
         if (columnReference == null) {
             return null;

@@ -19,23 +19,11 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Which browser pages may call {@code /mcp}. MCP clients send no Origin and
- * are not affected; only a browser sends one.
- *
- * <p>A page served from this machine is always accepted. With sign-in off that
- * is all: anyone who reaches the endpoint can use it, so a page on another site
- * must not reach it through someone's localhost (DNS rebinding). Comparing the
- * Origin with the request's own address would not stop that, since a rebound
- * name is the same origin as itself.
- *
- * <p>With sign-in on, a page served from the address the request came in on is
- * accepted too, which is how the MCP page checks the endpoint when it is opened
- * through a tunnel. Rebinding gains nothing there: the rebound name holds no
- * session cookie, and a session request needs the CSRF token besides.
+ * Comparing the Origin with the request's own address would not stop DNS
+ * rebinding, since a rebound name is the same origin as itself.
  */
 final class McpOriginValidator implements ServerTransportSecurityValidator {
 
-    /** This machine, any port. */
     static final List<String> LOCAL_ORIGINS = List.of(
         "http://localhost:*", "http://127.0.0.1:*", "http://[::1]:*");
 
@@ -64,7 +52,6 @@ final class McpOriginValidator implements ServerTransportSecurityValidator {
         local.validateHeaders(headers);
     }
 
-    /** A header's first value, its name matched in any case. */
     private static String first(Map<String, List<String>> headers, String name) {
         return headers.entrySet().stream()
             .filter(entry -> entry.getKey() != null && entry.getKey().equalsIgnoreCase(name))
@@ -72,7 +59,6 @@ final class McpOriginValidator implements ServerTransportSecurityValidator {
             .findFirst().orElse(null);
     }
 
-    /** {@code scheme://host[:port]} as a browser writes an Origin, a default port left out. */
     static String originOf(String scheme, String host, int port) {
         boolean defaultPort = port <= 0
             || ("http".equalsIgnoreCase(scheme) && port == 80)
@@ -80,11 +66,6 @@ final class McpOriginValidator implements ServerTransportSecurityValidator {
         return scheme + "://" + host + (defaultPort ? "" : ":" + port);
     }
 
-    /**
-     * Sets {@link #OWN_ORIGIN_HEADER} from the request's scheme, server name
-     * and port, which honour the proxy's forwarded headers. Whatever a client
-     * sent under that name is replaced, never trusted.
-     */
     static final class OwnOrigin extends OncePerRequestFilter {
 
         @Override

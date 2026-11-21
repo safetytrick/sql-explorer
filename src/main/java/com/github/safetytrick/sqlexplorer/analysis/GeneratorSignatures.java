@@ -24,39 +24,14 @@ import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.update.UpdateSet;
 import net.sf.jsqlparser.util.TablesNamesFinder;
 
-/**
- * Which ORM or library wrote a statement, as namespaced sets of signatures —
- * one set per generator (sqlx-n5j.12).
- *
- * <p>A MATCH IS A CANDIDATE, NOT AN ORIGIN. Two generators can share a shape —
- * the simple unit-of-work writes below are written identically by both ORMs, and
- * by any hand-written code too once Performance Schema has replaced the
- * literals with {@code ?}. So each signature records which rule matched, and
- * analysis stores every match. Only a person's confirmation that an environment
- * uses a generator turns a candidate into an asserted origin, and that is
- * applied when the profile is read, so confirming needs no re-analysis.
- *
- * <p>Shapes, not locations: nothing here matches a file or line, which changes
- * with every edit.
- *
- * <p><b>Changing a rule changes what analysis produces: bump
- * {@link AnalyzerVersion#ANALYZERS}.</b>
- */
 public final class GeneratorSignatures {
 
-    /** One recognisable habit of one generator. */
     public record Rule(String id, String description, Predicate<Shape> matches) {
     }
 
-    /** A generator and the habits that identify it. */
     public record Generator(String name, String description, List<Rule> rules) {
     }
 
-    /**
-     * What the rules look at, gathered once per statement. Aliases are
-     * unquoted and lower-cased: Performance Schema backquotes every identifier
-     * in digest text, and a rule should not care.
-     */
     public record Shape(Statement statement, String text, Set<String> tableAliases, Set<String> selectAliases) {
 
         static Shape of(Statement statement, String text) {
@@ -75,31 +50,15 @@ public final class GeneratorSignatures {
         }
     }
 
-    /** Doctrine's DQL SQL walker: one letter, a counter, an underscore — {@code c0_}, {@code t1_}. */
     private static final Pattern DQL_TABLE_ALIAS = Pattern.compile("[a-z]\\d+_");
-    /** Doctrine's entity persister names its root table {@code t0} and joined ones {@code t1}, … */
     private static final Pattern PERSISTER_ROOT_ALIAS = Pattern.compile("t0");
-    /** …and its result columns {@code id_1}, {@code name_2}. */
     private static final Pattern PERSISTER_COLUMN_ALIAS = Pattern.compile("[a-z][a-z0-9_]*_\\d+");
-    /**
-     * Doctrine's many-to-many collection loader: the target table as {@code c},
-     * joined to the join table as {@code j}, with a parenthesised ON clause that
-     * starts from the join table.
-     */
     private static final Pattern MANY_TO_MANY_LOADER = Pattern.compile(
         "(?is)\\bfrom\\s+[`\\w.]+\\s+(?:as\\s+)?`?c`?\\s+(?:inner\\s+)?join\\s+[`\\w.]+\\s+(?:as\\s+)?`?j`?"
             + "\\s+on\\s*\\(\\s*`?j`?\\s*\\.");
-    /** Hibernate's legacy Criteria root alias. */
     private static final Pattern CRITERIA_ROOT_ALIAS = Pattern.compile("this_");
-    /** Hibernate (3–5) result column aliases: {@code id92_0_}, {@code id1_0_0_}. */
     private static final Pattern HIBERNATE_COLUMN_ALIAS = Pattern.compile("[a-z_]+\\d+_(?:\\d+_)+");
-    /**
-     * Hibernate (3–5) HQL table aliases: the entity's name, a counter and an
-     * underscore — {@code account0_}. At least two letters, which is what tells
-     * it from Doctrine's one-letter {@code c0_}.
-     */
     private static final Pattern HQL_TABLE_ALIAS = Pattern.compile("[a-z][a-z_]+\\d+_");
-    /** Hibernate 6 table aliases: a letter, a counter, an underscore, a counter — {@code a1_0}. */
     private static final Pattern HIBERNATE6_TABLE_ALIAS = Pattern.compile("[a-z]\\d+_\\d+");
 
     private static final Rule UOW_INSERT = new Rule("uow-insert",
@@ -111,7 +70,6 @@ public final class GeneratorSignatures {
             + "equality on parameters only. Weak on its own, like uow-insert",
         GeneratorSignatures::isSimpleUpdate);
 
-    /** Every generator this build knows, in a stable order. */
     public static final List<Generator> GENERATORS = List.of(
         new Generator("doctrine-orm", "Doctrine ORM (PHP)", List.of(
             new Rule("dql-walker-alias", "a table aliased like c0_ or t1_, as Doctrine's DQL walker writes",
@@ -140,7 +98,6 @@ public final class GeneratorSignatures {
     private GeneratorSignatures() {
     }
 
-    /** Every (generator, rule) whose signature this statement matches, in declaration order. */
     public static List<GeneratorCandidate> match(Statement statement, String text) {
         Shape shape = Shape.of(statement, text);
         List<GeneratorCandidate> candidates = new ArrayList<>();
@@ -154,7 +111,6 @@ public final class GeneratorSignatures {
         return candidates;
     }
 
-    /** True when this build knows a generator by this name. */
     public static boolean known(String generator) {
         return GENERATORS.stream().anyMatch(known -> known.name().equals(generator));
     }
@@ -174,10 +130,6 @@ public final class GeneratorSignatures {
             && row.stream().allMatch(JdbcParameter.class::isInstance);
     }
 
-    /**
-     * The values of a one-row VALUES clause, or null for more rows than one.
-     * The parser hands a single row back either flat or as one nested list.
-     */
     private static List<Expression> singleRow(ExpressionList<?> values) {
         if (values == null || values.isEmpty()) {
             return null;
@@ -211,7 +163,6 @@ public final class GeneratorSignatures {
         return equalitiesOnParameters(update.getWhere());
     }
 
-    /** {@code a = ? AND b = ? …} and nothing else. */
     private static boolean equalitiesOnParameters(Expression where) {
         if (where instanceof AndExpression and) {
             return equalitiesOnParameters(and.getLeftExpression()) && equalitiesOnParameters(and.getRightExpression());
@@ -221,7 +172,6 @@ public final class GeneratorSignatures {
             && equals.getRightExpression() instanceof JdbcParameter;
     }
 
-    /** Collects table and select-item aliases from every level of a statement. */
     private static final class ShapeFinder extends TablesNamesFinder<Void> {
         final Set<String> tableAliases = new HashSet<>();
         final Set<String> selectAliases = new HashSet<>();

@@ -11,16 +11,6 @@ import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.update.Update;
 import org.springframework.stereotype.Component;
 
-/**
- * Types a statement that parsed by what the parser read, which is
- * authoritative where the text scan ({@link StatementTypes}) is a reading of
- * the opening words: a CTE feeding an UPDATE is an UPDATE, a CTE or
- * parenthesised query feeding a SELECT is a SELECT.
- *
- * <p>An INSERT keeps the keyword it was written with, so REPLACE stays
- * REPLACE. Any other statement keeps its text type. No other analyzer reads
- * the type, so this one's position in the chain does not matter.
- */
 @Component
 class StatementTypeAnalyzer implements SqlAnalyzer {
 

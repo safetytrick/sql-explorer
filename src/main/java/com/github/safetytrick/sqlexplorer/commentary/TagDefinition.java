@@ -10,7 +10,6 @@ import lombok.Data;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-/** Name-level tag attributes; assignments stay path-based rows in {@link Tag}. */
 @Data
 @Entity
 @Table(name = "tag_def")
@@ -20,7 +19,6 @@ public class TagDefinition {
     @Id
     private String name;
 
-    /** Display color, e.g. "#f5a623"; chips derive their dim background from it. */
     private String color;
 
     @CreatedDate

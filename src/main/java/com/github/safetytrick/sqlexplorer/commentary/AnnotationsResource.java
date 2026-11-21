@@ -13,12 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Annotations over HTTP (sqlx-n5j.13): read by target or by namespace, write,
- * and confirm. Every write here is a person's, so the source is always the
- * current user; rules and samplers write in-process through
- * {@link AnnotationService}.
- */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Annotations")
 @EnvironmentScoped
 @RestController
@@ -30,19 +24,16 @@ class AnnotationsResource {
         this.annotations = annotations;
     }
 
-    /** The current answers on each target, positionally — one list per target, in the order sent. */
     @PostMapping("/annotations/targets")
     public List<List<Annotation>> forTargets(@RequestBody List<TagTarget> targets) {
         return badRequestOn(() -> annotations.currentFor(targets));
     }
 
-    /** The current answer on every target in one namespace. */
     @GetMapping("/annotations/namespace/{namespace}")
     public List<Annotation> inNamespace(@PathVariable String namespace) {
         return badRequestOn(() -> annotations.currentInNamespace(namespace));
     }
 
-    /** Every row recorded for one (target, namespace, key), newest first. */
     @PostMapping("/annotations/history")
     public List<Annotation> history(@RequestBody HistoryRequest request) {
         return badRequestOn(() -> {
@@ -53,7 +44,6 @@ class AnnotationsResource {
         });
     }
 
-    /** Record a fact as the current person. Appends; the previous answer stays as history. */
     @PostMapping("/annotations")
     public Annotation record(@RequestBody RecordRequest request) {
         return badRequestOn(() -> annotations.record(new AnnotationService.Statement(request.getTarget(),
@@ -63,7 +53,6 @@ class AnnotationsResource {
             AnnotationService.Source.person()));
     }
 
-    /** The current person confirms an existing answer: appended again, confirmed and theirs. */
     @PostMapping("/annotation/{id}/confirm")
     public Annotation confirm(@PathVariable int id) {
         try {
@@ -73,11 +62,6 @@ class AnnotationsResource {
         }
     }
 
-    /**
-     * A 400 for a request the caller can fix. A bare IllegalArgumentException
-     * is a 500, which sends someone with a fixable request to logs they cannot
-     * read (the lesson of sqlx-agl and sqlx-djj).
-     */
     private static <T> T badRequestOn(Supplier<T> call) {
         try {
             return call.get();
@@ -99,7 +83,6 @@ class AnnotationsResource {
         private String namespace;
         private String key;
         private String value;
-        /** Defaults to confirmed: a person stating a fact is the strongest source there is. */
         private String confidence;
         private String basis;
     }

@@ -23,23 +23,6 @@ import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
-/**
- * Tables by the character sets and collations of their columns, and the joins
- * whose two sides disagree (sqlx-n5j.5).
- *
- * <p>Everything here is read from the schema snapshot's column metadata plus
- * the join columns analysis found in the query corpus, so it needs no live
- * server and answers from a cached environment.
- *
- * <p>THE TABLE DEFAULT. A column is called out when it differs from its
- * table's declared default collation, {@code information_schema.TABLES
- * TABLE_COLLATION}, captured with the snapshot's table statistics
- * (sqlx-n5j.2). A snapshot written before those statistics were kept, or a
- * table whose shards disagree, has no single declared default; the baseline
- * then falls back to the <em>predominant</em> collation, the one most of its
- * character columns use, and {@link TableEncoding#baseline()} says which was
- * used, so nobody mistakes one for the other.
- */
 @Service
 public class CollationReportService {
 
@@ -61,7 +44,6 @@ public class CollationReportService {
         return new CollationReport(tables, mismatchedJoins());
     }
 
-    /** One table's character columns, grouped by charset and collation. */
     static TableEncoding encodingOf(TableStructure structure) {
         Map<String, List<String>> columnsByEncoding = new LinkedHashMap<>();
         Map<String, EncodingKey> keys = new HashMap<>();
@@ -79,7 +61,6 @@ public class CollationReportService {
         List<EncodingCount> encodings = columnsByEncoding.entrySet().stream()
             .map(entry -> new EncodingCount(keys.get(entry.getKey()).characterSet(),
                 keys.get(entry.getKey()).collation(), List.copyOf(entry.getValue())))
-            // most columns first; ties by name, so the predominant one is stable
             .sorted(Comparator.comparingInt((EncodingCount count) -> count.columns().size()).reversed()
                 .thenComparing(count -> String.valueOf(count.collation())))
             .toList();
@@ -95,8 +76,6 @@ public class CollationReportService {
         String declaredCollation = declaredCollation(structure);
         String declaredCharset = charsetOf(declaredCollation);
 
-        // the baseline a column is compared with: the declared default when
-        // there is one, else the predominant encoding
         String baseCollation = declaredCollation != null ? declaredCollation
             : predominant == null ? null : predominant.collation();
         String baseCharset = declaredCollation != null ? declaredCharset
@@ -131,7 +110,6 @@ public class CollationReportService {
             encodings, outliers, columns);
     }
 
-    /** VARCHAR(255), ENUM, TEXT: the declared type as the snapshot recorded it. */
     private static String typeOf(TableColumn column) {
         String type = column.typeName() == null ? "?" : column.typeName();
         String lower = type.toLowerCase(Locale.ROOT);
@@ -139,11 +117,6 @@ public class CollationReportService {
         return sized ? type + "(" + column.columnSize() + ")" : type;
     }
 
-    /**
-     * Join conditions in the corpus whose two columns are both character
-     * columns and differ in charset or collation, one row per column pair
-     * however many queries join on it.
-     */
     private List<JoinEncodingMismatch> mismatchedJoins() {
         Map<String, JoinAccumulator> pairs = new LinkedHashMap<>();
         Map<String, TableStructure> structures = new HashMap<>();
@@ -163,7 +136,6 @@ public class CollationReportService {
                 if (!charsetDiffers && !collationDiffers) {
                     continue;
                 }
-                // one row per unordered pair: a = b and b = a are the same join key
                 boolean swap = left.key().compareTo(right.key()) > 0;
                 Resolved first = swap ? right : left;
                 Resolved second = swap ? left : right;
@@ -214,7 +186,6 @@ public class CollationReportService {
         return Objects.equals(lower(a), lower(b));
     }
 
-    /** A join column found in the schema, named by the table that holds it. */
     private record Resolved(String schema, String table, TableColumn column) {
         String key() {
             return lower(schema) + "." + lower(table) + "." + lower(column.columnName());
@@ -225,11 +196,6 @@ public class CollationReportService {
         }
     }
 
-    /**
-     * The table's declared default collation, when every server that reported
-     * the table agrees on one; null when none reported it (a view, an older
-     * snapshot) or the shards disagree.
-     */
     static String declaredCollation(TableStructure structure) {
         if (structure.stats() == null) {
             return null;
@@ -258,21 +224,6 @@ public class CollationReportService {
 
     public record CollationReport(List<TableEncoding> tables, List<JoinEncodingMismatch> joins) { }
 
-    /**
-     * One table's character columns by encoding.
-     *
-     * @param textColumns           columns carrying a charset or collation; 0 for a table of numbers and dates
-     * @param predominantCharset    the charset of the most-used encoding
-     * @param predominantCollation  likewise
-     * @param declaredCharset       the charset of the table's declared default collation; null when unknown
-     * @param declaredCollation     TABLE_COLLATION, when every server reporting the table agrees; else null
-     * @param baseline              what the outliers were compared with: "declared" or "predominant"
-     * @param mixedCharsets         its character columns use more than one charset
-     * @param mixedCollations       … or more than one collation
-     * @param encodings             charset + collation with the columns using it, most columns first
-     * @param outliers              the columns not on the baseline encoding
-     * @param columns               every character column, in table order, with its presumed kind
-     */
     public record TableEncoding(String schema, String table, boolean view, int textColumns,
                                 String predominantCharset, String predominantCollation,
                                 String declaredCharset, String declaredCollation, String baseline,
@@ -280,12 +231,6 @@ public class CollationReportService {
                                 List<EncodingCount> encodings, List<ColumnEncoding> outliers,
                                 List<TextColumn> columns) { }
 
-    /**
-     * One character column with what it presumably holds (PresumedKind):
-     * inferred from its name and type, never from its data.
-     *
-     * @param differs it is one of the table's outliers
-     */
     public record TextColumn(String column, String type, String characterSet, String collation,
                              String kind, String basis, boolean differs) { }
 
@@ -295,14 +240,6 @@ public class CollationReportService {
 
     public record JoinSide(String schema, String table, String column, String characterSet, String collation) { }
 
-    /**
-     * A join key whose two columns differ in encoding.
-     *
-     * @param charsetDiffers the character sets differ (otherwise only the collation does)
-     * @param queries        distinct queries joining on it
-     * @param executions     their executions, summed
-     * @param exampleDigest  the most-executed such query, to open
-     */
     public record JoinEncodingMismatch(JoinSide left, JoinSide right, boolean charsetDiffers,
                                        int queries, long executions, String exampleDigest) { }
 

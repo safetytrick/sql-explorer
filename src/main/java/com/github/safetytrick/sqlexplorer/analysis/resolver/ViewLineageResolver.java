@@ -24,20 +24,6 @@ import net.sf.jsqlparser.statement.select.SelectItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Resolves a view's output columns to the base-table columns they derive
- * from, using the same alias/schema resolution the analyzers use
- * ({@link SchemaAwareTableAliasResolver} + {@link ColumnTableResolver}).
- *
- * <p>Degradation rules: only plain SELECTs are modelled — a view defined as a
- * UNION (or anything else) yields no column lineage (table-level lineage
- * still applies). A column that is ambiguous across joined tables, or whose
- * table can't be found in the schema, keeps its output name with empty
- * sources. {@code SELECT *} and {@code alias.*} expand against the schema's
- * column lists; a star over an unknown table expands to nothing. Views over
- * views resolve one level only (the referenced view has no columns in the
- * loaded structure, so its columns come back unresolved).
- */
 public final class ViewLineageResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ViewLineageResolver.class);
@@ -58,7 +44,6 @@ public final class ViewLineageResolver {
 
     public static List<ViewColumn> resolveColumns(Statement statement, String defaultSchema, SqlSchemaRepository schema) {
         if (!(statement instanceof PlainSelect plainSelect)) {
-            // unions and exotic select shapes keep table-level lineage only
             return List.of();
         }
 
@@ -117,12 +102,10 @@ public final class ViewLineageResolver {
                 toReference(table, defaultSchema),
                 NameNormalizer.normalize(column.getColumnName())));
         } catch (UnsupportedSqlException e) {
-            // ambiguous across joined tables, or an unknown table — leave unresolved
             return List.of();
         }
     }
 
-    /** Every distinct resolvable column inside an expression tree, in first-seen order. */
     private static List<ColumnReference> collectSources(Expression expression, TableAliasResolver aliasResolver,
                                                         String defaultSchema) {
         Map<String, ColumnReference> distinct = new LinkedHashMap<>();

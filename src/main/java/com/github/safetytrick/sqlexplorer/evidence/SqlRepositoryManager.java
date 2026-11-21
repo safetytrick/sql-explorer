@@ -17,11 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * Holds the loaded SQL repositories per environment. Loading sources for one
- * environment replaces only that environment's repositories; queries resolve
- * the repository for the environment selected on the request.
- */
 @Service
 public class SqlRepositoryManager {
 
@@ -32,60 +27,17 @@ public class SqlRepositoryManager {
     private final CaptureRehydrator captureRehydrator;
     private final Clock clock;
 
-    /**
-     * How many environments stay in heap at once. Zero or less disables
-     * eviction entirely.
-     *
-     * <p>Sized from measurement rather than taste: the regression corpus is
-     * 32 MB resident for 4,244 profiles, about 7.7 KB each, against a 512 MB
-     * heap. Five environments at 10,000 profiles is ~380 MB, which is real
-     * pressure; three leaves room for everything else the process does. A
-     * deployment with fewer environments than the cap never evicts anything,
-     * so the default costs those nothing (sqlx-4ww).
-     */
     private final int residentEnvironments;
     private final Map<String, EnvironmentRepositories> byEnvironment = new ConcurrentHashMap<>();
 
-    /**
-     * When each environment was last asked for, so the least recently used can
-     * be the one dropped. Touched by every read, which is the point.
-     */
     private final Map<String, Instant> lastAccess = new ConcurrentHashMap<>();
 
-    /**
-     * The sources the latest load of each environment had to leave out. Kept
-     * apart from the resident repositories so it survives eviction: a
-     * rehydrated environment is still missing whatever its load missed.
-     */
     private final Map<String, List<SourceFailure>> failedSources = new ConcurrentHashMap<>();
 
-    /**
-     * What an evicted environment was made of, so it can be rebuilt.
-     *
-     * <p>An entry here means "loaded, but not resident" — which is a different
-     * thing from never loaded, and the difference reaches the environments
-     * listing through {@link LoadState#resident()}.
-     */
     private final Map<String, List<String>> evicted = new ConcurrentHashMap<>();
 
-    /**
-     * One rehydration at a time per environment.
-     *
-     * <p>Without this, a burst of requests against an evicted environment
-     * would each read the same capture and rebuild the same indexes, N times
-     * over — the thundering-herd shape, and worst exactly when the app is
-     * already busy. Not a lock on {@code byEnvironment} itself: rehydration
-     * does IO, and holding a ConcurrentHashMap bin across a file read would
-     * block unrelated environments.
-     */
     private final Map<String, ReentrantLock> rehydrationLocks = new ConcurrentHashMap<>();
 
-    /**
-     * When each served source's data was captured, per environment, kept
-     * through eviction. What the environment status reports, read without
-     * touching the corpus: asking for the repositories would rehydrate an
-     * evicted environment just to say how old it is (sqlx-nbi.8).
-     */
     private final Map<String, Map<String, Instant>> servedCaptures = new ConcurrentHashMap<>();
 
     public SqlRepositoryManager(SqlEvidenceInputService sqlEvidenceInputService,
@@ -105,11 +57,6 @@ public class SqlRepositoryManager {
         return resident(environmentName).composite();
     }
 
-    /**
-     * The environment's corpus over only the sources in scope, merged from
-     * their repositories alone: every figure is those sources' own. An
-     * unconstrained scope is the whole corpus (sqlx-a9h.1).
-     */
     public SqlRepository getSqlRepository(String environmentName, SourceScope scope) {
         return resident(environmentName).scoped(scope);
     }
@@ -118,14 +65,6 @@ public class SqlRepositoryManager {
         return resident(environmentName).repositories();
     }
 
-    /**
-     * The environment's repositories, rebuilding them from its captures if they
-     * were evicted.
-     *
-     * <p>Every read goes through here, which is what makes the access order
-     * true and what makes an evicted environment indistinguishable from a
-     * resident one to a caller (sqlx-4ww).
-     */
     private EnvironmentRepositories resident(String environmentName) {
         if (environmentName == null) {
             return EnvironmentRepositories.EMPTY;
@@ -143,7 +82,6 @@ public class SqlRepositoryManager {
         ReentrantLock lock = rehydrationLocks.computeIfAbsent(environmentName, name -> new ReentrantLock());
         lock.lock();
         try {
-            // another thread may have finished while this one waited
             loaded = byEnvironment.get(environmentName);
             if (loaded != null) {
                 return loaded;
@@ -152,9 +90,6 @@ public class SqlRepositoryManager {
                 evicted.remove(environmentName);
                 return byEnvironment.getOrDefault(environmentName, EnvironmentRepositories.EMPTY);
             }
-            // Refused — a capture is missing, unreadable, or from another
-            // normalizer. Nothing to serve, and pretending otherwise would show
-            // an empty corpus for an environment that has one.
             log.warn("Environment {} was evicted and cannot be rehydrated; it must be loaded again",
                 environmentName);
             return EnvironmentRepositories.EMPTY;
@@ -163,14 +98,6 @@ public class SqlRepositoryManager {
         }
     }
 
-    /**
-     * Load state, or {@code null} when nothing has ever been loaded.
-     *
-     * <p>Deliberately does NOT rehydrate. This feeds the environments listing,
-     * which enumerates everything — rehydrating from it would rebuild every
-     * evicted environment the moment someone opened a dropdown, which is the
-     * opposite of what eviction is for.
-     */
     public LoadState getLoadState(String environmentName) {
         EnvironmentRepositories repositories = byEnvironment.get(environmentName);
         if (repositories == null) {
@@ -183,23 +110,10 @@ public class SqlRepositoryManager {
             true);
     }
 
-    /** Load into the default environment (used by the startup loaders). */
     public SqlImportStats loadFromSqlSources(Stream<? extends SqlSource> sources) {
         return loadFromSqlSources(environmentRegistry.getDefaultName(), sources);
     }
 
-    /**
-     * Load the given sources as the environment's corpus.
-     *
-     * <p>A source that cannot be read — its server refuses the login, or is
-     * unreachable — is left out and recorded, rather than failing the load:
-     * one bad member of a many-server environment used to cost every other
-     * server its capture (sqlx-jdf). What was left out is reported by
-     * {@link #getFailedSources}, which {@code /coverage} lists, so a corpus
-     * missing a server says so. Only when every source fails is there no
-     * corpus to keep, and then the first failure is thrown and the previous
-     * load, if any, stays in place.
-     */
     public SqlImportStats loadFromSqlSources(String environmentName, Stream<? extends SqlSource> sources) {
         Environment environment = environmentRegistry.get(environmentName);
         SqlSchemaRepository schema = environment.schemaRepository();
@@ -233,15 +147,10 @@ public class SqlRepositoryManager {
             .filter(java.util.Objects::nonNull)
             .toList();
         if (repositories.isEmpty() && !failures.isEmpty()) {
-            // Nothing could be read: keep serving what was, and say why.
             failedSources.put(environmentName, failures);
             throw results.stream().map(SourceResult::cause).filter(java.util.Objects::nonNull)
                 .findFirst().orElseThrow();
         }
-        // A source that could not be read live keeps the data it was already
-        // served from, rather than vanishing from the corpus because one
-        // server was unreachable this time (sqlx-nbi.8). Its failure is still
-        // listed, so the environment reports itself as stale, not as fine.
         for (SourceFailure failure : failures) {
             SqlRepository previous = previouslyServed(environmentName, failure.sourceRef());
             if (previous != null) {
@@ -262,24 +171,6 @@ public class SqlRepositoryManager {
         return stats;
     }
 
-    /**
-     * Rebuild an environment from its sources' latest captures rather than
-     * importing them again.
-     *
-     * <p>For coming back to an environment that was dropped from heap: the
-     * captures were written by this process from a live read, so they are what
-     * heap held, and reading them costs a fraction of a re-import. Startup
-     * uses {@link #serveFromCaptures} instead, which tolerates a source with no
-     * capture (sqlx-sqy.6).
-     *
-     * <p>All or nothing. A source whose capture is missing, unreadable, or
-     * written by a different normalizer cannot be rebuilt, and a partially
-     * rehydrated environment would be a corpus missing one server with nothing
-     * saying so. The caller's answer to false is to load the environment
-     * properly.
-     *
-     * @return whether every source was rebuilt
-     */
     public boolean rehydrate(String environmentName, List<String> sourceRefs) {
         if (sourceRefs == null || sourceRefs.isEmpty()) {
             return false;
@@ -303,17 +194,6 @@ public class SqlRepositoryManager {
         return true;
     }
 
-    /**
-     * The earlier analysis a load of these sources may reuse (sqlx-sqy.5).
-     *
-     * <p>From the environment's resident corpus first, and only from captures
-     * for sources it does not hold. Not merely to save the read: reuse copies
-     * an analysis's lists by reference, so a profile reused from a resident one
-     * <em>shares</em> its tables and columns with it. Indexed from captures
-     * instead, the load held three corpora at its peak — the one being served,
-     * the index, and the one being built — which was enough to exhaust a 1 GB
-     * heap on production's 180,000 profiles.
-     */
     private AnalysisReuse reuseFor(String environmentName, List<String> sourceRefs) {
         AnalysisReuse.Builder index = new AnalysisReuse.Builder();
         java.util.Set<String> held = new java.util.HashSet<>();
@@ -339,25 +219,6 @@ public class SqlRepositoryManager {
         return index.build();
     }
 
-    /**
-     * At startup, before the live read: serve an environment from whatever its
-     * sources last captured, so pages answer at once instead of after a pull
-     * that can take minutes (sqlx-sqy.6).
-     *
-     * <p>Unlike {@link #rehydrate}, not all or nothing. A production
-     * environment routinely has a source that has never been captured — a
-     * server the reading user cannot reach yet — and all-or-nothing would serve
-     * nothing at all. Each source without a usable capture is instead recorded
-     * as left out, exactly as an unreachable source is on a live load, so
-     * {@code /coverage} lists it rather than the corpus quietly missing it.
-     *
-     * <p>This narrows nothing for long: the live pull that follows replaces it
-     * with a full read. Until then each source's {@code capturedAt} on
-     * {@code /coverage} says how old what is shown is.
-     *
-     * @return how many sources were served from a capture; 0 leaves the
-     *         environment unloaded, as it was
-     */
     public int serveFromCaptures(String environmentName, List<String> sourceRefs) {
         List<SqlRepository> repositories = new java.util.ArrayList<>();
         List<SourceFailure> missing = new java.util.ArrayList<>();
@@ -385,22 +246,6 @@ public class SqlRepositoryManager {
         return repositories.size();
     }
 
-    /**
-     * Drop least-recently-used environments until the cap is met, never
-     * touching {@code keep}.
-     *
-     * <p>{@code keep} is whatever was just loaded or asked for, so the
-     * environment someone is actually working in is never the one dropped —
-     * evicting it and rebuilding it on their next click would be the
-     * pathological case.
-     *
-     * <p>ONLY WHAT CAN COME BACK IS DROPPED. An environment whose sources have
-     * no usable capture is skipped however old it is: evicting it would trade
-     * bounded memory for a corpus that can only return by re-importing, which
-     * needs the analysed server to be reachable and it may not be. That means
-     * the cap is a target rather than a guarantee, and a process holding more
-     * than the cap is holding environments it could not safely release.
-     */
     private void evictDownTo(String keep) {
         if (residentEnvironments <= 0) {
             return;
@@ -422,23 +267,11 @@ public class SqlRepositoryManager {
         }
     }
 
-    /** Whether every source of this environment could be rebuilt from a capture. */
     private boolean canEvict(String environmentName) {
         List<String> sourceRefs = residentSourceRefs(environmentName);
         return !sourceRefs.isEmpty() && sourceRefs.stream().allMatch(captureRehydrator::canRehydrate);
     }
 
-    /**
-     * Source refs read WITHOUT recording an access.
-     *
-     * <p>{@link #sourceRefs} goes through {@link #resident}, which touches the
-     * access time — correct for a caller, and wrong here. Choosing a victim
-     * would otherwise refresh every candidate it examined and then pick the
-     * least recently used from the timestamps it had just overwritten, making
-     * the choice depend on map iteration order rather than on use. Caught by
-     * the test that asserts the least recently used environment is the one
-     * dropped (sqlx-4ww).
-     */
     private List<String> residentSourceRefs(String environmentName) {
         EnvironmentRepositories repositories = byEnvironment.get(environmentName);
         if (repositories == null) {
@@ -453,7 +286,6 @@ public class SqlRepositoryManager {
             .toList();
     }
 
-    /** The source refs currently loaded into an environment, for rehydrating it later. */
     public List<String> sourceRefs(String environmentName) {
         return getRepositories(environmentName).stream()
             .map(SqlRepository::getSource)
@@ -464,8 +296,6 @@ public class SqlRepositoryManager {
             .toList();
     }
 
-    /** The sources the environment's latest load left out because they could not be read. */
-    /** The repository the environment served for this source before this load, or its capture. */
     private SqlRepository previouslyServed(String environmentName, String sourceRef) {
         EnvironmentRepositories resident = byEnvironment.get(environmentName);
         if (resident != null) {
@@ -493,11 +323,6 @@ public class SqlRepositoryManager {
         servedCaptures.put(environmentName, java.util.Collections.unmodifiableMap(captured));
     }
 
-    /**
-     * Each source the environment serves, with when its data was captured
-     * (null when unknown). Empty when nothing is served. Never loads or
-     * rehydrates anything.
-     */
     public Map<String, Instant> servedCaptures(String environmentName) {
         return environmentName == null ? Map.of() : servedCaptures.getOrDefault(environmentName, Map.of());
     }
@@ -506,7 +331,6 @@ public class SqlRepositoryManager {
         return environmentName == null ? List.of() : failedSources.getOrDefault(environmentName, List.of());
     }
 
-    /** A source a load had to leave out, and why — the failure's own message. */
     public record SourceFailure(String sourceRef, String reason) { }
 
     private record SourceResult(SqlRepository repository, SourceFailure failure, RuntimeException cause) {
@@ -518,7 +342,6 @@ public class SqlRepositoryManager {
             return new SourceResult(null, new SourceFailure(sourceRef, rootMessage(cause)), cause);
         }
 
-        /** The innermost message: "Access denied for user …", not the pool's wrapper around it. */
         private static String rootMessage(Throwable e) {
             Throwable root = e;
             while (root.getCause() != null && root.getCause() != root) {
@@ -527,30 +350,13 @@ public class SqlRepositoryManager {
             if (root.getMessage() == null) {
                 return root.toString();
             }
-            // "db.example.com" alone says nothing; "UnknownHostException: db.example.com" does
             return root instanceof java.io.IOException && root.getClass().getName().startsWith("java.net.")
                 ? root.getClass().getSimpleName() + ": " + root.getMessage() : root.getMessage();
         }
     }
 
-    /**
-     * @param resident whether the corpus is in heap. False means loaded but
-     *                 dropped under memory pressure — it comes back on the next
-     *                 read, so it is not the same as unloaded, and the listing
-     *                 must not say it is
-     */
     public record LoadState(int sourceCount, Instant loadedOn, SqlImportStats importStats, boolean resident) { }
 
-    /**
-     * One load of an environment: its repositories, their merged corpus, and
-     * the corpus of any subset of its sources asked for.
-     *
-     * <p>A scoped corpus is merged from the chosen repositories alone, so its
-     * figures are those sources' own (sqlx-a9h.1). It is cached here, which
-     * gives it this load's lifetime exactly — the same no-invalidation rule
-     * as {@link CompositeSqlRepository}'s corpus. Bounded, because the scopes
-     * come from requests.
-     */
     private static final class EnvironmentRepositories {
         static final EnvironmentRepositories EMPTY =
             new EnvironmentRepositories(List.of(), new CompositeSqlRepository(List.of()), null);

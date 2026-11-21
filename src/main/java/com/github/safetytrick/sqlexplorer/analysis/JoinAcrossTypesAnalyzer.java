@@ -50,7 +50,6 @@ public class JoinAcrossTypesAnalyzer implements SqlAnalyzer {
         TableColumn leftColumn = getColumnFromReference(schemaRepository, schema, left).orElse(null);
         TableColumn rightColumn = getColumnFromReference(schemaRepository, schema, right).orElse(null);
         if (leftColumn == null || rightColumn == null) {
-            // todo report this as a general issue with the environment instead of just debug logging
             log.debug("Comparison may be incorrect, column definition not found: {}={} {}={}", left, leftColumn, right, rightColumn);
             return false;
         }

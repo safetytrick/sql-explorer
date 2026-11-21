@@ -13,12 +13,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * One MySQL server inside an {@link Environment}. Owns its connection pool and
- * the schema loaded from it; both are built lazily on first use so the
- * application can start without reaching any metadata database. Also carries
- * the {@link SourceDefinition}s describing what SQL to ingest from it.
- */
 public final class DatabaseServer implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseServer.class);
@@ -27,59 +21,18 @@ public final class DatabaseServer implements AutoCloseable {
     private final ConnectionInfo connectionInfo;
     private final List<SourceDefinition> sourceDefinitions;
     private final SchemaRepositoryFactory schemaRepositoryFactory;
-    /** The cluster whose schema snapshot this server reads and writes; null for no snapshots. */
     private final SchemaSnapshot.Key snapshotKey;
-    /** What the server is for (sqlx-n5j.4); empty when config says nothing. */
     private final Set<ServerRole> roles;
 
-    /*
-     * LOCKING (sqlx-o7x). Connecting is slow when a server is unreachable: a
-     * pool that cannot start takes its whole connect timeout, about thirty
-     * seconds, to say so. These fields used to be guarded by the object's own
-     * monitor, held for that whole connect, so the environment list
-     * (isSchemaLoaded) and every request touching the schema queued behind
-     * one unreachable server. Each request also held one of the explorer
-     * database's own connections while it waited (open-in-view), so a startup
-     * pull of an environment whose servers were down took the whole app down
-     * with it.
-     *
-     * Now the state is volatile and read without a lock, creating the pool
-     * has a lock of its own, and so does loading the schema. Only a caller
-     * that has to have the schema waits for a load: the pull. Any other caller
-     * that would wait, or that finds the environment being pulled, is told the
-     * schema is pending, and its cluster serves the snapshot meanwhile, as the
-     * environment's captures are served until its pull completes.
-     */
     private final Object poolLock = new Object();
     private final ReentrantLock schemaLock = new ReentrantLock();
-    /** The thread pulling this server's environment, which alone loads its schema meanwhile; null when not pulling. */
     private volatile Thread puller;
 
     private volatile HikariDataSource dataSource;
     private volatile SchemaRepositoryFactory.SchemaLoad schemaLoad;
-    /**
-     * Why the last schema load failed, kept so the next caller gets the same
-     * answer at once. Without it every request touching the environment's
-     * schema would retry an unreachable server — a pool that cannot start
-     * takes seconds to say so (sqlx-jdf). Cleared by {@link #refreshSchema()}
-     * and {@link #forgetSchemaFailure()}, which is what a load or pull does.
-     */
     private volatile RuntimeException schemaFailure;
-    /**
-     * The cluster's last snapshot, once read; null until it is. Remembered for
-     * the same reason the failure is: while no server of the cluster answers,
-     * every schema request falls back to it, and re-reading the snapshot each time
-     * cost three seconds a request across five clusters (sqlx-xge). Dropped
-     * with the rest whenever a load or pull asks again.
-     */
     private volatile java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnown;
 
-    /**
-     * The environment this server belongs to while it is served from its
-     * cache, or null while it is live (sqlx-nbi.4). While set, no pool is
-     * created and nothing connects: {@link #getDataSource()} refuses, and the
-     * schema comes from the cluster's snapshot.
-     */
     private volatile String offlineIn;
 
     public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
@@ -87,13 +40,11 @@ public final class DatabaseServer implements AutoCloseable {
         this(name, connectionInfo, sourceDefinitions, schemaRepositoryFactory, null);
     }
 
-    /** @param snapshotKey the cluster this server belongs to, whose schema snapshot it shares */
     public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
                           SchemaRepositoryFactory schemaRepositoryFactory, SchemaSnapshot.Key snapshotKey) {
         this(name, connectionInfo, sourceDefinitions, schemaRepositoryFactory, snapshotKey, Set.of());
     }
 
-    /** @param roles what the server is for; only {@link ServerRole#SAMPLING} gates anything */
     public DatabaseServer(String name, ConnectionInfo connectionInfo, List<SourceDefinition> sourceDefinitions,
                           SchemaRepositoryFactory schemaRepositoryFactory, SchemaSnapshot.Key snapshotKey,
                           Set<ServerRole> roles) {
@@ -118,7 +69,6 @@ public final class DatabaseServer implements AutoCloseable {
         return sourceDefinitions;
     }
 
-    /** What the server is for, in {@link ServerRole} order. */
     public Set<ServerRole> getRoles() {
         return roles;
     }
@@ -127,7 +77,6 @@ public final class DatabaseServer implements AutoCloseable {
         return roles.contains(role);
     }
 
-    /** Refuse every connection while {@code environment} is served from its cache; null goes live. */
     public void setOffline(String environment) {
         this.offlineIn = environment;
     }
@@ -136,22 +85,10 @@ public final class DatabaseServer implements AutoCloseable {
         return offlineIn != null;
     }
 
-    /**
-     * The thread pulling this server's environment, or null when the pull is
-     * over. While one is set, only it loads the schema; anyone else is served
-     * the snapshot rather than connecting or waiting on the pull's connect.
-     */
     public void setPuller(Thread thread) {
         this.puller = thread;
     }
 
-    /**
-     * The server's pool, created on first use.
-     *
-     * @throws ServerOfflineException while the environment is served from its
-     *                                cache: the one place a pool is created is
-     *                                the one place the refusal has to live
-     */
     public DataSource getDataSource() {
         String offline = offlineIn;
         if (offline != null) {
@@ -161,7 +98,6 @@ public final class DatabaseServer implements AutoCloseable {
         if (existing != null) {
             return existing;
         }
-        // its own lock: creating a pool connects, and must not hold up readers of the schema state
         synchronized (poolLock) {
             if (dataSource == null) {
                 HikariConfig config = new HikariConfig();
@@ -169,8 +105,6 @@ public final class DatabaseServer implements AutoCloseable {
                 config.setJdbcUrl(connectionInfo.jdbcUrl());
                 config.setUsername(connectionInfo.username());
                 config.setPassword(connectionInfo.password());
-                // schema introspection is bursty: a handful of sequential bulk reads,
-                // then mostly idle until a reload or an on-demand create statement.
                 config.setMinimumIdle(0);
                 config.setMaximumPoolSize(4);
                 dataSource = new HikariDataSource(config);
@@ -183,15 +117,6 @@ public final class DatabaseServer implements AutoCloseable {
         return getSchemaLoad().schema();
     }
 
-    /**
-     * The schema and how it was obtained — from the cluster's snapshot when the
-     * server's fingerprint still matches it, or read in full (sqlx-sqy.4).
-     *
-     * <p>Waits for a load only on the pull's own thread, or when nothing is
-     * pulling and no one else is loading; otherwise throws
-     * {@link SchemaPendingException} at once, and the cluster serves its
-     * snapshot (sqlx-o7x).
-     */
     public SchemaRepositoryFactory.SchemaLoad getSchemaLoad() {
         SchemaRepositoryFactory.SchemaLoad loaded = schemaLoad;
         if (loaded != null) {
@@ -203,9 +128,6 @@ public final class DatabaseServer implements AutoCloseable {
         }
         String offline = offlineIn;
         if (offline != null) {
-            // Not remembered as a failure and not logged: nothing went wrong,
-            // and going live must try the server at once. The cluster falls
-            // back to its snapshot (sqlx-nbi.3).
             throw new ServerOfflineException(offline, name);
         }
         Thread pulling = puller;
@@ -234,8 +156,6 @@ public final class DatabaseServer implements AutoCloseable {
             } catch (SchemaPendingException | ServerOfflineException e) {
                 throw e;
             } catch (RuntimeException e) {
-                // Logged here, once, rather than by every caller that meets the
-                // remembered failure afterwards.
                 log.warn("Schema of server {} could not be read: {}", name, e.toString());
                 schemaFailure = e;
                 throw e;
@@ -245,13 +165,7 @@ public final class DatabaseServer implements AutoCloseable {
         }
     }
 
-    /**
-     * The cluster's last snapshot, with no connection to this server — for
-     * when no server of the cluster can be reached. Not current.
-     */
     public java.util.Optional<SchemaRepositoryFactory.SchemaLoad> lastKnownSchema() {
-        // no lock: this is what a caller falls back to while a load holds one; two
-        // readers racing here read the snapshot twice, which is harmless
         java.util.Optional<SchemaRepositoryFactory.SchemaLoad> known = lastKnown;
         if (known == null) {
             known = schemaRepositoryFactory.lastKnown(snapshotKey);
@@ -260,17 +174,9 @@ public final class DatabaseServer implements AutoCloseable {
         return known;
     }
 
-    /**
-     * Before a load or pull: keep the schema in memory if the server's
-     * fingerprint still matches it, otherwise drop it so the next access reads
-     * it again — from the snapshot or the server, whichever is current. A
-     * failure remembered from last time is forgotten either way, so a server
-     * that has come back is tried.
-     */
     public void revalidateSchema() {
         schemaFailure = null;
         lastKnown = null;
-        // connects, so it takes the schema lock, as a load does: the pull calls it, and may wait
         schemaLock.lock();
         try {
             SchemaRepositoryFactory.SchemaLoad loaded = schemaLoad;
@@ -281,13 +187,11 @@ public final class DatabaseServer implements AutoCloseable {
             try {
                 current = schemaRepositoryFactory.stillCurrent(getDataSource(), loaded.fingerprint());
             } catch (RuntimeException e) {
-                current = false;    // a pool that cannot start cannot vouch for anything
+                current = false;
             }
             if (!current) {
                 schemaLoad = null;
             } else {
-                // kept, but sizes and row estimates move with the data: read them
-                // again on the connection the check just used (sqlx-n5j.2)
                 try {
                     SchemaRepositoryFactory.SchemaLoad fresh =
                         schemaRepositoryFactory.withFreshStats(getDataSource(), loaded, snapshotKey, name);
@@ -303,17 +207,14 @@ public final class DatabaseServer implements AutoCloseable {
         }
     }
 
-    /** Let the next schema access try this server again, after a failed load. */
     public void forgetSchemaFailure() {
         schemaFailure = null;
     }
 
-    /** Whether the schema has been loaded, without triggering a load. */
     public boolean isSchemaLoaded() {
         return schemaLoad != null;
     }
 
-    /** Drop the cached schema so the next access reloads it from the server (the pool is kept). */
     public void refreshSchema() {
         schemaLoad = null;
         schemaFailure = null;

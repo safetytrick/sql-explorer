@@ -28,17 +28,9 @@ import com.github.safetytrick.sqlexplorer.schema.TableIndex;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
-/**
- * Graph payload for the canvas view: the schema's tables (plus any table
- * co-queried or FK-referenced alongside them), FK edges labeled with their
- * first column pair, flagged on strict type mismatch and on whether any query
- * joins on them, join edges from analysis, co-query edges weighted by
- * executions, and per-node self-join flags.
- */
 @Service
 public class GraphV2Service {
 
-    /** Performance Schema times are in picoseconds. */
     private static final double PICOS_PER_MILLI = 1_000_000_000d;
 
     private final SqlRepositoryService sqlRepositoryService;
@@ -56,18 +48,10 @@ public class GraphV2Service {
             sqlRepositoryService.getAllAnalyzedSql());
     }
 
-    /** A graph over an arbitrary profile set (tag results, search results): nodes come from the profiles. */
     public GraphV2 getGraphForProfiles(Collection<SqlProfile> profiles) {
         return getGraphForProfiles(profiles, List.of());
     }
 
-    /**
-     * A graph over a profile set that also shows every table of these schemas,
-     * queried or not, with the foreign keys between them: the workbench graph's
-     * "all tables" (sqlx-aoy.16). The profiles still decide the joins, the
-     * co-queried pairs and the query counts, so a table no matching query
-     * touches is drawn with none.
-     */
     public GraphV2 getGraphForProfiles(Collection<SqlProfile> profiles, Collection<String> allTablesOf) {
         Set<String> schemas = new HashSet<>();
         allTablesOf.forEach(schema -> schemas.add(schema.toLowerCase(Locale.ROOT)));
@@ -84,14 +68,12 @@ public class GraphV2Service {
         Map<String, JoinBuilder> joins = new TreeMap<>();
         List<TableStructure> structures = sqlSchemaService.getTables();
 
-        // seed nodes (schema mode: every metadata table of the schema, queried or not)
         for (TableStructure structure : structures) {
             if (seed.test(structure)) {
                 node(nodes, structure.schema(), structure.name());
             }
         }
 
-        // one pass over queries: node stats, co-query pairs, self-joins
         profiles.forEach(profile -> {
             List<TableReference> tables = distinctTables(profile);
             if (!profileFilter.test(tables)) {
@@ -126,13 +108,12 @@ public class GraphV2Service {
                     continue;
                 }
                 if (left.equalsNormalized(right)) {
-                    continue; // a self-join is a node flag, not an edge: below
+                    continue;
                 }
                 JoinBuilder pair = joinPair(joins, left, right);
                 pair.addColumns(join.getLeft(), join.getRight());
                 joinedHere.add(pair);
             }
-            // a query joining two tables on several columns is still one query
             joinedHere.forEach(pair -> pair.add(profile));
             for (TableReference table : profile.selfJoinedTables()) {
                 if (named(table)) {
@@ -141,7 +122,6 @@ public class GraphV2Service {
             }
         });
 
-        // view→base edges: a displayed view pulls its base tables into the graph
         List<GraphV2.ViewEdge> viewEdges = new ArrayList<>();
         for (TableStructure structure : structures) {
             NodeBuilder viewNode = nodes.get(key(structure.schema(), structure.name()));
@@ -157,7 +137,6 @@ public class GraphV2Service {
             }
         }
 
-        // decorate every displayed node with schema metadata (column count, view flag)
         for (TableStructure structure : structures) {
             NodeBuilder node = nodes.get(key(structure.schema(), structure.name()));
             if (node == null) {
@@ -170,13 +149,11 @@ public class GraphV2Service {
             node.indexBytes = structure.indexBytes();
         }
 
-        // FK edges between displayed nodes; column type comparison over the loaded structures
         Map<String, Map<String, TableColumn>> columnsByTable = new HashMap<>();
         for (TableStructure structure : structures) {
             columnsByTable.put(key(structure.schema(), structure.name()), columnsOf(structure));
         }
         SchemaFacts facts = new SchemaFacts(structures);
-        // declared foreign key column pairs, as "from.column>to.column"
         Set<String> declared = new HashSet<>();
         List<GraphV2.FkEdge> fkEdges = new ArrayList<>();
         for (TableStructure structure : structures) {
@@ -227,7 +204,6 @@ public class GraphV2Service {
                 return pair.build(facts, declared);
             })
             .toList();
-        // last, once every drawn relationship has named the columns it attaches to
         List<GraphV2.Node> nodeList = nodes.entrySet().stream()
             .map(entry -> entry.getValue().build(facts.keyColumns(entry.getKey(), entry.getValue().keyColumns)))
             .toList();
@@ -275,12 +251,6 @@ public class GraphV2Service {
         return pairs.computeIfAbsent(pairKey, k -> leftFirst ? new JoinBuilder(left, right) : new JoinBuilder(right, left));
     }
 
-    /**
-     * Whether queries join the foreign key's tables on every one of its column
-     * pairs. Joining the same two tables on other columns does not count: that
-     * is a different relationship, and the key would still only be enforcing
-     * integrity.
-     */
     private static boolean joinedOn(Map<String, JoinBuilder> joins, String schema, String table,
                                     TableReference target, ForeignKey fk) {
         String fromKey = key(schema, table);
@@ -339,7 +309,6 @@ public class GraphV2Service {
         private Long sizeBytes;
         private Long dataBytes;
         private Long indexBytes;
-        /** The columns a drawn relationship attaches to, lower-cased. */
         private final Set<String> keyColumns = new TreeSet<>();
 
         private NodeBuilder(String schema, String table) {
@@ -353,11 +322,6 @@ public class GraphV2Service {
         }
     }
 
-    /**
-     * What the schema says about columns, for an ERD: which are unique, which
-     * nullable, which start a foreign key. Everything is keyed by the
-     * lower-cased {@link #key table key} and column name.
-     */
     private static final class SchemaFacts {
         private final Map<String, TableStructure> tables = new HashMap<>();
         private final Map<String, List<Set<String>>> uniqueIndexes = new HashMap<>();
@@ -391,7 +355,6 @@ public class GraphV2Service {
             }
         }
 
-        /** Whether {@code joined} covers a unique index that includes {@code column}; false for an unknown table. */
         private boolean unique(String table, String column, Collection<String> joined) {
             return uniqueIndexes.getOrDefault(table, List.of()).stream()
                 .anyMatch(index -> index.contains(column) && joined.containsAll(index));
@@ -414,7 +377,6 @@ public class GraphV2Service {
 
         private GraphV2.ColumnPair pair(String aTable, String a, Collection<String> aJoined,
                                         String bTable, String b, Collection<String> bJoined, String declared) {
-            // nothing is known of a table whose structure was never read, which is not the same as "not unique"
             boolean aKnown = tables.containsKey(aTable);
             boolean bKnown = tables.containsKey(bTable);
             return new GraphV2.ColumnPair(a, b,
@@ -422,12 +384,6 @@ public class GraphV2Service {
                 aKnown ? nullable(aTable, a) : null, bKnown ? nullable(bTable, b) : null, declared);
         }
 
-        /**
-         * A card's rows: the primary key, the foreign keys and the columns
-         * relationships attach to, in table order. A table whose structure is
-         * not known still lists the columns it is joined on, so its lines have
-         * rows to end at.
-         */
         private List<GraphV2.KeyColumn> keyColumns(String table, Set<String> attached) {
             TableStructure structure = tables.get(table);
             if (structure == null || structure.columns() == null || structure.columns().isEmpty()) {
@@ -459,7 +415,6 @@ public class GraphV2Service {
         private final String aKey;
         private final String bKey;
         private final Set<String> columns = new TreeSet<>();
-        /** The same pairs as {@code columns}, as [a column, b column], in the same order. */
         private final Map<String, List<String>> pairsByLabel = new TreeMap<>();
         private final Collection<List<String>> pairs = pairsByLabel.values();
         private int queries;
@@ -472,7 +427,6 @@ public class GraphV2Service {
             this.bKey = key(b.getNormalizedSchemaName(), b.getNormalizedTableName());
         }
 
-        /** Records the column pair oriented a=b, whichever side of the ON it was written on. */
         private void addColumns(ColumnReference left, ColumnReference right) {
             boolean leftIsA = key(left.getTable().getNormalizedSchemaName(), left.getTable().getNormalizedTableName())
                 .equals(aKey);

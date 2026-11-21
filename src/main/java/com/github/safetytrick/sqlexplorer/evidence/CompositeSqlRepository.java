@@ -17,24 +17,6 @@ import jakarta.validation.constraints.NotNull;
 
 class CompositeSqlRepository implements SqlRepository {
 
-    /**
-     * The merged corpus, computed once per instance.
-     *
-     * <p>{@link #getAllAnalyzedSql()} groups every profile by digest and merges
-     * each group, and 23 call sites reach it — every rollup, the schema tree,
-     * both graph stacks and the reports. Each was paying for a full re-merge.
-     * Serially that is cheap enough to hide (about 20ms over ~4,300 profiles),
-     * which is why it went unnoticed; under twelve concurrent requests it
-     * became 155ms median, an eight-fold penalty that is entirely the same work
-     * being done twelve times.
-     *
-     * <p><b>No invalidation, deliberately.</b> {@code SqlRepositoryManager}
-     * builds a new {@code CompositeSqlRepository} on every load and replaces the
-     * environment's entry wholesale, so this instance and the corpus it
-     * describes have exactly the same lifetime. A cache that has to be told when
-     * to expire is a cache that can be told wrong; this one cannot outlive its
-     * data because it is thrown away with it.
-     */
     private volatile List<SqlProfile> mergedCorpus;
 
     private final List<SqlRepository> sources;
@@ -80,8 +62,6 @@ class CompositeSqlRepository implements SqlRepository {
                 }
             }
         }
-        // a fresh Stream per caller: the list is immutable and shared, the
-        // stream over it is not reusable
         return corpus.stream();
     }
 
@@ -93,10 +73,6 @@ class CompositeSqlRepository implements SqlRepository {
             .toList());
     }
 
-    /**
-     * The repositories' sources viewed as one: SQL concatenated, refs joined,
-     * created when the newest member was.
-     */
     private record CompositeSqlSource(List<SqlSource> members) implements SqlSource {
 
         @Override
@@ -133,7 +109,6 @@ class CompositeSqlRepository implements SqlRepository {
     }
 
     private Stream<SqlProfile> mergeStream(Stream<SqlProfile> stream) {
-        //noinspection ConstantConditions empty lists cannot appear in the grouping
         return stream.collect(
             Collectors.groupingBy(sql -> sql.getNormalizedDigest() != null ? sql.getNormalizedDigest() : sql.getDigest() != null ? sql.getDigest() : sql.getId()))
             .values()

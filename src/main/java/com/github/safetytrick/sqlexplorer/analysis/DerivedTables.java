@@ -27,29 +27,13 @@ import net.sf.jsqlparser.statement.select.SelectVisitorAdapter;
 import net.sf.jsqlparser.statement.select.SetOperationList;
 import net.sf.jsqlparser.statement.select.WithItem;
 
-/**
- * What a derived table — a subquery in FROM or JOIN — projects, so that a
- * column qualified by its alias resolves to the table the column came from.
- *
- * <p>Shared by the analyzers that resolve such columns. It lived inside
- * {@link JoinColumnAnalyzer}, so only joins could see through a derived
- * table, and the same {@code r_global.id} that a join resolved to its table
- * was recorded in the select list against {@code dual} (sqlx-03r).
- */
 final class DerivedTables {
 
     private DerivedTables() {
     }
 
-    /**
-     * The derived table a subquery declares, its columns resolved in the
-     * subquery's own scope, falling back to {@code enclosing}.
-     */
     static DerivedTable of(ParenthesedSelect subSelect, TableAliasResolver enclosing,
                            ColumnTableResolver columnTableResolver, String schema) {
-        // A UNION's columns are named by its first branch, so that branch's
-        // sources stand for them — resolved in that branch's scope alone, as
-        // the union's would put every branch's tables in reach of a bare name.
         Select body = subSelect.getSelect();
         while (body instanceof SetOperationList union && union.getSelects() != null && !union.getSelects().isEmpty()) {
             body = union.getSelects().getFirst();
@@ -57,11 +41,9 @@ final class DerivedTables {
         TableAliasResolver scope = new SchemaAwareTableAliasResolver(enclosing, body, columnTableResolver);
         Projection projection = new Projection(scope, columnTableResolver, schema);
         body.accept(projection, null);
-        // the alias is null for IN (select) expressions
         return new DerivedTable(subSelect.getAlias() != null ? subSelect.getAlias().getName() : "", projection);
     }
 
-    /** Registers each derived table among a select's FROM and JOIN items with {@code resolver}. */
     static void register(PlainSelect plainSelect, TableAliasResolver resolver,
                          ColumnTableResolver columnTableResolver, String schema) {
         List<FromItem> items = new ArrayList<>();
@@ -94,7 +76,6 @@ final class DerivedTables {
         }
     }
 
-    /** A subquery's output column names, each mapped to the source column it projects. */
     private static final class Projection extends SelectVisitorAdapter<Void>
         implements SelectItemVisitor<Void>, ColumnAliasResolver {
 
@@ -121,16 +102,6 @@ final class DerivedTables {
             return columnAliasMap.getOrDefault(key(col.substring(col.lastIndexOf('.') + 1)), col);
         }
 
-        /**
-         * The source column a reference to this derived table names, or
-         * null when its select list does not project that name.
-         *
-         * <p>Keyed by normalized name, as MySQL compares column names: the
-         * select list's bare {@code NAME} is the ON clause's
-         * {@code `name`}. A miss used to return the bare column name, which
-         * callers then read as a table — a join recorded against a table
-         * called {@code name} (sqlx-9xg).
-         */
         @Override
         public String columnReference(Column column) {
             return columnAliasMap.get(key(column.getColumnName()));

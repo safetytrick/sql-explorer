@@ -18,11 +18,6 @@ public interface AccessTokenRepository extends CrudRepository<AccessToken, Integ
 
     List<AccessToken> findAllByOrderByCreatedOnDescIdDesc();
 
-    /**
-     * Records a use, unless one was recorded since {@code cutoff}: one write a
-     * minute per token at most, however often it is used. Conditional in the
-     * statement itself, so concurrent requests do not each write.
-     */
     @Modifying
     @Transactional
     @Query("update AccessToken t set t.lastUsedOn = :now where t.id = :id and (t.lastUsedOn is null or t.lastUsedOn < :cutoff)")

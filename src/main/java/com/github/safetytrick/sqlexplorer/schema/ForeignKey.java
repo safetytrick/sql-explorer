@@ -6,11 +6,6 @@ import java.util.List;
 
 import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 
-/**
- * One foreign key constraint owned by a table. {@code constraintName},
- * {@code onUpdate} and {@code onDelete} may be null when the source of the
- * schema does not provide them (e.g. parsed CREATE statements).
- */
 public record ForeignKey(
     List<ColumnReference> from,
     List<ColumnReference> to,

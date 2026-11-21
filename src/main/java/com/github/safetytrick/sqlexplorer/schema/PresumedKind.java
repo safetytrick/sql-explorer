@@ -4,33 +4,12 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/**
- * What a character column most likely holds, guessed from its name and type
- * alone — no data is read. Three kinds, because they want different things
- * from a charset or collation change:
- *
- * <ul>
- *   <li><b>identifier</b> — keys, codes, hashes, emails: compared for exact
- *       equality and joined on, so a collation change alters what matches
- *       and which unique keys collide;</li>
- *   <li><b>enum</b> — a small fixed vocabulary (status, type): ASCII in
- *       practice, so a conversion is a formality;</li>
- *   <li><b>text</b> — what people typed: names, descriptions, notes. This is
- *       where non-ASCII data, and therefore mis-encoded data, lives.</li>
- * </ul>
- *
- * <p>Every answer is {@code inferred} confidence and carries the rule that
- * produced it as its basis. It is a starting point for classification
- * (sqlx-n5j.6), which will add sampled and confirmed answers on top; nothing
- * here should be read as fact.
- */
 public final class PresumedKind {
 
     public static final String IDENTIFIER = "identifier";
     public static final String ENUM = "enum";
     public static final String TEXT = "text";
 
-    /** A guess and why. */
     public record Presumption(String kind, String basis) { }
 
     private static final Pattern IDENTIFIER_NAME = Pattern.compile(
@@ -51,11 +30,6 @@ public final class PresumedKind {
     private PresumedKind() {
     }
 
-    /**
-     * @param name     the column's name
-     * @param typeName its SQL type name as the driver reports it ({@code VARCHAR}, {@code ENUM}, …)
-     * @param size     its declared length in characters; 0 when unknown
-     */
     public static Presumption of(String name, String typeName, int size) {
         String type = typeName == null ? "" : typeName.toLowerCase(Locale.ROOT);
         String column = name == null ? "" : name;
@@ -75,7 +49,6 @@ public final class PresumedKind {
                 ? new Presumption(TEXT, "named like a category, but " + size + " characters wide")
                 : new Presumption(ENUM, "named like a status or category");
         }
-        // CHAR(n) is fixed width: hashes, uuids and codes, rarely prose
         if ("char".equals(type) && size > 0 && size <= 64) {
             return new Presumption(IDENTIFIER, "fixed-width CHAR(" + size + ")");
         }

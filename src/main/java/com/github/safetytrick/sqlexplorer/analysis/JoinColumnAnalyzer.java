@@ -56,7 +56,6 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         this(ColumnTableResolver.unsupported());
     }
 
-    /** Test/convenience: resolve against a fixed resolver regardless of schema. */
     public JoinColumnAnalyzer(ColumnTableResolver columnTableResolver) {
         this.resolverFactory = schema -> columnTableResolver;
     }
@@ -81,7 +80,6 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         private List<JoinColumns> joinColumns;
         private TableAliasResolver tableAliasResolver;
         private final java.util.Set<String> cteNames = new java.util.HashSet<>();
-        /** Set when the statement has a WITH prefix; used to map references through it. */
         private CteProjections cteProjections = CteProjections.EMPTY;
         private Select statementSelect;
 
@@ -92,16 +90,9 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
         }
 
         private void addJoin(JoinColumns join) {
-            // A join against a CTE names a result set rather than a table, so it
-            // cannot be emitted as-is — that would invent a table the schema does
-            // not have. But it is not nothing: the CTE projects real columns, so
-            // the reference can be mapped through to what it stands for. In the
-            // corpus's recursive example that recovers a genuine self-join.
             ColumnReference left = throughCte(join.getLeft());
             ColumnReference right = throughCte(join.getRight());
             if (left == null || right == null) {
-                // one side is a CTE column with no source column behind it —
-                // a projected expression, or a CTE we could not read
                 return;
             }
             if (left != join.getLeft() || right != join.getRight()) {
@@ -111,11 +102,6 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             joinColumns.add(join);
         }
 
-        /**
-         * The reference itself when it names a real table, the column it stands
-         * for when it names a CTE, or null when it names a CTE position with no
-         * source column.
-         */
         private ColumnReference throughCte(ColumnReference reference) {
             if (!referencesCte(reference)) {
                 return reference;
@@ -178,8 +164,8 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             if (join.isFull()) return "FULL";
             if (join.isCross()) return "CROSS";
             if (join.isStraight()) return "STRAIGHT";
-            if (join.isSimple()) return "IMPLICIT"; // comma-separated from list
-            return "INNER"; // JOIN / INNER JOIN
+            if (join.isSimple()) return "IMPLICIT";
+            return "INNER";
         }
 
         @Override
@@ -213,7 +199,6 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
             @Override
             public <S> Void visit(PlainSelect plainSelect, S context) {
                 visitJoins(plainSelect.getFromItem(), plainSelect.getJoins());
-                // todo recurse into sub-selects
 
                 if (plainSelect.getWhere() != null) {
                     plainSelect.getWhere().accept(new JoinInSelectExpressionVisitor());
@@ -247,22 +232,8 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                 this.columnAliasResolver = new SimpleColumnAliasResolver(tableAliasResolver);
             }
 
-            /**
-             * A subquery in the WHERE clause — EXISTS, IN, a scalar subquery —
-             * joins tables of its own, and those joins are the statement's
-             * too. They went unrecorded: this visitor read only IN-subquery
-             * projections and never entered a subquery's FROM (sqlx-lww).
-             *
-             * <p>Resolved in the subquery's own scope, falling back to the
-             * enclosing one. The statement-wide resolver does not see tables
-             * declared inside a WHERE-clause subquery, so it took the outer
-             * query's single table for every column the subquery named.
-             */
             @Override
             public <S> Void visit(Select select, S context) {
-                // A subquery in an expression arrives here, not at
-                // visit(ParenthesedSelect): jsqlparser's adapter dispatches it
-                // to visit(Select), which does nothing without a select visitor.
                 TableAliasResolver enclosing = tableAliasResolver;
                 Select body = select;
                 if (select instanceof ParenthesedSelect parenthesed) {
@@ -322,8 +293,7 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
             List<JoinColumns> getJoinColumns(Join join) {
                 joinColumns = new ArrayList<>();
-                // jsqlparser 5.x exposes ON clauses as a collection; getOnExpression()
-                // throws on a join with no ON (e.g. CROSS JOIN), so guard on the collection.
+                // getOnExpression() throws on a join with no ON (e.g. CROSS JOIN)
                 Collection<Expression> onExpressions = join.getOnExpressions();
                 if (onExpressions != null && !onExpressions.isEmpty()) {
                     if (join.getRightItem() != null && !(join.getRightItem() instanceof Table)) {
@@ -333,7 +303,6 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
                         columnAliasResolver = derivedTable;
                     }
 
-                    // todo I don't think this will handle two subselects joined together
                     if (!(fromItem instanceof Table)) {
                         DerivedTable derivedTable = new FromSubSelectVisitor().getDerivedTable(fromItem);
                         tableAliasResolver.addDerivedTable(derivedTable);
@@ -396,7 +365,6 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
             public DerivedTable getDerivedTable(FromItem fromItem) {
                 fromItem.accept(this);
-                // this alias resolver should be added as a temp table and referencable from the table name it is given!!!
                 return derivedTable;
             }
 
@@ -416,13 +384,11 @@ class JoinColumnAnalyzer implements SqlAnalyzer {
 
             @Override
             public <S> Void visit(LateralSubSelect lateralSubSelect, S context) {
-                // ignore
                 return null;
             }
 
             @Override
             public <S> Void visit(Values values, S context) {
-                // ignore
                 return null;
             }
 

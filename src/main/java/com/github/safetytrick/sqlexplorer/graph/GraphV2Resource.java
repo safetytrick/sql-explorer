@@ -35,17 +35,11 @@ class GraphV2Resource {
         return graphV2Service.getSchemaGraph(schema);
     }
 
-    /** Graph over the queries carrying a tag. */
     @GetMapping("/graph/v2/by-tag/{tag}")
     public GraphV2 getTagGraph(@PathVariable String tag) {
         return graphV2Service.getGraphForProfiles(sqlTagsService.getSqlByTag(tag).toList());
     }
 
-    /**
-     * Graph over the queries matching a workbench search (limit/offset are
-     * ignored). With {@code allTables}, every table of the schemas the search
-     * is scoped to is drawn too, queried or not; unscoped, it adds nothing.
-     */
     @PostMapping("/graph/v2/search")
     public GraphV2 getSearchGraph(@RequestBody(required = false) QuerySearchRequest request,
                                   @RequestParam(defaultValue = "false") boolean allTables) {

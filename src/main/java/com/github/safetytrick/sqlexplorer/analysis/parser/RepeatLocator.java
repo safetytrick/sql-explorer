@@ -5,18 +5,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Locates the surviving instance of each collapsed repeat inside formatted
- * SQL text. Matching is token-based and whitespace/case-insensitive, because
- * the display formatter re-flows the normalizer's serialization across lines
- * and re-cases keywords. Repeats are located in order with a moving cursor
- * (falling back to a from-the-top scan), so the same snippet appearing twice
- * resolves to successive positions; a snippet that can't be found is dropped
- * rather than misattributed.
- */
 public final class RepeatLocator {
 
-    /** A located repeat: [start, end) offsets in the text, and the sample's occurrence count. */
     public record Located(int start, int end, int count) { }
 
     private static final Pattern TOKEN = Pattern.compile("`[^`]*`|'[^']*'|[A-Za-z0-9_$#]+|\\S");

@@ -17,11 +17,6 @@ class QuerySearchResource {
         this.querySearchService = querySearchService;
     }
 
-    /**
-     * Search the active environment's analyzed queries. POST (not GET) because
-     * the filter set is a structured document; an absent body returns the
-     * first page of everything, worst average time first.
-     */
     @PostMapping("/queries/search")
     public QuerySearchResult search(@RequestBody(required = false) QuerySearchRequest request) {
         return querySearchService.search(request);

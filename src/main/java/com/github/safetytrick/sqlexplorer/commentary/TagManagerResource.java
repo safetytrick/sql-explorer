@@ -25,7 +25,6 @@ class TagManagerResource {
         this.tagManagerService = tagManagerService;
     }
 
-    /** Every tag name with its color and usage counts (definitions and legacy assignment-only tags). */
     @GetMapping("/tags")
     public List<TagSummary> listTags() {
         return tagManagerService.getSummaries();
@@ -40,7 +39,6 @@ class TagManagerResource {
         return tagManagerService.define(name, body.color());
     }
 
-    /** Deletes the definition and every assignment of the tag. */
     @DeleteMapping("/tags/definitions/{name}")
     public ResponseEntity<Void> delete(@PathVariable String name) {
         tagManagerService.delete(name);

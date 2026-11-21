@@ -6,7 +6,6 @@ import com.github.safetytrick.sqlexplorer.mcp.McpTool;
 import com.github.safetytrick.sqlexplorer.mcp.McpToolProvider;
 import org.springframework.stereotype.Component;
 
-/** A schema's relationship graph, as an MCP tool. */
 @Component
 class GraphMcpTools implements McpToolProvider {
 

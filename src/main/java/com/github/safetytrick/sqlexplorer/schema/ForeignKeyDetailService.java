@@ -11,13 +11,6 @@ import com.github.safetytrick.sqlexplorer.avro.ColumnReference;
 import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import org.springframework.stereotype.Service;
 
-/**
- * Foreign keys of a table in both directions ("out" = owned by the table,
- * "in" = other tables referencing it), with per-column type comparison.
- * Unlike join analysis — which tolerates joins across the integer family —
- * the comparison here is strict: an FK column pair whose type name, size or
- * charset differs is flagged.
- */
 @Service
 public class ForeignKeyDetailService {
 
@@ -28,7 +21,6 @@ public class ForeignKeyDetailService {
     }
 
     public List<ForeignKeyDetail> getForeignKeys(TableReference table) {
-        // column lookups cached for this call only — schemas are per-environment and refreshable
         Map<String, Map<String, TableColumn>> columnsByTable = new HashMap<>();
         List<ForeignKeyDetail> details = new ArrayList<>();
 
@@ -39,7 +31,6 @@ public class ForeignKeyDetailService {
                 details.add(detail("out", fk, other, columnsByTable));
             }
         }
-        // incoming: scan every table's constraints for references to this table
         for (TableStructure owner : sqlSchemaService.getTables()) {
             for (ForeignKey fk : owner.foreignKeys()) {
                 TableReference target = fk.to().getFirst().getTable();
@@ -94,7 +85,6 @@ public class ForeignKeyDetailService {
         return column == null ? null : column.typeName() + "(" + column.columnSize() + ")";
     }
 
-    /** Strict FK-column comparison: type name, size, or charset differing is a mismatch. */
     public static boolean isMismatch(TableColumn from, TableColumn to) {
         if (from == null || to == null) {
             return false;

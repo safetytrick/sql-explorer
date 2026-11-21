@@ -87,7 +87,6 @@ public class TableReferenceExtension {
         );
     }
 
-    /** schemaName is nullable — a statement with no default database names its tables without one (sqlx-4wm). */
     public static boolean isNormalized(@This TableReference thiz) {
         return Objects.equals(thiz.getSchemaName(), thiz.getNormalizedSchemaName())
             && Objects.equals(thiz.getTableName(), thiz.getNormalizedTableName());

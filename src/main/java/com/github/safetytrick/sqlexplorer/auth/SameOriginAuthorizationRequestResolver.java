@@ -10,18 +10,8 @@ import org.springframework.security.web.util.UrlUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * Lets the provider's {@code authorization-uri} be root-relative
- * ({@code /idp/oauth2/authorize}), for a provider served on the app's own
- * origin behind the same proxy. It is resolved against the origin the browser
- * used, so one configuration works however the app is reached: localhost, or
- * a tunnel with its own hostname and scheme.
- *
- * <p>Needed because Spring's redirect would otherwise put the servlet context
- * path in front of a relative URL ({@code /api/sql-explorer/idp/…}). An
- * absolute {@code authorization-uri} passes through unchanged.
- *
- * <p>The origin is the request's scheme, host and port, which are the
- * forwarded ones behind a proxy ({@code server.forward-headers-strategy}).
+ * Spring's redirect would otherwise put the servlet context path in front of a
+ * relative {@code authorization-uri} ({@code /api/sql-explorer/idp/…}).
  */
 final class SameOriginAuthorizationRequestResolver implements OAuth2AuthorizationRequestResolver {
 

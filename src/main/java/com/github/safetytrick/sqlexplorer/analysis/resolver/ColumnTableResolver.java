@@ -12,11 +12,6 @@ import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 import com.github.safetytrick.sqlexplorer.schema.TableColumn;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 
-/**
- * Resolves columns to tables against a single schema. Built per analysis call
- * by {@link ColumnTableResolverFactory} from the schema of the server the SQL
- * was captured on, rather than injected as a singleton.
- */
 public class ColumnTableResolver {
 
     private final SqlSchemaRepository sqlSchemaService;
@@ -38,20 +33,7 @@ public class ColumnTableResolver {
         return selectTableNameFromCandidates(schema, tables, column);
     }
 
-    // todo pass a better schema to this method
     protected String selectTableNameFromCandidates(String schema, List<String> tables, String column) {
-        // Nothing to resolve against, so there is no question to fail at.
-        // `SELECT CURRENT_TIMESTAMP` arrives as a bare `NOW` — MySQL's digest
-        // canonicalises the keyword to its synonym, and there were never parens
-        // to lose — which jsqlparser reads as a column with no FROM. Asking
-        // which table it belongs to has no answer, and throwing turned that
-        // into an analysisFailed on the profile: the only analyzer-thrown
-        // failure in the whole corpus.
-        //
-        // `null` is already this method's word for "unresolved" — it is what
-        // the bottom of the method returns when no candidate matched — and the
-        // only caller treats null as unresolved and falls through to its parent
-        // resolver. So this is the existing shape, not a new one.
         if (tables == null || tables.isEmpty()) {
             return null;
         }
@@ -61,7 +43,6 @@ public class ColumnTableResolver {
         Set<TableReference> matchedTables = new HashSet<>(1);
         String missingTable = null;
         for (String table : tables) {
-            // todo handle schema on table reference
             TableReference tableReference = TableReference.fromString(table);
             TableStructure tableStructure = sqlSchemaService.getTable(tableReference.withDefaultSchema(schema));
             if (tableStructure == null) {
@@ -89,8 +70,6 @@ public class ColumnTableResolver {
 
     public List<String> getAllColumnNamesForTable(String schema, String table) {
         TableStructure tableStructure = sqlSchemaService.getTable(TableReference.newTableReference(schema, table));
-        // A star can be projected off a derived-table alias or an otherwise
-        // unknown name; there are no known columns to expand in that case.
         if (tableStructure == null) {
             return Collections.emptyList();
         }

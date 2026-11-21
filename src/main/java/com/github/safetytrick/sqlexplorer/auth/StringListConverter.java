@@ -7,7 +7,6 @@ import jakarta.persistence.Converter;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
-/** A list of strings in one text column, as a JSON array: group names may hold any character. */
 @Converter
 class StringListConverter implements AttributeConverter<List<String>, String> {
 

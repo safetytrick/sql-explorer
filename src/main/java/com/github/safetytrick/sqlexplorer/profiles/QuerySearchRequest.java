@@ -13,108 +13,36 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.github.safetytrick.sqlexplorer.evidence.SourceScope;
 
-/**
- * Filter/sort/page criteria for {@code POST /queries/search}. Every field is
- * optional; a missing field does not constrain the results. Times are accepted
- * in milliseconds (metrics are stored in picoseconds), selectivity as a 0..1
- * fraction (rows sent / rows scanned).
- */
 public record QuerySearchRequest(
-    /** Regex matched against {@link com.github.safetytrick.sqlexplorer.avro.SqlProfile#getQuery()}
-     *  (case-insensitive, substring; an invalid pattern falls back to a literal search). */
     String queryRegex,
     Range avgTimeMs,
     Range maxTimeMs,
     Range avgRowsScanned,
     Range selectivity,
     Range rowsSorted,
-    /** Executions in the captured period ({@code RuntimeMetrics.executed}), inclusive bounds. */
     Range executed,
     Activity activity,
-    /** Statement types (SELECT, INSERT, …); "OTHER" matches any type outside {@link QuerySearchService#EXPLICIT_TYPES}. */
     List<String> types,
     DateRange firstSeen,
     DateRange lastSeen,
     List<String> tags,
     TagMode tagMode,
     Boolean untaggedOnly,
-    /**
-     * Tag names on tables: a query is kept when any table it touches carries
-     * any of them (sqlx-aoy.10). Sent as the names, not the tables, so a shared
-     * link follows the tag as it changes; resolved here, per search. Unlike
-     * {@link #tags()}, which match tags on the query itself.
-     */
     List<String> tableTags,
-    /*
-     * Exclusions (sqlx-fph): each the twin of an include above, and each
-     * applied whether or not its include narrows the search. A query matching
-     * any of them is left out.
-     */
-    /** Tags on tables: a query touching a table carrying any of these is left out. */
     List<String> excludeTableTags,
-    /** Statement types to leave out, spelled as {@link #types()}. */
     List<String> excludeTypes,
-    /** Tags on queries: a query carrying any of these is left out. */
     List<String> excludeTags,
-    /**
-     * Queries to leave out, by digest: the id {@code /analyzed-sql/{id}} uses,
-     * or any digest a merged profile absorbed.
-     */
     List<String> excludeQueries,
-    /**
-     * Source refs (for a live source, the server's name) the search is about.
-     * They scope the data, not the matches: the corpus is merged from these
-     * sources alone, so every figure is theirs (SourceScope, sqlx-a9h.1).
-     * Empty or null means every source.
-     */
     List<String> sources,
-    /** Source refs whose statements and figures are left out of the corpus. */
     List<String> excludeSources,
-    /** Normalized schema names; a query in any listed schema matches. */
     List<String> schemas,
-    /** Normalized schema names; a query that touches any of these is excluded. */
     List<String> excludeSchemas,
-    /** Normalized {@code schema.table} keys (see SchemaTreeService keying). */
     List<String> tables,
-    /** ANY = query references any selected table; ALL = it references all of them. */
     TableMode tableMode,
-    /**
-     * Normalized {@code schema.table} keys; a query that references any of
-     * these is excluded. The table-level twin of {@link #excludeSchemas()},
-     * and applied the same way — exclusion wins over any include, and it
-     * applies whether or not {@link #tables()} narrows the search.
-     */
     List<String> excludeTables,
-    /**
-     * {@code schema.table.column} (or {@code table.column}) references; a query
-     * matching <em>any</em> of them is kept. "Matching" is
-     * {@code SqlProfile.constrainedBy} — the column appears in a join or in the
-     * criteria — so a query that merely selects the column does not match. That
-     * is the drill-down the table view has always offered, and this delegates to
-     * the same method rather than restating it.
-     */
     List<String> columns,
-    /**
-     * {@code schema.table.index} (or {@code table.index}) references; a query
-     * whose index hints name <em>any</em> of them, with any action, is kept.
-     * The index twin of {@link #columns()}, matched by
-     * {@code SqlProfile.hintsIndex} (sqlx-yj0).
-     */
     List<String> indexes,
-    /**
-     * Keep only queries carrying an index hint: {@code ANY} for any action,
-     * or one action ({@code USE}, {@code FORCE}, {@code IGNORE}) on any table.
-     * Null does not constrain. Composes with {@link #indexes()}, which names
-     * the index rather than the action (sqlx-yj0.5).
-     */
     HintAction hinted,
-    /**
-     * Keep only queries a generator's signatures matched: a generator name
-     * (e.g. {@code doctrine-orm}) keeps those with it among their candidates,
-     * {@code none} keeps those matching no generator. Null does not constrain.
-     * Candidates, not confirmed origins: whether the environment uses the
-     * generator is applied when a result is shown, not here (sqlx-n5j.12).
-     */
     String generator,
     Flag fullScan,
     Flag tmpTable,
@@ -123,29 +51,13 @@ public record QuerySearchRequest(
     Flag warnings,
     Flag truncated,
     Flag multiSchema,
-    /**
-     * How many distinct tables the statement references, inclusive bounds:
-     * a table named twice (a self-join) counts once
-     * ({@code SqlProfile.distinctTableCount}).
-     */
     Range tableCount,
-    /**
-     * Statements that join a table to itself: a join column pair whose two
-     * sides resolve to the same table ({@code SqlProfile.selfJoinedTables}),
-     * the same definition as the graph's self-join flag.
-     */
     Flag selfJoin,
     Boolean analyzerWarnings,
-    /**
-     * Only queries that have at least one stored example — the ones that can
-     * actually be planned, since the corpus text carries {@code ?} placeholders
-     * that EXPLAIN rejects.
-     */
     Boolean hasExamples,
     Boolean analysisFailed,
     Boolean cleanAnalysis,
     Boolean analysisSkipped,
-    /** Failure refinement: failed, not truncated, and the reason marks an analyzer vs parse failure. */
     FailureKind failureKind,
     Sort sort,
     Integer limit,
@@ -153,16 +65,10 @@ public record QuerySearchRequest(
 ) {
     public record Range(Double min, Double max) { }
 
-    /**
-     * Accepts ISO date-times ({@code 2026-07-01T14:30}, space separator also allowed)
-     * or plain dates. A plain date keeps its historic day-inclusive semantics:
-     * {@code after} expands to the start of the day, {@code before} to the end of it.
-     */
     public record DateRange(
         @JsonDeserialize(using = StartDateTimeDeserializer.class) LocalDateTime after,
         @JsonDeserialize(using = EndDateTimeDeserializer.class) LocalDateTime before) { }
 
-    /** Parses a date-time, expanding date-only values to the start or end of the day. */
     abstract static class FlexibleDateTimeDeserializer extends JsonDeserializer<LocalDateTime> {
         private final LocalTime dateOnlyTime;
 
@@ -199,28 +105,19 @@ public record QuerySearchRequest(
 
     public enum TableMode { ANY, ALL }
 
-    /** Tri-state matching a boolean characteristic. */
     public enum Flag { ANY, YES, NO }
 
     public enum FailureKind { ANALYZER, PARSE }
 
-    /** {@link #hinted()}: ANY = some index hint; otherwise a hint with that action. */
     public enum HintAction { ANY, USE, FORCE, IGNORE }
 
-    /**
-     * Sort keys. IMPACT = total query time; the default. Every key sorts
-     * descending except {@code SELECTIVITY_ASC}, which puts the lowest rows
-     * sent / rows scanned first. A query without metrics sorts last either way.
-     */
     public enum Sort { IMPACT, AVG_TIME, MAX_TIME, AVG_ROWS_SCANNED, SELECTIVITY, SELECTIVITY_ASC, EXECUTIONS, LAST_SEEN }
 
-    /** An unconstrained search (used when the request body is absent). */
     public static final QuerySearchRequest UNCONSTRAINED = new QuerySearchRequest(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
-    /** The sources this search reads, as a scope over the environment's corpus. */
     public SourceScope sourceScope() {
         return SourceScope.of(sources, excludeSources);
     }

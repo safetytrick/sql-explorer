@@ -13,69 +13,6 @@ import com.github.safetytrick.sqlexplorer.avro.QueryActivityStatus;
 import com.github.safetytrick.sqlexplorer.avro.MergedChild;
 import com.github.safetytrick.sqlexplorer.avro.RepeatedBlock;
 
-/**
- * One query, seen through several Performance Schema digests.
- *
- * <h2>What a merge group is</h2>
- *
- * <p>Members share a {@code normalizedDigest} and differ in their MySQL
- * digest. That is the whole membership rule, and it is what makes the
- * aggregation policy below answerable rather than arbitrary: MySQL sees two
- * statements, our normalization sees one, and the group exists to put the two
- * MySQL rows back together.
- *
- * <p>Concretely, the normalization strips select-item aliases, so Hibernate
- * emitting {@code AS id92_0_} on one revision and {@code AS id93_0_} on the
- * next produces two MySQL digests for a query that is the same query. It also
- * collapses repeated blocks — see the caveat below, which is the one place
- * this gets interesting.
- *
- * <h2>Why the getters split the way they do</h2>
- *
- * <p>Two rules, and which applies follows from what the field describes:
- *
- * <ul>
- *   <li><b>Delegate to {@link #first()}</b> for anything that describes the
- *       <em>query</em>. Members are the same statement shape, so they agree:
- *       the tables are the same tables, the columns the same columns,
- *       {@code isDml} the same answer. Asking the representative is not a
- *       shortcut, it is the correct answer — and asking every member and
- *       reconciling them would invent a disagreement that cannot exist.</li>
- *   <li><b>Aggregate across the group</b> for anything that describes an
- *       <em>observation</em>. Execution counts, timings and first/last seen are
- *       per-MySQL-digest facts, and the group's answer is their sum or extreme.
- *       {@link #getSourcedFiles()} is the same shape: which files contributed
- *       is a fact about the group, not about the query.</li>
- * </ul>
- *
- * <p>{@code modifiedForAnalysis} unions rather than delegating, which looks
- * inconsistent with the first rule and is not: it records whether the
- * <em>input text</em> had to be rewritten before parsing, which is a property
- * of each captured row rather than of the query.
- *
- * <h2>The caveat: merged does not mean equally fast</h2>
- *
- * <p>Repeat collapsing means two statements with genuinely different runtime
- * behaviour can land in one group. Measured:
- *
- * <pre>
- *   WHERE id IN (?, ?, ?)          and  WHERE id IN (?)           → one digest
- *   INSERT … VALUES (?,?),(?,?),(?,?)  and  INSERT … VALUES (?,?) → one digest
- * </pre>
- *
- * <p>IN-list cardinality and batch size are first-order performance factors, so
- * a group's aggregate metrics can average a cheap statement with an expensive
- * one. The collapsed blocks are recorded as {@code repeatedBlocks} with their
- * occurrence counts, so the information is not lost — but it is per-member, and
- * nothing today shows its spread across a group.
- *
- * <p>Note what does <em>not</em> cause this, because it is the intuitive guess:
- * differing select lists do not merge. {@code SELECT a} and {@code SELECT a, b}
- * normalize distinctly, so a query covered by an index is not merged with one
- * that selects past it. Only aliases are stripped, and an alias cannot change a
- * plan. See {@code sqlx-6v1} for a digest variant that would surface
- * the cardinality spread.
- */
 public class MergedSqlProfile extends SqlProfile {
 
     private List<SqlProfile> sourceList;
@@ -92,12 +29,6 @@ public class MergedSqlProfile extends SqlProfile {
         return sourceList.getFirst();
     }
 
-    /**
-     * The profiles folded into this one, each with its own digest and session
-     * schema — what analysis reuse indexes (sqlx-sqy.5). Deliberately not a
-     * bean getter, so serializing a merged profile does not inline every
-     * member.
-     */
     public List<SqlProfile> members() {
         return List.copyOf(sourceList);
     }
@@ -131,15 +62,6 @@ public class MergedSqlProfile extends SqlProfile {
     public List<ColumnReference> getCriteriaColumns() {
         return first().getCriteriaColumns();
     }
-
-    /*
-     * These three were missing, and their absence was the bug: an override-per-
-     * getter class silently inherits whatever it forgets. `MergedSqlProfile` is
-     * constructed with `new`, never through the Avro builder, so an un-overridden
-     * list field is the uninitialised superclass field — null, not the schema's
-     * declared empty list. That is why exactly `selectColumns`, `groupByColumns`
-     * and `schemas` came back null on merged profiles and nothing else did.
-     */
 
     @Override
     public List<ColumnReference> getSelectColumns() {
@@ -176,26 +98,11 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getSchemas();
     }
 
-    /**
-     * Whether the statement's tables span more than one schema.
-     *
-     * <p>Delegated to the representative rather than derived across the group,
-     * because that is what the flag means: {@code SchemaAnalyzer} sets it from
-     * the *statement's* table references, and every member of a merge group is
-     * the same statement shape under one normalized digest. It also has to
-     * agree with {@link #getSchemas()} and {@link #getSchemaName()}, which
-     * already come from the representative — a union here would let a profile
-     * claim multi-schema while listing a single schema.
-     *
-     * <p>Un-overridden it returned the uninitialised primitive, so every merged
-     * profile reported false and was invisible to the multiSchema filter.
-     */
     @Override
     public boolean getIsMultiSchema() {
         return first().getIsMultiSchema();
     }
 
-    /** Same class of miss as the above; inherited it is always null. */
     @Override
     public String getSourceFileName() {
         return first().getSourceFileName();
@@ -241,16 +148,6 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getNormalizedDigest();
     }
 
-    /**
-     * The group's metrics, summed over the members that have any.
-     *
-     * <p>{@code runtimeMetrics} is nullable and the rest of the code says so —
-     * the profile comparator orders a metric-less profile last, and
-     * {@code recordMergedChild} guards on null. This did not: it handed the raw
-     * list to {@code merged}, which dereferences every element, so one member
-     * without metrics made the whole group throw. Filtering matches the
-     * single-profile answer: no metrics anywhere means null, not zero.
-     */
     @Override
     public RuntimeMetrics getRuntimeMetrics() {
         if (merged == null) {
@@ -276,16 +173,6 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getSchemaName();
     }
 
-    /**
-     * The earliest line any member came from.
-     *
-     * <p>{@code lineNumber} is declared {@code int?}, so a profile built by
-     * anything other than the performance-schema ingest — which always sets it
-     * from the row's rank — carries null. Unboxing that inside
-     * {@code mapToInt} threw NPE on group construction rather than returning a
-     * wrong value, so it is filtered rather than defaulted: a group with no
-     * line numbers keeps the existing empty-group fallback.
-     */
     @Override
     public Integer getLineNumber() {
         return sourceList.stream().map(SqlProfile::getLineNumber)
@@ -304,29 +191,11 @@ public class MergedSqlProfile extends SqlProfile {
         return first().getAnalysisFailureReason();
     }
 
-    /** Offsets index into the query text, which comes from {@link #first()}, so the repeats must too. */
     @Override
     public List<RepeatedBlock> getRepeatedBlocks() {
         return first().getRepeatedBlocks();
     }
 
-    /**
-     * The group's other members, described.
-     *
-     * <p>DERIVED, NOT STORED. This used to read a field the loader wrote onto
-     * the representative, which made the merge group a persisted fact — and a
-     * corpus rebuilt from a capture had no way to recreate it. Merging is a
-     * function of the normalized digest, so the group can always be rebuilt
-     * from the members; describing it from them keeps one source of truth
-     * (sqlx-4ww).
-     *
-     * <p>Every field a {@code MergedChild} carries is on the member itself.
-     * The digest is the member's <em>MySQL</em> digest, taken off its metrics:
-     * {@code SqlProfile.digest} is overwritten with the normalized digest when
-     * the profile completes, so every member reports the same value there and
-     * only the metrics keep the performance-schema one. That is the whole
-     * reason a child is worth listing.
-     */
     @Override
     public List<MergedChild> getMergedChildren() {
         return sourceList.stream()
@@ -345,7 +214,6 @@ public class MergedSqlProfile extends SqlProfile {
             .build();
     }
 
-    /** Each source any member was captured from, once: an observation, so the group's union. */
     @Override
     public List<String> getSources() {
         return sourceList.stream().map(SqlProfile::getSources)
@@ -382,21 +250,11 @@ public class MergedSqlProfile extends SqlProfile {
                 .distinct().collect(Collectors.toList());
     }
 
-    /**
-     * The representative's. A merge group is one normalized statement, and
-     * every member's analysis is the representative's; the version describes
-     * that analysis (sqlx-sqy.5).
-     */
     @Override
     public String getAnalyzerVersion() {
         return first().getAnalyzerVersion();
     }
 
-    /**
-     * The representative's. Members may differ — the normalized digest is
-     * scoped by session schema, so they rarely do — and reuse reads each
-     * member's own from the capture rows, never this merged view.
-     */
     @Override
     public String getSessionSchema() {
         return first().getSessionSchema();

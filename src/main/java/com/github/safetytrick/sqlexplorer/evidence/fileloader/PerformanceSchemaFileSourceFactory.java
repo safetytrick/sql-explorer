@@ -28,13 +28,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Component;
 
-/**
- * Reads performance-schema export TSV files from a directory. Configured as
- * {@code - type: performance-schema-files} with {@code directory},
- * {@code pattern} (a regex with {@code id} and {@code date} groups), and
- * {@code dateFormat} under a server's sources. Each file is persisted as a
- * {@link SqlSourceEntity} before being returned for loading.
- */
 @Component
 class PerformanceSchemaFileSourceFactory implements SqlSourceFactory {
 

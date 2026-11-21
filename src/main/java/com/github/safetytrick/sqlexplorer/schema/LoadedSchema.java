@@ -10,17 +10,6 @@ import com.github.safetytrick.sqlexplorer.avro.TableReference;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 
-/**
- * The schema loaded from one database server: immutable after construction
- * apart from the lazily populated create statement cache.
- *
- * <p>Create statements are loaded on demand because running
- * {@code show create table} per table is slow (relatively) and only needed
- * when the user opens the "Create View" for a single table. The cache is keyed
- * on the {@link TableStructure}, so a reload that produces a structurally
- * different table naturally misses and reloads, while an unchanged structure
- * keeps its cached statement.
- */
 public class LoadedSchema implements SqlSchemaRepository {
 
     private final List<TableStructure> tableStructures;
@@ -40,8 +29,6 @@ public class LoadedSchema implements SqlSchemaRepository {
         this.createStatementLoader = createStatementLoader;
         for (TableStructure structure : this.tableStructures) {
             TableReference reference = structure.tableReference();
-            // key on the normalized name so lookups (which normalize) match
-            // regardless of backticks/casing in the source name.
             byTableReference.put(reference.normalized(), structure);
             byTableName.put(reference.getNormalizedTableName(), structure);
         }

@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The graph's hand-arranged grid layout, shared by everyone (sqlx-aoy.15). */
 @Tag(name = "Graph")
 @RestController
 class GraphLayoutResource {
@@ -26,7 +25,6 @@ class GraphLayoutResource {
         return service.all();
     }
 
-    /** Apply a batch of moves, all or nothing; answers the whole layout as it now stands. */
     @PutMapping("/graph/layout")
     public List<GraphLayoutItem> save(@RequestBody List<GraphLayoutItem> items) {
         service.save(items);

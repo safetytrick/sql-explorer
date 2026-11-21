@@ -8,32 +8,10 @@ import java.util.stream.Collectors;
 
 import com.github.safetytrick.sqlexplorer.profiling.ProfilePlan.ProfiledColumn;
 
-/**
- * The statements a profile run issues (sqlx-n5j.3), as text and parameters.
- * Pure, so every statement can be shown to a person before it runs and pinned
- * by a test.
- *
- * <p>Two shapes, both over one window of rows reached through the key:
- *
- * <ul>
- *   <li>{@link #aggregate} — per column: nulls, longest value in bytes,
- *       distinct values, non-ASCII rows, and per signature the rows matching
- *       it and the keys of the first {@value ProfilePlan#IDS_PER_SIGNATURE}.
- *       Numbers and keys only; no value is selected.</li>
- *   <li>{@link #characters} — for one column whose window matched: the
- *       characters each signature matched ({@code REGEXP_SUBSTR}), grouped and
- *       counted. Only the matched characters come back, never the value.</li>
- * </ul>
- *
- * <p>Patterns travel as parameters. Each statement reads its window once, as a
- * derived table bounded by {@code LIMIT}, and nothing outside it.
- */
 final class ProfileSql {
 
-    /** A statement and its parameters, in order. */
     record Statement(String sql, List<Object> parameters) {
 
-        /** The statement as a person reads it: parameters inlined as literals. */
         String display() {
             StringBuilder out = new StringBuilder();
             int next = 0;
@@ -62,27 +40,15 @@ final class ProfileSql {
         }
     }
 
-    /** A key not known until the run reads it, shown as {@code text} in a statement's display. */
     record Placeholder(String text) { }
 
-    /** Which rows a window reads. */
     enum WindowKind {
-        /** The first rows by key. */
         HEAD,
-        /** Rows from a key onwards ({@code >=}). */
         FROM,
-        /** Rows after a key ({@code >}), in key order: a full scan's next chunk. */
         AFTER,
-        /** The last rows by key, after a key when one is given. */
         TAIL
     }
 
-    /**
-     * One window.
-     *
-     * @param bound the key it starts from or after; null for none
-     * @param below for {@link WindowKind#FROM}: the key it stops short of; null for none
-     */
     record Window(WindowKind kind, Object bound, Object below, int rows, String label) {
 
         Window(WindowKind kind, Object bound, int rows, String label) {
@@ -102,14 +68,12 @@ final class ProfileSql {
         this.selected = List.copyOf(columns);
     }
 
-    /** The key's smallest and largest values, from the index. */
     Statement bounds() {
         String key = quote(plan.key().getFirst());
         return new Statement("SELECT MIN(" + key + ") AS min_key, MAX(" + key + ") AS max_key FROM " + table,
             List.of());
     }
 
-    /** The derived table for a window: its key and profiled columns, bounded by LIMIT. */
     Statement window(Window window) {
         String columns = selected.stream().map(ProfileSql::quote).collect(Collectors.joining(", "));
         String ascending = plan.key().stream().map(ProfileSql::quote).collect(Collectors.joining(", "));
@@ -147,11 +111,6 @@ final class ProfileSql {
         return new Statement(sql.toString(), parameters);
     }
 
-    /**
-     * Counts over one window. Columns are aliased by position: {@code c0_nulls},
-     * {@code c0_bytes}, {@code c0_distinct}, {@code c0_non_ascii}, and per
-     * signature {@code c0_s<ordinal>} (rows) and {@code c0_k<ordinal>} (keys).
-     */
     Statement aggregate(Window window) {
         Statement source = window(window);
         boolean single = plan.key().size() == 1;
@@ -188,12 +147,8 @@ final class ProfileSql {
     }
 
     /**
-     * The characters each listed signature matched in one column of one
-     * window, counted by the rows they first appear in: {@code sig},
-     * {@code matched}, {@code n_rows}. The column is converted to utf8mb4 so a
-     * latin1 column and the patterns compare without a collation clash; the
-     * conversion is lossless. The pattern is converted too: both then carry
-     * utf8mb4's default collation, whatever the connection's is.
+     * Column and pattern are both converted to utf8mb4, so a latin1 column and
+     * the patterns compare under one collation whatever the connection's is.
      */
     Statement characters(Window window, ProfiledColumn column, List<Signature> signatures) {
         Statement source = window(window);
@@ -212,7 +167,6 @@ final class ProfileSql {
         return new Statement(sql, parameters);
     }
 
-    /** `name`, with any backtick doubled. */
     static String quote(String identifier) {
         return "`" + identifier.replace("`", "``") + "`";
     }

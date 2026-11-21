@@ -33,19 +33,12 @@ import com.github.safetytrick.sqlexplorer.profiles.QuerySearchRequest.Range;
 import com.github.safetytrick.sqlexplorer.profiles.QuerySearchResult.QueryHit;
 import org.springframework.stereotype.Service;
 
-/**
- * Filters, sorts and pages the active environment's analyzed queries. All
- * predicates evaluate fields already on {@link SqlProfile}/{@link RuntimeMetrics};
- * a query without runtime metrics is excluded whenever a metric-based
- * constraint is set.
- */
 @Service
 public class QuerySearchService {
 
     static final int DEFAULT_LIMIT = 100;
     static final int MAX_LIMIT = 1000;
 
-    /** Types offered as explicit filters; "OTHER" matches everything outside this set. */
     public static final Set<String> EXPLICIT_TYPES = Set.of(
         "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "SHOW", "UNKNOWN");
     public static final String OTHER_TYPE = "OTHER";
@@ -79,37 +72,13 @@ public class QuerySearchService {
             new QuerySearchResult.Facets(sweep.tableFacets(), sweep.schemaFacets(), sweep.sourceFacets()));
     }
 
-    /**
-     * Every profile matching the request's filters and scope — unsorted,
-     * unpaged (limit/offset ignored). Feeds set-oriented consumers like the
-     * graph and bulk tagging; {@link #search} remains the paged/faceted entry
-     * point.
-     *
-     * <p>Both go through {@link #sweep}, and that matters beyond tidiness.
-     * These were two hand-copied loops over the same predicates, which is fine
-     * until the two counts reach a user together: bulk tagging shows "tag 1,847
-     * queries?" from this method while the workbench header shows its total
-     * from {@code search}. Two loops that must stay in sync eventually do not,
-     * and the disagreement would surface as a confirmation the page contradicts
-     * (sqlx-agl).
-     */
     public List<SqlProfile> matchingProfiles(QuerySearchRequest request) {
         return sweep(request == null ? QuerySearchRequest.UNCONSTRAINED : request).matches().stream()
             .map(QueryHit::profile)
             .toList();
     }
 
-    /**
-     * One pass over the corpus: what matched, and the facet counts.
-     *
-     * <p>Facets count everything passing the non-scope filters, while the
-     * matches are those that also pass the table/schema scope — which is why
-     * this is one traversal rather than two calls.
-     */
     private Sweep sweep(QuerySearchRequest criteria) {
-        // Fetched once per search rather than per profile: this filters the
-        // whole corpus, and a lookup per row would be thousands of round trips
-        // to answer one checkbox. Empty unless the filter is actually on.
         Set<String> digestsWithExamples = Boolean.TRUE.equals(criteria.hasExamples())
             ? queryExampleLookup.digestsWithExamples()
             : Set.of();
@@ -121,10 +90,8 @@ public class QuerySearchService {
         Map<String, Integer> schemaFacets = new HashMap<>();
         Map<String, Integer> sourceFacets = new HashMap<>();
         List<QueryHit> matches = new ArrayList<>();
-        // compiled once, not per profile
         Pattern queryPattern = compileQueryPattern(criteria.queryRegex());
 
-        // scoped to the requested sources: their corpus, merged from them alone
         sqlRepositoryService.getAllAnalyzedSql(criteria.sourceScope()).forEach(profile -> {
             QueryHit hit = new QueryHit(profile, tagsForQuery(profile, tagsByQueryId));
             if (!matchesQuery(queryPattern, profile) || !matchesNonScope(criteria, hit, digestsWithExamples)) {
@@ -162,10 +129,6 @@ public class QuerySearchService {
             .toList();
     }
 
-    /**
-     * The {@code schema.table} keys carrying any of these table tags, or null
-     * when the filter is off. Read once per search, like the query tags.
-     */
     private Set<String> taggedTables(List<String> names) {
         if (names == null || names.isEmpty()) {
             return null;
@@ -242,14 +205,8 @@ public class QuerySearchService {
         return r.failureKind() == null || matchesFailureKind(r.failureKind(), profile);
     }
 
-    /** A profile's normalized {@code schema.table} keys and schema keys, keyed to match the schema tree. */
     private record ScopeKeys(Set<String> tables, Set<String> schemas) { }
 
-    /**
-     * Builds the scope keys the way {@link SchemaTreeService} keys its nodes
-     * (normalized schema/table), lower-cased so selection and facet lookups
-     * line up regardless of the casing captured in analysis.
-     */
     private static ScopeKeys scopeKeys(SqlProfile profile) {
         Set<String> tables = new HashSet<>();
         Set<String> schemas = new HashSet<>();
@@ -274,17 +231,6 @@ public class QuerySearchService {
         return matchesTables(r, keys.tables()) && matchesSchemas(r, keys.schemas());
     }
 
-    /**
-     * The column drill-down: keep queries that a listed column *constrains* —
-     * it appears in a join or in the criteria. Delegates to
-     * {@code SqlProfile.constrainedBy} rather than comparing serialized
-     * references, so normalization (case, backticks, default schema) behaves
-     * exactly as it does everywhere else and a select-only reference does not
-     * count as usage.
-     *
-     * <p>Unparseable references match nothing rather than throwing: these
-     * arrive from a URL, and a malformed one is a bad link, not a server error.
-     */
     private static boolean matchesColumns(QuerySearchRequest r, SqlProfile profile) {
         if (r.columns() == null || r.columns().isEmpty()) {
             return true;
@@ -300,12 +246,6 @@ public class QuerySearchService {
         });
     }
 
-    /**
-     * Index references from {@link QuerySearchRequest#indexes()}: a query is
-     * kept when its hints name any of them. Shaped and parsed as column
-     * references are — the last part names the index — and, as there, an
-     * unparseable one matches nothing.
-     */
     private static boolean matchesIndexes(QuerySearchRequest r, SqlProfile profile) {
         if (r.indexes() == null || r.indexes().isEmpty()) {
             return true;
@@ -321,8 +261,6 @@ public class QuerySearchService {
         });
     }
 
-    /** {@link QuerySearchRequest#hinted()}: any index hint, or one with the given action, on any table. */
-    /** {@link QuerySearchRequest#generator()}: a generator among the candidates, or {@code none} for no candidates. */
     private static boolean matchesGenerator(QuerySearchRequest r, SqlProfile profile) {
         if (r.generator() == null || r.generator().isBlank()) {
             return true;
@@ -346,11 +284,7 @@ public class QuerySearchService {
             || hints.stream().anyMatch(hint -> r.hinted().name().equalsIgnoreCase(hint.getAction()));
     }
 
-    /** ANY = references any selected table; ALL = references all of them. Empty = unconstrained. */
     private static boolean matchesTables(QuerySearchRequest r, Set<String> tableKeys) {
-        // exclusion is checked before the "no tables selected" short circuit,
-        // exactly as matchesSchemas does: excluding a table has to work on
-        // its own, and the common case is no table selection at all
         if (r.excludeTables() != null && !r.excludeTables().isEmpty()) {
             boolean touchesExcluded = r.excludeTables().stream()
                 .map(t -> t.toLowerCase(Locale.ROOT))
@@ -368,8 +302,6 @@ public class QuerySearchService {
             : wanted.stream().anyMatch(tableKeys::contains);
     }
 
-    /** Include: a query in any listed schema matches. {@code null} = unconstrained;
-     *  empty list = match nothing. Exclude: a query that touches any listed schema is dropped. */
     private static boolean matchesSchemas(QuerySearchRequest r, Set<String> schemaKeys) {
         if (r.excludeSchemas() != null && !r.excludeSchemas().isEmpty()) {
             boolean touchesExcluded = r.excludeSchemas().stream()
@@ -388,7 +320,6 @@ public class QuerySearchService {
         return r.schemas().stream().map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(schemaKeys::contains);
     }
 
-    /** Matches SqlAnalysisService's failure labeling: analyzer failures carry a "Failure on:" reason. */
     private static final String ANALYZER_FAILURE_PREFIX = "Failure on:";
 
     private static boolean matchesFailureKind(QuerySearchRequest.FailureKind kind, SqlProfile profile) {
@@ -403,11 +334,6 @@ public class QuerySearchService {
         return (kind == QuerySearchRequest.FailureKind.ANALYZER) == analyzerFailure;
     }
 
-    /**
-     * Compiles the SQL search into a case-insensitive pattern. Blank = no filter
-     * (null). An invalid regex falls back to a literal (quoted) search so a
-     * half-typed pattern still does something sensible instead of erroring.
-     */
     private static Pattern compileQueryPattern(String regex) {
         if (regex == null || regex.isBlank()) {
             return null;
@@ -427,15 +353,6 @@ public class QuerySearchService {
         return query != null && pattern.matcher(query).find();
     }
 
-    /**
-     * "OTHER" matches any type outside {@link #EXPLICIT_TYPES} (including missing types).
-     *
-     * <p>WITH and ( were types until analyzer version 8 read past them
-     * (StatementTypes). A profile still carrying one, served from a capture
-     * analysed before that, is matched as what it now would be: ( as SELECT,
-     * WITH as UNKNOWN. A link asking for WITH — which then meant "has CTEs",
-     * nearly always feeding a SELECT — asks for SELECT and UNKNOWN.
-     */
     static boolean matchesTypes(List<String> wanted, String profileType) {
         if (wanted == null || wanted.isEmpty()) {
             return true;
@@ -462,7 +379,6 @@ public class QuerySearchService {
         return false;
     }
 
-    /** {@link QuerySearchRequest#excludeQueries()}: by its digest, or any digest it absorbed. */
     private static boolean isExcludedQuery(QuerySearchRequest r, SqlProfile profile) {
         if (r.excludeQueries() == null || r.excludeQueries().isEmpty()) {
             return false;
@@ -513,7 +429,6 @@ public class QuerySearchService {
         return picos == null ? null : picos.doubleValue() / PICOS_PER_MILLI;
     }
 
-    /** Rows sent / rows scanned; a query that scans nothing is perfectly selective. */
     private static Double selectivity(RuntimeMetrics m) {
         return m.getAverageRowsScanned() == 0
             ? 1.0

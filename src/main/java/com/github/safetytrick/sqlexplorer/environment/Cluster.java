@@ -9,14 +9,6 @@ import com.github.safetytrick.sqlexplorer.schema.SchemaFingerprint;
 import com.github.safetytrick.sqlexplorer.schema.SchemaRepositoryFactory;
 import com.github.safetytrick.sqlexplorer.schema.SqlSchemaRepository;
 
-/**
- * A primary and its replicas within an {@link Environment}: servers that carry
- * one schema. All of them are captured from; {@link #schemaFrom()} lists, in
- * order of preference, the ones the schema may be read from.
- *
- * <p>An environment configured with a flat {@code servers:} block has one
- * cluster per server, named after it, reading schema from itself.
- */
 public record Cluster(String name, List<DatabaseServer> servers, List<DatabaseServer> schemaFrom) {
 
     public Cluster {
@@ -33,23 +25,10 @@ public record Cluster(String name, List<DatabaseServer> servers, List<DatabaseSe
         }
     }
 
-    /** A cluster of one: the server is its own schema source. */
     public static Cluster of(DatabaseServer server) {
         return new Cluster(server.getName(), List.of(server), List.of(server));
     }
 
-    /**
-     * The cluster's schema, read from the first {@code schemaFrom} server that
-     * can supply it, or — when none can — its last snapshot, which is then
-     * not current (sqlx-sqy.4).
-     *
-     * <p>Cheap to call repeatedly: each server keeps the schema it loaded, and
-     * the failure it met, until a load or pull asks again — so this walks a
-     * list of cached answers rather than reconnecting.
-     *
-     * @throws RuntimeException the first server's failure, when no server can
-     *                          supply the schema and there is no snapshot either
-     */
     public SchemaSource readSchema() {
         List<String> failures = new ArrayList<>();
         RuntimeException first = null;
@@ -74,22 +53,6 @@ public record Cluster(String name, List<DatabaseServer> servers, List<DatabaseSe
         throw first;
     }
 
-    /**
-     * Where a cluster's schema came from.
-     *
-     * @param server       the server it was read from — for a snapshot, the one
-     *                     that was read when the snapshot was taken
-     * @param fallback     whether that was not the first choice — the servers
-     *                     tried before it are in {@code passedOver}, with why
-     * @param current      whether a server confirmed it matches the schema now.
-     *                     False only for a snapshot no reachable server
-     *                     vouched for: it serves what was already analysed, and
-     *                     nothing new is analysed against it
-     * @param fromSnapshot read from the cluster's snapshot rather than the server
-     * @param readAt       when the schema was read from a server
-     * @param fingerprint  its fingerprint, per table; null when snapshots are
-     *                     off. What drift between clusters compares (sqlx-sqy.7)
-     */
     public record SchemaSource(SqlSchemaRepository schema, String server, boolean fallback,
                                List<String> passedOver, boolean current, boolean fromSnapshot, Instant readAt,
                                SchemaFingerprint fingerprint) { }

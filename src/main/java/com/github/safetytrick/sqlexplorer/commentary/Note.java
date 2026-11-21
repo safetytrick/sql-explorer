@@ -26,7 +26,6 @@ class Note {
 
     private String path;
 
-    /** Which environment this note belongs to. See {@link CommentaryEnvironment}. */
     private String environmentName;
     private String text;
 

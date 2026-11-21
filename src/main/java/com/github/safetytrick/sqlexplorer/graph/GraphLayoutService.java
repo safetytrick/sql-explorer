@@ -11,15 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * The hand-arranged grid layout (sqlx-aoy.15): read whole, written in batches.
- *
- * <p>A move touches several items at once (the one moved, the one it swapped
- * with, and the rest of its grid frozen where they were), so writes are a
- * batch applied in one transaction, and the whole batch is checked before any
- * of it is written. An item written with no slot and no override is removed:
- * that is how an item goes back to being placed automatically.
- */
 @Service
 class GraphLayoutService {
 
@@ -66,13 +57,6 @@ class GraphLayoutService {
         }
     }
 
-    /**
-     * Put a schema's tables and aggregates back to automatic placement. Its own
-     * cell stays, and so does every aggregate chosen by hand: a table's
-     * override lives on the same row as its slot, so the row keeps the override
-     * and loses only the slot. Deleting the rows, as this first did, threw the
-     * aggregates away with the positions, which "auto-place" never said.
-     */
     @Transactional
     long reset(String schema) {
         String name = normalized(schema);
@@ -88,7 +72,6 @@ class GraphLayoutService {
         return changed + overridden.size();
     }
 
-    /** Lower-cased and validated, or a 400 saying what is wrong. */
     static GraphLayoutItem checked(GraphLayoutItem item) {
         Objects.requireNonNull(item, "item");
         String kind = item.kind() == null ? "" : item.kind().toLowerCase(Locale.ROOT);

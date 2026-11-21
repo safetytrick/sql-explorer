@@ -23,25 +23,6 @@ import net.sf.jsqlparser.statement.update.UpdateSet;
 import net.sf.jsqlparser.statement.upsert.Upsert;
 import org.springframework.stereotype.Component;
 
-/**
- * The tables a statement writes, as opposed to every table it names
- * (sqlx-n5j.16). An {@code INSERT … SELECT}, an {@code UPDATE} with a join or
- * a {@code DELETE} with a subquery reads tables it does not change, and the
- * write rate used to charge them all.
- *
- * <ul>
- *   <li>INSERT and REPLACE: the target.</li>
- *   <li>UPDATE: the tables its SET columns belong to — a multi-table UPDATE
- *       can set several. A SET column without a qualifier belongs to the
- *       first table named, which is the only one in a single-table UPDATE
- *       and the one MySQL resolves an ambiguous column against first.</li>
- *   <li>DELETE: its target list when it names one ({@code DELETE a, b FROM
- *       …}), else its table.</li>
- * </ul>
- *
- * <p>Qualifiers may be aliases, so they are resolved against the tables the
- * statement names. Anything else writes nothing and records an empty list.
- */
 @Component
 class WriteTablesAnalyzer implements SqlAnalyzer {
 
@@ -125,7 +106,6 @@ class WriteTablesAnalyzer implements SqlAnalyzer {
         }
     }
 
-    /** By its alias and by its own name, so a qualifier written either way finds it. */
     private static void name(Map<String, Table> named, Table table) {
         if (table == null || table.getName() == null) {
             return;

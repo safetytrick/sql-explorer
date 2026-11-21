@@ -23,52 +23,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * Personal access tokens (sqlx-e13.5): made, listed, revoked, and turned
- * back into an {@link AccessTokenAuthentication} when one is presented.
- *
- * <h2>What a token may do</h2>
- * The intersection of two sets of grants, re-evaluated on every request:
- * <ul>
- *   <li><b>its owner's</b>, from the groups seen at the owner's latest sign-in
- *       ({@code users.groups_snapshot}); and</li>
- *   <li><b>its ceiling</b>, chosen when it was made and never above the
- *       owner's grants at that moment: an administrator can make a token that
- *       only reads one environment.</li>
- * </ul>
- *
- * <p><b>The limitation.</b> Groups only ever arrive in an ID token, at
- * sign-in; a token has no ID token. So a group the provider takes away
- * narrows the owner's tokens when the owner next signs in, not at the moment
- * it is removed. A person who never signs in again keeps their tokens' access
- * until the tokens expire, which is why every token expires and why the
- * maximum lifetime ({@code sql-explorer.auth.token-max-lifetime}, 90 days by
- * default) is configurable. Revoking the token, or removing the person at the
- * provider and then signing in as them, ends it sooner. Closing this gap needs
- * the provider to be asked directly (SCIM, or a refresh token kept per user),
- * which is not done.
- *
- * <h2>The secret</h2>
- * {@code sqlx_} and 32 random bytes, base64url: recognisable in a leaked
- * config and to secret scanners, and with 256 bits of entropy a plain SHA-256
- * is enough to store it (no salt or slow hash is needed when the input cannot
- * be guessed). Only the hash is kept; the secret is shown once.
- */
 @Service
 public class AccessTokenService {
 
-    /** What every secret starts with. */
     public static final String SECRET_PREFIX = "sqlx_";
 
-    /** How many characters of the secret are kept to show in lists: the prefix and 8 more. */
     static final int DISPLAY_PREFIX = SECRET_PREFIX.length() + 8;
 
-    /** A use is recorded at most this often per token. */
     static final Duration TOUCH_INTERVAL = Duration.ofMinutes(1);
 
     private static final int SECRET_BYTES = 32;
     private static final int MAX_NAME = 64;
-    /** 32 bytes of base64url without padding. */
     private static final int SECRET_LENGTH = SECRET_PREFIX.length() + 43;
 
     private static final Logger log = LoggerFactory.getLogger(AccessTokenService.class);
@@ -90,34 +55,17 @@ public class AccessTokenService {
         this.registry = registry;
     }
 
-    /** For tests that need time to pass. */
     void setClock(Clock clock) {
         this.clock = clock;
     }
 
-    // ── made, listed, revoked ──────────────────────────────────────────────
-
-    /** A token just made: the row, and the secret, which is never available again. */
     public record Created(AccessToken token, String secret) {}
 
-    /**
-     * What a user's own grants are, as tokens see them: those of the groups at
-     * their latest sign-in. Nothing for a user with no snapshot.
-     */
     public Grants ownerGrants(User owner) {
         List<String> groups = owner.getGroupsSnapshot();
         return groups == null ? Grants.NOTHING : groupGrants.of(groups);
     }
 
-    /**
-     * Makes a token for {@code owner}.
-     *
-     * @param ceiling      grants in the groups syntax; each must be within the
-     *                     owner's own
-     * @param lifetimeDays how long it lives; at most the configured maximum,
-     *                     which is also the default
-     * @throws IllegalArgumentException with a message for the person making it
-     */
     public Created create(User owner, String name, List<String> ceiling, Integer lifetimeDays) {
         String label = name == null ? "" : name.strip();
         if (label.isEmpty()) {
@@ -173,12 +121,10 @@ public class AccessTokenService {
         return wanted;
     }
 
-    /** The configured maximum, in whole days, as the UI offers it. */
     public long maxLifetimeDays() {
         return Math.max(1, auth.tokenMaxLifetime().toDays());
     }
 
-    /** {@code revoked}, {@code expired} (by its own expiry or the maximum as configured now) or {@code active}. */
     public String status(AccessToken token) {
         Instant now = now();
         if (token.getRevokedOn() != null) {
@@ -201,7 +147,6 @@ public class AccessTokenService {
         return tokens.findById(id);
     }
 
-    /** Revokes it now; revoking it again changes nothing. */
     public AccessToken revoke(AccessToken token, User by) {
         if (token.getRevokedOn() == null) {
             token.setRevokedOn(now());
@@ -212,11 +157,6 @@ public class AccessTokenService {
         return token;
     }
 
-    /**
-     * What can be offered as a ceiling to someone holding {@code own}: each of
-     * their grants and every lower role on the same scope, and for a grant
-     * that covers every environment, the same narrowed to each one.
-     */
     public List<String> ceilingOptions(Grants own) {
         Set<String> options = new LinkedHashSet<>();
         List<String> environments = registry.list().stream().map(Environment::getName).sorted().toList();
@@ -235,15 +175,6 @@ public class AccessTokenService {
         return List.copyOf(options);
     }
 
-    // ── the ceiling's text ─────────────────────────────────────────────────
-
-    /**
-     * Grants in the groups syntax, as {@link GroupGrants#parse} reads them, and
-     * also {@code role:*} for everywhere, which is how grants are written back
-     * ({@link Grant#toString()}).
-     *
-     * @throws IllegalArgumentException naming what does not parse
-     */
     static Grants parseCeiling(List<String> texts) {
         Set<Grant> grants = new LinkedHashSet<>();
         List<String> bad = new ArrayList<>();
@@ -272,11 +203,6 @@ public class AccessTokenService {
         return parseCeiling(stored == null ? List.of() : List.of(stored.split(",")));
     }
 
-    /**
-     * A token's ceiling as stored. One that no longer parses (a role renamed
-     * since, say) grants nothing rather than failing every request the token
-     * makes: closed, and the token can be revoked and made again.
-     */
     static Grants storedCeiling(AccessToken token) {
         try {
             return parseCeiling(token.getCeiling());
@@ -296,9 +222,6 @@ public class AccessTokenService {
             : grants.grants().stream().map(Grant::toString).collect(Collectors.joining(", "));
     }
 
-    // ── presented ─────────────────────────────────────────────────────────
-
-    /** Why a presented token was refused; the message is the 401's. */
     public enum Refusal {
         UNKNOWN("This access token is not recognised."),
         EXPIRED("This access token has expired. Make a new one under Access tokens."),
@@ -315,20 +238,14 @@ public class AccessTokenService {
         }
     }
 
-    /** Either an authentication or the reason there is none. */
     public record Presented(AccessTokenAuthentication authentication, Refusal refusal) {}
 
-    /**
-     * The authentication for a presented secret, or why there is none.
-     * Records the use, at most once a minute per token.
-     */
     public Presented authenticate(String secret) {
         if (secret == null || !secret.startsWith(SECRET_PREFIX) || secret.length() != SECRET_LENGTH) {
             return new Presented(null, Refusal.UNKNOWN);
         }
         String hash = hash(secret);
         Optional<AccessToken> found = tokens.findByTokenHash(hash);
-        // the lookup is by hash already; compare again in constant time, so nothing hinges on how the index compares
         if (found.isEmpty() || !MessageDigest.isEqual(
                 found.get().getTokenHash().getBytes(StandardCharsets.US_ASCII), hash.getBytes(StandardCharsets.US_ASCII))) {
             return new Presented(null, Refusal.UNKNOWN);
@@ -338,7 +255,6 @@ public class AccessTokenService {
         if (token.getRevokedOn() != null) {
             return new Presented(null, Refusal.REVOKED);
         }
-        // the maximum as configured now, too: lowering it takes effect on tokens already made
         Instant cap = token.getCreatedOn().plus(auth.tokenMaxLifetime());
         if (!now.isBefore(token.getExpiresOn()) || !now.isBefore(cap)) {
             return new Presented(null, Refusal.EXPIRED);

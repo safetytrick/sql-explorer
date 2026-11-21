@@ -35,7 +35,6 @@ class WebConfig implements WebMvcConfigurer {
         }
     }
 
-    /** Environment-scoped controllers answer under /env/{env}/ (sqlx-e13.6). */
     @Override
     public void configurePathMatch(@NonNull PathMatchConfigurer configurer) {
         configurer.addPathPrefix(EnvironmentScoped.PREFIX, HandlerTypePredicate.forAnnotation(EnvironmentScoped.class));

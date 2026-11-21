@@ -21,7 +21,6 @@ public class SqlAnalysisService {
 
     private final List<SqlAnalyzer> analyzers;
     private final SqlParser sqlParser;
-    /** Optional: null in the direct-construction path the analyzer tests use. */
     private final AnalysisFailureRecorder failureRecorder;
 
     @Inject
@@ -41,7 +40,6 @@ public class SqlAnalysisService {
         this(Arrays.asList(analyzer), new SqlParser(), null);
     }
 
-    /** Analyze with no schema context (resolution falls back to unsupported). */
     public void analyzeSql(String sql, SqlProfile.Builder builder) throws JSQLParserException {
         analyzeSql(sql, builder, null);
     }
@@ -57,11 +55,6 @@ public class SqlAnalysisService {
             try {
                 analyzer.analyze(statement, builder, schema);
             } catch (Exception e) {
-                // Left exactly as it was: QuerySearchService.ANALYZER_FAILURE_PREFIX
-                // and two report services classify failures by this prefix, so
-                // capture has to be additive rather than a reformat. Note this
-                // *assigns* — with two analyzers throwing the first is lost,
-                // which is why the recorder accumulates instead.
                 builder.setAnalysisFailureReason("Failure on: " + analyzer.getClass().getSimpleName() + " message: " + getRootCauseMessage(e));
                 log.debug("Failure on: {}", analyzer.getClass().getSimpleName(), e);
                 if (failureRecorder != null) {

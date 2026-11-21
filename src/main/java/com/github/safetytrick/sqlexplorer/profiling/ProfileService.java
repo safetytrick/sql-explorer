@@ -35,21 +35,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Column data profiles (sqlx-n5j.3): the plan a person reads before anything
- * runs, the run itself on every cluster's sampling server (or one probed
- * server), and the record of every run, kept for good.
- *
- * <p>On demand only. Nothing here is scheduled, and a run starts only from a
- * request that has been shown the plan. Every server is reached through
- * {@link Environment#samplingByCluster} or {@link Environment#samplingTargetOn},
- * the sampling-role guard.
- */
 @Slf4j
 @Service
 public class ProfileService {
 
-    /** A profile older than this is shown as stale; it is not re-run by itself. */
     public static final Duration STALE_AFTER = Duration.ofDays(30);
 
     private final ProfileRunRepository runs;
@@ -68,7 +57,6 @@ public class ProfileService {
         this.clock = clock;
     }
 
-    /** A run the last process was carrying out when it stopped will never finish: it is recorded as failed. */
     @jakarta.annotation.PostConstruct
     void closeAbandoned() {
         for (ProfileRun run : runs.findAllByStatus(ProfileRun.RUNNING)) {
@@ -85,17 +73,9 @@ public class ProfileService {
         executor.shutdownNow();
     }
 
-    // ── the plan ──
-
-    /** One server the run would read, or why a cluster will not be read. */
     public record TargetView(String cluster, String server, Long rowsEstimate, boolean available, String reason,
                              long maxRows, long maxStatements) { }
 
-    /**
-     * Everything a person agrees to before a run: the method, the columns, the
-     * servers, the statements (as they will be sent, keys still to be read
-     * shown as {@code :key}), and the most rows and statements it can take.
-     */
     public record ProfileRequestPlan(String environment, String schema, String table, Method method,
                                      List<String> key, List<ColumnView> columns, String fullScanColumn,
                                      String probeServer, String unavailable, List<TargetView> targets,
@@ -136,7 +116,6 @@ public class ProfileService {
         return values.stream().anyMatch(v -> v < 0) ? -1 : values.stream().mapToLong(Long::longValue).sum();
     }
 
-    /** The statements as they will be sent, one of each shape; keys read during the run show as {@code :key}. */
     static List<String> exampleStatements(ProfilePlan plan) {
         ProfileSql sql = new ProfileSql(plan);
         List<String> out = new ArrayList<>();
@@ -180,8 +159,6 @@ public class ProfileService {
         };
     }
 
-    // ── servers ──
-
     private record Target(Cluster cluster, SamplingTarget target, Long rowsEstimate, String reason,
                           ProfilePlan plan) {
 
@@ -193,7 +170,6 @@ public class ProfileService {
         }
     }
 
-    /** Every cluster carrying the table through its sampling server, or the one probed server. */
     private List<Target> targets(Environment environment, TableStructure table, ProfilePlan plan, String probe) {
         TableReference reference = TableReference.newTableReference(table.schema(), table.name());
         if (probe != null && !probe.isBlank()) {
@@ -217,7 +193,6 @@ public class ProfileService {
         return out;
     }
 
-    /** Whether a cluster's schema has the table; when its schema cannot be read, assumed so and left to the run. */
     private static boolean carries(Cluster cluster, TableReference reference) {
         try {
             return cluster.readSchema().schema().getTable(reference) != null;
@@ -235,20 +210,11 @@ public class ProfileService {
             .filter(Objects::nonNull).findFirst().orElse(table.rowsEstimate());
     }
 
-    // ── runs ──
-
     private static final class Progress {
         final AtomicBoolean cancelled = new AtomicBoolean();
         final AtomicInteger statements = new AtomicInteger();
     }
 
-    /**
-     * Starts a run of the plan just shown: recorded as running, then carried
-     * out in the background, each server on its own thread, one statement at a
-     * time.
-     *
-     * @throws IllegalArgumentException when the plan cannot run, saying why
-     */
     public ProfileRun start(Environment environment, TableStructure table, String probeServer, List<String> columns,
                             String fullScanColumn, User requestedBy) {
         ProfileRequestPlan shown = plan(environment, table, probeServer, columns, fullScanColumn);
@@ -312,7 +278,6 @@ public class ProfileService {
         progress.remove(id);
     }
 
-    /** Asks a running run to stop after its current statement. False when it is not running. */
     public boolean cancel(long id) {
         Progress tracking = progress.get(id);
         if (tracking == null) {
@@ -322,15 +287,11 @@ public class ProfileService {
         return true;
     }
 
-    // ── the record ──
-
-    /** A run as listed: who, when, what, how much, and whether it is still current. */
     public record RunSummary(long id, String environment, String schema, String table, String probeServer,
                              String method, List<String> columns, String status, String requestedBy,
                              Instant startedOn, Instant finishedOn, long rowsRead, int statements,
                              int statementsSoFar, boolean stale) { }
 
-    /** A run in full: its summary, the plan that was agreed to, and what it found. */
     public record RunDetail(RunSummary run, ProfileRequestPlan plan, ProfileResult result, String error) { }
 
     public List<RunSummary> runs(String environment, String schema, String table) {

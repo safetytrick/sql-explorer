@@ -9,11 +9,9 @@ import com.github.safetytrick.sqlexplorer.mcp.McpTool;
 import com.github.safetytrick.sqlexplorer.mcp.McpToolProvider;
 import org.springframework.stereotype.Component;
 
-/** The queries and their rollups over schemas and tables, as MCP tools. */
 @Component
 class ProfilesMcpTools implements McpToolProvider {
 
-    /** The canned reports {@code /analyzed-sql/reports/{name}} answers. */
     static final List<String> REPORTS = List.of("all", "join-across-types", "slow", "chatty", "analysis-failures",
         "analysis-skipped", "parse-failures", "truncated", "full-scan", "multi-schema");
 
@@ -111,7 +109,6 @@ class ProfilesMcpTools implements McpToolProvider {
         );
     }
 
-    /** {@code get_table_stats}: the stat strip, flattened as it always was, plus write rate and lock risk. */
     public record TableStatsWithWorkload(int distinctQueries, long totalExecutions, double totalTimeMs,
                                   long readExecutions, long writeExecutions,
                                   TableWorkloadService.WriteRate writeRate,

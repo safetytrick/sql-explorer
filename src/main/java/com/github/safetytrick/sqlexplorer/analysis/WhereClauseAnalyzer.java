@@ -58,7 +58,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
         this.resolverFactory = resolverFactory;
     }
 
-    /** Test/convenience: resolve against a fixed resolver regardless of schema. */
     public WhereClauseAnalyzer(ColumnTableResolver columnTableResolver) {
         this.resolverFactory = schema -> columnTableResolver;
     }
@@ -72,7 +71,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
         new WhereClauseVisitor(builder, resolverFactory.forSchema(schema)).visit(statement);
     }
 
-    // The comparison kinds a criteria column is recorded under (CriteriaComparison.kind).
     static final String KIND_EQUALITY = "equality";
     static final String KIND_INEQUALITY = "inequality";
     static final String KIND_RANGE = "range";
@@ -82,13 +80,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
     static final String KIND_NOT_LIKE = "not like";
     static final String KIND_NULL_CHECK = "null check";
 
-    /**
-     * Whether a LIKE pattern starts with a wildcard, when that can be read
-     * from the statement: a string literal, or {@code CONCAT} whose first
-     * argument is one ({@code CONCAT('%', ?)}). Anything else — above all
-     * {@code ?}, which is what a digest leaves of every literal — is unknown
-     * and answers empty. The pattern of a parameter is not guessed at.
-     */
     static Optional<Boolean> leadingWildcard(Expression pattern) {
         if (pattern instanceof StringValue literal) {
             return startsWithWildcard(literal.getValue());
@@ -102,7 +93,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
         return Optional.empty();
     }
 
-    /** Empty for the empty string: CONCAT('', ?) starts wherever the next argument does. */
     private static Optional<Boolean> startsWithWildcard(String value) {
         if (value == null || value.isEmpty()) {
             return Optional.empty();
@@ -171,11 +161,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
             return null;
         }
 
-        /**
-         * Visits select bodies. Joins are delegated to {@link WhereFromItemVisitor};
-         * subqueries appearing as expressions are routed back here via
-         * {@link ExpressionVisitorAdapter#setSelectVisitor}.
-         */
         private class WhereSelectVisitor extends SelectVisitorAdapter<Void> {
             private final WhereFromItemVisitor fromItemVisitor = new WhereFromItemVisitor();
 
@@ -213,15 +198,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                 throw new UnsupportedSqlException("with item not supported");
             }
 
-            /**
-             * A subquery's scope: its own aliases, falling back to the
-             * enclosing query's. The parent is what lets a correlated
-             * subquery's reference to an outer alias resolve; without it the
-             * outer alias resolved to the subquery's only table — recording a
-             * join of that table to itself — or, with two tables, to nothing
-             * (sqlx-lww). Every subquery reaches this, whether it appears as an
-             * expression (EXISTS, IN, a scalar subquery) or as a derived table.
-             */
             @Override
             public <S> Void visit(ParenthesedSelect parenthesedSelect, S context) {
                 TableAliasResolver previous = aliasResolver;
@@ -245,9 +221,7 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
 
             private class WhereExpressionVisitor extends ExpressionVisitorAdapter<Void> {
 
-                /** The comparison the columns being visited sit under; null for none. */
                 private String kind;
-                /** For a LIKE kind: its pattern's leading wildcard, empty when unknown. */
                 private Optional<Boolean> leadingWildcard = Optional.empty();
 
                 private WhereExpressionVisitor() {
@@ -257,8 +231,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
 
                 @Override
                 public <S> Void visit(Column column, S context) {
-                    // skip the constant true, not sure how this gets into valid sql but it
-                    // shouldn't have been parsed as a column to column reference
                     if (column.getTable() == null && "TRUE".equals(column.getColumnName())) {
                         return null;
                     }
@@ -279,11 +251,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                     return null;
                 }
 
-                /**
-                 * Visits {@code expression} with the columns under it compared
-                 * as {@code kind}. Nested comparisons replace it for their own
-                 * operands; a subquery gets a fresh visitor and starts clean.
-                 */
                 private void compare(Expression expression, String kind, Optional<Boolean> leadingWildcard) {
                     if (expression == null) {
                         return;
@@ -381,14 +348,6 @@ class WhereClauseAnalyzer implements SqlAnalyzer {
                     return super.visit(expr, context);
                 }
 
-                /**
-                 * LIKE stays criteria, qualified by its kind (sqlx-n5j.7): the
-                 * matched side is a like / not like comparison carrying the
-                 * pattern's leading wildcard where it can be read, and the
-                 * pattern side, if it holds a column, is criteria with no
-                 * comparison. REGEXP, RLIKE and the rest share the expression
-                 * class but not LIKE's index behaviour, so they get no kind.
-                 */
                 @Override
                 public <S> Void visit(LikeExpression like, S context) {
                     if (like.getLikeKeyWord() != LikeExpression.KeyWord.LIKE) {

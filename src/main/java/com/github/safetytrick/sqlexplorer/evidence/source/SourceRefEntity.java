@@ -21,7 +21,6 @@ class SourceRefEntity {
     @Id
     private String name;
 
-    /** Name of the environment this source belongs to (see docs/DATA_ENVIRONMENTS.md). */
     private String environmentName;
 
     @ManyToOne

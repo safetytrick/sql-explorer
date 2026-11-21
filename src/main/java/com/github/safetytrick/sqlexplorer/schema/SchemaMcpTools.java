@@ -6,7 +6,6 @@ import com.github.safetytrick.sqlexplorer.mcp.McpTool;
 import com.github.safetytrick.sqlexplorer.mcp.McpToolProvider;
 import org.springframework.stereotype.Component;
 
-/** A table's structure, DDL and foreign keys, as MCP tools. */
 @Component
 class SchemaMcpTools implements McpToolProvider {
 

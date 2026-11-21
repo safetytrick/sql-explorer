@@ -15,19 +15,6 @@ import net.sf.jsqlparser.util.TablesNamesFinder;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-/**
- * Records the indexes a statement names in MySQL index hints —
- * {@code USE}, {@code FORCE} or {@code IGNORE INDEX (...)} — one entry per
- * index (sqlx-yj0).
- *
- * <p>A hint only ever follows a base table, so its table is that table's own
- * name: no alias resolution is involved. Every table in the statement is
- * visited, including those in subqueries and an UPDATE's target.
- *
- * <p>jsqlparser 5.3 reads one hint per table and no {@code FOR JOIN|ORDER
- * BY|GROUP BY} clause; a statement using either fails to parse, so it never
- * reaches here (sqlx-yj0.4).
- */
 @Order(5)
 @Component
 class IndexHintAnalyzer implements SqlAnalyzer {

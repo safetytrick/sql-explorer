@@ -10,24 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * Turns the provider's {@code groups} claim into grants (sqlx-e13.4).
- *
- * <p>Two ways for a group to carry a grant:
- * <ul>
- *   <li><b>By name</b>, with the configured prefix ({@code sqlx:} by
- *       default): {@code <prefix><role>[:<scope>]}. {@code sqlx:admin},
- *       {@code sqlx:viewer:prod}, {@code sqlx:runner:prod/reporting}. No
- *       scope means everywhere.</li>
- *   <li><b>By mapping</b>, for groups the provider names its own way:
- *       {@code sql-explorer.auth.group-grants.<group>: [<role>[:<scope>], ...]}.</li>
- * </ul>
- *
- * <p>Re-read from the claim on every request, so it is exactly as fresh as the
- * sign-in: a group removed at the provider takes effect at the next one.
- * Anything that does not parse grants nothing and is logged once, rather than
- * failing a sign-in over a group meant for some other application.
- */
 @Component
 public class GroupGrants {
 
@@ -47,20 +29,10 @@ public class GroupGrants {
         }
     }
 
-    /**
-     * What a visitor who is not signed in may do (sqlx-2lc): the configured
-     * {@code sql-explorer.auth.anonymous} grants, each capped at
-     * {@link Role#READER}. Nothing unless configured.
-     */
     public Grants anonymous() {
         return anonymous;
     }
 
-    /**
-     * Unlike a group, which may be meant for another application, this is
-     * written for this one: a grant that does not parse fails startup rather
-     * than quietly opening less, or more, than intended.
-     */
     static Grants anonymous(List<String> configured) {
         List<Grant> grants = new ArrayList<>();
         for (String text : configured) {
@@ -96,7 +68,6 @@ public class GroupGrants {
         }
     }
 
-    /** {@code runner:prod/reporting} → Runner on that datasource; null if it does not parse. */
     static Grant parse(String text) {
         int colon = text.indexOf(':');
         Role role = Role.parse(colon < 0 ? text : text.substring(0, colon));

@@ -10,13 +10,7 @@ public record SqlImportStats(
     int analysisSkipped,
     int truncated,
     int dml,
-    /** Rows whose earlier analysis was reused, with no parsing (sqlx-sqy.5). */
     int reused,
-    /**
-     * Rows never analysed before that were left out because their cluster's
-     * schema could not be confirmed current — they are analysed by the first
-     * load that can confirm it, and nothing is analysed against a stale one.
-     */
     int pending
 ) {
 

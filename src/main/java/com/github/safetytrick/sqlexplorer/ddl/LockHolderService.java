@@ -21,41 +21,15 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-/**
- * Who holds a metadata lock, right now, on the tables a schema change would
- * lock (sqlx-9gk).
- *
- * <p>An ALTER waits for every open transaction holding a metadata lock on the
- * table, and on each relative it locks exclusively, and every query on the
- * table queues while it waits. This reads those holders from
- * {@code performance_schema.metadata_locks}, which names them directly.
- *
- * <p>Holders are found by table, not by what a transaction wrote. A
- * transaction that wrote a grandchild, or cascaded through one, also holds a
- * lock on the child, and that lock is listed under the child's own name. So
- * the tables to ask about are the change's own locked set, never their
- * relatives in turn.
- *
- * <p>ONLY ON REQUEST, AND ONLY THE SERVERS NAMED. Nothing here runs on page
- * load: the page asks with a button, naming the servers. A server the request
- * does not name is not connected to. A server of a cached environment is
- * refused by {@link DatabaseServer#getDataSource()} and reported, not tried.
- *
- * <p>What comes back is identity and timing only: thread, user, host, command,
- * state and ages. Never the statement text, which can carry literal values.
- */
 @Service
 public class LockHolderService {
 
     private static final Logger log = LoggerFactory.getLogger(LockHolderService.class);
 
-    /** Upper bounds on one request, so a malformed one cannot fan out. */
     static final int MAX_TABLES = 200;
     static final int MAX_SERVERS = 32;
-    /** Each server's read; a server slow to answer this is itself worth knowing about. */
     static final int QUERY_TIMEOUT_SECONDS = 5;
 
-    /** Metadata locks on the tables named by the WHERE clause appended to it. */
     private static final String HOLDERS_SELECT =
         "select ml.object_schema, ml.object_name, ml.lock_type, ml.lock_duration, ml.lock_status,"
             + " t.processlist_id, t.processlist_user, t.processlist_host, t.processlist_command,"
@@ -76,49 +50,24 @@ public class LockHolderService {
         "transaction age unavailable (information_schema.INNODB_TRX needs the PROCESS privilege); "
             + "time in current state shown instead";
 
-    /** One table the change locks. */
     public record TableRef(String schema, String table) { }
 
-    /**
-     * One metadata lock on one of the tables, and who holds or waits for it.
-     *
-     * @param status             GRANTED, or PENDING when that session is itself waiting
-     * @param secondsInState     how long the session has been in its current state:
-     *                           for an idle connection, since its last statement
-     * @param transactionSeconds how long its InnoDB transaction has been open; null
-     *                           when it has none or the age could not be read
-     */
     public record Holder(String schema, String table, String lockType, String duration, String status,
                          Long processlistId, String user, String host, String command, String state,
                          Long secondsInState, Long transactionSeconds) { }
 
-    /**
-     * What one server answered.
-     *
-     * @param error why it could not be read; null when it was
-     * @param note  how it was read, when not fully; null otherwise
-     */
     public record ServerReading(String server, List<String> roles, String error, String note,
                                 List<Holder> holders) { }
 
-    /** Every named server's answer, and when they were read: the answer is true only then. */
     public record Report(String environment, Instant readAt, long tookMillis, List<TableRef> tables,
                         List<ServerReading> servers) { }
 
-    /** A request this service will not run, with the reason the caller is told. */
     public static class InvalidRequest extends IllegalArgumentException {
         InvalidRequest(String message) {
             super(message);
         }
     }
 
-    /**
-     * Read the holders of locks on {@code tables} from each of {@code serverNames}
-     * in {@code environment}, and from no other server.
-     *
-     * @throws InvalidRequest when no table or no server is named, too many are,
-     *                        or a server is not one of the environment's
-     */
     public Report read(Environment environment, List<TableRef> tables, List<String> serverNames) {
         List<TableRef> wanted = validTables(tables);
         List<DatabaseServer> servers = namedServers(environment, serverNames);
@@ -132,7 +81,6 @@ public class LockHolderService {
                 readings.add(new ServerReading(server.getName(), roles, null, reading.note(),
                     sorted(reading.holders())));
             } catch (ServerOfflineException e) {
-                // cached environment: nothing was tried, so nothing failed (sqlx-nbi.4)
                 readings.add(new ServerReading(server.getName(), roles, e.getMessage(), null, List.of()));
             } catch (RuntimeException e) {
                 log.warn("could not read metadata locks from {}: {}", server.getName(), e.toString());
@@ -144,14 +92,8 @@ public class LockHolderService {
             wanted, List.copyOf(readings));
     }
 
-    /** One server's holders, and how they were read. */
     record Reading(List<Holder> holders, String note) { }
 
-    /**
-     * Read one server. The seam the tests drive: what they prove is which
-     * servers are read and how failures are reported, none of which is about
-     * SQL. The statement itself was checked against a live MySQL 8.4.
-     */
     Reading read(DatabaseServer server, List<TableRef> tables) {
         JdbcTemplate jdbc = new JdbcTemplate(server.getDataSource());
         jdbc.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
@@ -162,15 +104,10 @@ public class LockHolderService {
             rs.getMetaData().getColumnCount() >= 12 ? longOrNull(rs.getObject(12)) : null), args));
     }
 
-    /** Runs a statement with its arguments. */
     interface Runner {
         List<Holder> run(String sql, Object[] args);
     }
 
-    /**
-     * With transaction age where the user may read it, and without it where it
-     * may not. Only a refusal falls back; a lost connection still fails the read.
-     */
     static Reading holders(List<TableRef> tables, Runner runner) {
         Object[] args = tables.stream()
             .flatMap(t -> java.util.stream.Stream.of(t.schema(), t.table()))
@@ -187,10 +124,6 @@ public class LockHolderService {
         }
     }
 
-    /**
-     * Table locks on the named tables, held or awaited by any session but this
-     * one. Values are bound, never spliced: the names arrive from a request.
-     */
     static String where(int tables) {
         String pairs = String.join(" or ",
             java.util.Collections.nCopies(tables, "(ml.object_schema = ? and ml.object_name = ?)"));
@@ -225,7 +158,6 @@ public class LockHolderService {
         return List.copyOf(unique);
     }
 
-    /** The environment's servers named, in the environment's order; an unknown name refuses the request. */
     private static List<DatabaseServer> namedServers(Environment environment, List<String> names) {
         if (names == null || names.isEmpty()) {
             throw new InvalidRequest("choose at least one server");
@@ -243,7 +175,6 @@ public class LockHolderService {
         return environment.getServers().stream().filter(server -> wanted.contains(server.getName())).toList();
     }
 
-    /** Oldest transaction first, then longest in its state: the likeliest blockers lead. */
     private static List<Holder> sorted(List<Holder> holders) {
         return holders.stream()
             .sorted(Comparator.comparing(Holder::transactionSeconds, Comparator.nullsLast(Comparator.reverseOrder()))

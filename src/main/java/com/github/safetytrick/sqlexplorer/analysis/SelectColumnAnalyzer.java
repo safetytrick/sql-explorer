@@ -31,18 +31,6 @@ import net.sf.jsqlparser.statement.upsert.Upsert;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-/**
- * Captures the columns a query projects (select list — including columns
- * inside function calls), groups by and orders by. {@code SELECT *}
- * contributes nothing; expansion against the schema is a possible follow-up.
- *
- * <p>ORDER BY (sqlx-n5j.8) resolves the way MySQL does: an unqualified name
- * that is a select-list alias, or a position ({@code ORDER BY 2}), stands for
- * that select item's expression and records its columns; anything else
- * resolves through the table aliases like every other role. A UNION's ORDER
- * BY names the first branch's output columns. UPDATE and DELETE accept ORDER
- * BY too and are covered.
- */
 @Order(4)
 @Component
 class SelectColumnAnalyzer implements SqlAnalyzer {
@@ -54,7 +42,6 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
         this.resolverFactory = resolverFactory;
     }
 
-    /** Test/convenience: resolve against a fixed resolver regardless of schema. */
     public SelectColumnAnalyzer(ColumnTableResolver columnTableResolver) {
         this.resolverFactory = schema -> columnTableResolver;
     }
@@ -110,11 +97,6 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
             return null;
         }
 
-        /**
-         * Records the ORDER BY columns of one query level, whose select list
-         * is {@code selectItems} (empty for UPDATE and DELETE). Must run while
-         * {@link #aliasResolver} is that level's.
-         */
         private void collectOrderBy(List<OrderByElement> orderBy, List<SelectItem<?>> selectItems) {
             if (orderBy == null) {
                 return;
@@ -131,10 +113,8 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
         }
 
         /**
-         * The select-list expression an ORDER BY term stands for, or null when
-         * it names a column directly. MySQL searches the select list before
-         * the FROM tables for an unqualified name, so an alias wins over a
-         * table column of the same name.
+         * MySQL searches the select list before the FROM tables for an
+         * unqualified name, so an alias wins over a table column of the same name.
          */
         private static Expression selectItemFor(Expression orderBy, List<SelectItem<?>> selectItems) {
             if (orderBy instanceof LongValue position) {
@@ -177,9 +157,6 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
 
             @Override
             public <S> Void visit(PlainSelect plainSelect, S context) {
-                // A column qualified by a derived table's alias names a column
-                // of whatever that subquery read; without this it resolved to
-                // nothing and was recorded against dual (sqlx-03r).
                 DerivedTables.register(plainSelect, aliasResolver, columnTableResolver, builder.getSchemaName());
                 if (plainSelect.getSelectItems() != null) {
                     ColumnCollector collector = new ColumnCollector(column -> builder.selectColumn(column));
@@ -209,8 +186,6 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
                     for (Select select : setOpList.getSelects()) {
                         select.accept(this, context);
                     }
-                    // The union's own ORDER BY sorts its output, whose column
-                    // names are the first branch's: resolve against that branch.
                     if (setOpList.getOrderByElements() != null && !setOpList.getSelects().isEmpty()
                         && setOpList.getSelects().getFirst() instanceof PlainSelect first) {
                         TableAliasResolver previous = aliasResolver;
@@ -229,7 +204,6 @@ class SelectColumnAnalyzer implements SqlAnalyzer {
             }
         }
 
-        /** Records every column in an expression tree via the given sink. */
         private class ColumnCollector extends ExpressionVisitorAdapter<Void> {
             private final Consumer<ColumnReference> sink;
 

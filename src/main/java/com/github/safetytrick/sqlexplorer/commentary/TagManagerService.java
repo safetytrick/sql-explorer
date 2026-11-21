@@ -9,17 +9,6 @@ import java.util.TreeMap;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
-/**
- * Tag definitions merged with their usage: a summary per tag name, whether it
- * comes from a stored definition (possibly unused) or only from assignments
- * (legacy tags with no definition yet).
- *
- * <p>DEFINITIONS ARE GLOBAL, USAGE IS NOT. A definition holds a tag's name and
- * colour, which mean the same thing in every environment — `system` should not
- * be blue in one corpus and orange in another. Only the associations are
- * environment-scoped, so the counts here describe the selected environment
- * while the names and colours describe the deployment (sqlx-rad).
- */
 @Service
 public class TagManagerService {
 
@@ -71,7 +60,6 @@ public class TagManagerService {
         return tagDefinitionRepository.save(definition);
     }
 
-    /** Removes the definition and every assignment of the tag. */
     @Transactional
     public void delete(String name) {
         tagDefinitionRepository.deleteById(name);

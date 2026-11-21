@@ -22,5 +22,4 @@ class ExplorerDataSource {
         return new HikariDataSource();
     }
 
-
 }

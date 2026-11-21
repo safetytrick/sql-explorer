@@ -35,14 +35,6 @@ class NotesResource {
         return noteRepository.findAllByPathAndEnvironmentName(path, environment.name());
     }
 
-    /**
-     * The notes on each of these paths, keyed by exactly the paths sent.
-     *
-     * <p>For a list of rows — a table's columns, whose notes live at
-     * {@code /schema/{s}/table/{t}/column/{c}} (sqlx-n5j.1) — so a page with a
-     * hundred columns asks once rather than a hundred times. A path with no
-     * notes is absent from the map.
-     */
     @PostMapping("/notes/paths")
     public Map<String, List<Note>> notesForPaths(@RequestBody List<String> paths) {
         if (paths == null || paths.isEmpty()) {

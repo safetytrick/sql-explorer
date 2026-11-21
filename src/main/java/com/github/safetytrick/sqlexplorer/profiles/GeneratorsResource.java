@@ -19,18 +19,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * The generators this build can recognise, and which ones a person has
- * confirmed the selected environment uses (sqlx-n5j.12).
- *
- * <p>A confirmation is an annotation on the environment target: namespace
- * {@value #NAMESPACE}, key the generator's name, value {@value #USED} or
- * {@value #NOT_USED}, confidence confirmed. Latest wins and history is kept,
- * so withdrawing a confirmation is another row rather than a delete. A query's
- * candidate becomes its asserted origin only for a generator confirmed here,
- * and that is decided when the query is read, so confirming needs no
- * re-analysis.
- */
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Generators")
 @EnvironmentScoped
 @RestController
@@ -46,7 +34,6 @@ class GeneratorsResource {
         this.annotations = annotations;
     }
 
-    /** One generator: its signatures, and what this environment has said about it. */
     public record GeneratorView(String name, String description, List<RuleView> rules,
                                 String status, Annotation confirmation) {
     }
@@ -67,7 +54,6 @@ class GeneratorsResource {
         }).toList();
     }
 
-    /** A person states whether this environment uses a generator. */
     @PostMapping("/generators/{name}/confirmation")
     public Annotation confirm(@PathVariable String name, @RequestBody Confirmation confirmation) {
         if (!GeneratorSignatures.known(name)) {

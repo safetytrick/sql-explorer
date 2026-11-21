@@ -34,7 +34,6 @@ public class MeteredSql {
     @JsonProperty("warn_count")
     private long warnings;
 
-    // all time values are in picoseconds
     @JsonProperty("total_latency")
     private BigDecimal totalTime;
     @JsonProperty("max_latency")

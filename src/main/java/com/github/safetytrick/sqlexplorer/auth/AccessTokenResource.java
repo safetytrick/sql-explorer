@@ -23,18 +23,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Personal access tokens, {@code /tokens} (sqlx-e13.5). Global: a token is a
- * person's, not an environment's, and its ceiling names environments itself.
- *
- * <p>Only from a browser session. A request made with a token is refused
- * (by BearerTokenFilter, SecurityConfig, and here), so a token can never make
- * another, widen itself or put off its own expiry.
- *
- * <p>Everyone manages their own; an administrator may also list and revoke
- * anyone's ({@code ?all=true}), for when a token leaks and its owner is not
- * around. Nobody, administrators included, can see a secret after it is made.
- */
 @Tag(name = "User")
 @RestController
 class AccessTokenResource {
@@ -54,36 +42,16 @@ class AccessTokenResource {
         this.auth = auth;
     }
 
-    /**
-     * One token as listed: never its hash, let alone its secret.
-     *
-     * @param status {@code active}, {@code expired} or {@code revoked}
-     * @param owner  who it belongs to; only filled in an administrator's
-     *               listing of everyone's
-     */
     record TokenView(Integer id, String name, String prefix, List<String> ceiling, Instant createdOn,
                      Instant expiresOn, Instant lastUsedOn, Instant revokedOn, String status, Owner owner) {}
 
     record Owner(Integer id, String email, String name) {}
 
-    /**
-     * The listing, with what the page needs to offer a new one.
-     *
-     * @param enabled         false with sign-in off, where there is nothing to
-     *                        authenticate and {@code /mcp} is open anyway
-     * @param grants          the caller's own grants, as tokens see them: from
-     *                        their latest sign-in
-     * @param ceilingOptions  what a new token's ceiling may be chosen from
-     * @param maxLifetimeDays the longest a new token may live
-     * @param admin           whether {@code ?all=true} is open to the caller
-     */
     record TokenList(boolean enabled, List<TokenView> tokens, List<String> grants, List<String> ceilingOptions,
                      long maxLifetimeDays, boolean admin) {}
 
-    /** @param expiresInDays at most the maximum; absent means the maximum */
     record CreateRequest(String name, List<String> ceiling, Integer expiresInDays) {}
 
-    /** The one time the secret is shown. */
     record CreatedView(TokenView token, String secret) {}
 
     @GetMapping("/tokens")
@@ -125,7 +93,6 @@ class AccessTokenResource {
         }
     }
 
-    /** Revokes it; the row stays, so the list still shows what it was and when it stopped. */
     @DeleteMapping("/tokens/{id}")
     public TokenView revoke(@PathVariable Integer id) {
         if (!auth.oidc()) {
@@ -134,16 +101,10 @@ class AccessTokenResource {
         User me = me();
         AccessToken token = tokens.find(id)
             .filter(t -> t.getUserId().equals(me.getId()) || authorizations.current().admin())
-            // someone else's token is not found, rather than forbidden: its existence is not theirs to learn
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such token."));
         return view(tokens.revoke(token, me), null);
     }
 
-    /**
-     * The signed-in user, from a browser session only. Their groups snapshot is
-     * refreshed from the session if the session is the newer sign-in, which
-     * also covers a session that began before snapshots were kept.
-     */
     private User me() {
         if (users.accessToken().isPresent()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An access token cannot manage access tokens.");
@@ -153,11 +114,6 @@ class AccessTokenResource {
         return users.signedIn(oidc);
     }
 
-    /**
-     * Refusals carry their reason as {@code message}: the page shows it as
-     * written ("beyond your own grants (viewer:prod)"), and Boot's error page
-     * leaves messages out.
-     */
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<Map<String, Object>> refused(ResponseStatusException e) {
         Map<String, Object> body = new LinkedHashMap<>();

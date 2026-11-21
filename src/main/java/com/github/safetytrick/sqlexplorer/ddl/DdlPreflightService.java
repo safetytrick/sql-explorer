@@ -32,29 +32,12 @@ import com.github.safetytrick.sqlexplorer.schema.TableStats;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import org.springframework.stereotype.Service;
 
-/**
- * Advice on a schema change before it runs (sqlx-n5j.11): the algorithm MySQL
- * will use, what it rewrites and blocks, and the limits, foreign keys,
- * collations, size and traffic that decide how to run it.
- *
- * <p>Read-only and snapshot-based. Nothing here connects to a server or runs
- * the statement; it reads the schema snapshot, the table statistics captured
- * with it (sqlx-n5j.2) and the captured statement statistics (write rate,
- * sqlx-n5j.10; lock risk, sqlx-n5j.9). Algorithms follow MySQL 8.4's documented
- * online-DDL rules. They are a prediction: the advice is always to state
- * {@code ALGORITHM=} explicitly, so MySQL refuses instead of silently falling
- * back to something slower.
- */
 @Service
 public class DdlPreflightService {
 
-    /** MySQL's maximum row size, bytes, for everything but TEXT/BLOB contents. */
     static final int MAX_ROW_BYTES = 65_535;
-    /** InnoDB's index key limit for DYNAMIC and COMPRESSED rows. */
     static final int MAX_KEY_BYTES = 3_072;
-    /** InnoDB's per-column index prefix limit for COMPACT and REDUNDANT rows. */
     static final int MAX_KEY_PART_BYTES_COMPACT = 767;
-    /** Above this a rebuild or copy is worth throttling with an online-schema-change tool. */
     static final long LARGE_TABLE_BYTES = 1L << 30;
     static final long LARGE_TABLE_ROWS = 10_000_000L;
 
@@ -66,18 +49,12 @@ public class DdlPreflightService {
         this.workloadService = workloadService;
     }
 
-    /** The algorithms in increasing cost. */
     public enum Algorithm { INSTANT, INPLACE, INPLACE_REBUILD, COPY, UNKNOWN }
 
     public enum Severity { OK, INFO, WARN, BLOCK }
 
     public record Check(Severity severity, String title, String detail) { }
 
-    /**
-     * One clause's verdict.
-     *
-     * @param concurrentDml whether writes to the table can continue while it runs
-     */
     public record ClauseVerdict(String text, String kind, Algorithm algorithm, boolean rebuildsTable,
                                 boolean concurrentDml, String reason) { }
 
@@ -94,36 +71,15 @@ public class DdlPreflightService {
                             Workload workload, List<Check> checks, List<String> recommendations,
                             List<String> unknowns, List<AlgorithmChoice> choices, List<LockedTable> lockedTables) { }
 
-    /** Which side of a foreign key the other table is on: PARENT is referenced by the altered table. */
     public enum Role { PARENT, CHILD }
 
-    /**
-     * Which of the other table's queries wait while the statement waits for or holds its locks.
-     * EVERY_QUERY: it takes an exclusive metadata lock on that table too. WRITES: only its writes that check
-     * or cascade through the foreign key, because each takes a metadata lock on the altered table.
-     */
     public enum Reach { EVERY_QUERY, WRITES }
 
-    /**
-     * Another table a schema change reaches through a foreign key (MySQL 8.0.3+; read from 8.4's
-     * {@code sql_table.cc} and {@code sql_base.cc}).
-     *
-     * @param waits       which of its statements wait, in words: "every query", "UPDATE and DELETE"
-     * @param constraints the foreign keys that tie it to the altered table; empty when unnamed in the snapshot
-     * @param workload    how it is queried, as for the altered table; null when nothing is known of it
-     */
     public record LockedTable(String schema, String table, Role role, Reach reach, String waits,
                               List<String> constraints, String reason, Workload workload) { }
 
-    /** What MySQL would accept for a choice of algorithm. */
     public enum Outcome { CHOSEN, NEEDED, SLOWER, REFUSED, UNPREDICTED }
 
-    /**
-     * One ALGORITHM= this statement could carry and what it would mean here.
-     *
-     * @param algorithm  DEFAULT (none stated), INSTANT, INPLACE or COPY
-     * @param requested  whether the statement states it
-     */
     public record AlgorithmChoice(String algorithm, Outcome outcome, boolean requested, String implication) { }
 
     public Preflight check(String sql, double longStatementMs) {
@@ -197,8 +153,6 @@ public class DdlPreflightService {
             List.copyOf(unknowns), choices(overall, hasInstantColumnChange, concurrent, requestedAlgorithm, facts),
             locked);
     }
-
-    // ── each ALGORITHM= this statement could carry ──
 
     /**
      * What stating each algorithm would do here. MySQL never falls back to a cheaper algorithm than the one
@@ -277,8 +231,6 @@ public class DdlPreflightService {
             default -> "Always accepted: copies the whole table and blocks writes until it finishes.";
         };
     }
-
-    // ── per-clause algorithm (MySQL 8.4 online DDL) ──
 
     private ClauseVerdict verdict(Clause clause, Map<String, ColumnInfo> columns, TableStructure structure,
                                   Set<String> unknowns) {
@@ -391,8 +343,6 @@ public class DdlPreflightService {
                                    String reason) {
         return new ClauseVerdict(clause.text(), clause.kind().name(), algorithm, rebuilds, concurrent, reason);
     }
-
-    // ── checks ──
 
     private void mixedAlgorithms(List<ClauseVerdict> verdicts, Algorithm overall, List<Check> checks) {
         boolean anyCheaper = verdicts.stream().anyMatch(v -> v.algorithm().compareTo(overall) < 0
@@ -562,8 +512,6 @@ public class DdlPreflightService {
                     + "repoint the referencing tables.")));
     }
 
-    // ── metadata locks reaching related tables ──
-
     /**
      * The other tables a change to this one reaches through foreign keys, as MySQL 8.4 takes its metadata locks
      * (with foreign_key_checks on, the default):
@@ -627,7 +575,6 @@ public class DdlPreflightService {
                         + "and its INSERTs and UPDATEs lock this table to check the key.", longStatementMs);
             }
         }
-        // every query waiting is the larger risk: those first
         return out.values().stream()
             .sorted(Comparator.comparing((LockedTable t) -> t.reach() != Reach.EVERY_QUERY))
             .toList();
@@ -638,7 +585,6 @@ public class DdlPreflightService {
         String key = lower(schema) + "." + lower(table);
         LockedTable seen = out.get(key);
         if (seen != null) {
-            // the first rule to name a table is the strongest; later ones only add their constraint
             if (constraint != null && !seen.constraints().contains(constraint)) {
                 List<String> constraints = new ArrayList<>(seen.constraints());
                 constraints.add(constraint);
@@ -655,14 +601,12 @@ public class DdlPreflightService {
             workload(reference, longStatementMs, known)));
     }
 
-    /** The keys the table owns, as the child: a snapshot can also list keys of other tables pointing here. */
     private static List<ForeignKey> ownForeignKeys(TableStructure structure) {
         return structure.foreignKeys() == null ? List.of() : structure.foreignKeys().stream()
             .filter(fk -> !fk.from().isEmpty() && !fk.to().isEmpty() && sameTable(fk.from().get(0), structure))
             .toList();
     }
 
-    /** Each table whose foreign keys reference this one, with those keys' names. */
     private Map<TableReference, List<String>> referencingTables(TableStructure structure) {
         Map<String, TableReference> refs = new LinkedHashMap<>();
         Map<String, List<String>> names = new LinkedHashMap<>();
@@ -803,8 +747,6 @@ public class DdlPreflightService {
         return out;
     }
 
-    // ── facts ──
-
     private TableFacts facts(TableStructure structure, TableReference reference) {
         if (structure == null) {
             return new TableFacts(false, null, null, null, null, 0, false, List.of());
@@ -836,7 +778,6 @@ public class DdlPreflightService {
                 }
             }
         }
-        // a table's own foreign keys may also list the tables pointing at it
         if (structure.foreignKeys() != null) {
             for (ForeignKey fk : structure.foreignKeys()) {
                 if (fk.to().stream().anyMatch(c -> sameTable(c, structure))) {
@@ -888,14 +829,12 @@ public class DdlPreflightService {
         if (old == null) {
             return fresh;
         }
-        // MODIFY without a charset keeps the column's (well, the table default's; the column's is the best guess)
         String charset = next.charset() != null ? next.charset()
             : next.collation() != null ? charsetOf(next.collation()) : fresh.isString() ? old.charset() : null;
         return new ColumnInfo(fresh.name(), fresh.type(), fresh.length(), fresh.scale(), charset,
             next.collation() != null ? next.collation() : old.collation(), fresh.nullable());
     }
 
-    /** What the checks need of a column, from the snapshot or a column definition. */
     record ColumnInfo(String name, String type, Integer length, Integer scale, String charset, String collation,
                       boolean nullable) {
 
@@ -925,7 +864,6 @@ public class DdlPreflightService {
             return isStringType(type);
         }
 
-        /** Bytes the column takes toward the 65,535-byte row limit: an upper estimate. */
         long rowBytes() {
             int len = length == null ? 0 : length;
             return switch (baseType(type)) {
@@ -946,7 +884,6 @@ public class DdlPreflightService {
             };
         }
 
-        /** Bytes the column takes in an index key, honouring a prefix length when given. */
         long keyBytes(Integer prefix) {
             if (isString()) {
                 int chars = prefix != null ? prefix : length == null ? 0 : length;
@@ -960,8 +897,6 @@ public class DdlPreflightService {
     }
 
     private record IndexShape(String name, boolean unique, List<IndexPart> parts, boolean added) { }
-
-    // ── small helpers ──
 
     static int bytesPerChar(String charset) {
         if (charset == null) {

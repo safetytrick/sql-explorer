@@ -28,13 +28,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * Builds and loads the SQL sources configured under each server
- * ({@code environments.<env>.servers.<server>.sources}) into an environment.
- * Each source definition is turned into {@link SqlSource}s by the
- * {@link SqlSourceFactory} matching its {@code type}, then all of an
- * environment's sources are loaded together.
- */
 @Component
 public class EnvironmentLoader {
 
@@ -45,9 +38,7 @@ public class EnvironmentLoader {
     private final EnvironmentRegistry environmentRegistry;
     private final AnalysisFailureRecorder analysisFailureRecorder;
     private final Clock clock;
-    /** How old a cache may be and still be served with no server connected (sqlx-nbi.1). */
     private final Duration maxAge;
-    /** Serve every environment from its cache at startup whatever its age, and connect to nothing. */
     private final boolean offline;
 
     private final Map<String, CacheFreshness> freshnessAtStartup = new ConcurrentHashMap<>();
@@ -80,46 +71,10 @@ public class EnvironmentLoader {
         this.offline = offline;
     }
 
-    /**
-     * Load every configured environment live, default first. Runs on the
-     * {@code startup-live-pull} thread once the application is answering
-     * ({@link #pullLiveOnceReady}); until it lands, pages are served from
-     * captures ({@link #serveCapturesAtStartup}, sqlx-sqy.6).
-     *
-     * <p>WHY ALL OF THEM. Only the default used to load, so a non-default
-     * environment read as an EMPTY CORPUS after every restart — not as
-     * unloaded. Its pages rendered "0 analyzed" and its unqueried report
-     * claimed every table was untouched, which is the shape of wrong answer
-     * this codebase spends most of its effort avoiding. Nothing chose that; it
-     * fell out of which environment happened to be default (sqlx-v91).
-     *
-     * <p>Loading also CAPTURES: each source is read live and its capture
-     * written, so loading every environment makes a restart a sampling point
-     * for all of them rather than for one. That matters because Performance
-     * Schema is cumulative and cleared on reset — an environment nobody loads
-     * is an environment whose history is never recorded.
-     *
-     * <p>DEFAULT FIRST, because it is the one someone is most likely to open,
-     * and because the resident cap ({@code sql-explorer.resident-environments},
-     * 3) evicts least-recently-used environments once it is exceeded — so the
-     * order here decides what is still in heap when startup finishes. An
-     * evicted environment is not lost: it rehydrates from the capture this load
-     * just wrote.
-     *
-     * <p>NO ENVIRONMENT'S FAILURE STOPS STARTUP, and that is a change. A load
-     * throws when its server is unreachable, and this used to run for one
-     * environment inside {@code @PostConstruct}, so that single failure took the
-     * whole application down. With every environment loading, the chance that
-     * one is unreachable is only higher — and an application that boots and
-     * reports which environment it could not read is strictly more useful than
-     * one that does not boot at all.
-     */
     void loadConfiguredSourcesAtStartup() {
         for (String name : startupOrder()) {
             Environment environment = environmentRegistry.get(name);
             if (environment != null && environment.isCached()) {
-                // Fresh, or offline by configuration: served from its cache
-                // with nothing connected until someone pulls it (sqlx-nbi.2).
                 continue;
             }
             try {
@@ -131,18 +86,6 @@ public class EnvironmentLoader {
         }
     }
 
-    /**
-     * Before serving anything: every environment from what its sources last
-     * captured, so the first page answers at once (sqlx-sqy.6).
-     *
-     * <p>Seconds rather than minutes — a capture reads back in a fraction of a
-     * re-import, and nothing is parsed or connected to. The live read still
-     * happens, in {@link #pullLiveOnceReady}; this only stops it from holding
-     * startup hostage. A production environment whose live pull reads 19
-     * servers' schemas and digest tables took minutes before the application
-     * would answer anything, though most of what it produced was already on
-     * disk.
-     */
     @PostConstruct
     void serveCapturesAtStartup() {
         for (String name : startupOrder()) {
@@ -159,11 +102,6 @@ public class EnvironmentLoader {
         }
     }
 
-    /**
-     * Serve the environment from its cache, connecting to nothing, when the
-     * cache is fresh — or always, when configured offline (sqlx-nbi.1, .2).
-     * Otherwise it stays live and the startup pull reads it.
-     */
     private void decideCached(String name, List<String> sourceRefs) {
         Environment environment = environmentRegistry.get(name);
         if (environment == null) {
@@ -190,11 +128,6 @@ public class EnvironmentLoader {
             withoutSnapshot, clock.instant(), maxAge);
     }
 
-    /**
-     * The environment's state for the selector: what it is served from, how
-     * old that is, and anything wrong with it (sqlx-nbi.8). Reads only what is
-     * already known; never loads, rehydrates or connects.
-     */
     public EnvironmentHealth health(String name) {
         Environment environment = environmentRegistry.get(name);
         List<String> problems = new ArrayList<>();
@@ -256,18 +189,10 @@ public class EnvironmentLoader {
             configured.size());
     }
 
-    /** What the startup freshness check concluded, or null for an environment it did not see. */
     public CacheFreshness freshnessAtStartup(String name) {
         return freshnessAtStartup.get(name);
     }
 
-    /**
-     * The live read of every environment, once the application is answering —
-     * on its own thread, so a slow or unreachable server delays fresh data,
-     * never the pages built from captures (sqlx-sqy.6). A daemon thread: an
-     * interrupted startup pull is just a pull that did not happen, and must not
-     * hold the JVM open at shutdown.
-     */
     @EventListener(ApplicationReadyEvent.class)
     public void pullLiveOnceReady() {
         Thread pull = new Thread(this::loadConfiguredSourcesAtStartup, "startup-live-pull");
@@ -275,7 +200,6 @@ public class EnvironmentLoader {
         pull.start();
     }
 
-    /** Default first: the one most likely to be opened, and load order decides what the resident cap keeps. */
     private List<String> startupOrder() {
         List<String> names = new ArrayList<>();
         names.add(environmentRegistry.getDefaultName());
@@ -286,26 +210,17 @@ public class EnvironmentLoader {
         return names;
     }
 
-    /** Build every configured source for the named environment and load them together. */
     public SqlImportStats loadConfiguredSources(String environmentName) {
         return load(environmentName, Stream.empty());
     }
 
-    /**
-     * Load the environment's configured sources together with the given extra sources
-     * (e.g. persisted uploads). Loading replaces the environment's repositories, so the
-     * configured sources must be part of every load or they would be dropped.
-     */
     public SqlImportStats load(String environmentName, Stream<? extends SqlSource> extraSources) {
-        // Any load is a request to read live: it is what going live means
-        // for an environment served from its cache (sqlx-nbi.5).
         Environment target = environmentRegistry.get(environmentName);
         if (target != null && target.isCached()) {
             log.info("Environment {} goes live: it was served from its cache", environmentName);
             target.setCached(false);
         }
         pulling.add(environmentName);
-        // only this thread reads the servers' schemas until the pull ends; requests get the snapshot (sqlx-o7x)
         if (target != null) {
             target.setPuller(Thread.currentThread());
         }
@@ -333,21 +248,12 @@ public class EnvironmentLoader {
         if (root.getMessage() == null) {
             return root.toString();
         }
-        // "db.example.com" alone says nothing; "UnknownHostException: db.example.com" does
         return root instanceof java.io.IOException && root.getClass().getName().startsWith("java.net.")
             ? root.getClass().getSimpleName() + ": " + root.getMessage() : root.getMessage();
     }
 
     private SqlImportStats loadLive(String environmentName, Stream<? extends SqlSource> extraSources) {
-        // Analysis is about to run again over the whole source, so anything
-        // captured from the previous run describes a corpus that no longer
-        // exists. Dropping it here keeps the captures and the profiles
-        // describing the same import.
         analysisFailureRecorder.clear();
-        // A load is a fresh attempt at every server, including one whose schema
-        // could not be read last time: it may have been fixed since (sqlx-jdf).
-        // A schema already in memory is kept only if the server's fingerprint
-        // still matches it — a cheap check, where reloading was not (sqlx-sqy.4).
         Environment environment = environmentRegistry.get(environmentName);
         if (environment != null) {
             environment.revalidateSchemas();

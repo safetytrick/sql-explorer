@@ -23,25 +23,9 @@ import static com.github.safetytrick.sqlexplorer.coverage.Coverage.Signal;
 import static com.github.safetytrick.sqlexplorer.coverage.Coverage.SourceCoverage;
 import static com.github.safetytrick.sqlexplorer.coverage.Coverage.Verdict;
 
-/**
- * Judges each loaded source against what its own capture recorded.
- *
- * <p>Every value read here comes from the capture — the footer written when
- * the rows were read — and never from a live connection. Reading
- * {@code performance_schema_digests_size} off a server today and attaching it
- * to an export taken months ago from possibly another machine produces a
- * confident wrong answer, which is worse than saying nothing because it looks
- * like information (sqlx-sy5, sqlx-n01).
- */
 @Service
 public class CoverageService {
 
-    /**
-     * The value worth setting {@code performance_schema_max_digest_length} to.
-     * The default is 1024, and MySQL needs 1028 bytes internally to compute a
-     * digest, so at the default a statement barely over a kilobyte is already
-     * truncated before its digest is formed.
-     */
     static final int RECOMMENDED_MAX_DIGEST_LENGTH = 4096;
 
     private final SqlRepositoryManager repositories;
@@ -63,8 +47,6 @@ public class CoverageService {
                 List.of(), List.of());
         }
 
-        // Read once for the whole report: the archive is a footer seek per
-        // file, and every source would otherwise re-scan the same directory.
         CaptureArchive.ArchiveReport gaps = archive.scan();
 
         List<SourceCoverage> sources = new ArrayList<>(loaded.stream()
@@ -79,12 +61,6 @@ public class CoverageService {
             environment == null ? List.of() : environment.schemaDrift());
     }
 
-    /**
-     * Statements that were captured but not analysed, because the schema they
-     * would be analysed against could not be confirmed current. They are not
-     * in the corpus at all until a load can confirm it — so an absence here
-     * may be one of them (sqlx-sqy.5).
-     */
     private static Finding pendingAnalysis(SqlImportStats stats) {
         if (stats == null) {
             return new Finding(Signal.PENDING_ANALYSIS, Verdict.UNKNOWN, "not recorded",
@@ -105,11 +81,6 @@ public class CoverageService {
                 + "analysis by the same version of sql-explorer.");
     }
 
-    /**
-     * A source the load had to leave out. Listed rather than omitted, because
-     * an environment missing one of its servers otherwise reads as complete:
-     * every query that only ran there is simply absent (sqlx-jdf).
-     */
     private static SourceCoverage unreachable(SqlRepositoryManager.SourceFailure failure) {
         Finding finding = new Finding(Signal.UNREACHABLE, Verdict.IMPAIRED,
             "not read",
@@ -156,16 +127,8 @@ public class CoverageService {
     }
 
     /**
-     * Was the digest table full?
-     *
-     * <p>{@code Performance_schema_digest_lost} counts digests the server could
-     * not record, so it is the direct measurement and is preferred whenever it
-     * was captured. Row count against {@code performance_schema_digests_size}
-     * is the inference to fall back on.
-     *
-     * <p>AT CAPACITY THE SERVER STOPS TAKING NEW DIGESTS; it does not evict old
-     * ones (Michael, 2026-08-31 — this said "evicted" and was wrong). So the
-     * counts already in the table stay accurate and keep accumulating, and what
+     * AT CAPACITY THE SERVER STOPS TAKING NEW DIGESTS; it does not evict old
+     * ones. So the counts already in the table stay accurate and keep accumulating, and what
      * is lost is every query shape that first appeared after the table filled.
      * That is a different claim, and a more actionable one: the numbers you can
      * see are trustworthy, the absences are not.
@@ -208,13 +171,7 @@ public class CoverageService {
     }
 
     /**
-     * Were statements too long to digest in full?
-     *
-     * <p>Two facts only mean something together: how many profiles came back
-     * truncated, and what the server's effective digest limit actually was.
-     * The second says whether to expect more.
-     *
-     * <p>THE EFFECTIVE LIMIT IS THE LOWER OF TWO VARIABLES, and getting this
+     * THE EFFECTIVE LIMIT IS THE LOWER OF TWO VARIABLES, and getting this
      * wrong is the difference between advice that works and advice that does
      * nothing. {@code max_digest_length} governs computing the digest;
      * {@code performance_schema_max_digest_length} governs storing it, and
@@ -264,13 +221,6 @@ public class CoverageService {
                 "No statement was long enough to be cut short before its digest was computed.");
     }
 
-    /**
-     * The lower of the two limits, or whichever one was recorded.
-     *
-     * <p>A server that reported only one is judged on that one — it is the
-     * only evidence there is, and saying nothing because the other is missing
-     * would discard a real measurement.
-     */
     private static Integer effectiveDigestLimit(Integer stored, Integer computed) {
         if (stored == null) {
             return computed;
@@ -282,15 +232,6 @@ public class CoverageService {
         return value == null ? "not recorded" : String.valueOf(value);
     }
 
-    /**
-     * How long a period do the rows cover?
-     *
-     * <p>This is the signal that turns "no query touches this table" from a
-     * shrug into a claim: unused across 117 days says something, unused across
-     * two days says almost nothing. Server uptime corroborates it — Performance
-     * Schema is cleared on restart, so an uptime shorter than the observed
-     * window means one of the two is wrong.
-     */
     private static Finding observationWindow(ObservedWindow window, Map<String, String> server) {
         if (window == null) {
             return new Finding(Signal.OBSERVATION_WINDOW, Verdict.UNKNOWN, "unknown",
@@ -314,11 +255,6 @@ public class CoverageService {
                 + "period is a claim about " + window.days() + " days of traffic — no more, and no less.");
     }
 
-    /**
-     * How far from {@code sys.x$statement_analysis} is this, and when was it
-     * read? A copy of an export from a server nobody can query any more
-     * supports weaker claims than a direct read, and saying so is the point.
-     */
     private static Finding provenance(CaptureContext capture, SqlSource source) {
         if (capture == null || capture.origin() == null) {
             return new Finding(Signal.PROVENANCE, Verdict.UNKNOWN,
@@ -328,9 +264,6 @@ public class CoverageService {
                     + "through, and how stale they are, is unknown.");
         }
 
-        // No timestamp in the measurement: capturedAt travels as its own field
-        // and a view formats it. Rendering an instant into a display string
-        // here is how a page ends up showing raw nanoseconds.
         String when = capture.capturedAt() == null ? ", at an unrecorded time" : "";
         return switch (capture.origin()) {
             case PERFORMANCE_SCHEMA -> new Finding(Signal.PROVENANCE, Verdict.OK, "read directly" + when,
@@ -349,13 +282,6 @@ public class CoverageService {
         };
     }
 
-    /**
-     * Was the digest table reset between two captures of this source?
-     *
-     * <p>Per source, because each is its own sampling stream. The archive
-     * reports the interval; nothing here can know why it reset, so "unobserved
-     * between X and Y" is the whole claim.
-     */
     private static Finding samplingGaps(String sourceRef, CaptureArchive.ArchiveReport archive) {
         List<CaptureArchive.CaptureGap> mine = archive.gaps().stream()
             .filter(gap -> gap.sourceRef() != null && gap.sourceRef().equals(sourceRef))
@@ -390,20 +316,6 @@ public class CoverageService {
                 + "beside them would not show up here." + failures);
     }
 
-    /**
-     * Does the archive hold periods this corpus does not cover?
-     *
-     * <p>The corpus is one capture — the newest — because consecutive captures
-     * of a source overlap and summing them would double-count. When the digest
-     * table is reset, though, the captures either side describe DISJOINT
-     * periods, and everything before the reset is on disk and unread. This says
-     * so, because "118 days observed" is a different claim depending on whether
-     * it is all the evidence there is or the most recent slice of it (sqlx-65m).
-     *
-     * <p>NOT A WARNING. A source with one run says so plainly, the same way
-     * DIGEST_CAPACITY reports OK rather than only ever complaining — a signal
-     * that speaks up only for problems is one people stop reading.
-     */
     private static Finding archivedHistory(String sourceRef, ObservedWindow window,
                                            CaptureArchive.ArchiveReport archive) {
         List<CaptureArchive.CaptureRun> runs = archive.runsOf(sourceRef);
