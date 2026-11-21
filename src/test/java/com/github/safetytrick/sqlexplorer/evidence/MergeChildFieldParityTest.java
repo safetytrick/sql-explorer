@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MergeChildFieldParityTest {
 
     private static final String NORMALIZED_DIGEST = "shared-normalized-digest";
-    private static final String QUERY = "select `f`.`name` from `folders` `f` where `f`.`uuid` = ?";
+    private static final String QUERY = "select `f`.`name` from `category` `f` where `f`.`uuid` = ?";
 
     private static void assertDescribesTheSameStatement(SqlProfile actual, SqlProfile expected) {
         assertThat(actual.getTables()).as("tables").isEqualTo(expected.getTables());
@@ -82,11 +82,11 @@ class MergeChildFieldParityTest {
 
     private static SqlProfile.Builder analyzed(String digest, long executed) {
         return unanalyzed(digest, executed)
-            .setTables(List.of(TableReference.fromString("tdb.folders")))
-            .setJoinColumns(List.of(join("tdb.folders.uuid", "tdb.users.category_uuid")))
-            .setCriteriaColumns(List.of(ColumnReference.fromComponents("tdb", "folders", "uuid")))
-            .setSelectColumns(List.of(ColumnReference.fromComponents("tdb", "folders", "name")))
-            .setGroupByColumns(List.of(ColumnReference.fromComponents("tdb", "folders", "name")))
+            .setTables(List.of(TableReference.fromString("tdb.category")))
+            .setJoinColumns(List.of(join("tdb.category.uuid", "tdb.users.category_uuid")))
+            .setCriteriaColumns(List.of(ColumnReference.fromComponents("tdb", "category", "uuid")))
+            .setSelectColumns(List.of(ColumnReference.fromComponents("tdb", "category", "name")))
+            .setGroupByColumns(List.of(ColumnReference.fromComponents("tdb", "category", "name")))
             .setMismatchedJoins(List.of())
             .setGeneratedSource("hibernate")
             .setGeneratorCandidates(List.of(new com.github.safetytrick.sqlexplorer.avro.GeneratorCandidate(

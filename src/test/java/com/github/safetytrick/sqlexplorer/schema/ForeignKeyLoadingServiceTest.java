@@ -46,12 +46,12 @@ class ForeignKeyLoadingServiceTest {
     @Test
     void toColumnsPointAtTheReferencedTable() throws SQLException {
         ResultSet keys = resultSet(
-            row("app_main", "demo_uuids", "fk_demo", "demo_id", "app_main", "demos", "id"));
+            row("app_main", "demo_uuids", "fk_demo", "demo_id", "app_main", "account", "id"));
 
         Map<TableReference, List<ForeignKey>> byTable = service.readForeignKeys(keys);
 
         ColumnReference to = byTable.get(ref("app_main", "demo_uuids")).getFirst().to().getFirst();
-        assertThat(to.getTable().getNormalizedTableName()).isEqualTo("demos");
+        assertThat(to.getTable().getNormalizedTableName()).isEqualTo("account");
         assertThat(to.getColumn()).isEqualTo("id");
     }
 

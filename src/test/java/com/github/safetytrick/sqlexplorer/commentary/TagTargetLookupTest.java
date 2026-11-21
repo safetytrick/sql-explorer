@@ -74,11 +74,11 @@ class TagTargetLookupTest {
 
     @Test
     void aDuplicateTargetGetsTheSameAnswerAtBothPositions() {
-        TagTarget app_main = TagTarget.ofSchema("app_main");
+        TagTarget appMain = TagTarget.ofSchema("app_main");
         when(tagRepository.findAllByTypeAndSchemaNameInAndEnvironmentName(eq("schema"), anyList(), eq(ENV)))
-            .thenReturn(List.of(tag("system", app_main)));
+            .thenReturn(List.of(tag("system", appMain)));
 
-        List<List<Tag>> answer = lookup.tagsFor(List.of(app_main, TagTarget.ofSchema("app_other"), app_main));
+        List<List<Tag>> answer = lookup.tagsFor(List.of(appMain, TagTarget.ofSchema("app_other"), appMain));
 
         assertThat(answer.get(0)).extracting(Tag::getName).containsExactly("system");
         assertThat(answer.get(1)).isEmpty();

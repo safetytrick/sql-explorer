@@ -151,10 +151,9 @@ class RegexTableExtractorTest {
 
     @Test
     void extractsTheTableFromDdlPositions() {
-        // 301 profiles — much the most common shape, and an ORM/migration probe
-        assertThat(extract(" SHOW CREATE TABLE `app_main` . `demos` "))
+        assertThat(extract(" SHOW CREATE TABLE `app_main` . `account` "))
             .extracting(TableReference::getNormalizedSchemaName, TableReference::getNormalizedTableName)
-            .containsExactly(tuple("app_main", "demos"));
+            .containsExactly(tuple("app_main", "account"));
 
         assertThat(extract(" ALTER TABLE `accounts` ADD COLUMN `owner_email` VARCHARACTER (?) NULL "))
             .extracting(TableReference::getNormalizedTableName).containsExactly("accounts");
@@ -180,16 +179,15 @@ class RegexTableExtractorTest {
 
     @Test
     void extractsTheGrantedTableButNotTheSchemaWildcard() {
-        assertThat(extract(" GRANT ALL PRIVILEGES ON `cl` . `stat_get_doc_names` TO ? @? WITH GRANT OPTION "))
+        assertThat(extract(" GRANT ALL PRIVILEGES ON `app_core` . `report_totals` TO ? @? WITH GRANT OPTION "))
             .extracting(TableReference::getNormalizedSchemaName, TableReference::getNormalizedTableName)
-            .containsExactly(tuple("cl", "stat_get_doc_names"));
+            .containsExactly(tuple("app_core", "report_totals"));
 
-        // `s`.* is a whole schema, not a table, and cannot match: * is not an identifier
         assertThat(extract(" GRANT ALL PRIVILEGES ON `app_admin` . * TO ? @? "))
             .extracting(TableReference::getNormalizedTableName).isEmpty();
 
-        assertThat(extract(" REVOKE SELECT ON `app_main` . `demos` FROM ? @? "))
-            .extracting(TableReference::getNormalizedTableName).containsExactly("demos");
+        assertThat(extract(" REVOKE SELECT ON `app_main` . `account` FROM ? @? "))
+            .extracting(TableReference::getNormalizedTableName).containsExactly("account");
     }
 
     @Test
@@ -213,26 +211,26 @@ class RegexTableExtractorTest {
 
     private static LoadedSchema schema() throws JSQLParserException {
         return SchemaFixture.fromSql("""
-            create table tdb.folders (id bigint not null, name varchar(255), primary key (id));
+            create table tdb.category (id bigint not null, name varchar(255), primary key (id));
             """).schema();
     }
 
     @Test
     void reportsExtractedNamesTheSchemaDoesNotKnow() throws JSQLParserException {
-        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `folders` JOIN `not_a_table` ON ? ", schema()))
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `category` JOIN `not_a_table` ON ? ", schema()))
             .extracting(TableReference::getNormalizedTableName)
             .containsExactly("not_a_table");
     }
 
     @Test
     void aFullyKnownStatementReportsNothing() throws JSQLParserException {
-        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `folders` ", schema())).isEmpty();
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `category` ", schema())).isEmpty();
     }
 
     @Test
     void caseAndBackticksDoNotMakeATableUnknown() throws JSQLParserException {
-        assertThat(extractor.unknownTables("tdb", " SELECT * FROM FOLDERS ", schema())).isEmpty();
-        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `TDB` . `Folders` ", schema())).isEmpty();
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM CATEGORY ", schema())).isEmpty();
+        assertThat(extractor.unknownTables("tdb", " SELECT * FROM `TDB` . `Category` ", schema())).isEmpty();
     }
 
     @Test
@@ -262,7 +260,7 @@ class RegexTableExtractorTest {
     @Test
     void repeatedUnknownNamesAreReportedOnce() throws JSQLParserException {
         assertThat(extractor.unknownTables("tdb",
-            " SELECT * FROM `ghost` JOIN `ghost` ON ? JOIN `folders` ON ? JOIN `spectre` ON ? ", schema()))
+            " SELECT * FROM `ghost` JOIN `ghost` ON ? JOIN `category` ON ? JOIN `spectre` ON ? ", schema()))
             .extracting(TableReference::getNormalizedTableName)
             .containsExactly("ghost", "spectre");
     }

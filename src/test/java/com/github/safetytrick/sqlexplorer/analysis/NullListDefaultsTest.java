@@ -16,7 +16,7 @@ public class NullListDefaultsTest {
     private static SchemaFixture fixture() {
         try {
             return SchemaFixture.fromSql("""
-                create table folders (
+                create table category (
                     uuid varchar(36) not null,
                     name varchar(255),
                     primary key (uuid)
@@ -55,7 +55,7 @@ public class NullListDefaultsTest {
 
     @Test
     public void aStatementWithNoGroupByHasAnEmptyGroupByList() throws JSQLParserException {
-        SqlProfile profile = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+        SqlProfile profile = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
 
         assertThat(profile.getAnalysisFailed()).isFalse();
         assertNoNullLists(profile);
@@ -72,8 +72,8 @@ public class NullListDefaultsTest {
 
     @Test
     public void aMergedProfileReportsItsRepresentativesColumnsNotNulls() throws JSQLParserException {
-        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
-        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
+        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
 
         SqlProfile mergedProfile = new MergedSqlProfile(List.of(a, b));
 
@@ -90,9 +90,9 @@ public class NullListDefaultsTest {
     @Test
     public void aMergedProfileSpanningSchemasReportsMultiSchema() throws JSQLParserException {
         SqlProfile a = FIXTURE.analyze(
-            "SELECT `f`.`name` FROM `folders` `f` JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`");
+            "SELECT `f`.`name` FROM `category` `f` JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`");
         SqlProfile b = FIXTURE.analyze(
-            "SELECT `f`.`name` FROM `folders` `f` JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`");
+            "SELECT `f`.`name` FROM `category` `f` JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`");
 
         assertThat(a.getIsMultiSchema()).as("the representative itself").isTrue();
         assertThat(new MergedSqlProfile(List.of(a, b)).getIsMultiSchema()).isTrue();
@@ -100,8 +100,8 @@ public class NullListDefaultsTest {
 
     @Test
     public void aMergedProfileWithinOneSchemaDoesNotReportMultiSchema() throws JSQLParserException {
-        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
-        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
+        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
 
         assertThat(new MergedSqlProfile(List.of(a, b)).getIsMultiSchema()).isFalse();
     }

@@ -39,7 +39,6 @@ class IndexLoadingServiceTest {
         ResultSet indexInfo = resultSet(
             row("app_other", "accounts", "idx_accounts_name", (short) 1, "name", true),
             row("app_other", "accounts", "PRIMARY", (short) 1, "id", false),
-            // same index name either side of the boundary — the case that duplicated
             row("app_other", "groups", "PRIMARY", (short) 1, "id", false),
             row("app_other", "groups", "index_status", (short) 1, "status", true));
 

@@ -16,17 +16,17 @@ public class CteAnalysisTest {
         try {
             return SchemaFixture.fromSql("""
                 create table node_link (
-                    entity_id bigint not null,
+                    link_id bigint not null,
                     parent_id bigint,
-                    propagate tinyint,
-                    object_id bigint,
-                    object_type varchar(64),
-                    parent_object bigint,
+                    inherits tinyint,
+                    item_id bigint,
+                    item_type varchar(64),
+                    parent_item bigint,
                     parent_type varchar(64),
-                    owner_group bigint,
-                    primary key (entity_id)
+                    owner_team bigint,
+                    primary key (link_id)
                 );
-                create table folders (
+                create table category (
                     id bigint,
                     uuid varchar(36) not null,
                     parent_uuid varchar(36),
@@ -36,7 +36,7 @@ public class CteAnalysisTest {
                     status varchar(32),
                     primary key (uuid)
                 );
-                create table users (
+                create table account (
                     id bigint not null,
                     category_uuid varchar(36),
                     primary key (id)
@@ -48,27 +48,27 @@ public class CteAnalysisTest {
     }
 
     private static final String RECURSIVE_TREE = """
-        WITH RECURSIVE `tree`(
-            `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+        WITH RECURSIVE `lineage`(
+            `link_id`, `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type`
         ) AS (SELECT
-            `entity_id`, `entity_id` AS `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+            `link_id`, `link_id` AS `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type`
             FROM `node_link`
         WHERE
-            `entity_id` = ?
+            `link_id` = ?
         UNION
         ALL SELECT
-            `child`.`entity_id`, `parent`.`entity_id`, `child`.`propagate`, `child`.`object_id`,
-            `child`.`object_type`, `child`.`parent_type`, `child`.`parent_type`
+            `child`.`link_id`, `parent`.`link_id`, `child`.`inherits`, `child`.`item_id`,
+            `child`.`item_type`, `child`.`parent_type`, `child`.`parent_type`
             FROM `node_link` `child`
         JOIN
-            `tree` `parent`
-                ON `child`.`parent_object` = `parent`.`object_id`
-                AND `child`.`parent_type` = `parent`.`object_type`
+            `lineage` `parent`
+                ON `child`.`parent_item` = `parent`.`item_id`
+                AND `child`.`parent_type` = `parent`.`item_type`
         WHERE
-            `child`.`object_type` IN (?)) SELECT
-            `entity_id`, `parent_id`, `propagate`
+            `child`.`item_type` IN (?)) SELECT
+            `link_id`, `parent_id`, `inherits`
         FROM
-            `tree`
+            `lineage`
         """;
 
     private static List<String> joinKeys(SqlProfile profile) {
@@ -95,58 +95,57 @@ public class CteAnalysisTest {
     public void analyzesTheTablesAndCriteriaInsideACte() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
             WITH `parent_categories` AS (
-                SELECT `uuid`, `parent_uuid`, `name` FROM `folders` WHERE `parent_uuid` = ?
+                SELECT `uuid`, `parent_uuid`, `name` FROM `category` WHERE `parent_uuid` = ?
             )
             SELECT `uuid`, `name` FROM `parent_categories`
             """);
 
         assertThat(profile.getAnalysisFailed()).isFalse();
-        assertThat(tableNames(profile)).containsExactly("folders");
-        assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("folders.parent_uuid");
+        assertThat(tableNames(profile)).containsExactly("category");
+        assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("category.parent_uuid");
         assertThat(columnKeys(profile.getSelectColumns()))
-            .containsExactly("folders.name", "folders.parent_uuid", "folders.uuid");
+            .containsExactly("category.name", "category.parent_uuid", "category.uuid");
     }
 
     @Test
     public void analyzesARecursiveCteWithoutInventingTheCteAsATable() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
-            WITH RECURSIVE `tree`(
-                `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+            WITH RECURSIVE `lineage`(
+                `link_id`, `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type`
             ) AS (SELECT
-                `entity_id`, `entity_id` AS `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+                `link_id`, `link_id` AS `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type`
                 FROM `node_link`
             WHERE
-                `entity_id` = ?
+                `link_id` = ?
             UNION
             ALL SELECT
-                `child`.`entity_id`, `parent`.`entity_id`, `child`.`propagate`, `child`.`object_id`,
-                `child`.`object_type`, `child`.`parent_object`, `child`.`parent_type`
+                `child`.`link_id`, `parent`.`link_id`, `child`.`inherits`, `child`.`item_id`,
+                `child`.`item_type`, `child`.`parent_item`, `child`.`parent_type`
                 FROM `node_link` `child`
             JOIN
-                `tree` `parent`
-                    ON `child`.`parent_object` = `parent`.`object_id`
-                    AND `child`.`parent_type` = `parent`.`object_type`
+                `lineage` `parent`
+                    ON `child`.`parent_item` = `parent`.`item_id`
+                    AND `child`.`parent_type` = `parent`.`item_type`
             WHERE
-                `child`.`object_type` IN (?)) SELECT
-                `entity_id`, `parent_id`, `propagate`
+                `child`.`item_type` IN (?)) SELECT
+                `link_id`, `parent_id`, `inherits`
             FROM
-                `tree`
+                `lineage`
             """);
 
         assertThat(profile.getAnalysisFailed()).isFalse();
 
-        // the CTE's source table, not the CTE name
         assertThat(tableNames(profile)).containsExactly("node_link");
 
         assertThat(columnKeys(profile.getCriteriaColumns()))
-            .containsExactly("node_link.entity_id", "node_link.object_type");
+            .containsExactly("node_link.item_type", "node_link.link_id");
 
         assertThat(columnKeys(profile.getSelectColumns())).allSatisfy(key ->
             assertThat(key).startsWith("node_link."));
-        assertThat(columnKeys(profile.getCriteriaColumns())).noneMatch(key -> key.startsWith("tree."));
+        assertThat(columnKeys(profile.getCriteriaColumns())).noneMatch(key -> key.startsWith("lineage."));
         assertThat(profile.getJoinColumns()).allSatisfy(join -> {
-            assertThat(join.getLeft().getTable().getNormalizedTableName()).isNotEqualTo("tree");
-            assertThat(join.getRight().getTable().getNormalizedTableName()).isNotEqualTo("tree");
+            assertThat(join.getLeft().getTable().getNormalizedTableName()).isNotEqualTo("lineage");
+            assertThat(join.getRight().getTable().getNormalizedTableName()).isNotEqualTo("lineage");
         });
     }
 
@@ -156,8 +155,8 @@ public class CteAnalysisTest {
 
         assertThat(profile.getAnalysisFailed()).isFalse();
         assertThat(joinKeys(profile))
-            .contains("node_link.parent_object=node_link.object_id")
-            .contains("node_link.parent_type=node_link.object_type");
+            .contains("node_link.parent_item=node_link.item_id")
+            .contains("node_link.parent_type=node_link.item_type");
     }
 
     @Test
@@ -165,17 +164,17 @@ public class CteAnalysisTest {
         SqlProfile profile = FIXTURE.analyze(RECURSIVE_TREE);
 
         assertThat(tableNames(profile)).containsExactly("node_link");
-        assertThat(joinKeys(profile)).noneMatch(key -> key.contains("tree."));
+        assertThat(joinKeys(profile)).noneMatch(key -> key.contains("lineage."));
     }
 
     @Test
     public void leavesAJoinThroughAProjectedExpressionAlone() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
             WITH `counts`(`category_uuid`, `n`) AS (
-                SELECT `category_uuid`, count(*) FROM `users` GROUP BY `category_uuid`
+                SELECT `category_uuid`, count(*) FROM `account` GROUP BY `category_uuid`
             )
             SELECT `f`.`name`
-            FROM `folders` `f`
+            FROM `category` `f`
             JOIN `counts` `c` ON `f`.`uuid` = `c`.`n`
             """);
 
@@ -188,15 +187,15 @@ public class CteAnalysisTest {
     public void mapsThroughACteThatInheritsItsColumnNames() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
             WITH `recent` AS (
-                SELECT `uuid`, `parent_uuid` FROM `folders` WHERE `status` = ?
+                SELECT `uuid`, `parent_uuid` FROM `category` WHERE `status` = ?
             )
             SELECT `u`.`id`
-            FROM `users` `u`
+            FROM `account` `u`
             JOIN `recent` `r` ON `u`.`category_uuid` = `r`.`uuid`
             """);
 
         assertThat(profile.getAnalysisFailed()).isFalse();
-        assertThat(joinKeys(profile)).contains("users.category_uuid=folders.uuid");
+        assertThat(joinKeys(profile)).contains("account.category_uuid=category.uuid");
     }
 
     @Test
@@ -204,30 +203,30 @@ public class CteAnalysisTest {
         SqlProfile profile = FIXTURE.analyze("""
             WITH `owned` AS (
                 SELECT `f`.`uuid`, `u`.`id`
-                FROM `folders` `f`
-                JOIN `users` `u` ON `u`.`category_uuid` = `f`.`uuid`
+                FROM `category` `f`
+                JOIN `account` `u` ON `u`.`category_uuid` = `f`.`uuid`
                 WHERE `f`.`name` = ?
             )
             SELECT `uuid` FROM `owned`
             """);
 
         assertThat(profile.getAnalysisFailed()).isFalse();
-        assertThat(tableNames(profile)).containsExactly("folders", "users");
-        assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("folders.name");
+        assertThat(tableNames(profile)).containsExactly("account", "category");
+        assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("category.name");
 
         assertThat(profile.getJoinColumns()).hasSize(1);
         assertThat(columnKeys(List.of(profile.getJoinColumns().getFirst().getLeft(),
                                       profile.getJoinColumns().getFirst().getRight())))
-            .containsExactly("folders.uuid", "users.category_uuid");
+            .containsExactly("account.category_uuid", "category.uuid");
     }
 
     @Test
     public void aPlainSelectIsUnaffected() throws JSQLParserException {
-        SqlProfile profile = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+        SqlProfile profile = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
 
         assertThat(profile.getAnalysisFailed()).isFalse();
-        assertThat(tableNames(profile)).containsExactly("folders");
-        assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("folders.uuid");
+        assertThat(tableNames(profile)).containsExactly("category");
+        assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("category.uuid");
     }
 
     private static boolean everyColumnBelongsToARealTable(SqlProfile profile) {
@@ -244,28 +243,28 @@ public class CteAnalysisTest {
     }
 
     @Test
-    public void corpusCte1AnalyzesWithoutFailing() throws JSQLParserException {
+    public void recursiveCte1AnalyzesWithoutFailing() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
-            WITH RECURSIVE `tree`(
-                    `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
+            WITH RECURSIVE `lineage`(
+                    `link_id`, `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type`
                 ) AS (SELECT
-                    `entity_id`, `entity_id` AS `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type` FROM `node_link` 
+                    `link_id`, `link_id` AS `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type` FROM `node_link` 
                 WHERE
-                    `entity_id` = ? 
+                    `link_id` = ? 
                 UNION
                 ALL SELECT
-                    `child`.`entity_id`, `parent`.`entity_id`, `child`.`propagate`, `child`.`object_id`, `child`.`object_type`, `child`.`parent_object`, `child`.`parent_type` FROM `node_link` `child` 
+                    `child`.`link_id`, `parent`.`link_id`, `child`.`inherits`, `child`.`item_id`, `child`.`item_type`, `child`.`parent_item`, `child`.`parent_type` FROM `node_link` `child` 
                 JOIN
-                    `tree` `parent` 
-                        ON `child`.`parent_object` = `parent`.`object_id` 
-                        AND `child`.`parent_type` = `parent`.`object_type` 
+                    `lineage` `parent` 
+                        ON `child`.`parent_item` = `parent`.`item_id` 
+                        AND `child`.`parent_type` = `parent`.`item_type` 
                 WHERE
-                    `child`.`object_type` IN (?)) SELECT
-                    `entity_id`,
+                    `child`.`item_type` IN (?)) SELECT
+                    `link_id`,
                     `parent_id`,
-                    `propagate` 
+                    `inherits` 
                 FROM
-                    `tree`
+                    `lineage`
             """);
 
         assertThat(profile.getAnalysisFailureReason()).isNull();
@@ -275,15 +274,15 @@ public class CteAnalysisTest {
     }
 
     @Test
-    public void corpusCte2AnalyzesWithoutFailing() throws JSQLParserException {
+    public void recursiveCte2AnalyzesWithoutFailing() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
             WITH RECURSIVE `parent_categories` AS (SELECT
-                    `uuid`, `parent_id`, NAME, LEVEL FROM `folders` 
+                    `uuid`, `parent_id`, NAME, LEVEL FROM `category` 
                 WHERE
                     `uuid` = ? 
                 UNION
                 ALL SELECT
-                    `f`.`uuid`, `f`.`parent_id`, `f`.`name`, `f`.`level` FROM `folders` `f` 
+                    `f`.`uuid`, `f`.`parent_id`, `f`.`name`, `f`.`level` FROM `category` `f` 
                 INNER JOIN
                     `parent_categories` `pf` 
                         ON `f`.`id` = `pf`.`parent_id` 
@@ -303,30 +302,30 @@ public class CteAnalysisTest {
     }
 
     @Test
-    public void corpusCte3AnalyzesWithoutFailing() throws JSQLParserException {
+    public void recursiveCte3AnalyzesWithoutFailing() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
-            WITH RECURSIVE `tree`(
-                    `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`, `owner_group`
+            WITH RECURSIVE `lineage`(
+                    `link_id`, `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type`, `owner_team`
                 ) AS (SELECT
-                    `entity_id`, `entity_id` AS `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`, `owner_group` FROM `node_link` 
+                    `link_id`, `link_id` AS `parent_id`, `inherits`, `item_id`, `item_type`, `parent_item`, `parent_type`, `owner_team` FROM `node_link` 
                 WHERE
-                    `entity_id` IN (?) 
+                    `link_id` IN (?) 
                 UNION
                 ALL SELECT
-                    `child`.`entity_id`, `parent`.`entity_id`, `child`.`propagate`, `child`.`object_id`, `child`.`object_type`, `child`.`parent_object`, `child`.`parent_type`, `child`.`owner_group` FROM `node_link` `child` 
+                    `child`.`link_id`, `parent`.`link_id`, `child`.`inherits`, `child`.`item_id`, `child`.`item_type`, `child`.`parent_item`, `child`.`parent_type`, `child`.`owner_team` FROM `node_link` `child` 
                 JOIN
-                    `tree` `parent` 
-                        ON `child`.`parent_object` = `parent`.`object_id` 
-                        AND `child`.`parent_type` = `parent`.`object_type`) SELECT
-                        `entity_id`,
-                        `object_id`,
-                        `owner_group`,
+                    `lineage` `parent` 
+                        ON `child`.`parent_item` = `parent`.`item_id` 
+                        AND `child`.`parent_type` = `parent`.`item_type`) SELECT
+                        `link_id`,
+                        `item_id`,
+                        `owner_team`,
                         `parent_id`,
-                        `parent_object`,
+                        `parent_item`,
                         `parent_type`,
-                        `propagate` 
+                        `inherits` 
                 FROM
-                    `tree`
+                    `lineage`
             """);
 
         assertThat(profile.getAnalysisFailureReason()).isNull();

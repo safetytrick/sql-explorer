@@ -130,9 +130,8 @@ Corpus after re-import: **3,608 → 4,065 profiles**, 82 statement texts that
 had been collapsing across schemas now standing as 399 per-schema profiles,
 and merge groups down from 190 to 28 — the survivors being the intended kind,
 repeat-count variants within one schema. Execution totals are conserved
-exactly per statement; what changed is attribution. The worst case in the
-corpus attributed nearly all of one schema's executions of a statement
-to another schema.
+exactly per statement; what changed is attribution. The worst case attributed
+nearly all of one schema's executions of a statement to another schema.
 
 ### A correction to this document's own evidence
 

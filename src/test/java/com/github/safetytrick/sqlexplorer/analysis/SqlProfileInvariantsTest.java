@@ -26,7 +26,7 @@ public class SqlProfileInvariantsTest {
     private static SchemaFixture fixture() {
         try {
             return SchemaFixture.fromSql("""
-                create table folders (
+                create table category (
                     id bigint,
                     uuid varchar(36) not null,
                     parent_uuid varchar(36),
@@ -53,13 +53,13 @@ public class SqlProfileInvariantsTest {
         Map<String, SqlProfile> shapes = new LinkedHashMap<>();
 
         shapes.put("analyzed", FIXTURE.analyze(
-            "SELECT `name` FROM `folders` WHERE `uuid` = ? GROUP BY `name`"));
+            "SELECT `name` FROM `category` WHERE `uuid` = ? GROUP BY `name`"));
 
         shapes.put("analyzed, joined", FIXTURE.analyze(
-            "SELECT `f`.`name` FROM `folders` `f` JOIN `users` `u` ON `u`.`category_uuid` = `f`.`uuid`"));
+            "SELECT `f`.`name` FROM `category` `f` JOIN `users` `u` ON `u`.`category_uuid` = `f`.`uuid`"));
 
         shapes.put("analyzed, cross-schema", FIXTURE.analyze(
-            "SELECT `f`.`name` FROM `folders` `f` "
+            "SELECT `f`.`name` FROM `category` `f` "
                 + "JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`"));
 
         shapes.put("analysis failed", FIXTURE.analyze("SELECT\n        NOW"));
@@ -67,7 +67,7 @@ public class SqlProfileInvariantsTest {
         shapes.put("cte", FIXTURE.analyze("""
             WITH `owned` AS (
                 SELECT `f`.`uuid`, `u`.`id`
-                FROM `folders` `f`
+                FROM `category` `f`
                 JOIN `users` `u` ON `u`.`category_uuid` = `f`.`uuid`
                 WHERE `f`.`name` = ?
             )
@@ -86,8 +86,8 @@ public class SqlProfileInvariantsTest {
         shapes.put("analysis skipped, another schema", skipped("mysql", List.of(
             TableReference.fromString("information_schema.tables"))));
 
-        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
-        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `folders` WHERE `uuid` = ?");
+        SqlProfile a = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
+        SqlProfile b = FIXTURE.analyze("SELECT `name` FROM `category` WHERE `uuid` = ?");
         shapes.put("merged", new MergedSqlProfile(List.of(a, b)));
 
         shapes.put("merged, skipped", new MergedSqlProfile(List.of(
@@ -95,7 +95,7 @@ public class SqlProfileInvariantsTest {
             skipped(List.of(TableReference.fromString("mysql.triggers"))))));
 
         SqlProfile x = FIXTURE.analyze(
-            "SELECT `f`.`name` FROM `folders` `f` "
+            "SELECT `f`.`name` FROM `category` `f` "
                 + "JOIN `other_db`.`audit_log` `a` ON `a`.`category_uuid` = `f`.`uuid`");
         shapes.put("merged, cross-schema", new MergedSqlProfile(List.of(x, x)));
 
@@ -159,11 +159,11 @@ public class SqlProfileInvariantsTest {
     @Test
     public void aSkippedStatementDigestsPerSchema() {
         SqlProfile inMsg = skippedWithMysqlDigest("msg");
-        SqlProfile inUgg = skippedWithMysqlDigest("app_other");
+        SqlProfile inOther = skippedWithMysqlDigest("app_other");
 
         assertThat(inMsg.getNormalizedDigest())
             .as("same text, different schema, must not be one profile")
-            .isNotEqualTo(inUgg.getNormalizedDigest());
+            .isNotEqualTo(inOther.getNormalizedDigest());
         assertThat(inMsg.getDigest()).isEqualTo(inMsg.getNormalizedDigest());
 
         assertThat(skippedWithMysqlDigest("msg").getNormalizedDigest())

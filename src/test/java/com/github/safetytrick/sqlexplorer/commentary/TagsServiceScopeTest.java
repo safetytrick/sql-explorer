@@ -54,8 +54,6 @@ class TagsServiceScopeTest {
         service.getBulkTagLoaderByType("table");
         verify(tagRepository).findAllByTypeAndEnvironmentName("table", ENV);
 
-        // Was a path-prefix LIKE; now a predicate on the column that holds the
-        // schema (sqlx-11v).
         service.getTableTagLoaderForSchema("app_main");
         verify(tagRepository).findAllByTypeAndSchemaNameAndEnvironmentName("table", "app_main", ENV);
     }

@@ -91,7 +91,7 @@ class NormalizedQueryDigestTest {
         String sql = "SELECT COUNT(*) FROM `migrations` WHERE `created_at` IS NULL";
 
         assertThat(digest.normalizedDigest(sql, "app_main"))
-            .isNotEqualTo(digest.normalizedDigest(sql, "del"));
+            .isNotEqualTo(digest.normalizedDigest(sql, "app_other"));
     }
 
     @Test
@@ -129,7 +129,7 @@ class NormalizedQueryDigestTest {
     void theSchemaScopeIsNormalizedLikeEveryOtherSchemaName() throws JSQLParserException {
         String sql = "SELECT COUNT(*) FROM `migrations` WHERE `created_at` IS NULL";
 
-        assertThat(digest.normalizedDigest(sql, "DEB")).isEqualTo(digest.normalizedDigest(sql, "app_main"));
+        assertThat(digest.normalizedDigest(sql, "APP_MAIN")).isEqualTo(digest.normalizedDigest(sql, "app_main"));
         assertThat(digest.normalizedDigest(sql, "`app_main`")).isEqualTo(digest.normalizedDigest(sql, "app_main"));
     }
 
