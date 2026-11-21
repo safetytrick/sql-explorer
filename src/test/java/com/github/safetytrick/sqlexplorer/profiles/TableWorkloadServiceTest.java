@@ -42,12 +42,9 @@ class TableWorkloadServiceTest {
     @Test
     void writeRateAveragesEachStatementOverItsOwnWindow() {
         when(sqlRepositoryService.getTableQueries(ACCOUNT)).thenAnswer(inv -> Stream.of(
-            // 1,000 inserts over 10 days: 100 a day
             profile("ins", "INSERT", metrics(1_000, 1_000, START, START.plusDays(10), 1, 2), ACCOUNT),
-            // a statement seen for six hours is floored at a day, not extrapolated to 4x
             profile("upd", "update", metrics(60, 600, START.plusDays(9), START.plusDays(9).plusHours(6), 1, 2),
                 ACCOUNT, SITE),
-            // 300 deletes over 30 days: 10 a day
             profile("del", "DELETE", metrics(300, 30, START, START.plusDays(30), 1, 2), ACCOUNT),
             profile("sel", "SELECT", metrics(9_999, 0, START, START.plusDays(1), 1, 2), ACCOUNT),
             profile("unmetered", "INSERT", null, ACCOUNT)));
@@ -91,11 +88,6 @@ class TableWorkloadServiceTest {
             .containsExactly("report", "batch", "quick");
     }
 
-    /**
-     * A statement is charged only to the tables it writes (sqlx-n5j.16): an
-     * INSERT … SELECT reading the site table is not the site table's write.
-     * One whose written tables are unknown still counts against every table.
-     */
     @Test
     void writesCountOnlyAgainstTheTablesWritten() {
         SqlProfile copy = profile("copy", "INSERT", metrics(500, 500, START, START.plusDays(10), 1, 2), ACCOUNT, SITE);
@@ -112,7 +104,6 @@ class TableWorkloadServiceTest {
         assertThat(rate.executions()).isEqualTo(130);
     }
 
-    /** The table lens relies on zeros, not an error, for a table nothing knows. */
     @Test
     void anUnknownTableAnswersZeros() {
         when(sqlRepositoryService.getTableQueries(ACCOUNT)).thenAnswer(inv -> Stream.empty());

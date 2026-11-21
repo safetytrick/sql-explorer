@@ -22,16 +22,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The two implementations of {@code getByDigest} must answer the same question.
- *
- * <p>They did not. The in-memory repository indexes profiles by digest and
- * never by id; the parquet one pushed an equality filter onto the id column.
- * Behind {@link CompositeSqlRepository}, which merges across sources, a digest
- * resolved from the heap source and returned nothing from the parquet one — a
- * silently partial answer rather than a visible failure, and the id it filtered
- * on changed on every re-import anyway (sqlx-40c).
- */
 class DigestResolutionTest {
 
     @TempDir
@@ -92,12 +82,6 @@ class DigestResolutionTest {
         assertThat(parquetHolding(row).getByDigest(NORMALIZED)).isNotNull();
     }
 
-    /**
-     * A caller can hold a performance-schema digest — that is what the graph
-     * links carry and what a MySQL user pastes. Only the normalized one is a
-     * parquet column, so this is the case the pushdown cannot serve and the
-     * scan must.
-     */
     @Test
     void both_resolve_a_performance_schema_digest() throws IOException {
         SqlProfile row = profile();
@@ -106,11 +90,6 @@ class DigestResolutionTest {
         assertThat(parquetHolding(row).getByDigest(PERF)).isNotNull();
     }
 
-    /**
-     * The id is not an identity, and neither implementation should pretend it
-     * is. The parquet one used to resolve it and the heap one never did, which
-     * is exactly the disagreement.
-     */
     @Test
     void neither_resolves_the_profile_id() throws IOException {
         SqlProfile row = profile();
@@ -127,13 +106,6 @@ class DigestResolutionTest {
         assertThat(parquetHolding(row).getByDigest("v3:nothing")).isNull();
     }
 
-    /**
-     * The unfiltered read still returns everything.
-     *
-     * <p>Worth pinning because the fix that made the predicate work is the same
-     * change that could have broken this: the filter is now handed to the
-     * reader, and `getAllAnalyzedSql` passes NOOP through the same path.
-     */
     @Test
     void an_unfiltered_read_returns_every_row() throws IOException {
         SqlProfile first = profile();
@@ -153,11 +125,6 @@ class DigestResolutionTest {
         }
     }
 
-    /**
-     * The composite merges across sources, which is why a disagreement between
-     * the two would be invisible: one source answering and the other not still
-     * produces a profile.
-     */
     @Test
     void the_composite_agrees_with_both_of_its_sources() throws IOException {
         SqlProfile row = profile();

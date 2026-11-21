@@ -23,18 +23,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * One source that cannot be read must not cost the others their load.
- *
- * <p>Observed on a seventeen-server production environment: one instance
- * lacked the reading user, refused the login, and the exception took the
- * whole environment down — at startup and on every pull (sqlx-jdf).
- */
 class PartialLoadTest {
 
     private SqlRepositoryManager manager;
 
-    /** A source whose read fails the way a refused login does: wrapped, with the cause inside. */
     private static SqlSource refusing(String ref) {
         return new SqlSource() {
             @Override public Stream<SqlInput> getSql() {
@@ -69,8 +61,6 @@ class PartialLoadTest {
 
     @BeforeEach
     void setUp() {
-        // getSql() is called by the manager before the input service sees the
-        // stream, which is where a refused login surfaces in the real source.
         SqlEvidenceInputService input = mock(SqlEvidenceInputService.class);
         when(input.fromPerformanceSchema(any(), any(), any(), any()))
             .thenAnswer(call -> repositoryFor(call.getArgument(0)));
@@ -91,12 +81,10 @@ class PartialLoadTest {
             .containsExactlyInAnyOrder("shard1", "shard2");
         assertThat(manager.getFailedSources("production")).singleElement().satisfies(failure -> {
             assertThat(failure.sourceRef()).isEqualTo("sharing");
-            // the cause's message, not the wrapper's: this is what someone has to act on
             assertThat(failure.reason()).isEqualTo("Access denied for user 'reader'@'10.0.0.1' (using password: YES)");
         });
     }
 
-    /** With nothing readable there is no corpus to keep; the previous load stays and the failure is the answer. */
     @Test
     void whenEverySourceFailsTheLoadFailsAndThePreviousCorpusStays() {
         manager.loadFromSqlSources("production", Stream.of(readable("shard1")));
@@ -107,16 +95,10 @@ class PartialLoadTest {
         assertThat(manager.getRepositories("production"))
             .extracting(repository -> repository.getSource().getSourceRef())
             .containsExactly("shard1");
-        // recorded, so the environment reports itself stale rather than fine (sqlx-nbi.8)
         assertThat(manager.getFailedSources("production")).extracting(SqlRepositoryManager.SourceFailure::sourceRef)
             .containsExactly("shard1");
     }
 
-    /**
-     * A source unreachable on this pull keeps what it was served from, instead
-     * of dropping out of the corpus because one server could not be reached
-     * this time (sqlx-nbi.8).
-     */
     @Test
     void aSourceThatFailsKeepsWhatItWasServedFrom() {
         manager.loadFromSqlSources("production", Stream.of(readable("shard1"), readable("sharing")));
@@ -133,7 +115,6 @@ class PartialLoadTest {
         assertThat(manager.servedCaptures("production")).containsOnlyKeys("shard1", "sharing");
     }
 
-    /** A later load that reaches the server again clears what the earlier one recorded. */
     @Test
     void aLaterLoadThatReadsEverySourceClearsTheRecord() {
         manager.loadFromSqlSources("production", Stream.of(readable("shard1"), refusing("sharing")));

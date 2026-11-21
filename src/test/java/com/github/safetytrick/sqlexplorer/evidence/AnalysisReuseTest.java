@@ -33,10 +33,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-/**
- * A statement analysed before is not parsed again; one never analysed waits
- * for a current schema (docs/plans/cluster-schema-snapshots.md, sqlx-sqy.5).
- */
 class AnalysisReuseTest {
 
     @TempDir
@@ -96,7 +92,6 @@ class AnalysisReuseTest {
         return profiles.getFirst();
     }
 
-    /** An earlier analysis, as a capture holds it — with tables no parser of this test would produce. */
     private SqlProfile priorAnalysis(String version, String sessionSchema) {
         SqlProfile analysed = only(load(AnalysisContext.ANALYSE_EVERYTHING, row(sessionSchema, 10)));
         return SqlProfile.newBuilder(analysed)
@@ -129,7 +124,6 @@ class AnalysisReuseTest {
         assertThat(repository.getImportStats().reused()).isEqualTo(1);
     }
 
-    /** Reuse holds across schema changes by decision — the snapshot need not even be current. */
     @Test
     void reuseDoesNotWaitForACurrentSchema() throws Exception {
         SqlProfile prior = priorAnalysis(AnalyzerVersion.CURRENT, "app");
@@ -152,7 +146,6 @@ class AnalysisReuseTest {
         assertThat(repository.getImportStats().reused()).isZero();
     }
 
-    /** One digest, two default schemas: two statements, since unqualified names resolve differently. */
     @Test
     void theSameDigestUnderAnotherDefaultSchemaIsNotReused() throws Exception {
         SqlProfile prior = priorAnalysis(AnalyzerVersion.CURRENT, "app");
@@ -164,7 +157,6 @@ class AnalysisReuseTest {
         assertThat(repository.getImportStats().reused()).isZero();
     }
 
-    /** Nothing is analysed against a schema that may have changed: a new statement waits, counted. */
     @Test
     void aNewStatementWaitsWhenTheSchemaIsNotCurrent() throws Exception {
         SqlRepository repository = load(new AnalysisContext(AnalysisReuse.NONE, false), row("app", 99));
@@ -187,10 +179,6 @@ class AnalysisReuseTest {
         assertThat(AnalysisReuse.of(List.of(older, newer)).find(DIGEST, "app").getType()).isEqualTo("NEWER");
     }
 
-    /**
-     * The index is read from captures, so the version and the session schema
-     * must survive the Parquet round trip, and the next load must find them.
-     */
     @Test
     void theNextLoadReusesWhatTheLastLoadsCaptureRecorded() throws Exception {
         load(AnalysisContext.ANALYSE_EVERYTHING, row("app", 10));    // writes shard1's capture

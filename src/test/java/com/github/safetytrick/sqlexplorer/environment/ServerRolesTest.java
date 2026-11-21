@@ -12,13 +12,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
-/**
- * Server roles, and the one guard every sampling query must go through
- * (sqlx-n5j.4).
- */
 class ServerRolesTest {
 
-    /** Bound from config keys as the yml writes them: lowercase, in a list. */
     private static Environment production(Map<String, String> properties) {
         EnvironmentDefinition definition = new Binder(new MapConfigurationPropertySource(properties))
             .bind("environments.production", EnvironmentDefinition.class)
@@ -68,7 +63,6 @@ class ServerRolesTest {
         assertThat(target.limits().maxRows()).isPositive();
     }
 
-    /** Opt-in: no server saying sampling means nothing is sampled, and the refusal says why. */
     @Test
     void withoutTheRoleNothingIsSampledAndTheReasonIsGiven() {
         Environment production = production(servers("primary", "replica"));
@@ -84,7 +78,6 @@ class ServerRolesTest {
         });
     }
 
-    /** A cached environment connects to nothing (sqlx-nbi), sampling included. */
     @Test
     void aCachedEnvironmentIsNeverSampled() {
         Environment production = production(servers("primary", "replica,sampling"));

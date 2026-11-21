@@ -4,10 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * A statement's type from its text alone: the operation behind any CTEs or
- * opening parenthesis, without parsing (sqlx-a9h).
- */
 class StatementTypesTest {
 
     private static String type(String sql) {
@@ -30,7 +26,6 @@ class StatementTypesTest {
         assertThat(type("WITH a AS (SELECT id FROM account) DELETE FROM account")).isEqualTo("DELETE");
     }
 
-    /** Performance Schema's digest text: backticked names, spaced punctuation. */
     @Test
     void digestTextIsReadTheSameWay() {
         assertThat(type("WITH `stale` AS ( SELECT `id` FROM `account` WHERE `status` = ? ) "
@@ -46,7 +41,6 @@ class StatementTypesTest {
             + "DELETE FROM site WHERE id IN (SELECT id FROM b)")).isEqualTo("DELETE");
     }
 
-    /** Parentheses inside a body, a string or a quoted name do not end it. */
     @Test
     void onlyTopLevelParenthesesCount() {
         assertThat(type("WITH a AS (SELECT id FROM account WHERE (status IN ('x)', ?)) AND id > (SELECT 1)) "
@@ -69,7 +63,6 @@ class StatementTypesTest {
         assertThat(type("WITH a AS (SELECT 1) (SELECT * FROM a)")).isEqualTo("SELECT");
     }
 
-    /** Truncated by Performance Schema before the operation: there is nothing to read it from. */
     @Test
     void textThatStopsBeforeTheOperationIsUnknown() {
         assertThat(type("WITH a AS ( SELECT `id` FROM `account` WHERE `status` = ? AND ...")).isEqualTo("UNKNOWN");

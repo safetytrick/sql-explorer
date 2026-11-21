@@ -23,7 +23,6 @@ class SchemaSnapshotStoreTest {
     private static final TableReference ORDERS = TableReference.newTableReference("app", "orders");
     private static final SchemaSnapshot.Key SHARD1 = new SchemaSnapshot.Key("production", "shard1");
 
-    /** Every figure set, nulls included, so each survives the file (sqlx-n5j.2). */
     private static final TableStats CUSTOMER_STATS = new TableStats("shard1", Instant.parse("2026-10-19T17:00:00Z"),
         1_200L, 163_840L, 65_536L, 4_194_304L, 136L, 1_301L, "Dynamic", "InnoDB",
         Instant.parse("2026-01-02T03:04:05Z"), null, "utf8mb4_0900_ai_ci");
@@ -33,7 +32,6 @@ class SchemaSnapshotStoreTest {
             "NO", "NO", "NO", "utf8mb4", "utf8mb4_0900_ai_ci");
     }
 
-    /** Every nested type a loaded schema holds — Avro references included — survives the file. */
     private static SchemaSnapshot snapshot() {
         TableStructure customer = new TableStructure("app", "customer", "TABLE", "people who pay", List.of(),
             List.of(new TableIndex("app", true, null, "uk_email", IndexType.tableIndexOther,
@@ -64,7 +62,6 @@ class SchemaSnapshotStoreTest {
         SchemaSnapshot read = store.read(SHARD1).orElseThrow();
 
         assertThat(read).isEqualTo(written);
-        // and it still answers like a schema
         LoadedSchema schema = new LoadedSchema(read.tables());
         assertThat(schema.getTable(ORDERS).foreignKeys().getFirst().to().getFirst().getTable())
             .isEqualTo(CUSTOMER);
@@ -84,11 +81,6 @@ class SchemaSnapshotStoreTest {
         assertThat(schema.getTable(ORDERS).stats()).isNull();
     }
 
-    /**
-     * A snapshot written before stats were kept still loads, with none: the
-     * file is read with the current schema as the reader's, and the field it
-     * lacks takes its default (sqlx-n5j.2).
-     */
     @Test
     void aSnapshotWrittenBeforeStatsStillLoadsWithoutThem() throws Exception {
         SchemaSnapshotStore store = new SchemaSnapshotStore(directory);
@@ -133,7 +125,6 @@ class SchemaSnapshotStoreTest {
         assertThat(new SchemaSnapshotStore(directory).read(SHARD1)).isEmpty();
     }
 
-    /** A snapshot is a cache: anything that cannot be trusted is no snapshot, and gets replaced. */
     @Test
     void aCorruptOrOlderFormatFileIsNoSnapshot() throws Exception {
         SchemaSnapshotStore store = new SchemaSnapshotStore(directory);
@@ -157,7 +148,6 @@ class SchemaSnapshotStoreTest {
         assertThat(store.read(new SchemaSnapshot.Key("staging", "shard1"))).isEmpty();
     }
 
-    /** Snapshots are Parquet now; a cluster's old JSON one is removed when its Parquet one is written (sqlx-7o3). */
     @Test
     void writingRemovesTheClustersFormerJsonSnapshot() throws Exception {
         SchemaSnapshotStore store = new SchemaSnapshotStore(directory);

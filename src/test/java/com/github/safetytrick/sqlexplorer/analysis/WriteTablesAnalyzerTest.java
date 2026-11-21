@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The tables a statement writes, apart from those it only reads (sqlx-n5j.16). */
 class WriteTablesAnalyzerTest {
 
     private SchemaFixture fixture;
@@ -47,7 +46,6 @@ class WriteTablesAnalyzerTest {
             .containsExactly("site");
     }
 
-    /** No qualifier: the first table named, the only one in a single-table UPDATE. */
     @Test
     void anUnqualifiedSetColumnBelongsToTheFirstTable() throws JSQLParserException {
         assertThat(written("UPDATE account a JOIN site s ON s.account_id = a.id SET status = ?"))
@@ -75,7 +73,6 @@ class WriteTablesAnalyzerTest {
         assertThat(written("SELECT s.id FROM site s JOIN account a ON a.id = s.account_id")).isEmpty();
     }
 
-    /** Qualified as the tables are, so a written table compares equal to the same table in `tables`. */
     @Test
     void writtenTablesTakeTheDefaultSchemaLikeTheRest() throws JSQLParserException {
         SqlProfile profile = fixture.analyze("UPDATE account SET status = ?");

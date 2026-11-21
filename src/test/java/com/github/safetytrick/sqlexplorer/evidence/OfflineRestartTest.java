@@ -32,17 +32,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * A restart with a fresh cache serves it and connects to nothing; a stale or
- * missing one is pulled, and an unreachable server leaves the environment up
- * and saying what is wrong (sqlx-nbi).
- */
 class OfflineRestartTest {
 
     private static final Instant NOW = Instant.parse("2026-11-05T12:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    /** Every live read counts here and fails, as an unreachable server does. */
     private final AtomicInteger liveReads = new AtomicInteger();
     private final CaptureRehydrator rehydrator = mock(CaptureRehydrator.class);
     private final SchemaRepositoryFactory schemas = mock(SchemaRepositoryFactory.class);
@@ -133,7 +127,6 @@ class OfflineRestartTest {
         assertThat(health.problems()).isEmpty();
     }
 
-    /** One stale source: the whole environment is pulled, and an unreachable server leaves it up, stale. */
     @Test
     void oneStaleSourcePullsTheWholeEnvironment() {
         captureOf("primary", Duration.ofHours(2));
@@ -153,7 +146,6 @@ class OfflineRestartTest {
             .anySatisfy(problem -> assertThat(problem).contains("Communications link failure"));
     }
 
-    /** A source never captured, and unreachable: startup completes and the environment says it is partial. */
     @Test
     void aMissingCaptureAndAnUnreachableServerLeaveItPartialNotDown() {
         captureOf("primary", Duration.ofHours(2));
@@ -168,7 +160,6 @@ class OfflineRestartTest {
         assertThat(health.problems()).anySatisfy(problem -> assertThat(problem).startsWith("replica: nothing to serve"));
     }
 
-    /** Nothing captured and nothing reachable: up, and unavailable rather than empty-and-fine. */
     @Test
     void noCaptureAtAllAndNothingReachableIsUnavailable() {
         Started started = start(false);
@@ -176,7 +167,6 @@ class OfflineRestartTest {
         assertThat(started.loader().health("offline-dummy").state()).isEqualTo(EnvironmentHealth.State.UNAVAILABLE);
     }
 
-    /** Offline by configuration: served from whatever there is, however old, and nothing is read live. */
     @Test
     void offlineByConfigurationNeverReadsLive() {
         captureOf("primary", Duration.ofDays(9));
@@ -189,7 +179,6 @@ class OfflineRestartTest {
         assertThat(started.loader().health("offline-dummy").state()).isEqualTo(EnvironmentHealth.State.STALE);
     }
 
-    /** A pull is a request to go live: the refusal lifts and the servers are read. */
     @Test
     void aPullTakesACachedEnvironmentLive() {
         captureOf("primary", Duration.ofHours(2));

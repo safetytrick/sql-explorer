@@ -25,20 +25,6 @@ import com.github.safetytrick.sqlexplorer.schema.TableColumnService;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import com.github.safetytrick.sqlexplorer.schema.ViewDefinitionService;
 
-/**
- * Which grants the reading account actually needs, measured by running
- * sql-explorer's own schema loader, capture read and EXPLAIN as accounts
- * holding different grants (sqlx-84o). It lives in this package because the
- * capture source is package-private.
- *
- * <p>Not a CI test: it needs a MySQL loaded with
- * {@code src/test/resources/grant-profiles-probe.sql} (which says how), so it
- * runs only when {@code GRANTS_PROBE_URL} is set. The results are recorded in
- * docs/mysql-performance-schema.md, "What was measured".
- *
- * It prints one report per account rather than asserting, because what it
- * measures is the server's behaviour, not ours.
- */
 @EnabledIfEnvironmentVariable(named = "GRANTS_PROBE_URL", matches = ".+")
 class GrantProfilesProbeTest {
 
@@ -103,11 +89,9 @@ class GrantProfilesProbeTest {
             "SELECT email FROM app.customer LIMIT 1"))).append('\n');
         out.append("  SELECT other.secret: ").append(attempt(() -> scalar(dataSource,
             "SELECT COUNT(*) FROM other.secret"))).append('\n');
-        // What a pull does: the rows and the server settings, on one connection.
         out.append("  x$statement_analysis: ").append(attempt(() ->
             capture.getSql().count() + " rows, context " + capture.getCaptureServerContext().keySet()))
             .append('\n');
-        // The statement LiveExplainService would send, minus its guards.
         out.append("  EXPLAIN table: ").append(attempt(() -> explain(dataSource,
             "SELECT * FROM app.orders WHERE customer_id = 1"))).append('\n');
         out.append("  EXPLAIN view: ").append(attempt(() -> explain(dataSource,

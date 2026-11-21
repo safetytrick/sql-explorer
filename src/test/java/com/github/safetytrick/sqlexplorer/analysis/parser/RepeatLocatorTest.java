@@ -12,10 +12,6 @@ class RepeatLocatorTest {
 
     @Test
     void identifierTokensMatchExactly() {
-        // whitespace and case are forgiven, identifier form is not: a
-        // backticked snippet does not match an unbackticked identifier. In
-        // production both sides come from the same normalizer serialization,
-        // so their identifier forms agree.
         String unbackticked = "select id from t where a like ? and b = ?";
 
         List<Located> located = RepeatLocator.locate(unbackticked, List.of(new Repeat("`a` LIKE ?", 5)));
@@ -46,7 +42,6 @@ class RepeatLocatorTest {
         assertThat(located).hasSize(2);
         assertThat(located.get(0).start()).isEqualTo(0);
         assertThat(text.substring(located.get(1).start(), located.get(1).end())).isEqualTo("y = ?");
-        // the second entry starts after the first match's tokens
         assertThat(located.get(1).start()).isGreaterThan(located.get(0).end());
     }
 

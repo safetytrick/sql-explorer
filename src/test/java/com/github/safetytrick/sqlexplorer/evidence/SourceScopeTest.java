@@ -26,16 +26,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * A source scope narrows the data, not the matches: the corpus is merged from
- * the chosen sources alone, so a statement that ran on two servers carries
- * only the chosen one's figures (sqlx-a9h.1).
- */
 class SourceScopeTest {
 
     private static final LocalDateTime START = LocalDateTime.parse("2026-11-01T00:00:00");
 
-    /** The same statement, captured on each source with its own executions. */
     private static final Map<String, Long> EXECUTIONS = Map.of("shard1", 10L, "shard1-replica", 30L);
 
     private SqlRepositoryManager manager;
@@ -125,7 +119,6 @@ class SourceScopeTest {
         assertThat(manager.getSqlRepository("env", SourceScope.only("nowhere")).getAllAnalyzedSql()).isEmpty();
     }
 
-    /** Merged once per load and scope; a new load is a new corpus, so nothing stale survives it. */
     @Test
     void aScopedCorpusLivesExactlyAsLongAsItsLoad() {
         SqlRepository first = manager.getSqlRepository("env", SourceScope.only("shard1"));

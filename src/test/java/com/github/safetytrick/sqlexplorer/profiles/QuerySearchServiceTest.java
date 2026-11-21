@@ -57,7 +57,6 @@ class QuerySearchServiceTest {
 
     private void repositoryReturns(SqlProfile... profiles) {
         when(sqlRepositoryService.getAllAnalyzedSql()).thenAnswer(inv -> Stream.of(profiles));
-        // stands in for the scoped corpus: the profiles naming a source in scope
         when(sqlRepositoryService.getAllAnalyzedSql(org.mockito.ArgumentMatchers.any(SourceScope.class)))
             .thenAnswer(inv -> {
                 SourceScope scope = inv.getArgument(0);
@@ -164,28 +163,24 @@ class QuerySearchServiceTest {
     void dateRangeJsonAcceptsDatesAndDateTimes() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
 
-        // date-only strings keep their historic day-inclusive semantics
         QuerySearchRequest dateOnly = mapper.readValue(
             "{\"firstSeen\":{\"after\":\"2026-07-01\",\"before\":\"2026-07-30\"}}",
             QuerySearchRequest.class);
         assertThat(dateOnly.firstSeen().after()).isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
         assertThat(dateOnly.firstSeen().before()).isEqualTo(LocalDateTime.of(2026, 7, 30, 23, 59, 59, 999_999_999));
 
-        // full date-times, with 'T' or space separator
         QuerySearchRequest dateTime = mapper.readValue(
             "{\"lastSeen\":{\"after\":\"2026-07-01T14:30\",\"before\":\"2026-07-02 06:15:30\"}}",
             QuerySearchRequest.class);
         assertThat(dateTime.lastSeen().after()).isEqualTo(LocalDateTime.of(2026, 7, 1, 14, 30));
         assertThat(dateTime.lastSeen().before()).isEqualTo(LocalDateTime.of(2026, 7, 2, 6, 15, 30));
 
-        // nulls pass through
         QuerySearchRequest open = mapper.readValue(
             "{\"lastSeen\":{\"after\":null,\"before\":\"\"}}", QuerySearchRequest.class);
         assertThat(open.lastSeen().after()).isNull();
         assertThat(open.lastSeen().before()).isNull();
     }
 
-    /** Each exclusion leaves its matches out, whether or not the include beside it narrows the search (sqlx-fph). */
     @Test
     void exclusionsLeaveTheirMatchesOut() {
         when(tagsService.findAllByType("query")).thenReturn(List.of(tag("legacy", "update-q-digest")));
@@ -198,13 +193,11 @@ class QuerySearchServiceTest {
             withTables("orders-q", "app.orders"));
 
         assertThat(searchIds(request().excludeTypes(List.of("insert")).build())).doesNotContain("insert-q");
-        // the table fixtures are SELECTs too
         assertThat(searchIds(request().types(List.of("SELECT", "INSERT")).excludeTypes(List.of("INSERT")).build()))
             .containsExactlyInAnyOrder("select-q", "audit-q", "orders-q");
         assertThat(searchIds(request().excludeTags(List.of("legacy")).build())).doesNotContain("update-q");
         assertThat(searchIds(request().excludeTableTags(List.of("audit")).build()))
             .doesNotContain("audit-q").contains("orders-q");
-        // by the digest a link would carry
         assertThat(searchIds(request().excludeQueries(List.of("select-q-digest", "orders-q-digest")).build()))
             .containsExactlyInAnyOrder("insert-q", "update-q", "audit-q");
         assertThat(searchIds(request().build())).hasSize(5);
@@ -221,7 +214,6 @@ class QuerySearchServiceTest {
 
         assertThat(searchIds(request().types(List.of("SELECT", "INSERT")).build()))
             .containsExactlyInAnyOrder("select-q", "insert-q");
-        // OTHER catches everything outside the explicit set, including missing types
         assertThat(searchIds(request().types(List.of("OTHER")).build()))
             .containsExactlyInAnyOrder("grant-q", "flush-q", "untyped-q");
         assertThat(searchIds(request().types(List.of("select", "other")).build()))
@@ -255,7 +247,7 @@ class QuerySearchServiceTest {
         repositoryReturns(
             withTables("none"),
             withTables("one", "app.account"),
-            withTables("self", "app.account", "app.account"), // one table, named twice
+            withTables("self", "app.account", "app.account"),
             withTables("two", "app.account", "app.site"),
             withTables("three", "app.account", "app.site", "app.account_site"));
 
@@ -288,7 +280,6 @@ class QuerySearchServiceTest {
         SqlProfile parseFailure = profile("parse-failure", metrics().build());
         parseFailure.setAnalysisFailed(true);
         parseFailure.setAnalysisFailureReason("Encountered unexpected token");
-        // truncated failures are excluded from both kinds, like the reports
         SqlProfile truncatedFailure = profile("truncated-failure", metrics().build());
         truncatedFailure.setAnalysisFailed(true);
         truncatedFailure.setTruncated(true);
@@ -318,11 +309,6 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request().untaggedOnly(true).build())).containsExactly("c");
     }
 
-    /**
-     * "Which queries can I actually plan?" An example is what makes a query
-     * runnable — the corpus text carries `?` placeholders, which EXPLAIN
-     * rejects — so this filter is how you find the ones worth opening.
-     */
     @Test
     void hasExamplesKeepsOnlyQueriesWithAStoredExample() {
         repositoryReturns(
@@ -333,7 +319,6 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request().hasExamples(true).build())).containsExactly("has");
     }
 
-    /** Off by default, and off means unfiltered rather than empty. */
     @Test
     void hasExamplesIsNotAppliedUnlessAskedFor() {
         repositoryReturns(
@@ -342,7 +327,6 @@ class QuerySearchServiceTest {
         when(queryExampleLookup.digestsWithExamples()).thenReturn(Set.of("has-norm"));
 
         assertThat(searchIds(request().build())).containsExactlyInAnyOrder("has", "none");
-        // and the lookup is not even consulted when the filter is off
         verify(queryExampleLookup, never()).digestsWithExamples();
     }
 
@@ -370,7 +354,6 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request().tableTags(List.of("billing")).build())).containsExactly("invoices");
         assertThat(searchIds(request().tableTags(List.of("billing", "audit")).build()))
             .containsExactlyInAnyOrder("invoices", "orders-users");
-        // a tag on no table matches nothing, rather than being ignored
         assertThat(searchIds(request().tableTags(List.of("nowhere")).build())).isEmpty();
         assertThat(searchIds(request().build())).hasSize(3);
     }
@@ -387,7 +370,6 @@ class QuerySearchServiceTest {
             .containsExactlyInAnyOrder("orders", "orders-users");
         assertThat(searchIds(request().tables(List.of("app.orders", "app.users")).tableMode(TableMode.ALL).build()))
             .containsExactly("orders-users");
-        // selection casing need not match the casing captured in analysis
         assertThat(searchIds(request().tables(List.of("APP.ORDERS")).build()))
             .containsExactlyInAnyOrder("orders", "orders-users");
     }
@@ -424,14 +406,10 @@ class QuerySearchServiceTest {
             withTables("audit", "app.audit_log"),
             withTables("cross", "app.orders", "app.audit_log"));
 
-        // on its own, with no table selection at all — the case that catches
-        // the exclusion being checked after the "nothing selected" short circuit
         assertThat(searchIds(request().excludeTables(List.of("app.audit_log")).build()))
             .containsExactly("orders");
-        // case-insensitive, like every other scope key
         assertThat(searchIds(request().excludeTables(List.of("APP.AUDIT_LOG")).build()))
             .containsExactly("orders");
-        // exclusion beats an include naming the same table
         assertThat(searchIds(request()
             .tables(List.of("app.audit_log")).excludeTables(List.of("app.audit_log")).build()))
             .isEmpty();
@@ -448,7 +426,6 @@ class QuerySearchServiceTest {
             .containsExactlyInAnyOrder("orders", "audit");
         assertThat(searchIds(request().excludeTables(List.of("app.audit_log")).build()))
             .containsExactlyInAnyOrder("orders", "billing");
-        // together they are additive — each drops its own, neither cancels the other
         assertThat(searchIds(request()
             .excludeSchemas(List.of("billing")).excludeTables(List.of("app.audit_log")).build()))
             .containsExactly("orders");
@@ -457,11 +434,10 @@ class QuerySearchServiceTest {
     @Test
     void facetsCountEachTableOncePerProfileOverTheNonScopeSet() {
         repositoryReturns(
-            withTables("orders", "app.orders", "app.orders"), // self-join lists a table twice
+            withTables("orders", "app.orders", "app.orders"),
             withTables("orders-users", "app.orders", "app.users"),
             withTables("billing", "billing.invoices"));
 
-        // scoping to one table narrows the results, but facets still reflect the full non-scope set
         QuerySearchResult result = service.search(request().tables(List.of("billing.invoices")).build());
 
         assertThat(result.results()).extracting(hit -> hit.profile().getId()).containsExactly("billing");
@@ -484,7 +460,6 @@ class QuerySearchServiceTest {
     }
 
 
-    /** A profile whose column usage is set explicitly: criteria, join, select-only. */
     private static SqlProfile withColumns(String id, String table,
                                           List<String> criteria, List<String> joins, List<String> selects) {
         SqlProfile profile = withTables(id, table);
@@ -513,16 +488,10 @@ class QuerySearchServiceTest {
             .containsExactly("criteria-hit");
         assertThat(searchIds(request().columns(List.of("app.lines.order_id")).build()))
             .containsExactly("join-hit");
-        // several columns are an ANY match — the drill-down widens, never narrows
         assertThat(searchIds(request().columns(List.of("app.orders.status", "app.orders.created_at")).build()))
             .containsExactlyInAnyOrder("criteria-hit", "elsewhere");
     }
 
-    /**
-     * The case that separates "same behaviour as the table view" from a naive
-     * match against any column reference: {@code constrainedBy} counts joins and
-     * criteria, never the select list.
-     */
     @Test
     void aColumnThatIsOnlySelectedIsNotAUsage() {
         repositoryReturns(
@@ -542,7 +511,6 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request()
             .tables(List.of("app.orders")).columns(List.of("app.orders.status")).build()))
             .containsExactly("in-scope");
-        // a malformed reference out of a URL matches nothing rather than throwing
         assertThat(searchIds(request().columns(List.of("nonsense")).build())).isEmpty();
     }
 
@@ -558,7 +526,6 @@ class QuerySearchServiceTest {
 
         assertThat(searchIds(request().indexes(List.of("app.orders.orders_status_idx")).build()))
             .containsExactly("forced");
-        // any action counts, and the name compares as MySQL compares it
         assertThat(searchIds(request().indexes(List.of("app.orders.PRIMARY", "app.orders.orders_status_idx")).build()))
             .containsExactlyInAnyOrder("forced", "ignored");
         assertThat(searchIds(request().indexes(List.of("app.archive.primary")).build())).isEmpty();
@@ -597,7 +564,6 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request().hinted(HintAction.FORCE).build())).containsExactly("forced");
         assertThat(searchIds(request().hinted(HintAction.IGNORE).build())).isEmpty();
         assertThat(searchIds(request().hinted(null).build())).containsExactlyInAnyOrder("forced", "used", "unhinted");
-        // composes with the table scope
         assertThat(searchIds(request().tables(List.of("app.account")).hinted(HintAction.ANY).build()))
             .containsExactly("used");
     }
@@ -619,16 +585,12 @@ class QuerySearchServiceTest {
             queried("users", "SELECT id FROM users"),
             queried("insert", "INSERT INTO orders (id) VALUES (?)"));
 
-        // case-insensitive substring
         assertThat(searchIds(request().queryRegex("from orders").build())).containsExactly("orders");
-        // regex anchors / alternation
         assertThat(searchIds(request().queryRegex("^SELECT").build()))
             .containsExactlyInAnyOrder("orders", "users");
         assertThat(searchIds(request().queryRegex("orders|users").build()))
             .containsExactlyInAnyOrder("orders", "users", "insert");
-        // blank is not a constraint
         assertThat(searchIds(request().queryRegex("   ").build())).hasSize(3);
-        // an invalid regex falls back to a literal search rather than erroring
         assertThat(searchIds(request().queryRegex("VALUES (").build())).containsExactly("insert");
         assertThat(searchIds(request().queryRegex("(status").build())).isEmpty();
     }
@@ -655,15 +617,12 @@ class QuerySearchServiceTest {
     @Test
     void defaultSortIsImpactNotAvgTime() {
         repositoryReturns(
-            // slow but rare: 200ms × 10 = 2,000ms impact
             profile("slow-rare", metrics().avgTimeMs(200).executed(10).build()),
-            // fast but constant: 2ms × 100,000 = 200,000ms impact
             profile("fast-hot", metrics().avgTimeMs(2).executed(100_000).build()),
             profile("unmetered", null));
 
         assertThat(searchIds(request().build()))
             .containsExactly("fast-hot", "slow-rare", "unmetered");
-        // explicit avg-time sort still puts the slow query first
         assertThat(searchIds(request().sort(Sort.AVG_TIME).build()))
             .containsExactly("slow-rare", "fast-hot", "unmetered");
     }
@@ -693,7 +652,6 @@ class QuerySearchServiceTest {
     @Test
     void selectivitySortsBothWaysWithUnmeteredLast() {
         repositoryReturns(
-            // 1 sent per 10,000 scanned
             profile("needle", metrics().rowsSentAvg(1).rowsScannedAvg(10_000).build()),
             profile("half", metrics().rowsSentAvg(50).rowsScannedAvg(100).build()),
             profile("unmetered", null));
@@ -703,8 +661,6 @@ class QuerySearchServiceTest {
         assertThat(searchIds(request().sort(Sort.SELECTIVITY_ASC).build()))
             .containsExactly("needle", "half", "unmetered");
     }
-
-    // ── fixtures ──
 
     private static SqlProfile profile(String id, RuntimeMetrics metrics) {
         return profile(id, QueryActivityStatus.UNKNOWN, metrics, false, List.of());
@@ -726,11 +682,6 @@ class QuerySearchServiceTest {
         return profile;
     }
 
-    /**
-     * A query tag, addressed by digest rather than by a path string — the tag
-     * model is typed now, so the fixture is built the way production stores it
-     * (sqlx-11v).
-     */
     private static Tag tag(String name, String digest) {
         Tag tag = new Tag();
         tag.setName(name);
@@ -752,7 +703,6 @@ class QuerySearchServiceTest {
         return new MetricsBuilder();
     }
 
-    /** RuntimeMetrics with harmless defaults; times accepted in ms, stored as picoseconds. */
     private static class MetricsBuilder {
         private double avgTimeMs = 1;
         private double maxTimeMs = 1;
@@ -783,7 +733,6 @@ class QuerySearchServiceTest {
         }
     }
 
-    /** Builder over the request record so tests only mention what they constrain. */
     private static RequestBuilder request() {
         return new RequestBuilder();
     }
@@ -863,11 +812,6 @@ class QuerySearchServiceTest {
         }
     }
 
-    /**
-     * WITH is no longer a type (sqlx-a9h). A link asking for it — "has CTEs",
-     * nearly always a SELECT — finds SELECT and UNKNOWN, and a profile still
-     * typed WITH or ( from an older capture matches as UNKNOWN or SELECT.
-     */
     @Test
     void withMeansSelectAndUnknownAndOldTypesMatchAsTheirNewOnes() {
         assertThat(QuerySearchService.matchesTypes(List.of("WITH"), "SELECT")).isTrue();
@@ -878,15 +822,10 @@ class QuerySearchServiceTest {
         assertThat(QuerySearchService.matchesTypes(List.of("UNKNOWN"), "WITH")).isTrue();
         assertThat(QuerySearchService.matchesTypes(List.of("SELECT"), "WITH")).isFalse();
 
-        // UNKNOWN is a type of its own, not part of OTHER
         assertThat(QuerySearchService.matchesTypes(List.of("OTHER"), "UNKNOWN")).isFalse();
         assertThat(QuerySearchService.matchesTypes(List.of("OTHER"), "CALL")).isTrue();
     }
 
-    /**
-     * Sources scope the corpus the search reads, and the result counts its
-     * matches per source (sqlx-a9h.1).
-     */
     @Test
     void sourcesScopeTheCorpusAndAreCountedPerSource() {
         SqlProfile primary = sourced(profile("p", null), "shard1");

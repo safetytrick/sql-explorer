@@ -19,10 +19,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Annotations are appended, read back latest-first per (namespace, key), and
- * scoped to the selected environment (sqlx-n5j.13).
- */
 class AnnotationServiceTest {
 
     private static final String ENV = "regression";
@@ -96,7 +92,6 @@ class AnnotationServiceTest {
             "ns", "k", "v", null, null), AnnotationService.Source.person())).hasMessageContaining("needs a table");
     }
 
-    /** History is kept; the newest row for a (namespace, key) is the answer, on its own target only. */
     @Test
     void theLatestRowWinsPerKeyAndTargetsAreAnsweredPositionally() {
         TagTarget status = TagTarget.ofColumn("app", "account", "status");

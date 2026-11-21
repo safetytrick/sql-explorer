@@ -28,14 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * The verdicts, judged only against what the capture recorded.
- *
- * <p>The distinction that matters throughout is UNKNOWN versus OK. An unknown
- * is not a pass: reporting "0 digests lost" for a source that never recorded
- * its server settings would be a confident wrong answer, which is worse than
- * silence because it reads as information (sqlx-n01).
- */
 class CoverageServiceTest {
 
     @TempDir
@@ -49,7 +41,6 @@ class CoverageServiceTest {
         "Performance_schema_digest_lost", "0",
         "Uptime", "10205030");
 
-    /** Sources the next {@link #service} reports the load as having left out. */
     private List<SqlRepositoryManager.SourceFailure> failures = List.of();
 
     private CoverageService service(SqlRepository... repositories) {
@@ -99,13 +90,6 @@ class CoverageServiceTest {
             .filter(f -> f.signal() == signal).findFirst().orElseThrow();
     }
 
-    // ── digest capacity ──
-
-    /**
-     * Performance_schema_digest_lost is the direct measurement and wins over
-     * the row-count inference: a table can sit below its cap now and still
-     * have evicted statements earlier.
-     */
     @Test
     void digestsLostIsPreferredOverTheRowCountInference() {
         Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
@@ -117,7 +101,6 @@ class CoverageServiceTest {
         assertThat(capacity.measurement()).isEqualTo("37 digests lost");
     }
 
-    /** A confidence API that only ever warns is one people learn to ignore. */
     @Test
     void anUnfilledDigestTableSaysSoRatherThanStayingSilent() {
         Coverage.Finding capacity = finding(
@@ -128,7 +111,6 @@ class CoverageServiceTest {
         assertThat(capacity.explanation()).contains("never ran out of room");
     }
 
-    /** At the cap the table evicted statements, and how many is unknowable. */
     @Test
     void aFullDigestTableIsImpaired() {
         Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
@@ -141,10 +123,6 @@ class CoverageServiceTest {
         assertThat(capacity.measurement()).isEqualTo("10000 of 10000 digests");
     }
 
-    /**
-     * The failure this design exists to avoid. With no recorded settings the
-     * answer is unknown — never OK, and never a borrowed default.
-     */
     @Test
     void aSourceWithNoRecordedServerSettingsIsUnknownNotFine() {
         Coverage.Finding capacity = finding(
@@ -156,12 +134,6 @@ class CoverageServiceTest {
         assertThat(capacity.explanation()).contains("not safe to assume");
     }
 
-    // ── truncation ──
-
-    /**
-     * The count alone cannot be judged: what makes it meaningful is the
-     * server's own limit, which says whether to expect more.
-     */
     @Test
     void truncationIsReportedWithTheServersOwnLimit() {
         Coverage.Finding truncation = finding(
@@ -173,7 +145,6 @@ class CoverageServiceTest {
         assertThat(truncation.basis()).contains("effective digest limit of 4096");
     }
 
-    /** Below the recommended limit, say so even when nothing was cut short. */
     @Test
     void aLowDigestLimitIsWorthMentioningEvenWithNothingTruncated() {
         Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
@@ -208,7 +179,6 @@ class CoverageServiceTest {
         assertThat(truncation.explanation()).contains("BOTH");
     }
 
-    /** One recorded limit is still evidence; do not discard it for the other. */
     @Test
     void aServerThatRecordedOnlyOneLimitIsJudgedOnThatOne() {
         Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
@@ -223,7 +193,6 @@ class CoverageServiceTest {
         assertThat(truncation.basis()).contains("max_digest_length not recorded");
     }
 
-    /** Truncation with no recorded limit still cannot say whether to expect more. */
     @Test
     void truncationWithNoRecordedLimitDoesNotImplyTheDefault() {
         Coverage.Finding truncation = finding(
@@ -234,9 +203,6 @@ class CoverageServiceTest {
         assertThat(truncation.explanation()).doesNotContain("1024");
     }
 
-    // ── observation window ──
-
-    /** The number that turns an absence into a claim. */
     @Test
     void theWindowIsStatedInDaysSoAnAbsenceCanBeQuantified() {
         Coverage.Report report = service(repository(capture(HEALTHY_SERVER), stats(4243, 0))).report("env");
@@ -245,11 +211,6 @@ class CoverageServiceTest {
         assertThat(finding(report, Coverage.Signal.OBSERVATION_WINDOW).verdict()).isEqualTo(Coverage.Verdict.OK);
     }
 
-    /**
-     * Performance Schema is cleared on restart, so rows spanning longer than
-     * the server has been up means the two disagree — and the window, which
-     * everything else leans on, cannot be trusted.
-     */
     @Test
     void aWindowLongerThanServerUptimeIsContradictoryAndSaysSo() {
         Map<String, String> server = new java.util.HashMap<>(HEALTHY_SERVER);
@@ -262,7 +223,6 @@ class CoverageServiceTest {
         assertThat(window.explanation()).contains("disagree");
     }
 
-    /** No timestamps means the absence of a query proves nothing. */
     @Test
     void noRecordedWindowIsUnknown() {
         CaptureContext noWindow = new CaptureContext(CaptureContext.Origin.CSV_EXPORT, "primary",
@@ -274,9 +234,6 @@ class CoverageServiceTest {
             .isEqualTo(Coverage.Verdict.UNKNOWN);
     }
 
-    // ── provenance ──
-
-    /** A file with no provenance still originates in the table; say both. */
     @Test
     void aSourceWithNoProvenanceStillNamesTheOriginTable() {
         Coverage.Finding provenance = finding(
@@ -287,7 +244,6 @@ class CoverageServiceTest {
         assertThat(provenance.explanation()).contains(CaptureContext.ORIGIN_TABLE);
     }
 
-    /** Hops from the origin change what may be claimed, so they are named. */
     @Test
     void hopsFromTheOriginTableAreStated() {
         CaptureContext direct = new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, "primary",
@@ -299,12 +255,6 @@ class CoverageServiceTest {
             Coverage.Signal.PROVENANCE).explanation()).contains("two hops");
     }
 
-    // ── archived history ──
-
-    /**
-     * With no captures on disk the question cannot be answered, and answering
-     * OK would claim there is nothing earlier when nothing was checked.
-     */
     @Test
     void aSourceWithNoArchiveCannotSayWhatItIsMissing() {
         Coverage.Finding history = finding(
@@ -315,11 +265,6 @@ class CoverageServiceTest {
         assertThat(history.explanation()).contains("never been written down");
     }
 
-    /**
-     * A signal that speaks only for problems is one people stop reading, so
-     * the ordinary case says so plainly: everything on disk belongs to one
-     * stretch, and the corpus is all the evidence there is.
-     */
     @Test
     void oneUnbrokenRunIsReportedAsSuch() throws IOException {
         Coverage.Finding history = archiveWith(List.of(
@@ -331,11 +276,6 @@ class CoverageServiceTest {
         assertThat(history.explanation()).contains("all the evidence there is");
     }
 
-    /**
-     * The point of the signal. "118 days observed" means one thing when it is
-     * everything and another when it is the newest slice of a longer archive
-     * that is on disk and unread (sqlx-65m).
-     */
     @Test
     void aResetMeansTheArchiveHoldsMoreThanTheCorpus() throws IOException {
         Coverage.Finding history = archiveWith(List.of(
@@ -346,7 +286,6 @@ class CoverageServiceTest {
         assertThat(history.measurement()).isEqualTo("1 reset");
         assertThat(history.basis()).contains("archive spans");
         assertThat(history.explanation()).contains("disjoint");
-        // and it says why the earlier period is not simply loaded as well
         assertThat(history.explanation()).contains("double-count");
     }
 
@@ -356,7 +295,6 @@ class CoverageServiceTest {
             LocalDateTime.parse(from), LocalDateTime.parse(to), HEALTHY_SERVER);
     }
 
-    /** Writes real captures, so the finding is computed from real footers. */
     private Coverage.Finding archiveWith(List<CaptureContext> captures) throws IOException {
         ParquetConfig config = new ParquetConfig();
         config.setFilename(directory.resolve("sql-repository.parquet").toString());
@@ -379,9 +317,6 @@ class CoverageServiceTest {
             .filter(f -> f.signal() == Coverage.Signal.ARCHIVED_HISTORY).findFirst().orElseThrow();
     }
 
-    // ── shape ──
-
-    /** An environment nothing has been loaded into says so, and claims nothing. */
     @Test
     void anUnloadedEnvironmentReportsNoSources() {
         SqlRepositoryManager manager = mock(SqlRepositoryManager.class);
@@ -397,11 +332,6 @@ class CoverageServiceTest {
         assertThat(report.originTable()).isEqualTo(CaptureContext.ORIGIN_TABLE);
     }
 
-    /**
-     * Sources are never merged. Two captures of different servers have
-     * different settings, and one environment-wide verdict would describe
-     * neither.
-     */
     @Test
     void sourcesAreReportedSeparatelyRatherThanCombined() {
         Map<String, String> impaired = new java.util.HashMap<>(HEALTHY_SERVER);
@@ -419,11 +349,6 @@ class CoverageServiceTest {
             .isEqualTo(Coverage.Verdict.IMPAIRED);
     }
 
-    /**
-     * Every signal is answered for every source — silence is not an answer.
-     * Except UNREACHABLE, which belongs to a source that was never read and so
-     * has nothing else to answer with; a loaded source was, by being loaded.
-     */
     @Test
     void everySignalIsAnsweredEvenWhenNothingWasRecorded() {
         Coverage.Report report = service(repository(null, stats(10, 0))).report("env");
@@ -435,7 +360,6 @@ class CoverageServiceTest {
                 .toArray(Coverage.Signal[]::new));
     }
 
-    /** Nothing is reported without the sentence that says what it means. */
     @Test
     void everyFindingCarriesItsOwnExplanation() {
         Coverage.Report report = service(repository(capture(HEALTHY_SERVER), stats(4243, 9))).report("env");
@@ -447,11 +371,6 @@ class CoverageServiceTest {
         });
     }
 
-    /**
-     * A server the load could not read is listed, not omitted. Omitted, the
-     * environment would read as complete while missing every query that ran
-     * only there (sqlx-jdf).
-     */
     @Test
     void aSourceTheLoadCouldNotReadIsListedAsImpaired() {
         failures = List.of(new SqlRepositoryManager.SourceFailure("sharing",
@@ -476,7 +395,6 @@ class CoverageServiceTest {
             .stream().filter(f -> f.signal() == Coverage.Signal.PENDING_ANALYSIS).findFirst().orElseThrow();
     }
 
-    /** Statements waiting on a schema that could not be confirmed are absent from the corpus, and it says so (sqlx-sqy.5). */
     @Test
     void statementsWaitingOnAnUnconfirmedSchemaMakeTheSourceIncomplete() {
         Coverage.Finding finding = pendingFinding(4000, 12);

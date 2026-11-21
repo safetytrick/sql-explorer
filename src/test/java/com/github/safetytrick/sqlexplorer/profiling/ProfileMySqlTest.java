@@ -30,11 +30,6 @@ import org.testcontainers.mysql.MySQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-/**
- * Profiles run against a real MySQL (sqlx-n5j.3): the patterns as ICU reads
- * them, the windows, the characters listed, and the row keys. Neutral data,
- * seeded with each kind of corruption on known rows.
- */
 @Testcontainers
 class ProfileMySqlTest {
 
@@ -67,7 +62,6 @@ class ProfileMySqlTest {
             statement.execute("INSERT INTO app_note (id, title, body, code) WITH RECURSIVE n (i) AS "
                 + "(SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 30000) "
                 + "SELECT i, 'plain title', 'plain body', 'AB12' FROM n");
-            // UTF-8 bytes in the latin1 column, and genuine latin1, side by side: the mixed case
             statement.execute("UPDATE app_note SET title = X'636166C3A9' WHERE id = 1");
             statement.execute("UPDATE app_note SET title = X'636166E9' WHERE id IN (2, 29990)");
             statement.execute("INSERT INTO app_small (id, name) WITH RECURSIVE n (i) AS "
@@ -124,7 +118,6 @@ class ProfileMySqlTest {
         assertThat(result.rowsRead()).isEqualTo(20_000);
         assertThat(result.windows().getFirst().from()).isEqualTo("1");
         assertThat(result.windows().getLast().to()).isEqualTo("30000");
-        // windows are in key order and never overlap
         long previous = 0;
         for (ProfileResult.WindowResult window : result.windows()) {
             assertThat(Long.parseLong(window.from())).isGreaterThan(previous);
@@ -139,7 +132,6 @@ class ProfileMySqlTest {
 
         Map<Signature, SignatureResult> body = signatures(column(result, "body"));
         SignatureResult doubled = body.get(Signature.DOUBLE_ENCODED);
-        // 3, 4, 5 (triple encoding also reads as double), 15000 in a middle window and 29999 in the tail
         assertThat(doubled.rows()).isEqualTo(5);
         assertThat(doubled.ids().getFirst().ids()).containsExactly("3", "4", "5", "15000", "29999");
         assertThat(doubled.characters()).extracting(CharacterCount::matched, CharacterCount::intended)

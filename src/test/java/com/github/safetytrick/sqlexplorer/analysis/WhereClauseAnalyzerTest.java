@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 public class WhereClauseAnalyzerTest {
     private SqlAnalysisService sqlAnalysisService;
     private SqlProfile.Builder builder;
-    /** Several tests build their own analyzer combinations from this resolver. */
     private ColumnTableResolver columnTableResolver;
 
     @BeforeEach
@@ -240,8 +239,6 @@ public class WhereClauseAnalyzerTest {
                         ON `temp` . `mother` = `mother_session` . `member_id`
                 WHERE
                     `mother_session` . `member_id` = `temp`"""
-            // + "."; // todo this was parsed by earlier versions of the jsqlparser library,
-            //  it's certainly not valid sql but handling partial sql is a goal of this tool
             ;
 
         sqlAnalysisService.analyzeSql(sql, builder);
@@ -494,10 +491,8 @@ public class WhereClauseAnalyzerTest {
         Statement statement = CCJSqlParserUtil.parse(sql);
 
         WhereClauseAnalyzer whereClauseAnalyzer = new WhereClauseAnalyzer(columnTableResolver);
-        //JoinColumnAnalyzer joinColumnAnalyzer = new JoinColumnAnalyzer(columnTableResolver);
 
         whereClauseAnalyzer.analyze(statement, builder);
-        // todo implement me: joinColumnAnalyzer.analyze(statement, builder);
 
         assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("alert_rule_met.created_on"));
         assertThat(builder.getCriteriaColumns()).anyMatch(column -> column.equalsNormalized("alert_rule_met.member_id"));
@@ -667,8 +662,6 @@ public class WhereClauseAnalyzerTest {
         sqlAnalysisService.analyzeSql(sql, builder);
 
         List<ColumnReference> criteriaColumns = builder.getCriteriaColumns();
-
-        // [alert_rule_destination.alert_rule_id, alert_rule_destination.deleted_on, alert_destination.deleted_on, alert_destination.enabled, alert_destination.enabled_on]
 
         assertContainsColumnReferences(criteriaColumns,
                                        "alert_rule_destination.alert_rule_id",

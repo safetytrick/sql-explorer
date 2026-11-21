@@ -31,11 +31,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Sign-in on, with visitors allowed to read one environment
- * ({@code sql-explorer.auth.anonymous: viewer:beta}, sqlx-2lc). Sign-in on
- * without visitors is OidcSignInTest, where everything without a session is 401.
- */
 @SpringBootTest(properties = {
     "sql-explorer.auth.mode=oidc",
     "sql-explorer.auth.anonymous=viewer:beta",
@@ -100,7 +95,6 @@ class AnonymousVisitorTest {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
-    /** /user says "a visitor", not the legacy admin, and what they may read. */
     @Test
     void userReportsAVisitor() throws Exception {
         JsonNode me = body(get(API + "/user").contextPath(API));
@@ -114,7 +108,6 @@ class AnonymousVisitorTest {
         assertThat(me.path("environments").has("alpha")).isFalse();
     }
 
-    /** Only the environment visitors may read is listed, and it is the default. */
     @Test
     void environmentsListsOnlyWhatVisitorsMayRead() throws Exception {
         JsonNode list = body(get(API + "/environments").contextPath(API));
@@ -122,14 +115,12 @@ class AnonymousVisitorTest {
         assertThat(list.path("defaultEnvironment").asString()).isEqualTo("beta");
     }
 
-    /** Reads there, including the POSTs that only ask; anything more is a 401, which the UI turns into sign-in. */
     @Test
     void aVisitorReadsButAnythingMoreIsSignIn() throws Exception {
         mvc.perform(get(API + "/env/beta/schemas").contextPath(API)).andExpect(status().isOk());
         mvc.perform(post(API + "/env/beta/queries/search").contextPath(API).with(asAngularDoes())
                 .contentType("application/json").content("{}"))
             .andExpect(status().isOk());
-        // the Servers view's comparison is a read too, though a POST (sqlx-387)
         int compared = mvc.perform(post(API + "/env/beta/topology/compare").contextPath(API).with(asAngularDoes())
                 .contentType("application/json").content("{}")).andReturn().getResponse().getStatus();
         assertThat(compared).as("authorized; whatever the comparison itself answers").isNotIn(401, 403);
@@ -144,7 +135,6 @@ class AnonymousVisitorTest {
         mvc.perform(get(API + "/tokens").contextPath(API)).andExpect(status().isUnauthorized());
     }
 
-    /** Signing in still gives what the groups grant, not the visitor's grants. */
     @Test
     void signedInIsUnchanged() throws Exception {
         var viewer = oidcLogin()
@@ -164,7 +154,6 @@ class AnonymousVisitorTest {
         return json.readTree(mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
     }
 
-    /** The CSRF token the way Angular's HttpClient sends it (see OidcSignInTest). */
     private static RequestPostProcessor asAngularDoes() {
         return request -> {
             request.setCookies(new Cookie("XSRF-TOKEN", "token-from-the-cookie"));

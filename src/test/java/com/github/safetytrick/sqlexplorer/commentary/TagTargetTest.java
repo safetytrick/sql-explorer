@@ -5,12 +5,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * What the API says a tag points at.
- *
- * <p>A target is client-supplied, so an unchecked one produces a row nothing
- * will ever look for — the defect the path format kept producing (sqlx-0lj).
- */
 class TagTargetTest {
 
     @Test
@@ -20,12 +14,6 @@ class TagTargetTest {
         assertThat(TagTarget.ofQuery("v3:abc").path()).isEqualTo("/query/v3:abc");
     }
 
-    /**
-     * THE REASON THIS TYPE EXISTS. A name containing '/' has no path form: the
-     * string would not parse back and is ambiguous with a different target. Null
-     * rather than a best effort, and the generated column follows the same rule
-     * so the two cannot disagree (sqlx-3ai).
-     */
     @Test
     void aNameContainingASeparatorHasNoPathForm() {
         assertThat(TagTarget.ofTable("probe", "a/b").path()).isNull();
@@ -33,7 +21,6 @@ class TagTargetTest {
         assertThat(TagTarget.ofTable("a/b", "orders").path()).isNull();
     }
 
-    /** ...but it is still a perfectly good target. */
     @Test
     void aNameContainingASeparatorIsStillAddressable() {
         TagTarget odd = TagTarget.ofTable("probe", "a/b").validated();
@@ -63,7 +50,6 @@ class TagTargetTest {
             .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("needs a digest");
     }
 
-    /** A target carrying parts its kind does not use is a caller confusion. */
     @Test
     void partsThatDoNotBelongToTheKindAreRefused() {
         assertThatThrownBy(() -> new TagTarget("schema", "app_main", "orders", "").validate())
@@ -72,7 +58,6 @@ class TagTargetTest {
             .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("no schema");
     }
 
-    /** Null and empty are the same absence, so they must match as targets. */
     @Test
     void nullAndEmptyPartsAreTheSameTarget() {
         assertThat(new TagTarget("schema", "app_main", null, null))
@@ -81,14 +66,12 @@ class TagTargetTest {
             .isEqualTo(new TagTarget("schema", "app_main", "", "").hashCode());
     }
 
-    /** The legacy path form still converts, which is how old clients keep working. */
     @Test
     void aLegacyPathBecomesATarget() {
         assertThat(TagPath.require("/schema/app_main/table/orders").toTarget())
             .isEqualTo(TagTarget.ofTable("app_main", "orders"));
     }
 
-    /** Columns are addressed like tables plus a name, and validated as strictly (sqlx-n5j.1). */
     @Test
     void aColumnTargetNeedsItsTableAndColumn() {
         assertThat(TagTarget.ofColumn("app", "account", "status").validatedForTags().type()).isEqualTo("column");
@@ -100,7 +83,6 @@ class TagTargetTest {
             .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("no column");
     }
 
-    /** Two columns of one table are different targets; a column is not its table. */
     @Test
     void theColumnIsPartOfTheIdentity() {
         assertThat(TagTarget.ofColumn("app", "account", "status"))
@@ -108,7 +90,6 @@ class TagTargetTest {
             .isNotEqualTo(TagTarget.ofTable("app", "account"));
     }
 
-    /** The environment is an annotation target, never a tag's (sqlx-n5j.13). */
     @Test
     void theEnvironmentIsATargetButNotATagTarget() {
         assertThat(TagTarget.ofEnvironment().validated().type()).isEqualTo("environment");

@@ -9,15 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * What a written file says about where it came from.
- *
- * <p>The rule these all serve: an absent key means <em>unknown</em>. That
- * distinction is the point — the failure being guarded against is a reader
- * looking up {@code performance_schema_digests_size} on a live connection and
- * attaching it to a file exported months ago from another machine, which is a
- * confident wrong answer rather than a missing one (sqlx-sy5).
- */
 class CaptureContextTest {
 
     private static CaptureContext context(Map<String, String> server) {
@@ -43,11 +34,6 @@ class CaptureContextTest {
             .containsEntry("sqlexplorer.capturedAt", "2026-08-29T14:03:35Z");
     }
 
-    /**
-     * The window is what makes a reset detectable: a later sample whose
-     * observedFrom falls after an earlier sample's observedTo means Performance
-     * Schema was cleared in between, and that interval went unrecorded.
-     */
     @Test
     void statesTheWindowItObserved() {
         assertThat(context(Map.of()).asMetadata())
@@ -56,7 +42,6 @@ class CaptureContextTest {
             .containsEntry("sqlexplorer.rowCount", "4202");
     }
 
-    /** Namespaced, so a reader can tell our metadata from the writer's own. */
     @Test
     void namespacesServerVariablesApart() {
         Map<String, String> server = new LinkedHashMap<>();
@@ -68,7 +53,6 @@ class CaptureContextTest {
             .containsEntry("mysql.performance_schema_max_digest_length", "4096");
     }
 
-    /** The load-bearing one: unknown is an absent key, never the string "null". */
     @Test
     void omitsWhatItDoesNotKnowRatherThanWritingNull() {
         CaptureContext unknown = new CaptureContext(null, null, null, 0, null, null, null);
@@ -78,7 +62,6 @@ class CaptureContextTest {
         assertThat(unknown.asMetadata().values()).doesNotContain("null");
     }
 
-    /** No server variables yet is unknown, not zero. */
     @Test
     void anEmptyServerMapAddsNothing() {
         assertThat(context(Map.of()).asMetadata().keySet()).noneMatch(key -> key.startsWith("mysql."));

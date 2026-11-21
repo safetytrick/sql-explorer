@@ -11,16 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * A join to a derived table resolves each column through the derived table's
- * select list to the table it came from (sqlx-9xg).
- *
- * <p>A name the select list spelled differently from the ON clause — bare
- * {@code NAME} against {@code `r_global`.`name`} — missed the lookup, and the
- * miss fell back to the bare column name, which was then read as a table:
- * the join was recorded against tables called {@code name} and
- * {@code description}.
- */
 class DerivedTableJoinTest {
 
     private SchemaFixture fixture;
@@ -38,7 +28,6 @@ class DerivedTableJoinTest {
         return profile.getJoinColumns().stream().map(DerivedTableJoinTest::pair).toList();
     }
 
-    /** Order-free: a join of a to b is a join of b to a. */
     private static String pair(JoinColumns join) {
         String left = name(join.getLeft());
         String right = name(join.getRight());
@@ -66,7 +55,6 @@ class DerivedTableJoinTest {
             "role.description = role.description");
     }
 
-    /** The same derived-table column in the select list resolves to its source table, not dual (sqlx-03r). */
     @Test
     void aDerivedTablesColumnInTheSelectListResolvesToItsSourceTable() throws JSQLParserException {
         SqlProfile profile = fixture.analyze("""
@@ -81,7 +69,6 @@ class DerivedTableJoinTest {
             .containsExactlyInAnyOrder("account.name", "role.id", "role.name");
     }
 
-    /** A derived table in FROM, with no join at all, resolves the same way. */
     @Test
     void aDerivedTableInFromResolvesItsSelectListColumns() throws JSQLParserException {
         SqlProfile profile = fixture.analyze("""
@@ -95,7 +82,6 @@ class DerivedTableJoinTest {
             .containsExactly("role.name");
     }
 
-    /** A UNION's columns are named by its first branch; reading one no longer throws. */
     @Test
     void aUnionDerivedTableResolvesThroughItsFirstBranch() throws JSQLParserException {
         SqlProfile profile = fixture.analyze("""
@@ -109,7 +95,6 @@ class DerivedTableJoinTest {
         assertThat(joins(profile)).containsExactly("role.id = role.id");
     }
 
-    /** {@code tdb} is {@link TestSchemas#DEFAULT_SCHEMA}. */
     @Test
     void aSchemaQualifiedDerivedTableResolvesToTheTableNotTheSchema() throws JSQLParserException {
         SqlProfile profile = fixture.analyze("""

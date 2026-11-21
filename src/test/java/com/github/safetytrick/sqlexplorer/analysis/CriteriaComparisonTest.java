@@ -11,11 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Criteria columns carry how they are compared; LIKE is one such kind, not a
- * role of its own, with the pattern's leading wildcard where it can be read
- * (sqlx-n5j.7).
- */
 class CriteriaComparisonTest {
 
     private SchemaFixture fixture;
@@ -30,7 +25,6 @@ class CriteriaComparisonTest {
             """);
     }
 
-    /** "column kind", plus " leading=true|false" when the wildcard is known. */
     private static List<String> comparisons(SqlProfile profile) {
         return profile.getCriteriaComparisons().stream().map(CriteriaComparisonTest::describe).toList();
     }
@@ -50,7 +44,6 @@ class CriteriaComparisonTest {
         SqlProfile profile = fixture.analyze("SELECT id FROM account WHERE name LIKE ?");
 
         assertThat(comparisons(profile)).containsExactly("tdb.account.name like");
-        // still criteria: LIKE qualifies the role, it does not replace it
         assertThat(criteria(profile)).containsExactly("tdb.account.name");
     }
 

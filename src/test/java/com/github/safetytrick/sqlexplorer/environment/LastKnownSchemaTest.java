@@ -15,13 +15,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * The stale-snapshot fallback is read once, not on every request (sqlx-xge).
- *
- * <p>With every schemaFrom server unreachable, each schema request fell back
- * to the cluster's snapshot by reading and parsing its JSON again — about
- * 9.6 MB across a five-cluster environment, three seconds a request.
- */
 class LastKnownSchemaTest {
 
     private static final SchemaSnapshot.Key SHARD1 = new SchemaSnapshot.Key("production", "shard1");

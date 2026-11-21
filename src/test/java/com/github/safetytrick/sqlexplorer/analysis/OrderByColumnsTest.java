@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** ORDER BY columns are a role, resolved through table and select-list aliases (sqlx-n5j.8). */
 class OrderByColumnsTest {
 
     private SchemaFixture fixture;

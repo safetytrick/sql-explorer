@@ -87,12 +87,6 @@ class CollationReportServiceTest {
         assertThat(report.tables().get(2).outliers()).isEmpty();
     }
 
-    /**
-     * With the table's declared default known (TABLE_COLLATION, sqlx-n5j.2),
-     * columns are compared with it, not with the majority. A table whose
-     * columns all agree with each other but not with the default still has
-     * outliers: new columns would get the default, not what the others use.
-     */
     @Test
     void comparesColumnsWithTheDeclaredDefaultWhenItIsKnown() {
         TableStructure site = withDefault(SITE, "latin1_swedish_ci", "latin1_swedish_ci");
@@ -135,10 +129,8 @@ class CollationReportServiceTest {
     void reportsJoinKeysWhoseSidesDifferOncePerPair() {
         when(sqlRepositoryService.getAllAnalyzedSql()).thenAnswer(inv -> Stream.of(
             profile("q1", 100, join("account", "code", "site", "account_code")),
-            // the same pair written the other way round is the same join key
             profile("q2", 900, join("site", "account_code", "account", "code"),
                 join("site", "account_code", "account", "code")),
-            // integer keys carry no encoding, and matching encodings are fine
             profile("q3", 5, join("account_site", "account_id", "account", "id"),
                 join("account", "code", "account", "name"))));
 
@@ -158,7 +150,6 @@ class CollationReportServiceTest {
         return new TableStructure("app_main", name, "TABLE", null, List.of(), List.of(), List.of(columns), null, null);
     }
 
-    /** The table as reported by one server per collation given: one shard each. */
     private static TableStructure withDefault(TableStructure table, String... collations) {
         List<TableStats> stats = Stream.of(collations)
             .map(collation -> new TableStats("shard", Instant.EPOCH, 10L, 16_384L, 0L, 0L, 1_638L, null,

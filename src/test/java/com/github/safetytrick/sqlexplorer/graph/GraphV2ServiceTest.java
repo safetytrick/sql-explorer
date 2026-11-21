@@ -43,7 +43,6 @@ class GraphV2ServiceTest {
         sqlSchemaService = mock(SqlSchemaService.class);
         service = new GraphV2Service(sqlRepositoryService, sqlSchemaService);
 
-        // sessions.user_id INT -> users.id BIGINT (mismatch)
         when(sqlSchemaService.getTables()).thenReturn(List.of(
             structure("app", "sessions",
                 List.of(fk(SESSIONS, "user_id", USERS, "id")),
@@ -53,11 +52,8 @@ class GraphV2ServiceTest {
             structure("app", "unrelated", List.of())));
         when(sqlRepositoryService.getAllAnalyzedSql()).thenAnswer(inv -> Stream.of(
             profile("q1", List.of(SESSIONS, USERS), metrics(100), join(SESSIONS, USERS)),
-            // cross-schema partner appears as a node even though it is not in app
             profile("q2", List.of(SESSIONS, ROLLUP), metrics(7)),
-            // self-join
             profile("q3", List.of(SESSIONS), metrics(1), join(SESSIONS, SESSIONS)),
-            // unrelated schema only: ignored entirely
             profile("q4", List.of(ROLLUP), metrics(50))));
     }
 
@@ -80,7 +76,6 @@ class GraphV2ServiceTest {
             new TableStructure("app", "sessions", "TABLE", null, List.of(), List.of(), List.of(), null, null,
                 List.of(stats("db-1", 1_000L, 200L), stats("db-2", 3_000L, null))),
             structure("app", "users", List.of())));
-        // two queries, each counted in full against every table it touches
         GraphV2 graph = service.getGraphForProfiles(List.of(
             profile("q1", List.of(SESSIONS, USERS), timed(100, 2_500_000_000_000L)),
             profile("q2", List.of(SESSIONS), timed(5, 500_000_000_000L))));
@@ -89,9 +84,7 @@ class GraphV2ServiceTest {
             .extracting(GraphV2.Node::table, GraphV2.Node::executions, GraphV2.Node::queryTimeMs, GraphV2.Node::sizeBytes,
                 GraphV2.Node::dataBytes, GraphV2.Node::indexBytes)
             .containsExactlyInAnyOrder(
-                // data and index summed over the servers; one reported no index size
                 tuple("sessions", 105L, 3_000d, 4_200L, 4_000L, 200L),
-                // no server reported a size: unknown, not zero
                 tuple("users", 100L, 2_500d, null, null, null));
     }
 
@@ -100,7 +93,6 @@ class GraphV2ServiceTest {
         GraphV2 graph = service.getGraphForProfiles(List.of(
             profile("q1", List.of(SESSIONS, USERS), metrics(100), join(SESSIONS, USERS))));
 
-        // no schema seeding: "unrelated" and "rollup" don't appear
         assertThat(graph.nodes())
             .extracting(GraphV2.Node::table, GraphV2.Node::columnCount, GraphV2.Node::queryCount)
             .containsExactlyInAnyOrder(
@@ -117,7 +109,6 @@ class GraphV2ServiceTest {
         GraphV2 graph = service.getGraphForProfiles(List.of(
             profile("q1", List.of(SESSIONS, USERS), metrics(100), join(SESSIONS, USERS))), List.of("APP"));
 
-        // every table of the schema, but the counts and joins are still only the profiles'
         assertThat(graph.nodes())
             .extracting(GraphV2.Node::table, GraphV2.Node::queryCount)
             .containsExactlyInAnyOrder(
@@ -161,8 +152,6 @@ class GraphV2ServiceTest {
     void joinEdgesComeFromAnalysisAndLeaveSelfJoinsOut() {
         GraphV2 graph = service.getSchemaGraph("app");
 
-        // q1 joins sessions to users; q3's self-join is a node flag, not an edge;
-        // q2 queries sessions with rollup but never joins them
         assertThat(graph.joinEdges())
             .extracting(GraphV2.JoinEdge::aTable, GraphV2.JoinEdge::bTable, GraphV2.JoinEdge::columns,
                 GraphV2.JoinEdge::queries, GraphV2.JoinEdge::executions)
@@ -172,7 +161,6 @@ class GraphV2ServiceTest {
     @Test
     void aQueryJoiningOnSeveralColumnsCountsOnceAndOrientsEachPair() {
         GraphV2 graph = service.getGraphForProfiles(List.of(
-            // written users-first: the pair is still oriented sessions=users
             profile("q1", List.of(SESSIONS, USERS), metrics(4),
                 join(USERS, "id", SESSIONS, "user_id"), join(SESSIONS, "id", USERS, "id"))));
 
@@ -183,7 +171,6 @@ class GraphV2ServiceTest {
 
     @Test
     void aForeignKeyIsJoinedOnlyWhenAQueryJoinsOnItsColumns() {
-        // setUp's join is sessions.id = users.id: same tables, not the key's columns
         assertThat(service.getSchemaGraph("app").fkEdges())
             .extracting(GraphV2.FkEdge::joined).containsExactly(false);
 
@@ -210,10 +197,8 @@ class GraphV2ServiceTest {
         GraphV2 graph = service.getGraphForProfiles(List.of(
             profile("q1", List.of(site, account), metrics(3), join(site, "account_id", account, "id"))));
 
-        // no foreign key is declared: account.id is unique, site.account_id is not, so many sites to one account
         assertThat(graph.joinEdges().getFirst().pairs()).containsExactly(
             new GraphV2.ColumnPair("id", "account_id", true, false, false, true, null));
-        // a card lists the primary key and the joined column, not the rest
         assertThat(graph.nodes()).extracting(GraphV2.Node::table,
                 node -> node.columns().stream().map(GraphV2.KeyColumn::name).toList())
             .containsExactly(tuple("account", List.of("id")), tuple("site", List.of("id", "account_id")));

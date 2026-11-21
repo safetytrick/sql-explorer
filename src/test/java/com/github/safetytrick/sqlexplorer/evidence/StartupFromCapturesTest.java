@@ -26,10 +26,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Startup serves what was captured before reading anything live
- * (docs/plans/cluster-schema-snapshots.md, sqlx-sqy.6).
- */
 class StartupFromCapturesTest {
 
     private static SqlSource source(String ref) {
@@ -62,11 +58,6 @@ class StartupFromCapturesTest {
             rehydrator, 4, Clock.systemUTC());
     }
 
-    /**
-     * Not all or nothing: production always has a source never captured yet,
-     * and all-or-nothing would serve nothing. The missing one is listed, not
-     * silently absent.
-     */
     @Test
     void whatWasCapturedIsServedAndWhatWasNotIsListed() {
         SqlRepositoryManager manager = manager("shard1", "shard2");
@@ -83,7 +74,6 @@ class StartupFromCapturesTest {
         });
     }
 
-    /** Nothing captured: the environment stays unloaded, not loaded-and-empty. */
     @Test
     void anEnvironmentWithNoCaptureStaysUnloaded() {
         SqlRepositoryManager manager = manager();
@@ -92,7 +82,6 @@ class StartupFromCapturesTest {
         assertThat(manager.getLoadState("production")).isNull();
     }
 
-    /** Every environment, default first, each source by its own ref; one failing stops none of the others. */
     @Test
     void startupServesEveryEnvironmentDefaultFirstAndToleratesFailure() {
         List<String> asked = new ArrayList<>();

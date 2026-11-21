@@ -22,14 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * What the archive still knows after a reset erased it from the corpus.
- *
- * <p>The mistake these guard against is a report presenting an artifact of the
- * capture as a fact about the schema: Performance Schema is cleared on reset, so
- * a table used by a monthly job is absent from a corpus taken a week later and
- * reads as one nothing has ever touched (sqlx-qwn).
- */
 class ArchivedActivityTest {
 
     @TempDir
@@ -45,7 +37,6 @@ class ArchivedActivityTest {
         return config;
     }
 
-    /** One capture of one source, holding whatever profiles are named. */
     private void capture(String sourceRef, String capturedAt, String observedFrom, String observedTo,
                          SqlProfile... profiles) {
         new ParquetSink(config()).write(new CaptureContext(
@@ -69,10 +60,6 @@ class ArchivedActivityTest {
             .completeBuild(schema);
     }
 
-    /**
-     * Only {@code lastSeen} carries meaning here; the rest are the zeroes Avro
-     * requires, since none of them has a schema default.
-     */
     private static RuntimeMetrics metrics(String lastSeen) {
         return RuntimeMetrics.newBuilder()
             .setFullTableScan(false)
@@ -99,11 +86,6 @@ class ArchivedActivityTest {
             new ParquetSink(config()), repositories, mock(EnvironmentContext.class));
     }
 
-    /**
-     * THE CASE THE WHOLE THING EXISTS FOR. A table queried before the reset and
-     * not since is absent from the corpus entirely; only the earlier capture
-     * records that it was ever used, and when.
-     */
     @Test
     void aTableQueriedOnlyBeforeAResetIsStillKnown() {
         capture("primary", "2026-06-01T00:00:00Z", "2026-01-01T00:00:00", "2026-06-01T00:00:00",
@@ -115,10 +97,6 @@ class ArchivedActivityTest {
             .containsEntry("app.quarterly_rollup", LocalDateTime.parse("2026-05-30T02:00:00"));
     }
 
-    /**
-     * The ordinary case, and the one that must stay free: with no reset there is
-     * no earlier run, so there is nothing to read and no file is opened.
-     */
     @Test
     void withoutAResetTheArchiveIsNotConsulted() {
         capture("primary", "2026-08-01T00:00:00Z", "2026-07-01T00:00:00", "2026-08-01T00:00:00",
@@ -129,11 +107,6 @@ class ArchivedActivityTest {
         assertThat(activity("primary").lastTouchedBeforeThisRun("prod")).isEmpty();
     }
 
-    /**
-     * Within a run only the last capture is read — it accumulated what the
-     * earlier ones saw, so reading them too would be redundant work that can
-     * only produce an older answer for the same table.
-     */
     @Test
     void theLastCaptureOfAnEarlierRunIsTheOneRead() {
         capture("primary", "2026-06-01T00:00:00Z", "2026-01-01T00:00:00", "2026-06-01T00:00:00",
@@ -147,7 +120,6 @@ class ArchivedActivityTest {
             .containsEntry("app.rollup", LocalDateTime.parse("2026-06-15T02:00:00"));
     }
 
-    /** Across two resets, the newest use wins — a table may appear in both. */
     @Test
     void theNewestUseAcrossEveryEarlierRunIsKept() {
         capture("primary", "2026-03-01T00:00:00Z", "2026-01-01T00:00:00", "2026-03-01T00:00:00",
@@ -161,11 +133,6 @@ class ArchivedActivityTest {
             .containsEntry("app.rollup", LocalDateTime.parse("2026-05-01T02:00:00"));
     }
 
-    /**
-     * The archive directory holds every environment's captures side by side, so
-     * without this an environment would be handed another's history. The
-     * coverage cache shipped with exactly this bug once.
-     */
     @Test
     void anotherSourcesHistoryIsNotThisEnvironmentsHistory() {
         capture("staging", "2026-06-01T00:00:00Z", "2026-01-01T00:00:00", "2026-06-01T00:00:00",
@@ -176,7 +143,6 @@ class ArchivedActivityTest {
         assertThat(activity("primary").lastTouchedBeforeThisRun("prod")).isEmpty();
     }
 
-    /** A profile whose metrics never recorded a last-seen contributes nothing. */
     @Test
     void aProfileWithNoLastSeenIsSkipped() {
         SqlProfile undated = SqlProfile.newBuilder()

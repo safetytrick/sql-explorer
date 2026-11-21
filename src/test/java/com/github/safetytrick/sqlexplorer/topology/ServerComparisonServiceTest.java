@@ -44,7 +44,6 @@ import static org.mockito.Mockito.when;
 class ServerComparisonServiceTest {
 
     private static final LocalDateTime START = LocalDateTime.parse("2026-11-01T00:00:00");
-    /** Every server's window: ten days, so seconds per day is a tenth of the total. */
     private static final int DAYS = 10;
 
     private static DatabaseServer server(String name, ServerRole... roles) {
@@ -54,7 +53,6 @@ class ServerComparisonServiceTest {
             List.of(source), mock(SchemaRepositoryFactory.class), null, Set.of(roles));
     }
 
-    /** shard1: a primary, two replicas and an analytics box; shard2: a primary alone. */
     private static Environment environment() {
         DatabaseServer primary = server("shard1", ServerRole.PRIMARY);
         DatabaseServer replicaA = server("shard1-replica-a", ServerRole.REPLICA);
@@ -127,7 +125,6 @@ class ServerComparisonServiceTest {
         return profile(digest, "SELECT", table, executions, seconds, rows, 0);
     }
 
-    /** One of every difference, plus a write that runs only where writes belong. */
     private static ServerComparisonService everyFlag() {
         return service(
             repository("shard1",
@@ -149,7 +146,6 @@ class ServerComparisonServiceTest {
             repository("shard2", select("elsewhere", "account", 10, 1, 10)));
     }
 
-    /** What the search matched: the merged corpus's profile for each digest. */
     private static List<SqlProfile> matched() {
         return List.of(
             select("reads", "account", 2100, 210, 2100),
@@ -179,7 +175,6 @@ class ServerComparisonServiceTest {
         assertThat(report.servers()).extracting(ServerComparison.Column::name)
             .containsExactly("shard1", "shard1-replica-b", "shard1-replica-a", "shard1-etl");
         assertThat(report.servers().get(0).windowDays()).isCloseTo(DAYS, within(1e-9));
-        // "elsewhere" ran on shard2 only, so it has nothing to compare here
         assertThat(report.matched()).isEqualTo(8);
         assertThat(report.compared()).isEqualTo(7);
 
@@ -197,28 +192,23 @@ class ServerComparisonServiceTest {
         assertThat(row(report, "reads").flags()).containsExactly(Flag.ON_PRIMARY);
         assertThat(row(report, "reads").difference()).isCloseTo(1, within(1e-9));
 
-        // 90 and 10 executions a day: 4 s/day above an even 5 s/day each
         assertThat(row(report, "skew").flags()).containsExactly(Flag.SKEWED);
         assertThat(row(report, "skew").difference()).isCloseTo(4, within(1e-9));
 
-        // 10 rows an execution against 5,000
         assertThat(row(report, "plan").flags()).containsExactly(Flag.PLAN_DIFFERS);
         assertThat(row(report, "plan").difference()).isCloseTo(5 * (1 - 10d / 5000), within(1e-9));
 
-        // the same rows, ten times slower
         assertThat(row(report, "slow").flags()).containsExactly(Flag.LATENCY_DIFFERS);
         assertThat(row(report, "slow").difference()).isCloseTo(1 * (1 - 10d / 100), within(1e-9));
 
         assertThat(row(report, "pinned").flags()).containsExactly(Flag.SINGLE_SERVER);
         assertThat(row(report, "wr").flags()).containsExactly(Flag.REPLICA_WRITES);
 
-        // a write on the primary alone is how it should be: not shown by default, but counted
         assertThat(report.rows()).extracting(Row::key).doesNotContain("write");
         assertThat(report.unflagged()).isEqualTo(1);
         assertThat(report.total()).isEqualTo(6);
         assertThat(report.flagCounts()).containsEntry(Flag.ON_PRIMARY, 1).containsEntry(Flag.SKEWED, 1);
 
-        // largest difference first; skew and pinned tie at 4 s/day, and skew is the busier
         assertThat(report.rows()).extracting(Row::key).startsWith("plan", "skew", "pinned");
     }
 
@@ -229,7 +219,6 @@ class ServerComparisonServiceTest {
         ServerComparison.Report onlyPlans = service.compare("env", matched(),
             new Options(null, null, Set.of(Flag.PLAN_DIFFERS, Flag.SKEWED), false, null, null));
         assertThat(onlyPlans.rows()).extracting(Row::key).containsExactly("plan", "skew");
-        // the facet counts do not narrow with the filter
         assertThat(onlyPlans.flagCounts()).containsEntry(Flag.ON_PRIMARY, 1);
 
         ServerComparison.Report everything = service.compare("env", matched(),
@@ -247,7 +236,6 @@ class ServerComparisonServiceTest {
         assertThat(account.queries()).isEqualTo(3);
         assertThat(account.kind()).isNull();
         assertThat(account.flags()).containsExactly(Flag.ON_PRIMARY, Flag.SKEWED, Flag.PLAN_DIFFERS);
-        // replica-a: reads 100 + skew 90 + plan 1, over ten days
         assertThat(account.cells().get(2).secondsPerDay()).isCloseTo(19.1, within(1e-9));
         assertThat(account.cells().get(2).executions()).isEqualTo(2000);
         assertThat(row(report, "app_main.site").flags()).containsExactly(Flag.LATENCY_DIFFERS, Flag.REPLICA_WRITES);

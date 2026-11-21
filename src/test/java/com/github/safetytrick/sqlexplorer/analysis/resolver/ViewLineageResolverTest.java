@@ -33,7 +33,6 @@ class ViewLineageResolverTest {
 
     @Test
     void resolvesUnqualifiedColumnsAcrossAJoin() {
-        // checkin_date exists only in member_session, name only in branch
         List<ViewColumn> columns = resolve("""
             select checkin_date, name
             from member_session ms join branch b on ms.branch_id = b.id
@@ -48,7 +47,6 @@ class ViewLineageResolverTest {
 
     @Test
     void ambiguousColumnsDegradeToEmptySources() {
-        // created_on exists in both joined tables
         List<ViewColumn> columns = resolve("""
             select created_on
             from member_session ms join branch b on ms.branch_id = b.id

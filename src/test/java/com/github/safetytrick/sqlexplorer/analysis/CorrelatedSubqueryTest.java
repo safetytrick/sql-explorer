@@ -11,16 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * An alias of the enclosing query is visible inside a correlated subquery
- * (sqlx-lww).
- *
- * <p>The shape is an ORM's: a count over one table filtered by two correlated
- * EXISTS subqueries, each comparing an inner foreign key to the outer row's
- * id. The outer alias resolved to the first subquery's own table — recording
- * a join of that table to itself — and to {@code dual} in the second, whose
- * own JOIN was not recorded at all.
- */
 class CorrelatedSubqueryTest {
 
     private SchemaFixture fixture;
@@ -50,7 +40,6 @@ class CorrelatedSubqueryTest {
         return profile.getJoinColumns().stream().map(CorrelatedSubqueryTest::pair).toList();
     }
 
-    /** Order-free: a join of a to b is a join of b to a. */
     private static String pair(JoinColumns join) {
         String left = name(join.getLeft());
         String right = name(join.getRight());
@@ -80,7 +69,6 @@ class CorrelatedSubqueryTest {
             .contains("account.id", "account.status", "account.owner_id", "account_group.group_id", "site.group_id");
     }
 
-    /** Any subquery in the WHERE clause contributes its own joins, not only EXISTS. */
     @Test
     void anInSubqueryContributesItsOwnJoin() throws JSQLParserException {
         SqlProfile profile = fixture.analyze("""
@@ -93,7 +81,6 @@ class CorrelatedSubqueryTest {
         assertThat(joins(profile)).contains("account_site.site_id = site.id");
     }
 
-    /** A derived table's bare column names still resolve to its single table, as before. */
     @Test
     void anUnqualifiedColumnInASingleTableSubqueryIsThatTables() throws JSQLParserException {
         SqlProfile profile = fixture.analyze("""

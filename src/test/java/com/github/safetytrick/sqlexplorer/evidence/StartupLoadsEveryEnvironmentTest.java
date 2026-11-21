@@ -16,17 +16,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Every configured environment loads at startup, not just the default.
- *
- * <p>THE BEHAVIOUR THIS REPLACED was not a decision, it fell out of which
- * environment happened to be default: a non-default one read as an EMPTY CORPUS
- * after every restart rather than as unloaded, so its pages said "0 analyzed"
- * and its unqueried report claimed every table was untouched (sqlx-v91).
- */
 class StartupLoadsEveryEnvironmentTest {
 
-    /** Records what was asked for, and fails whichever environment is named. */
     private static class Recording extends EnvironmentLoader {
         private final List<String> loaded = new ArrayList<>();
         private final String failing;
@@ -67,11 +58,6 @@ class StartupLoadsEveryEnvironmentTest {
         assertThat(loader.loaded).containsExactlyInAnyOrder("regression", "local", "staging");
     }
 
-    /**
-     * The default goes first: it is the one most likely to be opened, and the
-     * resident cap evicts least-recently-used, so load order decides what is
-     * still in heap when startup finishes.
-     */
     @Test
     void theDefaultLoadsFirst() {
         Recording loader = new Recording(registryOf("regression", "local", "regression", "staging"), null);
@@ -90,12 +76,6 @@ class StartupLoadsEveryEnvironmentTest {
         assertThat(loader.loaded).containsExactly("regression");
     }
 
-    /**
-     * A CHANGE, and the one worth stating: a load throws when its server is
-     * unreachable, and this runs in @PostConstruct — so one bad environment
-     * used to take the whole application down. Booting and reporting which
-     * environment could not be read is strictly more useful.
-     */
     @Test
     void oneEnvironmentThatCannotBeReadDoesNotStopTheOthers() {
         Recording loader = new Recording(registryOf("regression", "regression", "unreachable", "local"),
@@ -106,7 +86,6 @@ class StartupLoadsEveryEnvironmentTest {
         assertThat(loader.loaded).contains("regression", "unreachable", "local");
     }
 
-    /** Including when the failing one is the default. */
     @Test
     void evenTheDefaultFailingDoesNotStopTheOthers() {
         Recording loader = new Recording(registryOf("regression", "regression", "local"), "regression");

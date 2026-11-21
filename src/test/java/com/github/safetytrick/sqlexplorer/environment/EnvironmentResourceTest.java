@@ -77,7 +77,6 @@ class EnvironmentResourceTest {
             .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    /** Sign-in off: every environment is visible, as before (sqlx-e13.4). */
     private static com.github.safetytrick.sqlexplorer.auth.Authorizations everything() {
         com.github.safetytrick.sqlexplorer.auth.Authorizations all = mock(com.github.safetytrick.sqlexplorer.auth.Authorizations.class);
         org.mockito.Mockito.when(all.current()).thenReturn(com.github.safetytrick.sqlexplorer.auth.Grants.EVERYTHING);

@@ -8,12 +8,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Pins the wire contract of the view flag: the frontend's all/tables/views
- * filters read {@code view} on the schema-tree and table-rollup payloads. A
- * missing or renamed field degrades silently in the UI ("tables" shows
- * everything, "views" shows nothing), so the JSON name is asserted here.
- */
 class ViewFlagSerializationTest {
 
     private final JsonMapper mapper = JsonMapper.builder().build();

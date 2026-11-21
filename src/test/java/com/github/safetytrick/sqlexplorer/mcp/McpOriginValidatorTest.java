@@ -16,7 +16,6 @@ class McpOriginValidatorTest {
     private static final McpOriginValidator SIGN_IN_ON = new McpOriginValidator(true);
     private static final McpOriginValidator SIGN_IN_OFF = new McpOriginValidator(false);
 
-    /** A page opened through a tunnel, as the endpoint sees it after {@link McpOriginValidator.OwnOrigin}. */
     private static Map<String, List<String>> throughTunnel(String origin) {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         headers.put("origin", List.of(origin));
@@ -40,7 +39,6 @@ class McpOriginValidatorTest {
             .isInstanceOf(ServerTransportSecurityException.class);
     }
 
-    /** A rebound name is its own origin, so sign-in off must not trust it. */
     @Test
     void withSignInOffOnlyThisMachineIsAccepted() {
         assertThatThrownBy(() -> SIGN_IN_OFF.validateHeaders(throughTunnel("https://tunnel.example.test")))

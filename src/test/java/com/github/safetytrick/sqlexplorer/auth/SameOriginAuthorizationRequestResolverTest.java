@@ -65,7 +65,6 @@ class SameOriginAuthorizationRequestResolverTest {
         return new SameOriginAuthorizationRequestResolver(new InMemoryClientRegistrationRepository(registration));
     }
 
-    /** As the app sees a browser on an https tunnel, after the forwarded headers are applied. */
     private static MockHttpServletRequest tunnel() {
         MockHttpServletRequest request = authorizationRequest();
         request.setScheme("https");

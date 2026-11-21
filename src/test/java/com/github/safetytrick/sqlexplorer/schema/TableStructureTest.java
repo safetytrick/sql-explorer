@@ -11,12 +11,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TableStructureTest {
 
-    /**
-     * {@code fromCreateTable} captures the numeric type arguments so downstream
-     * consumers (e.g. foreign-key type-mismatch checks) can compare
-     * {@code INT(10)} against {@code BIGINT(19)}. Non-numeric arguments such as
-     * {@code ENUM(...)} values and unspecified sizes fall back to 0.
-     */
     @Test
     void fromCreateTable_captures_column_size_and_scale() throws JSQLParserException {
         String create = """
@@ -43,7 +37,6 @@ class TableStructureTest {
 
         assertThat(byName.get("label").columnSize()).isEqualTo(255);
 
-        // ENUM arguments are not numeric, and TEXT carries no argument at all.
         assertThat(byName.get("status").columnSize()).isZero();
         assertThat(byName.get("note").columnSize()).isZero();
 
@@ -66,7 +59,6 @@ class TableStructureTest {
 
         TableStructure log = TableStructure.fromCreateTable(create, "TDB").build();
 
-        // table/schema names normalize like every other identifier
         assertThat(log.name()).isEqualTo("widget_log");
         assertThat(log.schema()).isEqualTo("tdb");
 
@@ -89,7 +81,6 @@ class TableStructureTest {
         assertThat(byName.get("note").isNullable()).isEqualTo("YES");
         assertThat(byName.get("note").columnDefault()).isNull();
 
-        // index uniqueness and the JDBC-style PRIMARY name
         assertThat(log.indices())
             .extracting(TableIndex::name, TableIndex::unique)
             .containsExactlyInAnyOrder(
@@ -107,11 +98,9 @@ class TableStructureTest {
         assertThat(view.name()).isEqualTo("active_widgets");
         assertThat(view.schema()).isEqualTo("tdb");
         assertThat(view.type()).isEqualTo("VIEW");
-        // columns are not derivable without resolving the view's select
         assertThat(view.columns()).isEmpty();
         assertThat(view.indices()).isEmpty();
         assertThat(view.foreignKeys()).isEmpty();
-        // ... but the base tables are
         assertThat(view.underlyingTables())
             .extracting(t -> t.getNormalizedSchemaName() + "." + t.getNormalizedTableName())
             .containsExactly("tdb.widget");

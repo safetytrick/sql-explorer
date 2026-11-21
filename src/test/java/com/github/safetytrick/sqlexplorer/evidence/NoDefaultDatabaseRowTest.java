@@ -32,13 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * A statement run with no default database is analysed, not dropped
- * (sqlx-4wm). Production's digest tables hold such statements — sql-explorer's
- * own capture query among them — and every one threw from the unknown-table
- * check and was lost from the corpus, then re-analysed and lost again on every
- * pull, since a dropped row is never captured for reuse.
- */
 class NoDefaultDatabaseRowTest {
 
     @TempDir
@@ -81,7 +74,6 @@ class NoDefaultDatabaseRowTest {
         row.setLockTime(BigDecimal.ZERO);
         row.setFirstSeen(LocalDateTime.parse("2026-10-19T16:33:23"));
         row.setLastSeen(LocalDateTime.parse("2026-10-19T19:54:30"));
-        // a loaded schema, so the unknown-table check runs — the path that threw
         LoadedSchema schema = new LoadedSchema(List.of(new TableStructure("app_production", "users", "TABLE", null,
             List.of(), List.of(), List.of(), null, null)));
 

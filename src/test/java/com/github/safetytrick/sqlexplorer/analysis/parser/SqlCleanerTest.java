@@ -73,13 +73,6 @@ public class SqlCleanerTest {
     }
 
 
-    // ── MySQL 8.0.19 row aliases (sqlx-a1i) ──
-
-    /**
-     * Verbatim from the corpus, whitespace and all: the shape that accounted
-     * for eight of the corpus's parse failures and every user-schema statement
-     * the analyzer genuinely lost.
-     */
     private static final String ROW_ALIAS_INSERT = """
                 INSERT
                 INTO
@@ -100,11 +93,6 @@ public class SqlCleanerTest {
         assertTrue(parsed.modified(), "the rewrite has to be reported as a modification");
     }
 
-    /**
-     * The point of rewriting rather than deleting. Dropping `AS NEW` alone
-     * leaves `= `new`.`col`` behind, which parses — and then the analyzers
-     * resolve `new` as a table that does not exist.
-     */
     @Test
     void the_alias_leaves_no_phantom_table_behind() {
         String cleaned = new SqlCleaner().cleanSql(ROW_ALIAS_INSERT).sql();
@@ -114,7 +102,6 @@ public class SqlCleanerTest {
         assertTrue(cleaned.contains("VALUES(`last_name`)"), cleaned);
     }
 
-    /** The values list keeps its closing paren — the alias clause is all that goes. */
     @Test
     void the_values_list_survives_the_rewrite() {
         String cleaned = new SqlCleaner().cleanSql(ROW_ALIAS_INSERT).sql();
@@ -122,7 +109,6 @@ public class SqlCleanerTest {
         assertTrue(cleaned.contains("( ? )") || cleaned.contains("(?)"), cleaned);
     }
 
-    /** An INSERT with no alias is not touched, and neither is a plain AS. */
     @Test
     void leaves_the_classic_form_alone() {
         String classic = """
@@ -133,10 +119,6 @@ public class SqlCleanerTest {
         assertEquals(classic.trim(), new SqlCleaner().cleanSql(classic).sql().trim());
     }
 
-    /**
-     * The alias is declared upper and referenced lower in every corpus
-     * example, so the reference rewrite has to be case-insensitive.
-     */
     @Test
     void matches_the_alias_whatever_case_it_is_referenced_in() {
         String mixed = "INSERT INTO `t` ( `a` ) VALUES ( ? ) AS Fresh "

@@ -12,7 +12,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
-/** Sampling every shard, and probing one server, keep the sampling-role guard (sqlx-n5j.3). */
 class SamplingByClusterTest {
 
     private static final SamplingLimits LIMITS = new SamplingLimits(Duration.ofSeconds(2), 5_000);

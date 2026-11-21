@@ -44,11 +44,6 @@ class DigestOverflowRowTest {
     @TempDir
     Path directory;
 
-    /**
-     * A row that throws is logged and dropped, and the load carries on — so
-     * a row that failed and a row that was skipped leave the same corpus. The
-     * log is the only place they differ, which is why this listens to it.
-     */
     private final ListAppender<ILoggingEvent> log = new ListAppender<>();
     private final Logger serviceLogger = (Logger) LoggerFactory.getLogger(SqlEvidenceInputService.class);
 
@@ -96,12 +91,8 @@ class DigestOverflowRowTest {
         SqlRepository repository = service.fromPerformanceSchema(source, Stream.of(
             new SqlInput(0, row("7e2b9c4a1d6f8e3b5c0a2d4f6e8b1c3a5d7f9e0b2c4d6f8a1b3c5e7d9f0a2b4c", text, 546_848_633L),
                 source),
-            // the overflow bucket, as it was read: no digest, someone else's text
             new SqlInput(1, row(null, text, 2_228_449L), source)), null);
 
-        // One profile, with only the real statement's executions: the bucket's
-        // 2.2M are neither a profile of their own nor folded into this one,
-        // which its borrowed text would otherwise normalize onto.
         assertThat(repository.getAllAnalyzedSql())
             .extracting(profile -> profile.getRuntimeMetrics().getExecuted())
             .containsExactly(546_848_633L);

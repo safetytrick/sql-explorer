@@ -12,7 +12,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The last unused-index report survives a restart, and a bad file is no report rather than an error (sqlx-1bo.2). */
 class UnusedIndexReportStoreTest {
 
     @TempDir

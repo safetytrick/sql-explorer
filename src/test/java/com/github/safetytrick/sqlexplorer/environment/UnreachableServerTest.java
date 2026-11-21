@@ -13,10 +13,6 @@ import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * A server whose schema cannot be read is left out of its environment's
- * schema, not allowed to fail it (sqlx-jdf).
- */
 class UnreachableServerTest {
 
     private static SchemaRepositoryFactory.SchemaLoad load(LoadedSchema schema) {
@@ -46,7 +42,6 @@ class UnreachableServerTest {
         assertThat(environment.schemaRepository()).isInstanceOf(CompositeSchemaRepository.class);
     }
 
-    /** One left standing is returned as itself, as a single-server environment always was. */
     @Test
     void oneReadableServerIsTheSchema() {
         LoadedSchema shard1 = mock(LoadedSchema.class);
@@ -55,7 +50,6 @@ class UnreachableServerTest {
         assertThat(environment.schemaRepository()).isSameAs(shard1);
     }
 
-    /** With nothing readable there is no schema, and the failure is the answer — as before. */
     @Test
     void whenNoServerIsReadableTheFailureIsThrown() {
         Environment environment = new Environment("production", List.of(refusing(), refusing()));
@@ -63,14 +57,6 @@ class UnreachableServerTest {
         assertThatThrownBy(environment::schemaRepository).hasMessage("Access denied");
     }
 
-    /**
-     * A failed load is remembered: a pool that cannot start takes seconds to
-     * say so, and every request touching the schema would otherwise pay that
-     * again. Forgetting it — what a load or pull does — tries the server anew.
-     *
-     * <p>Uses a real refused connection, so it exercises the pool failure the
-     * production server produced rather than a stand-in.
-     */
     @Test
     void aFailedSchemaLoadIsRememberedUntilForgotten() {
         DatabaseServer server = new DatabaseServer("sharing",

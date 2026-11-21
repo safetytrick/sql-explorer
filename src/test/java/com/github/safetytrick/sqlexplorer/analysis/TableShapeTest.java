@@ -7,12 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The two shape facts the workbench filters on (sqlx-6yf), read off real
- * analysis rather than hand-built profiles: how many distinct tables a
- * statement references ({@code distinctTableCount}) and which it joins to
- * themselves ({@code selfJoinedTables}).
- */
 public class TableShapeTest {
 
     private static final SchemaFixture FIXTURE = fixture();
@@ -76,11 +70,6 @@ public class TableShapeTest {
         assertThat(profile.selfJoinedTables()).isEmpty();
     }
 
-    /**
-     * The analyzer records {@code x IN (SELECT y ...)} as a join between x and
-     * y (a semi-join), so an IN-subquery on the same table is a self-join here,
-     * as it is on the graph.
-     */
     @Test
     public void anInSubqueryOnTheSameTableIsASemiSelfJoin() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze(

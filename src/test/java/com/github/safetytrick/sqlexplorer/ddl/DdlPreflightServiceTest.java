@@ -39,7 +39,6 @@ class DdlPreflightServiceTest {
 
     private DdlPreflightService service;
 
-    /** account: a latin1 table with a unique code, 2 M rows on 3 GB, referenced by account_site. */
     private static final TableStructure ACCOUNT = new TableStructure("app_main", "account", "TABLE", null,
         List.of(),
         List.of(index("PRIMARY", true, "id"), index("uq_code", true, "code"), index("idx_name", false, "name")),

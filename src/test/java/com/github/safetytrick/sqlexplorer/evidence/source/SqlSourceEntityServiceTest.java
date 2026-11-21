@@ -28,9 +28,6 @@ class SqlSourceEntityServiceTest {
         sqlSourceEntityRepository = mock(SqlSourceEntityRepository.class);
         sourceRefEntityRepository = mock(SourceRefEntityRepository.class);
 
-        // The blob path is only reached when the content is NEW. The
-        // attribution tests below dedup past it; the capture-context ones do
-        // not, so the session has to answer rather than be absent.
         EntityManager entityManager = mock(EntityManager.class);
         SessionImplementor session = mock(SessionImplementor.class);
         LobCreator lobCreator = mock(LobCreator.class);
@@ -42,11 +39,9 @@ class SqlSourceEntityServiceTest {
         service = new SqlSourceEntityService(sqlSourceEntityRepository, sourceRefEntityRepository,
             mock(UserService.class), entityManager);
 
-        // dedup hit: the upload's content already exists, so no blob is written
         when(sqlSourceEntityRepository.findByMd5Hash(any())).thenReturn(Optional.of(new SqlSourceEntity()));
     }
 
-    /** What the uploader supplies about the export; see SqlSourceEntityService.CaptureDetails. */
     private static final SqlSourceEntityService.CaptureDetails CAPTURE =
         new SqlSourceEntityService.CaptureDetails(
             java.time.Instant.parse("2026-08-29T14:03:35Z"), "8.4.4", 10000, 4096);
@@ -77,10 +72,6 @@ class SqlSourceEntityServiceTest {
     }
 
 
-    /**
-     * The point of requiring it: an export that cannot say when it was taken
-     * cannot be reasoned about, and nobody but the uploader ever knows.
-     */
     @Test
     void anUploadRecordsWhatTheServerLookedLikeAtCaptureTime() {
         when(sqlSourceEntityRepository.findByMd5Hash(any())).thenReturn(Optional.empty());
@@ -98,11 +89,6 @@ class SqlSourceEntityServiceTest {
         assertThat(saved.getOrigin()).isEqualTo("CSV_EXPORT");
     }
 
-    /**
-     * Capture time is not upload time. For an uploaded export the two are
-     * routinely months apart, and conflating them would put a confident wrong
-     * timestamp on the fact every coverage signal hangs off.
-     */
     @Test
     void capturedAtIsSeparateFromWhenTheSourceWasCreated() {
         when(sqlSourceEntityRepository.findByMd5Hash(any())).thenReturn(Optional.empty());
@@ -116,7 +102,6 @@ class SqlSourceEntityServiceTest {
         assertThat(saved.getCapturedAt()).isNotEqualTo(saved.getCreatedOn());
     }
 
-    /** A source found on disk had no uploader, so it claims nothing. */
     @Test
     void anUnknownCaptureIsRecordedAsUnknownRatherThanGuessed() {
         when(sqlSourceEntityRepository.findByMd5Hash(any())).thenReturn(Optional.empty());

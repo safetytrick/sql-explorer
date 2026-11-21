@@ -48,7 +48,6 @@ class CoQueriedServiceTest {
         when(sqlRepositoryService.getTableQueries(SESSIONS)).thenAnswer(inv -> Stream.of(
             profile("q1", metrics(100, 200), List.of(SESSIONS, USERS), join(SESSIONS, USERS)),
             profile("q2", metrics(300, 900), List.of(SESSIONS, USERS, ACCOUNTS)),
-            // self-join: sessions twice, partner counted once
             profile("q3", metrics(5, 10), List.of(SESSIONS, SESSIONS, ACCOUNTS))));
 
         List<CoQueriedTable> partners = service.getCoQueried(SESSIONS);
@@ -58,7 +57,6 @@ class CoQueriedServiceTest {
             .containsExactly(
                 tuple("users", 2, 400L, true),
                 tuple("accounts", 2, 305L, false));
-        // 1100ms total over 400 executions, converted from picoseconds
         assertThat(partners.getFirst().avgTimeMs()).isCloseTo(2.75, within(0.001));
     }
 
@@ -66,9 +64,7 @@ class CoQueriedServiceTest {
     void foreignKeyDirectionComesFromEitherSideOfThePair() {
         when(sqlRepositoryService.getTableQueries(SESSIONS)).thenAnswer(inv -> Stream.of(
             profile("q1", metrics(1, 1), List.of(SESSIONS, USERS, ACCOUNTS))));
-        // sessions.user_id -> users.id : "out" from sessions' perspective
         when(sqlSchemaService.getTable(SESSIONS)).thenReturn(structureWithFkTo(SESSIONS, USERS));
-        // accounts.session_id -> sessions.id : "in" from sessions' perspective
         when(sqlSchemaService.getTable(ACCOUNTS)).thenReturn(structureWithFkTo(ACCOUNTS, SESSIONS));
 
         assertThat(service.getCoQueried(SESSIONS))

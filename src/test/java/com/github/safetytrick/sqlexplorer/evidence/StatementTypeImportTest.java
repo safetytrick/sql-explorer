@@ -27,11 +27,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * A loaded statement's type is its operation and its isDml says whether that
- * writes, on a fresh analysis, on an unparsed statement, and on reuse
- * (sqlx-a9h).
- */
 class StatementTypeImportTest {
 
     @TempDir
@@ -39,7 +34,6 @@ class StatementTypeImportTest {
 
     private static final String CTE_DELETE = "WITH `gone` AS ( SELECT `id` FROM `account` WHERE `status` = ? ) "
         + "DELETE FROM `account` WHERE `id` IN ( SELECT `id` FROM `gone` )";
-    /** Cut off by Performance Schema inside the CTE, as a long one is. */
     private static final String TRUNCATED = "WITH `a` AS ( SELECT `id` FROM `account` WHERE `status` = ? AND `id` IN ( ...";
 
     private SqlEvidenceInputService service;
@@ -84,7 +78,6 @@ class StatementTypeImportTest {
         return profiles.getFirst();
     }
 
-    /** It matched nothing, so rows affected alone would call it a read. */
     @Test
     void aCteDeleteThatChangedNothingIsADeleteAndDml() {
         SqlProfile profile = load(AnalysisContext.ANALYSE_EVERYTHING, row("d1", CTE_DELETE, 0));
@@ -105,7 +98,6 @@ class StatementTypeImportTest {
         assertThat(quiet.getIsDml()).isFalse();
     }
 
-    /** A write that changes one row per run is DML: the old threshold was more than one. */
     @Test
     void aWriteOfOneRowIsDml() {
         SqlProfile profile = load(AnalysisContext.ANALYSE_EVERYTHING,
@@ -116,7 +108,6 @@ class StatementTypeImportTest {
             row("s1", "SELECT `id` FROM `account` WHERE `id` = ?", 0)).getIsDml()).isFalse();
     }
 
-    /** Reuse brings the parsed type; isDml is derived from it again, not copied. */
     @Test
     void aReusedAnalysisKeepsTheParsedTypeAndIsDml() {
         SqlProfile prior = load(AnalysisContext.ANALYSE_EVERYTHING, row("d1", CTE_DELETE, 0));

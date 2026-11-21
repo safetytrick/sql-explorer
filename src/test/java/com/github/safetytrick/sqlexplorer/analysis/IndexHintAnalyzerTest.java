@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Index hints are recorded one entry per named index, against the hinted table (sqlx-yj0). */
 class IndexHintAnalyzerTest {
 
     private SchemaFixture fixture;

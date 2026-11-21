@@ -5,11 +5,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The normalized digest groups repeat-count variants of the same pattern:
- * two queries differing only in how many times a block repeats must hash
- * identically, while genuinely different queries must not.
- */
 class NormalizedQueryDigestTest {
 
     private final NormalizedQueryDigest digest = new NormalizedQueryDigest(new QueryNormalizer(), new SqlParser());
@@ -91,17 +86,6 @@ class NormalizedQueryDigestTest {
             "SELECT `id` FROM `member_name` WHERE `last_name` LIKE ?"));
     }
 
-    /**
-     * The session schema is part of the digest.
-     *
-     * <p>Framework SQL is written unqualified and run against every service's
-     * schema, so one text is many statements. On the regression server
-     * {@code SELECT COUNT(*) FROM `migrations` WHERE `created_at` IS NULL} ran
-     * in ten schemas and arrived as ten performance-schema rows — one per
-     * (schema, digest) — which collapsed into a single profile reporting one
-     * of them. Which one was decided by a race, and differed between two
-     * imports three hours apart.
-     */
     @Test
     void theSameTextInDifferentSchemasDigestsDifferently() throws JSQLParserException {
         String sql = "SELECT COUNT(*) FROM `migrations` WHERE `created_at` IS NULL";
@@ -110,7 +94,6 @@ class NormalizedQueryDigestTest {
             .isNotEqualTo(digest.normalizedDigest(sql, "del"));
     }
 
-    /** And the same text in the same schema is still one statement. */
     @Test
     void theSameTextInTheSameSchemaDigestsIdentically() throws JSQLParserException {
         String sql = "SELECT COUNT(*) FROM `migrations` WHERE `created_at` IS NULL";
@@ -119,11 +102,6 @@ class NormalizedQueryDigestTest {
             .isEqualTo(digest.normalizedDigest(sql, "app_main"));
     }
 
-    /**
-     * Scoping must not cost the repeat collapsing, which is the reason the
-     * normalized digest exists at all: within one schema, variants of a
-     * pattern still merge.
-     */
     @Test
     void repeatVariantsStillMergeWithinASchema() throws JSQLParserException {
         String two = "SELECT `id` FROM `member_name` WHERE `last_name` LIKE ? OR `last_name` LIKE ?";
@@ -134,12 +112,6 @@ class NormalizedQueryDigestTest {
             .isEqualTo(digest.normalizedDigest(five, "app_main"));
     }
 
-    /**
-     * "No session schema" has one spelling in the hash. The raw row carries
-     * null and {@code SqlProfile.schemaName} carries the {@code "dual"}
-     * placeholder for the same condition; a statement that hashed differently
-     * depending on which reached the digest first would appear twice.
-     */
     @Test
     void everySpellingOfNoSessionSchemaDigestsTheSame() throws JSQLParserException {
         String sql = "SELECT COUNT(*) FROM `migrations` WHERE `created_at` IS NULL";
@@ -153,7 +125,6 @@ class NormalizedQueryDigestTest {
         assertThat(digest.normalizedDigest(sql, "app_main")).isNotEqualTo(unscoped);
     }
 
-    /** Schema names compare case- and backtick-insensitively everywhere else. */
     @Test
     void theSchemaScopeIsNormalizedLikeEveryOtherSchemaName() throws JSQLParserException {
         String sql = "SELECT COUNT(*) FROM `migrations` WHERE `created_at` IS NULL";
@@ -162,12 +133,6 @@ class NormalizedQueryDigestTest {
         assertThat(digest.normalizedDigest(sql, "`app_main`")).isEqualTo(digest.normalizedDigest(sql, "app_main"));
     }
 
-    /**
-     * No pair of (schema, text) inputs can collide by running together. A
-     * plain separator is not enough: a backtick-quoted MySQL identifier can
-     * contain a newline, so {@code ("a", "b\nc")} and {@code ("a\nb", "c")}
-     * hashed identically until the scope was length-prefixed.
-     */
     @Test
     void theScopeCannotRunIntoTheStatementText() {
         assertThat(NormalizedQueryDigest.scopedDigest("a", "b\nc"))

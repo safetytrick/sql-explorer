@@ -42,13 +42,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Personal access tokens (sqlx-e13.5), booted as OidcSignInTest is: oidc mode
- * against a provider under {@code .invalid}, a real MySQL. Tokens are made
- * from a stand-in session ({@code oidcLogin()}) and then used over real HTTP,
- * as an MCP or API client would, since {@code /mcp} is a servlet of its own
- * that MockMvc does not reach.
- */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
     "sql-explorer.auth.mode=oidc",
     "sql-explorer.auth.issuer=" + AccessTokenTest.ISSUER,
@@ -127,8 +120,6 @@ class AccessTokenTest {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
-    // ---- made, listed, revoked ----
-
     @Test
     void aTokenIsMadeListedAndRevoked() throws Exception {
         var me = signedIn("sub-maker", List.of("sqlx:viewer:alpha"));
@@ -149,7 +140,6 @@ class AccessTokenTest {
         assertThat(list.path("maxLifetimeDays").asLong()).isEqualTo(30);
         assertThat(list.path("grants").valueStream().map(JsonNode::asString).toList()).containsExactly("viewer:alpha");
         assertThat(list.path("ceilingOptions").valueStream().map(JsonNode::asString).toList()).containsExactly("viewer:alpha", "reader:alpha");
-        // shown once: the listing never carries the secret or its hash
         assertThat(list.toString()).doesNotContain(secret).doesNotContain(AccessTokenService.hash(secret));
 
         assertThat(call("GET", "/env/alpha/schemas", secret, null).statusCode()).isEqualTo(200);
@@ -172,7 +162,6 @@ class AccessTokenTest {
         assertThat(row.getTokenHash()).isEqualTo(AccessTokenService.hash(secret)).doesNotContain(secret);
         assertThat(row.getTokenPrefix()).hasSize(13);
         assertThat(secret).startsWith(row.getTokenPrefix());
-        // no lifetime asked for: the maximum
         assertThat(row.getExpiresOn()).isBetween(Instant.now().plus(29, ChronoUnit.DAYS), Instant.now().plus(31, ChronoUnit.DAYS));
     }
 
@@ -196,7 +185,6 @@ class AccessTokenTest {
         assertThat(refused).contains("grant you nothing");
     }
 
-    /** The example the design started from: an administrator lets an MCP client read, and only read. */
     @Test
     void anAdminsViewerTokenReadsButCannotPull() throws Exception {
         var admin = signedIn("sub-admin", List.of("sqlx:admin"));
@@ -216,7 +204,6 @@ class AccessTokenTest {
         assertThat(me.path("environments").propertyNames()).containsExactly("alpha");
     }
 
-    /** min(owner, ceiling) at every request: the owner's next sign-in with fewer groups narrows the token. */
     @Test
     void theOwnerLosingAGroupNarrowsTheirTokens() throws Exception {
         var admin = signedIn("sub-shrinks", List.of("sqlx:admin"));
@@ -224,7 +211,6 @@ class AccessTokenTest {
         assertThat(call("GET", "/analysis-failures", token, null).statusCode()).isEqualTo(200);
         assertThat(call("GET", "/env/beta/schemas", token, null).statusCode()).isEqualTo(200);
 
-        // signs in again; the provider now says Viewer on alpha only
         users.signedIn(ISSUER, "sub-shrinks", "sub-shrinks@example.com", "Shrinks", List.of("sqlx:viewer:alpha"),
             Instant.now().plusSeconds(5));
 
@@ -232,7 +218,6 @@ class AccessTokenTest {
         assertThat(call("GET", "/env/beta/schemas", token, null).statusCode()).isEqualTo(403);
         assertThat(call("GET", "/env/alpha/schemas", token, null).statusCode()).isEqualTo(200);
 
-        // an older sign-in cannot put the groups back
         users.signedIn(ISSUER, "sub-shrinks", "sub-shrinks@example.com", "Shrinks", List.of("sqlx:admin"),
             Instant.now().minus(1, ChronoUnit.HOURS));
         assertThat(call("GET", "/analysis-failures", token, null).statusCode()).isEqualTo(403);
@@ -256,7 +241,6 @@ class AccessTokenTest {
         assertThat(call("GET", "/env/alpha/schemas", "not-even-ours", null).statusCode()).isEqualTo(401);
     }
 
-    /** A token cannot make another, nor revoke or list: /tokens wants a browser session. */
     @Test
     void aTokenCannotCallTokens() throws Exception {
         String token = secret(create(signedIn("sub-minter", List.of("sqlx:admin")), "minter", List.of("admin"), null));
@@ -265,16 +249,13 @@ class AccessTokenTest {
         assertThat(json.readTree(list.body()).path("message").asString()).contains("cannot manage access tokens");
         assertThat(call("POST", "/tokens", token, "{\"name\":\"child\",\"ceiling\":[\"admin\"]}").statusCode()).isEqualTo(403);
         assertThat(call("DELETE", "/tokens/1", token, null).statusCode()).isEqualTo(403);
-        // nor with the path spelled another way
         assertThat(call("GET", "/%74okens", token, null).statusCode()).isIn(400, 403, 404);
-        // and without either, it is a sign-in
         assertThat(call("GET", "/tokens", null, null).statusCode()).isEqualTo(401);
     }
 
     @Test
     void writesAreAuthoredByTheOwner() throws Exception {
         String token = secret(create(signedIn("sub-author", List.of("sqlx:viewer:alpha")), "writer", List.of("viewer:alpha"), null));
-        // a POST with no CSRF token and no cookie: a bearer request needs neither
         HttpResponse<String> note = send(HttpRequest.newBuilder(uri("/env/alpha/notes?path=/schema/app_main&text=from%20a%20token"))
             .header("Authorization", "Bearer " + token)
             .POST(HttpRequest.BodyPublishers.noBody()));
@@ -318,8 +299,6 @@ class AccessTokenTest {
             .andExpect(status().isForbidden());
     }
 
-    // ---- MCP ----
-
     @Test
     void mcpNeedsAToken() throws Exception {
         HttpResponse<String> anonymous = mcp(null, "tools/list", Map.of());
@@ -331,11 +310,6 @@ class AccessTokenTest {
         assertThat(listed.body()).contains("search_queries");
     }
 
-    /**
-     * The MCP page opened through a tunnel lists the tools from its own
-     * address. Its scheme and host come from the proxy's forwarded headers,
-     * which Tomcat consumes before the endpoint sees them (McpOriginValidator).
-     */
     @Test
     void mcpTakesAPageOnItsOwnAddressThroughAProxy() throws Exception {
         String token = secret(create(signedIn("sub-mcp-origin", List.of("sqlx:viewer:alpha")), "page", List.of("viewer:alpha"), null));
@@ -366,11 +340,9 @@ class AccessTokenTest {
         assertThat(write.path("isError").asBoolean()).isTrue();
         assertThat(text(write)).contains("commentary:write").contains("beta");
 
-        // with no environment named, it picks one the token can read rather than refusing
         JsonNode defaulted = mcpResult(token, "list_tags", Map.of());
         assertThat(defaulted.path("isError").asBoolean()).as(defaulted.toString()).isFalse();
 
-        // the SQL utilities read nothing an environment holds
         JsonNode pure = mcpResult(token, "normalize_sql", Map.of("sql", "select 1"));
         assertThat(pure.path("isError").asBoolean()).as(pure.toString()).isFalse();
     }
@@ -383,8 +355,6 @@ class AccessTokenTest {
         User owner = userRepository.findByIssuerAndSubject(ISSUER, "sub-tagger").orElseThrow();
         assertThat(json.readTree(text(added)).path("author").path("id").asInt()).isEqualTo(owner.getId());
     }
-
-    // ---- helpers ----
 
     private record Made(ResultActions actions, AccessTokenTest test) {
         Made andExpect(org.springframework.test.web.servlet.ResultMatcher matcher) throws Exception {

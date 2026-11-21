@@ -24,7 +24,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** The tables listing narrows to tables having every requested column (sqlx-v86). */
 class TablesWithColumnsTest {
 
     private static final TableReference NOTES = TableReference.newTableReference("app", "notes");

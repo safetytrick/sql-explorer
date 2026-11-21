@@ -23,23 +23,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Which indexes an environment can honestly be said to have stopped reading.
- *
- * <p>THIS IS THE ONE REPORT THAT ENDS IN A DELETION, so the tests are about the
- * ways it could wrongly say yes: a replica whose reads are not counted, an
- * unreachable connection read as agreement, and a server that has not been
- * counting long enough for silence to mean anything (sqlx-vjr).
- */
 class UnusedIndexServiceTest {
 
     private static final long UP_LONG_ENOUGH = 30 * 24 * 3600L;
     private static final long UP_AN_HOUR = 3600L;
 
-    /** What one fake connection will answer. */
     private record Answers(List<UnusedIndexes.Index> unused, List<UnusedIndexes.Index> read, Long up) { }
 
-    /** An ordered map, so the connections are read in a predictable order. */
     private static Map<String, Answers> ordered(Map.Entry<String, Answers> first,
                                                 Map.Entry<String, Answers> second) {
         Map<String, Answers> map = new java.util.LinkedHashMap<>();
@@ -56,14 +46,6 @@ class UnusedIndexServiceTest {
         return new UnusedIndexes.Index("app", table, name);
     }
 
-    /**
-     * A service whose connections answer from a script rather than a server.
-     *
-     * <p>Driven at {@code read(server)} rather than at JDBC: what these tests
-     * prove is how several connections' answers COMBINE, and none of that is
-     * about SQL. A null entry means that connection refuses, which is one of
-     * the cases that has to be right.
-     */
     private UnusedIndexService serviceOver(Map<String, Answers> byServer) {
         List<DatabaseServer> servers = byServer.keySet().stream()
             .map(name -> new DatabaseServer(name,
@@ -85,7 +67,6 @@ class UnusedIndexServiceTest {
         };
     }
 
-    /** The simple case: one connection, nothing has read it. */
     @Test
     void anIndexNoConnectionHasReadIsReported() {
         UnusedIndexes.Report report = serviceOver(Map.of(
@@ -96,11 +77,6 @@ class UnusedIndexServiceTest {
         assertThat(report.complete()).isTrue();
     }
 
-    /**
-     * THE CASE THE WHOLE FEATURE IS FOR. The primary never touches it; a replica
-     * serves reports from it. Reporting it would be recommending the deletion of
-     * an index something depends on.
-     */
     @Test
     void anIndexOneConnectionReadsIsNotReportedEvenIfAnotherCallsItUnused() {
         UnusedIndexes.Report report = serviceOver(ordered(
@@ -112,11 +88,6 @@ class UnusedIndexServiceTest {
         assertThat(report.complete()).isTrue();
     }
 
-    /**
-     * An index only one connection HAS is still reportable. Intersecting the
-     * unused sets would drop it — which is why the rule is "read nowhere"
-     * rather than "unused everywhere".
-     */
     @Test
     void anIndexOnlyOneConnectionHasIsStillReported() {
         UnusedIndexes.Report report = serviceOver(ordered(
@@ -127,11 +98,6 @@ class UnusedIndexServiceTest {
         assertThat(report.unused()).containsExactly(index("orders", "idx_only_here"));
     }
 
-    /**
-     * SILENCE IS NOT AGREEMENT. A connection that could not be read contributes
-     * no veto, so the report must say it is not a statement about the
-     * environment — otherwise a broken replica becomes a reason to drop.
-     */
     @Test
     void aConnectionThatCouldNotBeReadIsNamedRatherThanCountedAsAgreement() {
         Map<String, Answers> servers = new java.util.LinkedHashMap<>();
@@ -147,11 +113,6 @@ class UnusedIndexServiceTest {
         assertThat(report.basis()).contains("could not be read");
     }
 
-    /**
-     * A server up an hour has not been counting long enough for silence to mean
-     * disuse. Reported as IMPAIRED rather than withheld: the reader should see
-     * that it answered, and that its answer cannot carry a deletion.
-     */
     @Test
     void aWindowTooShortToSupportTheClaimIsSaidSo() {
         UnusedIndexes.Report report = serviceOver(Map.of(
@@ -162,11 +123,6 @@ class UnusedIndexServiceTest {
             .extracting(UnusedIndexes.Connection::verdict).isEqualTo(Coverage.Verdict.IMPAIRED);
     }
 
-    /**
-     * The uptime is an UPPER BOUND, and the report has to say so: Performance
-     * Schema can be truncated without a restart, and a truncate zeroes every
-     * index at once — so just after one, everything reads as unused.
-     */
     @Test
     void theBasisNamesUptimeAsAnUpperBoundAndWhyThatMatters() {
         UnusedIndexes.Report report = serviceOver(Map.of(
@@ -176,7 +132,6 @@ class UnusedIndexServiceTest {
         assertThat(report.basis()).contains("UPPER BOUND").contains("truncated");
     }
 
-    /** Reading is what connects, so the page shows the last report and reads only when asked (sqlx-1bo.2). */
     @Test
     void keepsTheLastReportPerEnvironmentWithWhenItWasRead() {
         UnusedIndexService service = serviceOver(Map.of(
@@ -189,7 +144,6 @@ class UnusedIndexServiceTest {
         assertThat(service.latest("prod")).contains(read);
     }
 
-    /** A report read before a restart is what the page shows after it, with when it was read and how long it took. */
     @Test
     void theLastReportOutlivesARestart(@TempDir Path directory) {
         UnusedIndexReportStore store = new UnusedIndexReportStore(directory, JsonMapper.builder().findAndAddModules().build());
@@ -216,11 +170,6 @@ class UnusedIndexServiceTest {
         assertThat(after.latest("prod")).contains(read);
     }
 
-    /**
-     * A server with no sys schema is still read, from performance_schema, and
-     * says so (sqlx-jip). Only a grammar error falls back: that is how a
-     * missing view answers, and anything else is a real failure to read.
-     */
     @Test
     void aServerWithoutTheSysViewIsReadFromPerformanceSchemaInstead() {
         List<UnusedIndexes.Index> found = List.of(index("orders", "idx_old"));
@@ -241,7 +190,6 @@ class UnusedIndexServiceTest {
         })).isInstanceOf(DataAccessResourceFailureException.class);
     }
 
-    /** The fallback is the sys view's own definition, filters and all, not an approximation of it. */
     @Test
     void theFallbackKeepsTheViewsFilters() {
         assertThat(UnusedIndexService.UNUSED_WITHOUT_SYS)

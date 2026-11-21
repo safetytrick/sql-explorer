@@ -21,13 +21,10 @@ class ForeignKeyLoadingServiceTest {
 
     @Test
     void groupsConstraintsByOwningTableAndConstraintName() throws SQLException {
-        // ordered by owner, constraint, key_seq — as the query guarantees
         ResultSet keys = resultSet(
             row("app", "orders", "fk_orders_member", "member_id", "app", "members", "id"),
-            // composite FK: two rows, one constraint
             row("app", "orders", "fk_orders_line", "line_a", "app", "lines", "a"),
             row("app", "orders", "fk_orders_line", "line_b", "app", "lines", "b"),
-            // next owning table: previous builder must flush into orders, not leak here
             row("app", "sessions", "fk_sessions_user", "user_id", "app", "users", "id"));
 
         Map<TableReference, List<ForeignKey>> byTable = service.readForeignKeys(keys);

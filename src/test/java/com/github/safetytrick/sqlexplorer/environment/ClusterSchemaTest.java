@@ -13,7 +13,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** A cluster reads its schema from schemaFrom, in order, and from nowhere else (sqlx-sqy.2). */
 class ClusterSchemaTest {
 
     private static SchemaRepositoryFactory.SchemaLoad load(LoadedSchema schema) {
@@ -71,7 +70,6 @@ class ClusterSchemaTest {
         assertThat(source.passedOver()).containsExactly("shard1: Access denied for shard1");
     }
 
-    /** A server outside schemaFrom is captured from but never read for schema, even when nothing else answers. */
     @Test
     void aServerOutsideSchemaFromIsNeverReadForSchema() {
         DatabaseServer primary = refusing("shard1");
@@ -82,7 +80,6 @@ class ClusterSchemaTest {
         verify(etl, never()).getSchemaLoad();
     }
 
-    /** One schema per cluster; a cluster that cannot be read is left out and reported. */
     @Test
     void theEnvironmentReportsWhereEachClustersSchemaCameFrom() {
         DatabaseServer shard1 = refusing("shard1");
@@ -101,7 +98,6 @@ class ClusterSchemaTest {
         assertThat(production.schemaRepository()).isNotNull();
     }
 
-    /** Every schemaFrom server down: the snapshot serves what was analysed, and says it is not current (sqlx-sqy.4). */
     @Test
     void withNoServerReachableTheLastSnapshotServesAsNotCurrent() {
         DatabaseServer primary = refusing("shard1");

@@ -7,12 +7,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Pins the wire contract of the per-table queries payload: the legacy table
- * pages read {@code schema}/{@code name} to build their header and links, so
- * the JSON field names and values are asserted here. If this fails, the
- * "{@code .table_name} without a schema" symptom is server-side.
- */
 class TableSerializationTest {
 
     @Test

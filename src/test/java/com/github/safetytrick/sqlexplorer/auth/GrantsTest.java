@@ -59,7 +59,6 @@ class GrantsTest {
         assertThat(grants.admin()).as("Runner everywhere is still not Admin").isFalse();
     }
 
-    /** Visitors read at most (sqlx-2lc): whatever role is configured, never a write. */
     @Test
     void anonymousGrantsAreCappedAtReader() {
         Grants anonymous = GroupGrants.anonymous(List.of("viewer:prod", "admin:staging"));
@@ -73,7 +72,6 @@ class GrantsTest {
         assertThat(GroupGrants.anonymous(List.of()).grants()).isEmpty();
     }
 
-    /** Written for this application, so a typo fails startup rather than opening something else. */
     @Test
     void anAnonymousGrantThatDoesNotParseFailsStartup() {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> GroupGrants.anonymous(List.of("viewr:prod")))

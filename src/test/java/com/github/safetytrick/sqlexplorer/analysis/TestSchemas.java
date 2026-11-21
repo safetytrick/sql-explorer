@@ -16,18 +16,6 @@ import com.github.safetytrick.sqlexplorer.schema.LoadedSchema;
 import com.github.safetytrick.sqlexplorer.schema.TableStructure;
 import net.sf.jsqlparser.JSQLParserException;
 
-/**
- * Loads CREATE TABLE fixtures from {@code src/test/resources/schema/*.sql} into
- * a real {@link LoadedSchema}, so analyzer tests can resolve columns against an
- * actual schema instead of mocking {@code ColumnTableResolver}. Every fixture
- * is parsed with a default schema of {@code tdb} (a CREATE TABLE that names its
- * own schema keeps it).
- *
- * <p>This mirrors the style of {@code ColumnTableResolverTest}, which builds a
- * {@code LoadedSchema} from inline {@code TableStructure.fromCreateTable(...)}
- * definitions; the fixtures here are shared because the same domain tables
- * recur across the analyzer tests.
- */
 public final class TestSchemas {
 
     public static final String DEFAULT_SCHEMA = "tdb";
@@ -36,7 +24,6 @@ public final class TestSchemas {
     private TestSchemas() {
     }
 
-    /** A LoadedSchema containing exactly the named fixtures (without the {@code .sql} suffix). */
     public static LoadedSchema of(String... tableNames) {
         List<TableStructure> structures = new ArrayList<>(tableNames.length);
         for (String tableName : tableNames) {
@@ -45,7 +32,6 @@ public final class TestSchemas {
         return new LoadedSchema(structures);
     }
 
-    /** A LoadedSchema containing every fixture under {@code resources/schema}. */
     public static LoadedSchema all() {
         List<TableStructure> structures = new ArrayList<>();
         for (String name : fixtureNames()) {
@@ -54,7 +40,6 @@ public final class TestSchemas {
         return new LoadedSchema(structures);
     }
 
-    /** Parse a single fixture into a {@link TableStructure} in the {@code tdb} schema. */
     public static TableStructure table(String tableName) {
         String create = read(tableName);
         try {

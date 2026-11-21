@@ -40,7 +40,6 @@ class SchemaFingerprintTest {
         assertThat(before.differingTables(after)).containsExactly("app.invoices", "app.legacy", "app.orders");
     }
 
-    /** A hash moving between parts is a change, not a coincidence to be absorbed. */
     @Test
     void partsAreNotInterchangeable() {
         assertThat(fingerprint(Map.of("app.t", Map.of("columns", 1L, "indexes", 2L))).digest())

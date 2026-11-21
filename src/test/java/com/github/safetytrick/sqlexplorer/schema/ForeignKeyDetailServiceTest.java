@@ -29,7 +29,6 @@ class ForeignKeyDetailServiceTest {
         sqlSchemaService = mock(SqlSchemaService.class);
         service = new ForeignKeyDetailService(sqlSchemaService);
 
-        // sessions.user_id (INT) -> users.id (BIGINT); events.session_id -> sessions.id
         TableStructure sessions = structure(SESSIONS,
             List.of(fk("fk_sessions_user", SESSIONS, "user_id", USERS, "id")),
             column("id", "BIGINT", 19, null), column("user_id", "INT", 10, null));
@@ -71,13 +70,6 @@ class ForeignKeyDetailServiceTest {
         assertThat(matched.typeMismatch()).isFalse();
     }
 
-    /**
-     * Through a real two-server environment, the shape that broke: every
-     * server carries the same schema, and the incoming scan listed each
-     * referencing constraint once per server — fifteen times on production.
-     * Fixed where the copies came from, in CompositeSchemaRepository
-     * (sqlx-3js); this pins it at the endpoint that showed it.
-     */
     @Test
     void anEnvironmentOfSeveralServersListsEachConstraintOnce() {
         TableStructure sessions = sqlSchemaService.getTable(SESSIONS);

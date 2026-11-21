@@ -20,18 +20,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * The write path, against a real two-schema fixture and the real
- * analyzer chain — the inference under test is the analyzers', so mocking it
- * would test nothing.
- */
 class QueryExampleServiceTest {
 
-    /**
-     * Two schemas, and `orders` exists in both. That collision is the whole
-     * point: an unqualified `orders` cannot be resolved to one schema, which is
-     * the ambiguity the endpoint has to report rather than guess at.
-     */
     private static final String DDL = """
         create table app.orders (id int, member_id int, total int, primary key (id));
         create table archive.orders (id int, member_id int, total int, primary key (id));
@@ -57,8 +47,6 @@ class QueryExampleServiceTest {
         UserService userService = mock(UserService.class);
         when(userService.currentUser()).thenReturn(new User());
 
-        // no corpus in a unit test, so nothing carries any digest — matchedAProfile
-        // is exercised in its own test rather than assumed here
         SqlRepositoryService sqlRepositoryService = mock(SqlRepositoryService.class);
         when(sqlRepositoryService.getByDigest(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
 
@@ -67,8 +55,6 @@ class QueryExampleServiceTest {
             new QueryParameterizer(), sqlRepositoryService,
             analysis, fixture.schema(), environmentContext, userService);
     }
-
-    // ── the schema the digest is scoped by ──
 
     @Test
     void infersTheSchemaWhenTheStatementDeterminesOne() {
@@ -80,10 +66,6 @@ class QueryExampleServiceTest {
         assertThat(result.stored().isSchemaInferred()).isTrue();
     }
 
-    /**
-     * The discriminating case. `orders` is in both schemas, so nothing in the
-     * statement says which — the caller gets both back and picks.
-     */
     @Test
     void reportsCandidateSchemasWhenTheStatementIsAmbiguous() {
         QueryExampleService.Result result =
@@ -94,7 +76,6 @@ class QueryExampleServiceTest {
         assertThat(result.candidateSchemas()).containsExactlyInAnyOrder("app", "archive");
     }
 
-    /** Resubmitting with one of the offered candidates is what resolves it. */
     @Test
     void acceptsTheStatementOnceOneOfTheCandidatesIsSupplied() {
         QueryExampleService.Result ambiguous =
@@ -109,7 +90,6 @@ class QueryExampleServiceTest {
         assertThat(result.stored().isSchemaInferred()).isFalse();
     }
 
-    /** A supplied schema skips inference rather than competing with it. */
     @Test
     void believesASuppliedSchemaEvenWhereInferenceWouldHaveSucceeded() {
         QueryExampleService.Result result =
@@ -140,13 +120,6 @@ class QueryExampleServiceTest {
         assertThat(result.detail()).isNotBlank();
     }
 
-    // ── the digest is derived, never accepted ──
-
-    /**
-     * The rule the whole feature rests on. Nothing in the request names a
-     * digest; the same statement in the same schema always lands on the same
-     * one, and that is what makes the association trustworthy.
-     */
     @Test
     void derivesTheSameDigestForTheSameStatementAndSchema() {
         QueryExampleService.Result first =
@@ -158,13 +131,6 @@ class QueryExampleServiceTest {
             .isEqualTo(second.stored().getNormalizedDigest());
     }
 
-    /**
-     * The gap this feature was blocked on, now closed. An example is submitted
-     * with its real parameters and reduced the way MySQL reduces a statement
-     * into a digest, so two examples differing only in their values land on the
-     * same digest — and, critically, on the same one as the `?`-carrying text
-     * the corpus actually stores.
-     */
     @Test
     void reachesTheSameDigestWhateverTheParametersWere() {
         QueryExampleService.Result hundred =
@@ -179,11 +145,6 @@ class QueryExampleServiceTest {
             .isEqualTo(asTheCorpusHoldsIt.stored().getNormalizedDigest());
     }
 
-    /**
-     * The other half of the same gap: MySQL backticks every identifier and a
-     * human types none, so a hand-written example has to reach the digest the
-     * backticked corpus text reaches.
-     */
     @Test
     void reachesTheSameDigestWhicheverWayIdentifiersAreWritten() {
         QueryExampleService.Result human =
@@ -195,7 +156,6 @@ class QueryExampleServiceTest {
             .isEqualTo(mysqlStyle.stored().getNormalizedDigest());
     }
 
-    /** A multi-element IN list reduces the same way MySQL's `IN (...)` does. */
     @Test
     void reachesTheSameDigestForAnInListHoweverManyElements() {
         QueryExampleService.Result three =
@@ -207,8 +167,6 @@ class QueryExampleServiceTest {
             .isEqualTo(one.stored().getNormalizedDigest());
     }
 
-    // ── derived rather than accepted, continued ──
-
     @Test
     void takesTheEnvironmentFromTheActiveContextRatherThanTheRequest() {
         QueryExampleService.Result result =
@@ -217,11 +175,6 @@ class QueryExampleServiceTest {
         assertThat(result.stored().getEnvironmentName()).isEqualTo("regression");
     }
 
-    /**
-     * A UUIDv7 id is assigned before the row is saved — it is not database
-     * generated — and it must be time-ordered, because the retrieval API relies
-     * on `order by id desc` meaning most-recent-first.
-     */
     @Test
     void assignsATimeOrderedIdBeforeSaving() throws InterruptedException {
         QueryExample first = service.create("select id from orders", "app", null).stored();
@@ -248,11 +201,6 @@ class QueryExampleServiceTest {
         assertThat(example.isNew()).isTrue();
     }
 
-    /**
-     * ...and one that came from the database is NOT new, or saving it back
-     * inserts a duplicate primary key. This is what the digest replay does, and
-     * an unconditional `isNew() == true` made it fail on every row.
-     */
     @Test
     void anExampleLoadedFromTheDatabaseIsNotNew() {
         QueryExample loaded = new QueryExample();

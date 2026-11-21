@@ -9,10 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The parser test framework end to end: define a schema as SQL, analyze a
- * query against it, assert on the profile.
- */
 class SchemaFixtureTest {
 
     private static final String DDL = """
@@ -44,7 +40,6 @@ class SchemaFixtureTest {
         assertThat(profile.getJoinColumns()).hasSize(1);
         assertThat(profile.getJoinColumns().getFirst().getLeft().toStringNormalized())
             .isEqualTo("tdb.foo.bar_id");
-        // the unqualified where-column resolves through the schema: name is only in bar
         assertThat(profile.getCriteriaColumns())
             .anyMatch(column -> column.equalsNormalized("tdb.bar.name"));
         assertThat(profile.getSelectColumns())

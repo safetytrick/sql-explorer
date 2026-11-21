@@ -115,7 +115,6 @@ public class QueryNormalizerTest {
     public void doesNotCollapseFunctionArguments() throws JSQLParserException {
         String sql = "SELECT CONCAT(?, ?, ?) FROM `t`";
         String normalized = queryNormalizer.normalize(CCJSqlParserUtil.parse(sql));
-        // three arguments stay three arguments — arity is semantic in a call
         assertEquals(2, normalized.length() - normalized.replace(",", "").length());
     }
 

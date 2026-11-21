@@ -8,13 +8,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-/**
- * An environment's servers usually carry the same schema — a primary and its
- * replicas — so the same table arrives once per server. Listing it once per
- * server put seventeen copies of a table into /tables/with-column on
- * production (sqlx-3js). The first server's definition is the one listed,
- * which is the one getTable() has always answered with.
- */
 class CompositeSchemaRepositoryTest {
 
     private static TableStructure table(String schema, String name, String remarks) {
@@ -36,10 +29,6 @@ class CompositeSchemaRepositoryTest {
                 tuple("audit", "users", "replica"));
     }
 
-    /**
-     * By name, a table in two schemas is two answers — that ambiguity is what
-     * schema inference reads — but the same table on two servers is one.
-     */
     @Test
     void byNameKeepsOtherSchemasButNotOtherServers() {
         assertThat(composite.getTablesByName(TableReference.newTableReference(null, "users")))
@@ -47,7 +36,6 @@ class CompositeSchemaRepositoryTest {
             .containsExactly(tuple("app", "primary"), tuple("audit", "replica"));
     }
 
-    /** The shortcut that relies on it: a name found in one schema settles the schema at once. */
     @Test
     void aTableInOneSchemaOnEveryServerSettlesTheSchema() {
         assertThat(composite.findSchemaForTablesAndColumns(

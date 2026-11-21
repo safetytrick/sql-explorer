@@ -80,19 +80,6 @@ class ColumnTableResolverTest {
 
     }
 
-    /**
-     * `SELECT CURRENT_TIMESTAMP` reaches us as a bare `NOW` — MySQL's digest
-     * canonicalises the keyword to its synonym and there were never any parens
-     * to keep — so jsqlparser reads it as a column with no FROM. There is no
-     * table to attribute it to and no schema to look one up in.
-     *
-     * <p>That is not a failure. `null` already means "unresolved" here — it is
-     * what the method returns when no candidate matches — and the only caller
-     * treats null as unresolved and falls through to its parent resolver.
-     * Throwing instead turned a question with no answer into an
-     * `analysisFailed` on the profile: the single analyzer-thrown failure in
-     * the entire corpus.
-     */
     @Test
     void unresolvableColumnWithNoCandidateTablesIsNullRatherThanAFailure() {
         ColumnTableResolver resolver = new ColumnTableResolver(new LoadedSchema(Collections.emptyList()));
@@ -100,7 +87,6 @@ class ColumnTableResolverTest {
         assertNull(resolver.selectTableNameFromCandidates(Collections.emptyList(), "now"));
     }
 
-    /** The same, with a schema that has tables — the column still belongs to none of them. */
     @Test
     void unresolvableColumnIsNullEvenWhenTheSchemaHasTables() throws JSQLParserException {
         LoadedSchema schema = new LoadedSchema(List.of(

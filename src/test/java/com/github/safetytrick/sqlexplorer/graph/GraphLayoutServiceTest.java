@@ -17,7 +17,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** The hand-arranged grid layout: what a write accepts and what it does (sqlx-aoy.15). */
 class GraphLayoutServiceTest {
 
     private GraphLayoutRepository repository;
@@ -75,7 +74,6 @@ class GraphLayoutServiceTest {
         assertThat(saved.getValue().getAggregateParent()).isNull();
     }
 
-    /** The batch is checked whole first, so one bad item writes nothing at all. */
     @Test
     void oneBadItemRejectsTheWholeBatch() {
         List<GraphLayoutItem> batch = List.of(

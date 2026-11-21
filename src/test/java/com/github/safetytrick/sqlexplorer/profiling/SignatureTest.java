@@ -9,11 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The patterns, checked with Java's regex engine as a stand-in for MySQL's
- * ICU (same syntax for everything used here). {@code ProfileMySqlTest} runs
- * them in MySQL itself.
- */
 class SignatureTest {
 
     private static String first(Signature signature, String text) {
@@ -49,7 +44,6 @@ class SignatureTest {
         assertThat(Signature.TRIPLE_ENCODED.intended("ÃƒÂ©")).isEqualTo("é");
         assertThat(first(Signature.TRIPLE_ENCODED, "donÃ¢â‚¬â„¢t")).isEqualTo("Ã¢â‚¬â„¢");
         assertThat(Signature.TRIPLE_ENCODED.intended("Ã¢â‚¬â„¢")).isEqualTo("’");
-        // greedy into the next character: the longest prefix that decodes wins
         assertThat(Signature.TRIPLE_ENCODED.intended("ÃƒÂ©Ãƒ")).isEqualTo("é");
     }
 

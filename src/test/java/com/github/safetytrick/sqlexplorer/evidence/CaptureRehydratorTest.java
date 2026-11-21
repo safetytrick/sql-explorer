@@ -19,12 +19,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Rebuilding a source from its own capture. The failures that matter are the
- * quiet ones: serving a corpus that merges along an old normalizer's lines, or
- * reporting a clean bill of health because the recounted statistics came back
- * zero (sqlx-4ww).
- */
 class CaptureRehydratorTest {
 
     @TempDir
@@ -76,10 +70,6 @@ class CaptureRehydratorTest {
         return new CaptureRehydrator(config, sink);
     }
 
-    /**
-     * The point of the whole exercise: the group is rebuilt, so the corpus
-     * reports the group's summed executions rather than one member's.
-     */
     @Test
     void aRehydratedCorpusRebuildsItsMergeGroups() {
         SqlRepository repository = rehydratorOver(List.of(
@@ -94,10 +84,6 @@ class CaptureRehydratorTest {
             .findFirst().orElseThrow().getRuntimeMetrics().getExecuted()).isEqualTo(112L);
     }
 
-    /**
-     * A rehydrated source describes itself from the footer, so /coverage judges
-     * it against the server it actually came from rather than a live one.
-     */
     @Test
     void theRehydratedSourceCarriesTheCapturesOwnProvenance() {
         SqlRepository repository = rehydratorOver(List.of(profile(CURRENT + "aaa", "p1", 1L, false)))
@@ -110,11 +96,6 @@ class CaptureRehydratorTest {
             .isEqualTo(LocalDateTime.parse("2026-05-04T12:00:00"));
     }
 
-    /**
-     * Re-reading our own file adds no hop to the chain back to
-     * sys.x$statement_analysis. Restamping it PARQUET_COPY would make each
-     * rehydration look one step more distant than the last.
-     */
     @Test
     void rehydrationDoesNotDemoteTheOrigin() {
         SqlRepository repository = rehydratorOver(List.of(profile(CURRENT + "aaa", "p1", 1L, false)))
@@ -124,11 +105,6 @@ class CaptureRehydratorTest {
             .isEqualTo(CaptureContext.Origin.PERFORMANCE_SCHEMA);
     }
 
-    /**
-     * The statistics are not in the file and are recounted from the rows.
-     * /coverage reads truncated and count from here — zeros would read as a
-     * clean bill of health nothing had earned.
-     */
     @Test
     void importStatsAreRecountedFromTheRows() {
         SqlRepository repository = rehydratorOver(List.of(
@@ -142,19 +118,12 @@ class CaptureRehydratorTest {
         assertThat(stats.merged()).as("three rows, two distinct digests").isEqualTo(1);
     }
 
-    /**
-     * A capture written by a different normalizer groups queries along the old
-     * scheme's lines. Serving it would merge one environment by one rule while
-     * everything else in the process uses another — so it is refused, and the
-     * caller imports instead.
-     */
     @Test
     void aCaptureFromAnotherNormalizerIsRefused() {
         assertThat(rehydratorOver(List.of(
             profile("v1:old-scheme-digest", "perf-1", 100L, false))).rehydrate("primary")).isNull();
     }
 
-    /** A source with no capture cannot be rehydrated, and does not pretend to be. */
     @Test
     void aSourceWithNoCaptureReturnsNothingRatherThanAnEmptyCorpus() throws IOException {
         ParquetConfig config = config();
@@ -163,7 +132,6 @@ class CaptureRehydratorTest {
         assertThat(rehydrator.rehydrate("never-captured")).isNull();
     }
 
-    /** Another source's capture is never served in its place. */
     @Test
     void oneSourceNeverRehydratesFromAnothersCapture() {
         CaptureRehydrator rehydrator =
@@ -173,7 +141,6 @@ class CaptureRehydratorTest {
         assertThat(rehydrator.rehydrate("replica")).isNull();
     }
 
-    /** A capture from before profiles named their source is labelled with its own (sqlx-a9h.1). */
     @Test
     void rowsWithoutASourceAreLabelledWithTheCaptures() {
         SqlProfile old = new SqlProfile();

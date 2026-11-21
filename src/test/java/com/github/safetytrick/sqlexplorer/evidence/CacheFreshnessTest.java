@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** When a cache may be served with nothing connected (sqlx-nbi.1). */
 class CacheFreshnessTest {
 
     private static final Instant NOW = Instant.parse("2026-11-05T12:00:00Z");
@@ -27,7 +26,6 @@ class CacheFreshnessTest {
         assertThat(freshness.oldestCapture()).isEqualTo(NOW.minus(Duration.ofHours(23)));
     }
 
-    /** One stale source makes the whole environment stale: it is pulled whole. */
     @Test
     void oneSourceOverTheMaxAgeMakesTheEnvironmentStale() {
         CacheFreshness freshness = CacheFreshness.evaluate(List.of("primary", "replica"),
@@ -38,7 +36,6 @@ class CacheFreshnessTest {
         assertThat(freshness.reasons()).containsExactly("replica was captured 1d 6h ago, over the 1d 0h limit");
     }
 
-    /** Serving without it would be serving the environment minus a server, with nothing to say so. */
     @Test
     void aSourceWithNoUsableCaptureIsNotFresh() {
         CacheFreshness freshness = CacheFreshness.evaluate(List.of("primary", "replica"),
@@ -67,7 +64,6 @@ class CacheFreshnessTest {
             .containsExactly("no sources are configured");
     }
 
-    /** A max age of zero turns the feature off: nothing is ever fresh. */
     @Test
     void aZeroMaxAgeIsNeverFresh() {
         assertThat(CacheFreshness.evaluate(List.of("primary"), Map.of("primary", NOW.minusSeconds(1)), List.of(),

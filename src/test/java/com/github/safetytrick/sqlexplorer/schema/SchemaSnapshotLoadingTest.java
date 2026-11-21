@@ -17,10 +17,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * A cluster's schema is read in full only when its fingerprint says the
- * snapshot no longer matches (sqlx-sqy.4).
- */
 class SchemaSnapshotLoadingTest {
 
     @TempDir
@@ -48,7 +44,6 @@ class SchemaSnapshotLoadingTest {
             fingerprints, store));
     }
 
-    /** The full read, standing in for the server: whatever it returns is what the server has. */
     private void serverHas(String remarks, long fingerprint) {
         doReturn(new LoadedSchema(List.of(users(remarks)))).when(factory).load(dataSource);
         when(fingerprints.fingerprint(dataSource)).thenReturn(fingerprint(fingerprint));
@@ -97,7 +92,6 @@ class SchemaSnapshotLoadingTest {
         assertThat(store.read(SHARD1).orElseThrow().fingerprint()).isEqualTo(fingerprint(2));
     }
 
-    /** With no server to confirm it, the snapshot still serves — marked as not current. */
     @Test
     void theLastSnapshotIsAvailableWithoutAConnectionButIsNotCurrent() {
         serverHas("v1", 1);

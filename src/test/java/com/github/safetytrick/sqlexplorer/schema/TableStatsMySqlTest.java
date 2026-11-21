@@ -24,11 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
-/**
- * Against a real MySQL: the one {@code information_schema.TABLES} query
- * (sqlx-n5j.2), and the limits a sampling session puts on its connection —
- * and takes off again before the pool hands it to a schema read (sqlx-n5j.4).
- */
 @Testcontainers
 class TableStatsMySqlTest {
 
@@ -93,7 +88,6 @@ class TableStatsMySqlTest {
             }).as("a write is refused").isInstanceOf(SQLException.class);
         }
 
-        // the pool is shared with schema reads, which must not inherit either limit
         for (int i = 0; i < 4; i++) {
             try (Connection connection = server.getDataSource().getConnection()) {
                 assertThat(variable(connection, "transaction_read_only")).isEqualTo("0");

@@ -1,4 +1,3 @@
--- fixture: slow-parse-419
 SELECT COUNT ( `id` ) AS `num_alerts` ,
  `session_id` ,
  `destination_master_id` ,

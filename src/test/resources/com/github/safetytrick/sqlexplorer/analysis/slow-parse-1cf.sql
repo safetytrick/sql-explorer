@@ -1,4 +1,3 @@
--- fixture: slow-parse-1cf
 SELECT `this_` . `id` AS `id1_142_1_` ,
      `this_` . `checkin_date` AS `checkin_da2_142_1_` ,
      `this_` . `checkout_date` AS `checkout3_142_1_` ,

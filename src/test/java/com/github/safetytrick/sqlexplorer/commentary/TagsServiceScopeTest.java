@@ -10,19 +10,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Every read of a tag is scoped to one environment.
- *
- * <p>THE FAILURE MODE IS SILENCE. A query that forgets the scope does not throw
- * — it returns another environment's tags, which look exactly like this one's.
- * `regression` and `local` share `information_schema`, `mysql`,
- * `performance_schema` and `sys`, so the wrong rows are available to be
- * returned on the very schemas the unqueried page tells you to tag (sqlx-rad).
- *
- * <p>These pin the scope at {@link TagsService}, which is the whole read
- * surface outside this package: profile building, query search and the graph
- * all come through it and none of them mention environments.
- */
 class TagsServiceScopeTest {
 
     private static final String ENV = "regression";
@@ -62,11 +49,6 @@ class TagsServiceScopeTest {
         verify(tagRepository).findAllByNameAndTypeAndEnvironmentName("system", "schema", ENV);
     }
 
-    /**
-     * The bulk loaders are the ones a list page uses for hundreds of rows at
-     * once, so an unscoped one would show another environment's tags across a
-     * whole table rather than on a single row.
-     */
     @Test
     void theBulkLoadersAreScoped() {
         service.getBulkTagLoaderByType("table");

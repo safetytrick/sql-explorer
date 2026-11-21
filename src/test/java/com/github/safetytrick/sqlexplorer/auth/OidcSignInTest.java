@@ -39,15 +39,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Sign-in on ({@code sql-explorer.auth.mode: oidc}), booted against a real
- * MySQL like ApplicationContextTest, with a client whose provider lives at a
- * name that never resolves. Nothing here reaches it: the registration is built
- * without discovery, and the tests stop at the redirect to its authorize
- * endpoint or stand in for a completed sign-in with {@code oidcLogin()}.
- *
- * <p>Sign-in off is ApplicationContextTest, which boots the default.
- */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
     "sql-explorer.auth.mode=oidc",
     "sql-explorer.auth.issuer=" + OidcSignInTest.ISSUER,
@@ -122,9 +113,6 @@ class OidcSignInTest {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
-    // ---- over real HTTP: what a browser and an XHR actually get ----
-
-    /** An XHR cannot follow a redirect to a login page; it gets a 401 it can act on. */
     @Test
     void anApiCallWithoutASessionIs401JsonNotARedirect() throws Exception {
         for (String path : List.of("/user", "/environments", "/env/alpha/tags")) {
@@ -138,7 +126,6 @@ class OidcSignInTest {
         }
     }
 
-    /** A browser sent to /login goes to the provider, by way of Spring's authorization endpoint, with PKCE. */
     @Test
     void theLoginEntryPointRedirectsToTheProviderWithPkce() throws Exception {
         HttpClient browser = HttpClient.newBuilder().cookieHandler(new CookieManager())
@@ -156,15 +143,9 @@ class OidcSignInTest {
             .contains("client_id=sql-explorer")
             .contains("code_challenge_method=S256")
             .contains("code_challenge=")
-            // the callback is under the servlet context path; dev-idp registers exactly this shape
             .contains("redirect_uri=http://localhost:" + port + API + "/login/oauth2/code/sql-explorer");
     }
 
-    /**
-     * MCP needs an access token now (sqlx-e13.5; AccessTokenTest covers using
-     * one). Without one it is a 401 that says so, not the 403 a missing CSRF
-     * token would otherwise give.
-     */
     @Test
     void mcpNeedsATokenOrASession() throws Exception {
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/mcp"))
@@ -182,8 +163,6 @@ class OidcSignInTest {
         assertThat(send(HttpRequest.newBuilder(uri("/actuator/health")).GET(), noRedirects()).statusCode()).isEqualTo(200);
     }
 
-    // ---- signed in: a stand-in for a completed sign-in ----
-
     @Test
     void userReportsTheSignedInUserAndTheirGroups() throws Exception {
         MvcResult result = mvc.perform(get(API + "/user").contextPath(API)
@@ -200,18 +179,15 @@ class OidcSignInTest {
         assertThat(body.path("grants").valueStream().map(JsonNode::asString).toList())
             .containsExactly("viewer:alpha", "runner:alpha/app");
         assertThat(body.path("admin").asBoolean()).isFalse();
-        // per environment, the environment-level permissions held: Runner on a datasource adds none
         assertThat(body.path("environments").propertyNames()).containsExactly("alpha");
         assertThat(body.path("environments").path("alpha").valueStream().map(JsonNode::asString).toList())
             .containsExactly("explorer:read", "commentary:write");
         assertThat(body.path("user").path("email").asString()).isEqualTo("reader@example.com");
         assertThat(body.path("user").path("name").asString()).isEqualTo("Reader sub-reader");
-        // the author shape stays free of provider identifiers
         assertThat(body.path("user").has("issuer")).isFalse();
         assertThat(body.path("user").has("subject")).isFalse();
     }
 
-    /** The signed-in user, not the legacy admin, is who writes are recorded against. */
     @Test
     void writesAreAttributedToTheSignedInUser() throws Exception {
         MvcResult result = mvc.perform(post(API + "/env/alpha/notes").contextPath(API)
@@ -237,7 +213,6 @@ class OidcSignInTest {
             .andExpect(status().isForbidden());
     }
 
-    /** Sign-out answers with where to go: the provider's end-session endpoint, which sends the browser back. */
     @Test
     void signOutIsRpInitiated() throws Exception {
         MvcResult result = mvc.perform(post(API + "/logout").contextPath(API)
@@ -252,9 +227,6 @@ class OidcSignInTest {
             .contains("post_logout_redirect_uri=http://localhost/");
     }
 
-    // ---- grants: what the groups claim allows (sqlx-e13.4) ----
-
-    /** Viewer is per environment: another environment is refused and not even listed. */
     @Test
     void aViewerReadsTheirEnvironmentAndNoOther() throws Exception {
         var viewer = signedIn("sub-v", "v@example.com", List.of("sqlx:viewer:alpha"));
@@ -267,7 +239,6 @@ class OidcSignInTest {
         assertThat(list.path("defaultEnvironment").asString()).isEqualTo("alpha");
     }
 
-    /** The default is the first visible one when the configured default is not. */
     @Test
     void theDefaultIsOneTheCallerCanSee() throws Exception {
         JsonNode list = json.readTree(mvc.perform(get(API + "/environments").contextPath(API)
@@ -276,7 +247,6 @@ class OidcSignInTest {
         assertThat(list.path("defaultEnvironment").asString()).isEqualTo("beta");
     }
 
-    /** Commentary comes with Viewer; EXPLAIN, sampling and pulls do not. */
     @Test
     void aViewerMayTagButNotRunAnythingAgainstTheServers() throws Exception {
         var viewer = signedIn("sub-v2", "v2@example.com", List.of("sqlx:viewer:alpha"));
@@ -289,13 +259,11 @@ class OidcSignInTest {
             .andExpect(status().isForbidden());
         mvc.perform(post(API + "/environments/alpha/pull").contextPath(API).with(viewer).with(asAngularDoes()))
             .andExpect(status().isForbidden());
-        // a search is a read, though it is a POST
         mvc.perform(post(API + "/env/alpha/queries/search").contextPath(API).with(viewer).with(asAngularDoes())
                 .contentType("application/json").content("{}"))
             .andExpect(status().isOk());
     }
 
-    /** Runner across an environment may EXPLAIN there; Runner on one datasource may not. */
     @Test
     void explainNeedsRunnerOnTheEnvironment() throws Exception {
         var envRunner = signedIn("sub-r", "r@example.com", List.of("sqlx:runner:alpha"));
@@ -307,7 +275,6 @@ class OidcSignInTest {
             .andExpect(status().isForbidden());
     }
 
-    /** Operator endpoints, and anything not classified, are Admin's alone. */
     @Test
     void operatorEndpointsAreAdminOnly() throws Exception {
         mvc.perform(get(API + "/analysis-failures").contextPath(API)
@@ -321,7 +288,6 @@ class OidcSignInTest {
             .andExpect(status().isOk());
     }
 
-    /** Signed in with no groups: nothing listed, everything refused, and told so. */
     @Test
     void noGroupsMeansNoAccess() throws Exception {
         var nobody = signedIn("sub-n", "n@example.com", List.of());
@@ -333,8 +299,6 @@ class OidcSignInTest {
         assertThat(json.readTree(refused).path("message").asString()).contains("Ask an administrator");
     }
 
-    // ---- the users row ----
-
     @Test
     void signInCreatesThenUpdatesOneRowPerIssuerAndSubject() {
         User first = users.signedIn(ISSUER, "sub-upsert", "old@example.com", "Old Name");
@@ -345,12 +309,10 @@ class OidcSignInTest {
         assertThat(stored.getEmail()).isEqualTo("new@example.com");
         assertThat(stored.getName()).isEqualTo("New Name");
 
-        // the same subject at another provider is another person
         User elsewhere = users.signedIn("http://other.example.invalid", "sub-upsert", "new@example.com", "New Name");
         assertThat(elsewhere.getId()).isNotEqualTo(first.getId());
     }
 
-    /** Work no person started (startup, schedules, MCP) stays with the legacy admin. */
     @Test
     void withoutASignedInUserTheAuthorIsTheLegacyAdmin() {
         assertThat(users.currentUser().getEmail()).isEqualTo(UserService.LEGACY_ADMIN);
@@ -368,11 +330,6 @@ class OidcSignInTest {
                 .claim("groups", groups));
     }
 
-    /**
-     * The CSRF token the way Angular's HttpClient sends it: the XSRF-TOKEN
-     * cookie's value, echoed in X-XSRF-TOKEN. Spring Security Test's csrf()
-     * sends a masked token instead, which is the form-post shape, not this.
-     */
     private static RequestPostProcessor asAngularDoes() {
         return request -> {
             request.setCookies(new Cookie("XSRF-TOKEN", "token-from-the-cookie"));

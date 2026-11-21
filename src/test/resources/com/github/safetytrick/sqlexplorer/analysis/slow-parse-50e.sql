@@ -1,4 +1,3 @@
--- fixture: slow-parse-50e
 SELECT COUNT ( `created_on` ),
  DATE ( `created_on` )
 FROM `doc`

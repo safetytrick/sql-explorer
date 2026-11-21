@@ -14,30 +14,15 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * The grouping half of {@link IndexLoadingService}, exercised the way
- * {@link ForeignKeyLoadingServiceTest} exercises its loader: a synthetic
- * {@code INFORMATION_SCHEMA.STATISTICS} result set in the order the query
- * guarantees, straight into the reader.
- */
 class IndexLoadingServiceTest {
 
     private final IndexLoadingService service = new IndexLoadingService();
 
-    /**
-     * The table boundary. `getIndexInfo` returns one row *per column of an
-     * index*, so the reader accumulates into a builder and flushes it when the
-     * index name changes — but a table change is also an index change, and it
-     * used to be handled only by the first of those. The pending builder was
-     * neither flushed into the table it belonged to nor cleared, so the last
-     * index of every table went missing and reappeared under the next one.
-     */
     @Test
     void doesNotLeakTheLastIndexOfOneTableIntoTheNext() throws SQLException {
         ResultSet indexInfo = resultSet(
             row("app", "orders", "PRIMARY", (short) 1, "id", false),
             row("app", "orders", "idx_orders_member", (short) 1, "member_id", true),
-            // next table: `idx_orders_member` belongs to orders and must flush there
             row("app", "sessions", "PRIMARY", (short) 1, "id", false),
             row("app", "sessions", "idx_sessions_user", (short) 1, "user_id", true));
 
@@ -49,12 +34,6 @@ class IndexLoadingServiceTest {
             .containsExactly("PRIMARY", "idx_sessions_user");
     }
 
-    /**
-     * The reported symptom: `app_other.groups` came back with ten index rows, two of
-     * them `PRIMARY` on `['id']`. Two adjacent tables whose boundary index
-     * shares a name is what produces it — the name-change check sees no change
-     * across the boundary, so one table's PRIMARY absorbs the next one's.
-     */
     @Test
     void doesNotDuplicateAnIndexWhoseNameSpansTheTableBoundary() throws SQLException {
         ResultSet indexInfo = resultSet(
@@ -74,7 +53,6 @@ class IndexLoadingServiceTest {
         assertThat(columns(byTable, "app_other", "groups", "PRIMARY")).containsExactly("id");
     }
 
-    /** A multi-column index is one index, not one per column. */
     @Test
     void groupsTheRowsOfAMultiColumnIndexIntoOne() throws SQLException {
         ResultSet indexInfo = resultSet(
@@ -88,7 +66,6 @@ class IndexLoadingServiceTest {
         assertThat(columns(byTable, "app", "orders", "idx_composite")).containsExactly("a", "b", "c");
     }
 
-    /** A table whose only index is its last one still gets it. */
     @Test
     void keepsTheFinalIndexOfTheFinalTable() throws SQLException {
         ResultSet indexInfo = resultSet(

@@ -9,11 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Generator signatures, on made-up statements in each generator's habits
- * (sqlx-n5j.12). A match is a candidate: these tests pin which rules fire, not
- * that a statement "is" anyone's.
- */
 class GeneratorSignaturesTest {
 
     private SchemaFixture fixture;
@@ -57,7 +52,6 @@ class GeneratorSignaturesTest {
             .containsExactly("doctrine-orm:persister-alias");
     }
 
-    /** t0 alone is not enough: plenty of hand-written SQL calls a table t0. */
     @Test
     void aTableAliasedT0WithoutPersisterColumnsIsNotThePersister() throws JSQLParserException {
         assertThat(candidates("SELECT t0.id, t0.name FROM account t0 WHERE t0.id = ?")).isEmpty();
@@ -90,11 +84,6 @@ class GeneratorSignaturesTest {
             .containsExactly("hibernate:h6-table-alias");
     }
 
-    /**
-     * THE REASON A MATCH IS ONLY A CANDIDATE. Both ORMs write a single-row
-     * insert of parameters, and so does any code once Performance Schema has
-     * replaced the literals — so both generators claim it.
-     */
     @Test
     void aSimpleInsertIsEveryOrmsCandidate() throws JSQLParserException {
         assertThat(candidates("INSERT INTO account (id, name, status) VALUES (?, ?, ?)"))

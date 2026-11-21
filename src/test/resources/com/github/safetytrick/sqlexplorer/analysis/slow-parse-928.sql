@@ -1,4 +1,3 @@
--- fixture: slow-parse-928
 SELECT `pn` . `first_name` ,
  `pn` . `last_name` ,
  `pa` . `street_address` ,

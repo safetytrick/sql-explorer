@@ -17,11 +17,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * While an environment is served from its cache, none of its servers is
- * connected to: the schema comes from the snapshot and every pool request is
- * refused (sqlx-nbi.3, sqlx-nbi.4).
- */
 class OfflineServerTest {
 
     private static final SchemaSnapshot.Key KEY = new SchemaSnapshot.Key("offline-dummy", "primary");
@@ -47,7 +42,6 @@ class OfflineServerTest {
             .hasMessageContaining("pull the environment to go live");
     }
 
-    /** The snapshot, not the fingerprint check that connects first, and marked unconfirmed. */
     @Test
     void itsSchemaComesFromTheSnapshotWithoutConnecting() {
         Environment environment = environment();
@@ -63,10 +57,6 @@ class OfflineServerTest {
         verify(factory, never()).stillCurrent(any(), any());
     }
 
-    /**
-     * Going live is not remembered as a failure: the next access tries the
-     * server. A refused local port stands in for it, so this fails fast.
-     */
     @Test
     void goingLiveTriesTheServerAgain() {
         DatabaseServer server = new DatabaseServer("primary",

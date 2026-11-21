@@ -20,37 +20,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * A merged child must describe the same statement as its representative.
- *
- * <p>{@code attemptMerge} returns before any analyzer runs — that saving is
- * the whole point of merging — and hands the child the representative's
- * analysis by copying it field by field. That per-field list is the same shape
- * that bit {@link MergedSqlProfile}: whatever it forgets silently keeps the
- * builder default, and the default is indistinguishable from a real answer.
- * Four fields were missing (selectColumns, groupByColumns, generatedSource,
- * modifiedForAnalysis), so a child claimed a statement projected no columns
- * and was untouched by the normalizer.
- *
- * <p>Nothing reads a child directly — it is only ever seen through the group
- * wrapper, which serves {@code first()}. That is exactly why the omission was
- * invisible: it only shows when a child is first. {@code index()} publishes to
- * the digest map before adding to the profile list, so a child can be added
- * ahead of its own representative and win that slot. Rather than assert the
- * ordering (which is a concurrency question, not a field-derivation one),
- * these assert the property that makes the ordering not matter.
- */
 class MergeChildFieldParityTest {
 
     private static final String NORMALIZED_DIGEST = "shared-normalized-digest";
     private static final String QUERY = "select `f`.`name` from `folders` `f` where `f`.`uuid` = ?";
 
-    /**
-     * The statement-describing fields — the ones every member of a group
-     * shares by construction, because a group is one statement shape under one
-     * normalized digest. Identity, metrics and provenance are deliberately not
-     * here: those are per-member and differ legitimately.
-     */
     private static void assertDescribesTheSameStatement(SqlProfile actual, SqlProfile expected) {
         assertThat(actual.getTables()).as("tables").isEqualTo(expected.getTables());
         assertThat(actual.getType()).as("type").isEqualTo(expected.getType());
@@ -89,11 +63,6 @@ class MergeChildFieldParityTest {
         assertDescribesTheSameStatement(child, representative);
     }
 
-    /**
-     * And therefore the group answers the same either way round. Which member
-     * lands in the profile list first is decided by a race inside
-     * {@code index()}; the group's answer must not be.
-     */
     @Test
     void theGroupAnswersTheSameWhicheverMemberIsFirst() {
         SqlRepositoryBuilder repository = new SqlRepositoryBuilder(new TestSource());
@@ -111,7 +80,6 @@ class MergeChildFieldParityTest {
         assertDescribesTheSameStatement(childFirst, representativeFirst);
     }
 
-    /** The representative: parsed, analyzed, with every analyzer-derived field filled. */
     private static SqlProfile.Builder analyzed(String digest, long executed) {
         return unanalyzed(digest, executed)
             .setTables(List.of(TableReference.fromString("tdb.folders")))
@@ -126,7 +94,6 @@ class MergeChildFieldParityTest {
             .setModifiedForAnalysis(true);
     }
 
-    /** A child as {@code processRow} hands it to the merge check: identity and metrics only. */
     private static SqlProfile.Builder unanalyzed(String digest, long executed) {
         return SqlProfile.newBuilder()
             .setId(digest)

@@ -22,12 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
-/**
- * Who holds metadata locks on the tables a change would lock (sqlx-9gk).
- *
- * <p>The property that matters most is the one the page promises: a server is
- * connected to only when the request names it.
- */
 class LockHolderServiceTest {
 
     private static final List<TableRef> TABLES = List.of(
@@ -47,7 +41,6 @@ class LockHolderServiceTest {
         server("db-primary", Set.of(ServerRole.PRIMARY)),
         server("db-replica", Set.of(ServerRole.REPLICA))));
 
-    /** Records which servers were read; each answers with the holders given. */
     private static class Scripted extends LockHolderService {
         final List<String> read = new ArrayList<>();
         final List<Holder> answer;
@@ -105,7 +98,6 @@ class LockHolderServiceTest {
         cached.setOffline("prod");
         Environment offline = new Environment("prod", List.of(cached));
 
-        // the real read: getDataSource() must refuse before any pool exists
         Report report = new LockHolderService().read(offline, TABLES, List.of("db-primary"));
 
         assertThat(report.servers().getFirst().error()).contains("served from its cache");

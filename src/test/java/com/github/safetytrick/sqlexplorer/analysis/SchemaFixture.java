@@ -13,22 +13,6 @@ import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.Statements;
 
-/**
- * Parser-test entry point: build a schema from SQL, then analyze queries
- * against it and assert on the resulting {@link SqlProfile}.
- *
- * <pre>
- * SchemaFixture fixture = SchemaFixture.fromSql("""
- *     create table foo (id bigint not null, bar_id bigint, primary key (id));
- *     create table bar (id bigint not null, name varchar(64), primary key (id));
- *     """);
- * SqlProfile profile = fixture.analyze("select f.id, b.name from foo f join bar b on f.bar_id = b.id");
- * </pre>
- *
- * Statements parse with a default schema of {@link TestSchemas#DEFAULT_SCHEMA}
- * unless they name their own. {@code CREATE VIEW} statements are supported
- * (they carry a type and underlying tables, but no columns).
- */
 public final class SchemaFixture {
 
     private final LoadedSchema schema;
@@ -39,7 +23,6 @@ public final class SchemaFixture {
         this.resolver = new ColumnTableResolver(schema);
     }
 
-    /** A schema from one or more semicolon-separated CREATE TABLE / CREATE VIEW statements. */
     public static SchemaFixture fromSql(String ddl) throws JSQLParserException {
         Statements statements = CCJSqlParserUtil.parseStatements(ddl);
         List<TableStructure> structures = new ArrayList<>();
@@ -49,12 +32,10 @@ public final class SchemaFixture {
         return new SchemaFixture(new LoadedSchema(structures));
     }
 
-    /** A schema from named {@code src/test/resources/schema} fixtures (without the {@code .sql} suffix). */
     public static SchemaFixture fromResources(String... tableNames) {
         return new SchemaFixture(TestSchemas.of(tableNames));
     }
 
-    /** A schema containing every {@code src/test/resources/schema} fixture. */
     public static SchemaFixture allFixtures() {
         return new SchemaFixture(TestSchemas.all());
     }
@@ -63,28 +44,14 @@ public final class SchemaFixture {
         return schema;
     }
 
-    /** A resolver over this schema, for analyzers that take one at construction. */
     public ColumnTableResolver resolver() {
         return resolver;
     }
 
-    /** An analysis service running exactly the given analyzers (see {@link #resolver()}). */
     public SqlAnalysisService service(SqlAnalyzer... analyzers) {
         return new SqlAnalysisService(analyzers);
     }
 
-    /**
-     * The full analyzer chain over this schema, as a service.
-     *
-     * <p>Exists because the analyzers are package-private to {@code analysis}
-     * and this fixture is not — tests in other packages that need real analysis
-     * (rather than a mocked resolver) get it here instead of widening
-     * production visibility to reach it.
-     *
-     * <p>Includes {@link UnknownSchemaAnalyzer}, which {@link #analyze} does
-     * not: it infers a session schema when none was set, which is the behaviour
-     * under test for anything that resolves a schema from the statement itself.
-     */
     public SqlAnalysisService analysisServiceWithSchemaInference() {
         return service(
             new StatementTypeAnalyzer(),
@@ -99,10 +66,6 @@ public final class SchemaFixture {
             new UnknownSchemaAnalyzer());
     }
 
-    /**
-     * Analyze a query with the full analyzer set against this schema and
-     * return the completed profile.
-     */
     public SqlProfile analyze(String sql) throws JSQLParserException {
         SqlAnalysisService service = service(
             new StatementTypeAnalyzer(),

@@ -14,13 +14,6 @@ class AnalysisFailureRecorderTest {
 
     private final AnalysisFailureRecorder recorder = new AnalysisFailureRecorder();
 
-    /**
-     * The defect this exists for. The profile's single
-     * {@code analysisFailureReason} is *assigned*, so when two analyzers throw
-     * on one statement the first is silently overwritten and the profile
-     * reports one cause where there were two. A reproduction harness built on
-     * that field would reproduce one of N bugs.
-     */
     @Test
     void keepsEveryAnalyzersFailureOnOneStatementRatherThanTheLast() {
         recorder.record("select now", null, null, List.of(), "SelectColumnAnalyzer", new RuntimeException("first"));
@@ -41,10 +34,6 @@ class AnalysisFailureRecorderTest {
             .isEqualTo("missing schema");
     }
 
-    /**
-     * The DDL is the half that makes a captured failure a test rather than a
-     * bug report — {@code SchemaFixture.fromSql(ddl)} takes exactly this.
-     */
     @Test
     void capturesCreateTableTextForTheReferencedTables() throws JSQLParserException {
         LoadedSchema schema = schemaWith("orders");
@@ -57,11 +46,6 @@ class AnalysisFailureRecorderTest {
             .anySatisfy(ddl -> assertThat(ddl).contains("orders"));
     }
 
-    /**
-     * Deriving "referenced" is itself analysis, and the analysis is what just
-     * failed — so an empty table list is normal, and the statement is still
-     * worth keeping without it.
-     */
     @Test
     void keepsTheStatementEvenWhenNoTablesCouldBeResolved() {
         recorder.record("select now", "app", null, List.of(), "SelectColumnAnalyzer", new RuntimeException("boom"));
@@ -71,7 +55,6 @@ class AnalysisFailureRecorderTest {
         assertThat(captured.ddl()).isEmpty();
     }
 
-    /** A source that fails on every row must not grow this without bound. */
     @Test
     void stopsCapturingNewStatementsAtItsCeiling() {
         for (int i = 0; i < AnalysisFailureRecorder.MAX_CAPTURED + 50; i++) {
@@ -81,7 +64,6 @@ class AnalysisFailureRecorderTest {
         assertThat(recorder.captured()).hasSize(AnalysisFailureRecorder.MAX_CAPTURED);
     }
 
-    /** ...but a statement already captured keeps accumulating past the ceiling. */
     @Test
     void stillRecordsFurtherFailuresForAStatementItAlreadyHas() {
         for (int i = 0; i < AnalysisFailureRecorder.MAX_CAPTURED; i++) {
@@ -101,7 +83,6 @@ class AnalysisFailureRecorderTest {
         assertThat(recorder.captured()).isEmpty();
     }
 
-    /** Analysis reruns on every source load, so the capture starts over with it. */
     @Test
     void clearsWhenTheSourceReloads() {
         recorder.record("select now", null, null, List.of(), "A", new RuntimeException("boom"));

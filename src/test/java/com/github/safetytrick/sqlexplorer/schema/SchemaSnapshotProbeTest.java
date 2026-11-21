@@ -10,14 +10,6 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * A snapshot of a schema the real loader read from a real server reads back
- * as the same structures (sqlx-sqy.4) — the defaults, collations, nulls and
- * view lineage JDBC actually produces, not hand-built ones.
- *
- * <p>Not a CI test: runs against the fixture in
- * {@code src/test/resources/grant-profiles-probe.sql} when {@code GRANTS_PROBE_URL} is set.
- */
 @EnabledIfEnvironmentVariable(named = "GRANTS_PROBE_URL", matches = ".+")
 class SchemaSnapshotProbeTest {
 
@@ -41,7 +33,6 @@ class SchemaSnapshotProbeTest {
         assertThat(snapshotted.fromSnapshot()).isTrue();
         assertThat(snapshotted.schema().getTables()).hasSameSizeAs(read.schema().getTables())
             .containsExactlyInAnyOrderElementsOf(read.schema().getTables());
-        // and SHOW CREATE still works through a snapshot, on the live connection
         TableStructure customer = snapshotted.schema().getTable(
             com.github.safetytrick.sqlexplorer.avro.TableReference.newTableReference("app", "customer"));
         assertThat(snapshotted.schema().getCreateStatement(customer)).containsIgnoringCase("create table");

@@ -63,7 +63,6 @@ class ViewDefinitionServiceTest {
         assertThat(ViewDefinitionService.parseUnderlyingTables("not sql at all (", "tdb")).isEmpty();
     }
 
-    /** The DDL path (fromCreateTable) resolves the same dependency info as the information_schema path. */
     @Test
     void viewFixtureLoadsWithUnderlyingTables() {
         TableStructure view = TestSchemas.table("active_member_sessions");

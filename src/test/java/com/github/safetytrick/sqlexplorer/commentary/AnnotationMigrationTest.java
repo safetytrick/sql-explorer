@@ -25,15 +25,6 @@ import org.testcontainers.mysql.MySQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * The explorer-database changes behind annotations, run as Liquibase runs them
- * against a real MySQL (sqlx-n5j.1, .13, .14).
- *
- * <p>The changelog is applied up to the changeSet that moves the `system` tag,
- * rows are written the way the old code wrote them, and then the rest runs —
- * which is the only way to show a data migration does what it says to data
- * that existed before it.
- */
 @Testcontainers
 class AnnotationMigrationTest {
 
@@ -53,7 +44,6 @@ class AnnotationMigrationTest {
                 + "('system', 'schema', 'mysql', 'regression', 1), "
                 + "('system', 'schema', 'mysql', 'staging', 1), "
                 + "('core', 'schema', 'app_main', 'regression', 1)");
-            // a column tag, which this change makes possible
             sql.execute("insert into tags (name, type, schema_name, table_name, column_name, environment_name, author_id) "
                 + "values ('pii', 'column', 'app_main', 'account', 'email', 'regression', 1), "
                 + "('pii', 'column', 'app_main', 'account', 'phone', 'regression', 1)");
@@ -73,14 +63,12 @@ class AnnotationMigrationTest {
             assertThat(rows(sql, "select path from tags where type = 'column' order by path")).containsExactly(
                 "/schema/app_main/table/account/column/email", "/schema/app_main/table/account/column/phone");
 
-            // the column is part of the unique key: the same tag twice on one column is refused
             assertThatThrownBy(() -> sql.execute("insert into tags (name, type, schema_name, table_name, column_name, "
                 + "environment_name, author_id) values ('pii', 'column', 'app_main', 'account', 'email', 'regression', 1)"))
                 .isInstanceOf(SQLException.class).hasMessageContaining("Duplicate");
         }
     }
 
-    /** How many changeSets precede the named one, in file order: the count to apply before it. */
     private static int changeSetsBefore(String id) throws IOException {
         String xml;
         try (InputStream in = AnnotationMigrationTest.class.getClassLoader().getResourceAsStream(CHANGELOG)) {
@@ -97,7 +85,6 @@ class AnnotationMigrationTest {
         throw new IllegalStateException("no changeSet " + id);
     }
 
-    /** Apply this many pending changeSets, or all of them for null. */
     private static void update(Integer count) throws Exception {
         CommandScope command = count == null
             ? new CommandScope(UpdateCommandStep.COMMAND_NAME)

@@ -55,9 +55,6 @@ class EnvironmentRegistryTest {
         return definitions;
     }
 
-    // ── clusters (sqlx-sqy.1) ───────────────────────────────────────────────
-
-    /** Bound from the keys the generated config uses, not built by hand. */
     private static EnvironmentDefinition bind(Map<String, String> properties) {
         return new org.springframework.boot.context.properties.bind.Binder(
                 new org.springframework.boot.context.properties.source.MapConfigurationPropertySource(properties))
@@ -89,12 +86,10 @@ class EnvironmentRegistryTest {
             assertThat(cluster.schemaFrom()).extracting(DatabaseServer::getName)
                 .containsExactly("shard1", "shard1-replica-a");
         });
-        // every server is still captured from
         assertThat(production.getServers()).extracting(DatabaseServer::getName)
             .containsExactly("shard1", "shard1-replica-a", "shard1-etl");
     }
 
-    /** A flat servers: block still works: each server is a cluster of one, reading its own schema. */
     @Test
     void aStandaloneServerIsItsOwnCluster() {
         Map<String, String> properties = new LinkedHashMap<>(shard1("shard1"));
@@ -117,7 +112,6 @@ class EnvironmentRegistryTest {
             .hasMessageContaining("shard2");
     }
 
-    /** Required, not defaulted: "every server in order" would make the ETL instance a schema source. */
     @Test
     void aClusterWithoutSchemaFromFails() {
         Map<String, EnvironmentDefinition> definitions = Map.of("production", bind(shard1()));
@@ -127,7 +121,6 @@ class EnvironmentRegistryTest {
             .hasMessageContaining("schemaFrom");
     }
 
-    /** Captures are keyed by server name, so a name reused in another cluster would share history. */
     @Test
     void serverNamesAreUniqueAcrossClusters() {
         Map<String, String> properties = new LinkedHashMap<>(shard1("shard1"));

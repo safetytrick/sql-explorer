@@ -20,11 +20,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Table stats ride along with every schema load: read beside the fingerprint,
- * attached to the tables, and kept in the snapshot so a cached start has them
- * (sqlx-n5j.2).
- */
 class TableStatsLoadingTest {
 
     @TempDir
@@ -70,7 +65,6 @@ class TableStatsLoadingTest {
             .containsExactly(stats("shard1", 10));
     }
 
-    /** The structure has not changed, but the data has: the snapshot is reused and its stats replaced. */
     @Test
     void anUnchangedSchemaStillGetsFreshStats() {
         when(statsService.read(dataSource, "shard1")).thenReturn(Map.of("app_core.account", stats("shard1", 10)));
@@ -99,7 +93,6 @@ class TableStatsLoadingTest {
         assertThat(store.read(SHARD1).orElseThrow().tables().getFirst().rowsEstimate()).isEqualTo(40L);
     }
 
-    /** Stats are an extra: failing to read them costs the stats, not the schema. */
     @Test
     void statsThatCannotBeReadLeaveTheSchemaWithoutThem() {
         when(statsService.read(any(), any())).thenThrow(new IllegalStateException("denied"));
@@ -111,7 +104,6 @@ class TableStatsLoadingTest {
         assertThat(factory.withFreshStats(dataSource, load, SHARD1, "shard1")).isSameAs(load);
     }
 
-    /** Each shard reports its own rows; an environment's answer carries all of them, and the totals add up. */
     @Test
     void aTableOnSeveralClustersCarriesEachClustersStats() {
         TableStructure onShard1 = new TableStructure("app_core", "account", "TABLE", "", List.of(), List.of(),

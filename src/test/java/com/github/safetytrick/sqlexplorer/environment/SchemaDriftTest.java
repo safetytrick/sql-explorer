@@ -15,10 +15,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Clusters carrying the same schema are compared table by table, so a
- * migration applied to some shards and not others is visible (sqlx-sqy.7).
- */
 class SchemaDriftTest {
 
     private static Cluster cluster(String name, Map<String, String> tables) {
@@ -64,7 +60,6 @@ class SchemaDriftTest {
                 new Environment.Variant(List.of("shard2"), true))));
     }
 
-    /** A table only some shards have — a migration that created it on some — is drift too. */
     @Test
     void aTableMissingFromAShardIsAVariantOfItsOwn() {
         Environment production = production(
@@ -76,7 +71,6 @@ class SchemaDriftTest {
                 new Environment.Variant(List.of("shard2"), false))));
     }
 
-    /** A shard defining a table differently says how, against the definition lookups use (sqlx-a6z). */
     @Test
     void aDifferingVariantSaysWhatDiffersFromTheOneLookupsUse() throws Exception {
         Environment production = production(
@@ -91,7 +85,6 @@ class SchemaDriftTest {
                     new TableDiff.Difference("column", "email", null, "varchar(255) NULL · position 2"))))));
     }
 
-    /** global's schema is not shard1's: only clusters carrying the same schema are compared. */
     @Test
     void differentSchemasAreNotCompared() {
         Environment production = production(
@@ -101,7 +94,6 @@ class SchemaDriftTest {
         assertThat(production.schemaDrift()).isEmpty();
     }
 
-    /** No fingerprint, nothing to compare — not "no drift" claimed on its behalf, just left out. */
     @Test
     void aClusterWithoutAFingerprintTakesNoPart() {
         Environment production = production(

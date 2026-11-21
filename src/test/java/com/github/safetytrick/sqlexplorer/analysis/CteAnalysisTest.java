@@ -8,14 +8,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * CTE (`WITH`) analysis.
- *
- * <p>These statements used to be refused outright: three analyzers threw
- * {@code UnsupportedSqlException("with items list")} on sight of a `WITH`
- * prefix, so a CTE query came back {@code analysisFailed} with no criteria,
- * join or select columns at all — thin everywhere it appeared in the UI.
- */
 public class CteAnalysisTest {
 
     private static final SchemaFixture FIXTURE = fixture();
@@ -55,7 +47,6 @@ public class CteAnalysisTest {
         }
     }
 
-    /** The corpus's recursive CTE, used by several cases below. */
     private static final String RECURSIVE_TREE = """
         WITH RECURSIVE `tree`(
             `entity_id`, `parent_id`, `propagate`, `object_id`, `object_type`, `parent_object`, `parent_type`
@@ -147,11 +138,9 @@ public class CteAnalysisTest {
         // the CTE's source table, not the CTE name
         assertThat(tableNames(profile)).containsExactly("node_link");
 
-        // criteria from inside both arms of the recursion
         assertThat(columnKeys(profile.getCriteriaColumns()))
             .containsExactly("node_link.entity_id", "node_link.object_type");
 
-        // every emitted column belongs to a real table — `tree` appears nowhere
         assertThat(columnKeys(profile.getSelectColumns())).allSatisfy(key ->
             assertThat(key).startsWith("node_link."));
         assertThat(columnKeys(profile.getCriteriaColumns())).noneMatch(key -> key.startsWith("tree."));
@@ -161,18 +150,6 @@ public class CteAnalysisTest {
         });
     }
 
-    /**
-     * A reference *through* a CTE, mapped to the column it stands for.
-     *
-     * <p>`tree` declares its columns and its anchor arm projects them from
-     * `node_link`, so `parent`.`object_id` — where `parent` aliases the
-     * CTE — is `node_link`.`object_id`. The join
-     *
-     * <pre>ON `child`.`parent_object` = `parent`.`object_id`</pre>
-     *
-     * is therefore a real self-join on `node_link`, which used to be
-     * dropped entirely because one side named the CTE.
-     */
     @Test
     public void resolvesAJoinThroughACteToItsSourceColumns() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze(RECURSIVE_TREE);
@@ -183,7 +160,6 @@ public class CteAnalysisTest {
             .contains("node_link.parent_type=node_link.object_type");
     }
 
-    /** Mapping through must not reintroduce the CTE name it was avoiding. */
     @Test
     public void mapsThroughWithoutEmittingTheCteAsATable() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze(RECURSIVE_TREE);
@@ -192,11 +168,6 @@ public class CteAnalysisTest {
         assertThat(joinKeys(profile)).noneMatch(key -> key.contains("tree."));
     }
 
-    /**
-     * A CTE position holding an expression has no source column, so a join
-     * through it stays dropped. Partial by nature — inventing a column would
-     * be worse than losing one.
-     */
     @Test
     public void leavesAJoinThroughAProjectedExpressionAlone() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
@@ -209,12 +180,10 @@ public class CteAnalysisTest {
             """);
 
         assertThat(profile.getAnalysisFailed()).isFalse();
-        // `c`.`n` is count(*), which is not a column of anything
         assertThat(joinKeys(profile)).noneMatch(key -> key.contains("counts."));
         assertThat(joinKeys(profile)).noneMatch(key -> key.endsWith(".n"));
     }
 
-    /** A CTE with no declared list inherits its names from the projection. */
     @Test
     public void mapsThroughACteThatInheritsItsColumnNames() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
@@ -246,7 +215,6 @@ public class CteAnalysisTest {
         assertThat(tableNames(profile)).containsExactly("folders", "users");
         assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("folders.name");
 
-        // the join lives inside the CTE body and is a genuine table-to-table one
         assertThat(profile.getJoinColumns()).hasSize(1);
         assertThat(columnKeys(List.of(profile.getJoinColumns().getFirst().getLeft(),
                                       profile.getJoinColumns().getFirst().getRight())))
@@ -262,7 +230,6 @@ public class CteAnalysisTest {
         assertThat(columnKeys(profile.getCriteriaColumns())).containsExactly("folders.uuid");
     }
 
-    /** No emitted column may name a table that is not in the statement's table list. */
     private static boolean everyColumnBelongsToARealTable(SqlProfile profile) {
         java.util.Set<String> real = profile.getTables().stream()
             .map(t -> t.getNormalizedTableName()).collect(java.util.stream.Collectors.toSet());
@@ -276,7 +243,6 @@ public class CteAnalysisTest {
             .allMatch(c -> real.contains(c.getTable().getNormalizedTableName()));
     }
 
-    /** Corpus query 1 (search, digest c88d3dfb65d8…), verbatim. */
     @Test
     public void corpusCte1AnalyzesWithoutFailing() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
@@ -308,7 +274,6 @@ public class CteAnalysisTest {
         assertThat(everyColumnBelongsToARealTable(profile)).isTrue();
     }
 
-    /** Corpus query 2 (app_main, digest 2371f5e48965…), verbatim. */
     @Test
     public void corpusCte2AnalyzesWithoutFailing() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""
@@ -337,7 +302,6 @@ public class CteAnalysisTest {
         assertThat(everyColumnBelongsToARealTable(profile)).isTrue();
     }
 
-    /** Corpus query 3 (search, digest 78b10cb86ca0…), verbatim. */
     @Test
     public void corpusCte3AnalyzesWithoutFailing() throws JSQLParserException {
         SqlProfile profile = FIXTURE.analyze("""

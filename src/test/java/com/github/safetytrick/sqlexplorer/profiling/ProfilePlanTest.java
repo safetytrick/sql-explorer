@@ -24,7 +24,6 @@ class ProfilePlanTest {
         assertThat(plan.key()).containsExactly("id");
         assertThat(plan.columns()).extracting(ProfilePlan.ProfiledColumn::name).containsExactly("name", "notes");
         assertThat(plan.maxRows(1_000_000L)).isEqualTo(20_000);
-        // bounds, 12 windows, and a character listing per window for each of the 2 columns
         assertThat(plan.maxStatements(1_000_000L)).isEqualTo(1 + 12 * 3);
     }
 
@@ -56,7 +55,6 @@ class ProfilePlanTest {
 
         List<String> statements = ProfileService.exampleStatements(plan);
 
-        // every parameter is inlined: no bare placeholder is left for a person to guess at
         assertThat(statements).hasSize(5).allMatch(s -> s.startsWith("SELECT") && !s.contains(", ?,")
             && !s.contains(" ?)") && !s.contains("= ?"));
         assertThat(statements.get(0)).isEqualTo("SELECT MIN(`id`) AS min_key, MAX(`id`) AS max_key FROM "

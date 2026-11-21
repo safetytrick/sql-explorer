@@ -12,17 +12,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The merged corpus is computed once per repository instance.
- *
- * <p>23 call sites reach {@code getAllAnalyzedSql()} and each was paying for a
- * full group-and-merge of the corpus. Serially that hid at about 20ms; under
- * twelve concurrent requests it was 155ms median, which is the same work done
- * twelve times.
- */
 class CompositeSqlRepositoryCacheTest {
 
-    /** Counts how often the underlying source is actually walked. */
     private static final class CountingRepository implements SqlRepository {
         private final AtomicInteger walks = new AtomicInteger();
         private final List<SqlProfile> profiles;
@@ -57,7 +48,6 @@ class CompositeSqlRepositoryCacheTest {
         assertThat(source.walks).hasValue(1);
     }
 
-    /** Each caller gets its own stream: the list is shared, a Stream is not reusable. */
     @Test
     void handsEachCallerAUsableStream() {
         CountingRepository source = new CountingRepository(List.of(profile("a"), profile("b")));
@@ -70,10 +60,6 @@ class CompositeSqlRepositoryCacheTest {
         assertThat(second).hasSize(2);
     }
 
-    /**
-     * A new load builds a new repository, which is the whole invalidation
-     * story: a fresh instance has seen nothing yet.
-     */
     @Test
     void aNewInstanceStartsCold() {
         CountingRepository source = new CountingRepository(List.of(profile("a")));

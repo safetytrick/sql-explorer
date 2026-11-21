@@ -8,11 +8,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * An access token may do what both its owner and its ceiling allow
- * (sqlx-e13.5): {@link Grants#intersect}, and the "no more than you have"
- * check on its ceiling, {@link Grants#includes}.
- */
 class TokenCeilingTest {
 
     private static Grants grants(String... texts) {
@@ -38,9 +33,7 @@ class TokenCeilingTest {
     void theOwnerLosingAGroupNarrowsTheToken() {
         Grants ceiling = grants("runner:prod", "viewer:staging");
         assertThat(text(grants("admin").intersect(ceiling))).containsExactly("runner:prod", "viewer:staging");
-        // the owner is down to Viewer on prod: the token follows
         assertThat(text(grants("viewer:prod").intersect(ceiling))).containsExactly("viewer:prod");
-        // and to nothing
         assertThat(grants().intersect(ceiling).grants()).isEmpty();
     }
 
@@ -51,11 +44,6 @@ class TokenCeilingTest {
         assertThat(text(grants("admin:*").intersect(grants("admin")))).containsExactly("admin:*");
     }
 
-    /**
-     * Exact, not approximate: over every pair of grant sets from a small
-     * universe, the intersection allows a permission on a target exactly when
-     * both sides do.
-     */
     @Test
     void theIntersectionAllowsExactlyWhatBothDo() {
         List<Scope> scopes = List.of(Scope.GLOBAL, Scope.environment("prod"), Scope.environment("staging"),

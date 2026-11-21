@@ -16,13 +16,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Provenance has to reach the <em>file</em>, not just the record that models
- * it. Parquet seals key/value metadata into the footer when the writer is
- * created, so this is also the test that the writer is still being built
- * lazily — construct it in the constructor again and the context arrives too
- * late, silently (sqlx-sy5).
- */
 class ParquetProvenanceTest {
 
     @TempDir
@@ -44,11 +37,6 @@ class ParquetProvenanceTest {
             .completeBuild("app");
     }
 
-    /**
-     * Where the capture actually landed. A context-carrying write is stamped
-     * with its capture instant, so the configured path is not the file
-     * (sqlx-sy5) — asking the repository is how anything else finds it too.
-     */
     private Path written(Path configured) {
         return ParquetSqlRepository.latestCapture(configured.toString());
     }
@@ -78,7 +66,6 @@ class ParquetProvenanceTest {
             .containsEntry("sqlexplorer.observedTo", "2026-08-29T14:03:35");
     }
 
-    /** An unannounced file is readable and simply claims nothing. */
     @Test
     void aFileWrittenWithoutContextCarriesNoProvenance() throws IOException {
         Path file = directory.resolve("bare.parquet");
@@ -90,17 +77,6 @@ class ParquetProvenanceTest {
         assertThat(sink.readAll(file)).hasSize(1);
     }
 
-    /**
-     * Two sources in one process write two files, each carrying only its own
-     * rows and its own provenance.
-     *
-     * <p>The regression this pins. One sink used to hold one lazily-built
-     * writer, so the first import owned the file and everything after it was
-     * appended under the first one's footer — across sources and across
-     * environments. Observed on a running instance before the fix: 4,366 rows
-     * in one capture, 4,244 from `primary` and 122 from `explorer`, under a
-     * footer claiming sourceRef=primary and rowCount=4244 (sqlx-fx2).
-     */
     @Test
     void twoSourcesDoNotShareAFile() throws IOException {
         Path configured = directory.resolve("profiles.parquet");
@@ -120,13 +96,6 @@ class ParquetProvenanceTest {
         assertThat(metadataOf(second)).containsEntry("sqlexplorer.sourceRef", "explorer");
     }
 
-    /**
-     * A capture is readable the moment its import finishes.
-     *
-     * <p>It used to seal at {@code @PreDestroy}, so a process that did not shut
-     * down cleanly lost the whole capture — Parquet buffers its row group until
-     * close, leaving a 4-byte file holding nothing.
-     */
     @Test
     void aCaptureIsSealedWhenTheWriteReturns() throws IOException {
         Path configured = directory.resolve("profiles.parquet");
@@ -135,12 +104,10 @@ class ParquetProvenanceTest {
         Path written = sink.write(new CaptureContext(CaptureContext.Origin.PERFORMANCE_SCHEMA, "primary",
             Instant.parse("2026-08-29T14:03:35Z"), 1, null, null, Map.of()), List.of(profile("d1")));
 
-        // no close() call anywhere above
         assertThat(sink.readAll(written)).hasSize(1);
         assertThat(written.toFile().length()).isGreaterThan(4);
     }
 
-    /** Rows still round-trip; provenance must not cost the payload. */
     @Test
     void theProfilesAreStillReadable() throws IOException {
         Path file = directory.resolve("both.parquet");

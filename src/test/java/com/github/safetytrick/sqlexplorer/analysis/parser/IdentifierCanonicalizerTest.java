@@ -6,10 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class IdentifierCanonicalizerTest {
 
-    /**
-     * The case this exists for. MySQL's digest text backticks every identifier;
-     * a human types none. Both are the same query and must hash alike.
-     */
     @Test
     void agreesBetweenMysqlsRenderingAndAHandWrittenOne() {
         String mysql = "SELECT `id` FROM `orders` WHERE `total` > ?";
@@ -25,11 +21,6 @@ class IdentifierCanonicalizerTest {
             .isEqualTo(IdentifierCanonicalizer.canonicalize("select id from orders"));
     }
 
-    /**
-     * A backtick or a capital inside a string literal is data. Rewriting it
-     * would merge two statements that differ in a value, which is the opposite
-     * of what normalization is for.
-     */
     @Test
     void leavesStringLiteralsAlone() {
         assertThat(IdentifierCanonicalizer.canonicalize("select * from t where name = 'Bob'"))
@@ -40,7 +31,6 @@ class IdentifierCanonicalizerTest {
 
     @Test
     void doesNotTreatALiteralsContentsAsAnIdentifier() {
-        // the backtick here is inside the string; stripping it would change the value
         assertThat(IdentifierCanonicalizer.canonicalize("select * from t where s = 'a`b'"))
             .isEqualTo("select * from t where s = 'a`b'");
     }

@@ -33,11 +33,6 @@ class RegexTableExtractorTest {
             .containsExactly("video_metadata");
     }
 
-    /**
-     * Regression: the UPDATE branch fired on the keyword inside
-     * {@code ON DUPLICATE KEY UPDATE}, reporting the first assigned column
-     * ("size") as a table.
-     */
     @Test
     void onDuplicateKeyUpdateIsNotATableReference() {
         String sql = """
@@ -69,7 +64,6 @@ class RegexTableExtractorTest {
             .containsExactly("t2");
     }
 
-    /** The FOR UPDATE lock suffix must not capture its modifiers either. */
     @Test
     void forUpdateLockSuffixIsNotATableReference() {
         assertThat(extract(" SELECT `id` FROM `branch` FOR UPDATE SKIP LOCKED "))
@@ -77,14 +71,6 @@ class RegexTableExtractorTest {
             .containsExactly("branch");
     }
 
-    /**
-     * The performance schema hands over queries with no trailing whitespace,
-     * so the last table in the statement sat right against the end of the
-     * string. The pattern used to close the table name by consuming the
-     * whitespace after it, so this found nothing at all — and an empty result
-     * made {@link IgnoredSchemas#ignoreAll} vacuously true, which skipped
-     * analysis of the query entirely.
-     */
     @Test
     void findsATableThatEndsTheQuery() {
         assertThat(extract("\n    SELECT\n        `time_updated` \n    FROM\n        `trigger_stat_get_user_list`"))
@@ -96,19 +82,8 @@ class RegexTableExtractorTest {
             .containsExactly(tuple("other", "branch"));
     }
 
-    /**
-     * `ON UPDATE <action>` is a DDL clause, not an UPDATE statement, and its
-     * action word was being reported as a table. These are the exact
-     * statements from the regression corpus, which is where `app_del.now`,
-     * `app_del.no`, `app_del.restrict`, `app_del.cascade`, `app_main.cascade`,
-     * `app_admin.cascade` and `app_signals.now` came from — schema-tree nodes for
-     * tables that do not exist. CREATE is in `ignoredFirstTokens`, so these
-     * never reach jsqlparser and the regex is the only thing that reads them.
-     */
     @Test
     void onUpdateReferentialActionsAreNotTableReferences() {
-        // the table being created is now extracted (the DDL positions); what
-        // must never come back is the referential action beside it
         assertThat(extract(" CREATE TABLE `link_cta` ( `id` INT8 (?) NOT NULL AUTO_INCREMENT ,"
                                + " `time_created` DATETIME NOT NULL DEFAULT NOW ,"
                                + " `time_updated` DATETIME NOT NULL DEFAULT NOW ON UPDATE NOW ) "))
@@ -130,7 +105,6 @@ class RegexTableExtractorTest {
             .extracting(TableReference::getNormalizedTableName)
             .doesNotContain("cascade");
 
-        // the whole family, including actions this corpus has not produced yet
         assertThat(extract(" CREATE TABLE `t` ( `a` INT , `b` DATETIME ON UPDATE CURRENT_TIMESTAMP ,"
                                + " FOREIGN KEY ( `a` ) REFERENCES `o` ( `a` ) ON UPDATE SET NULL ) "))
             .extracting(TableReference::getNormalizedTableName)
@@ -138,11 +112,6 @@ class RegexTableExtractorTest {
             .doesNotContain("current_timestamp", "set", "null");
     }
 
-    /**
-     * The mirror case: in a privilege list and a trigger event, UPDATE is
-     * followed by ON, and the optional schema group cannot absorb it because
-     * no dot follows — so the keyword itself was captured. Live: `mysql.on`.
-     */
     @Test
     void updateAsAPrivilegeOrTriggerEventDoesNotCaptureOn() {
         assertThat(extract(" GRANT CREATE , SELECT , INSERT, UPDATE ON `search` . `entity_favorite` TO ? @? "))
@@ -155,7 +124,6 @@ class RegexTableExtractorTest {
             .doesNotContain("on");
     }
 
-    /** A table genuinely named `on` has to be quoted, and still counts. */
     @Test
     void aQuotedOnIsStillATable() {
         assertThat(extract(" SELECT * FROM `on` "))
@@ -163,11 +131,6 @@ class RegexTableExtractorTest {
             .containsExactly("on");
     }
 
-    /**
-     * The new lookbehind is word-boundary anchored, so a real UPDATE statement
-     * on a table whose name merely ends in "on" is unaffected. Without the
-     * `\\b` the preceding "…on " would suppress it.
-     */
     @Test
     void aTableNameEndingInOnDoesNotSuppressARealUpdate() {
         assertThat(extract(" SELECT * FROM `session` ; UPDATE `branch` SET `a` = ? "))
@@ -175,12 +138,6 @@ class RegexTableExtractorTest {
             .containsExactly("session", "branch");
     }
 
-    /**
-     * Without an alias between them, the whitespace consumed after one table
-     * was the same whitespace the next keyword needed to match on — so only
-     * the first table was ever reported. The existing multi-table case passes
-     * only because its tables happen to carry aliases.
-     */
     @Test
     void findsEveryTableWhenNoAliasSeparatesThem() {
         assertThat(extract(" SELECT * FROM `a` JOIN `b` ON `a` . `id` = `b` . `a_id` "))
@@ -192,14 +149,6 @@ class RegexTableExtractorTest {
             .containsExactly("a", "b", "c");
     }
 
-    /**
-     * DDL names its table in a position the DML pattern cannot see, and
-     * everything in `ignoredFirstTokens` reaches only this extractor — so
-     * before these positions existed, 1,059 skipped profiles carried no table
-     * at all and a table that is only ever created, altered or granted on was
-     * invisible to the schema tree. Statements are the shapes the regression
-     * corpus actually contains.
-     */
     @Test
     void extractsTheTableFromDdlPositions() {
         // 301 profiles — much the most common shape, and an ORM/migration probe
@@ -224,17 +173,11 @@ class RegexTableExtractorTest {
         assertThat(extract(" TRUNCATE TABLE `sessions` "))
             .extracting(TableReference::getNormalizedTableName).containsExactly("sessions");
 
-        // the foreign key's parent, named inside a CREATE body with no space
         assertThat(extract(" CREATE TABLE `child` ( `p` INT , FOREIGN KEY ( `p` ) REFERENCES `parent`(`id`) ) "))
             .extracting(TableReference::getNormalizedTableName)
             .containsExactlyInAnyOrder("child", "parent");
     }
 
-    /**
-     * A privilege object is `ON s.t TO|FROM`, and the trailing TO/FROM is what
-     * separates it from a JOIN condition — the only thing in these statements
-     * that is reliably a table.
-     */
     @Test
     void extractsTheGrantedTableButNotTheSchemaWildcard() {
         assertThat(extract(" GRANT ALL PRIVILEGES ON `cl` . `stat_get_doc_names` TO ? @? WITH GRANT OPTION "))
@@ -249,12 +192,6 @@ class RegexTableExtractorTest {
             .extracting(TableReference::getNormalizedTableName).containsExactly("demos");
     }
 
-    /**
-     * These sit in the same statements and name things that are not tables.
-     * Matching an identifier after a bare verb is exactly how `ON UPDATE NOW`
-     * became a table called `now`, so every DDL position requires its
-     * object-type keyword.
-     */
     @Test
     void doesNotTreatNonTableDdlObjectsAsTables() {
         assertThat(extract(" DROP FUNCTION IF EXISTS `rds_version` ")).isEmpty();
@@ -266,18 +203,10 @@ class RegexTableExtractorTest {
         assertThat(extract(" CREATE DEFINER = ? @? FUNCTION `rds_version` ( ) RETURNS VARCHARACTER (?) ")).isEmpty();
     }
 
-    /**
-     * Two positions left out deliberately, both because the name they yield is
-     * absent from the schema by construction — which the ingest-time check
-     * would report as a failure on every such profile.
-     */
     @Test
     void doesNotExtractNamesThatAreGoneOrTransient() {
-        // a dropped table is not in the schema any more; 1 profile in the corpus
         assertThat(extract(" DROP TABLE IF EXISTS `mysql` . `rds_upgrade_prechecks` ")).isEmpty();
 
-        // Hibernate's bulk-operation temp table: never in the schema, transient
-        // by design. Excluded for free — TEMPORARY sits between CREATE and TABLE.
         assertThat(extract(" CREATE TEMPORARY TABLE IF NOT EXISTS `HT_file_processing` ( `id` BINARY (?) ) "))
             .isEmpty();
     }
@@ -288,13 +217,6 @@ class RegexTableExtractorTest {
             """).schema();
     }
 
-    /**
-     * The regex reads statements the parser never sees, so nothing else
-     * corroborates its output — which is how `ON UPDATE NOW` became a table
-     * called `now` and sat in the schema tree unnoticed. Where the environment
-     * schema is loaded it can corroborate: a name that is not a table there
-     * means the pattern matched something that is not a table reference.
-     */
     @Test
     void reportsExtractedNamesTheSchemaDoesNotKnow() throws JSQLParserException {
         assertThat(extractor.unknownTables("tdb", " SELECT * FROM `folders` JOIN `not_a_table` ON ? ", schema()))
@@ -307,44 +229,29 @@ class RegexTableExtractorTest {
         assertThat(extractor.unknownTables("tdb", " SELECT * FROM `folders` ", schema())).isEmpty();
     }
 
-    /** Backticks and casing are not a difference; the lookup normalizes both sides. */
     @Test
     void caseAndBackticksDoNotMakeATableUnknown() throws JSQLParserException {
         assertThat(extractor.unknownTables("tdb", " SELECT * FROM FOLDERS ", schema())).isEmpty();
         assertThat(extractor.unknownTables("tdb", " SELECT * FROM `TDB` . `Folders` ", schema())).isEmpty();
     }
 
-    /**
-     * With no schema there is nothing to check against, and "no schema" must
-     * not read as "nothing exists" — analysis runs without one in tests and on
-     * the no-schema convenience path, and flagging every table there would
-     * bury the signal this exists to raise.
-     */
     @Test
     void withoutASchemaNothingIsUnknown() {
         assertThat(extractor.unknownTables("tdb", " SELECT * FROM `not_a_table` ", null)).isEmpty();
     }
 
-    /**
-     * A statement run with no default database names its unqualified tables
-     * with no schema, and a name with no schema cannot be looked up — it is
-     * unverifiable, not unknown. It used to throw instead, from the lookup's
-     * normalization, and the row was dropped from the corpus (sqlx-4wm).
-     */
     @Test
     void anUnqualifiedNameWithNoDefaultDatabaseIsNotReported() throws JSQLParserException {
         assertThat(extractor.unknownTables(null, " SELECT a FROM orders ", schema())).isEmpty();
         assertThat(extractor.unknownTables(null, " SHOW FULL TABLES FROM `app_production` ", schema())).isEmpty();
     }
 
-    /** The statement that showed it in production: sql-explorer's own capture query, run with no database. */
     @Test
     void theCaptureQueryWithNoDefaultDatabaseIsAnalysedNotThrown() throws JSQLParserException {
         assertThat(extractor.unknownTables(null,
             " SELECT QUERY , `db` , `digest` FROM `sys` . `x$statement_analysis` ", schema())).isEmpty();
     }
 
-    /** Qualified names are still checked when there is no default database. */
     @Test
     void aQualifiedNameIsStillCheckedWithNoDefaultDatabase() throws JSQLParserException {
         assertThat(extractor.unknownTables(null, " SELECT * FROM `tdb` . `not_a_table` ", schema()))
@@ -352,7 +259,6 @@ class RegexTableExtractorTest {
             .containsExactly("not_a_table");
     }
 
-    /** One entry per name, in encounter order, however often it is referenced. */
     @Test
     void repeatedUnknownNamesAreReportedOnce() throws JSQLParserException {
         assertThat(extractor.unknownTables("tdb",
@@ -361,7 +267,6 @@ class RegexTableExtractorTest {
             .containsExactly("ghost", "spectre");
     }
 
-    /** schemaName is nullable in the Avro schema, so normalizing a reference without one must not throw (sqlx-4wm). */
     @Test
     void aReferenceWithoutASchemaNormalizes() {
         TableReference unqualified = TableReference.newTableReference(null, "Orders");

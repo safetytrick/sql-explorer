@@ -25,23 +25,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Keeping heap bounded across many environments.
- *
- * <p>The pressure is not one big corpus — measured at 32 MB for 4,244 profiles
- * against a 512 MB heap — it is N environments each holding one at once. Five
- * at 10,000 profiles is ~380 MB (sqlx-4ww).
- *
- * <p>Two failures matter more than the arithmetic: evicting the environment
- * someone is working in, and evicting one that cannot come back.
- */
 class EnvironmentEvictionTest {
 
     private CaptureRehydrator rehydrator;
     private SqlRepositoryManager manager;
     private final AtomicInteger rehydrations = new AtomicInteger();
 
-    /** A clock that advances a second per read, so access order is unambiguous. */
     private static Clock ticking() {
         return new Clock() {
             private Instant now = Instant.parse("2026-08-31T00:00:00Z");
@@ -112,11 +101,6 @@ class EnvironmentEvictionTest {
         assertThat(manager.getLoadState("c").resident()).isTrue();
     }
 
-    /**
-     * Evicted is not unloaded. The listing enumerates every environment, and
-     * saying "not loaded" for one that comes back on the next read would send
-     * someone to re-import something already there.
-     */
     @Test
     void anEvictedEnvironmentStillReportsAsLoaded() {
         load("a", "src-a");
@@ -128,7 +112,6 @@ class EnvironmentEvictionTest {
         assertThat(manager.getLoadState("never-loaded")).isNull();
     }
 
-    /** Reading it back rebuilds it, and the caller cannot tell. */
     @Test
     void readingAnEvictedEnvironmentRebuildsIt() {
         load("a", "src-a");
@@ -142,11 +125,6 @@ class EnvironmentEvictionTest {
         assertThat(rehydrations.get()).isEqualTo(1);
     }
 
-    /**
-     * The least recently USED goes, not the least recently loaded. Touching an
-     * environment has to protect it, or the one being worked in is the one
-     * dropped.
-     */
     @Test
     void theLeastRecentlyUsedIsTheOneDropped() {
         load("a", "src-a");
@@ -158,9 +136,6 @@ class EnvironmentEvictionTest {
         assertThat(manager.getLoadState("a").resident()).isTrue();
     }
 
-    /**
-     * What was just loaded is never the thing evicted to make room for itself.
-     */
     @Test
     void theEnvironmentJustLoadedIsNeverTheOneDropped() {
         load("a", "src-a");
@@ -170,12 +145,6 @@ class EnvironmentEvictionTest {
         assertThat(manager.getLoadState("c").resident()).isTrue();
     }
 
-    /**
-     * THE GUARD. An environment with no usable capture can only come back by
-     * re-importing, which needs the analysed server to be reachable — and it
-     * may not be. Bounded memory is not worth a corpus that cannot return, so
-     * the cap is a target rather than a guarantee.
-     */
     @Test
     void anEnvironmentThatCannotBeRebuiltIsKeptHoweverOldItIs() {
         when(rehydrator.canRehydrate("src-a")).thenReturn(false);
@@ -189,7 +158,6 @@ class EnvironmentEvictionTest {
         assertThat(manager.getLoadState("b").resident()).isFalse();
     }
 
-    /** With eviction switched off, nothing is ever dropped. */
     @Test
     void aCapOfZeroDisablesEviction() {
         manager = new SqlRepositoryManager(mock(SqlEvidenceInputService.class),
@@ -211,11 +179,6 @@ class EnvironmentEvictionTest {
         assertThat(manager.getLoadState("a").resident()).isTrue();
     }
 
-    /**
-     * A burst against an evicted environment rebuilds it once, not once per
-     * request. Without the guard this is the thundering herd, and it lands
-     * exactly when the process is already busy.
-     */
     @Test
     void concurrentReadsRehydrateOnlyOnce() throws Exception {
         load("a", "src-a");
@@ -250,10 +213,6 @@ class EnvironmentEvictionTest {
         assertThat(rehydrations.get()).isEqualTo(1);
     }
 
-    /**
-     * A refused rehydration serves nothing rather than an empty corpus dressed
-     * as a real one. The caller's answer is to load the environment again.
-     */
     @Test
     void anEnvironmentThatRefusesToRehydrateServesNothing() {
         load("a", "src-a");
@@ -265,7 +224,6 @@ class EnvironmentEvictionTest {
         assertThat(manager.getLoadState("a").resident()).isFalse();
     }
 
-    /** Rehydration is all-or-nothing: a half-built environment says nothing about being half. */
     @Test
     void rehydrationOfSeveralSourcesIsAllOrNothing() {
         assertThat(manager.rehydrate("multi", List.of("src-a", "src-b"))).isTrue();

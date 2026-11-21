@@ -10,15 +10,6 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The fingerprint against a real MySQL (sqlx-sqy.3): it moves when the loader
- * would read something different, and only then.
- *
- * <p>Not a CI test. It runs against the fixture in
- * {@code src/test/resources/grant-profiles-probe.sql} (which says how to start
- * it), as root for the DDL, and only when {@code GRANTS_PROBE_URL} is set. It
- * alters the fixture, so load a fresh one for each run.
- */
 @EnabledIfEnvironmentVariable(named = "GRANTS_PROBE_URL", matches = ".+")
 class SchemaFingerprintProbeTest {
 
@@ -43,7 +34,6 @@ class SchemaFingerprintProbeTest {
         SchemaFingerprint before = service.fingerprint(root);
         assertThat(before.tables()).containsKeys("app.customer", "app.orders", "app.customer_orders", "other.secret");
 
-        // data and statistics: the loader would read the same schema
         execute("INSERT INTO app.customer VALUES (2, 'b@example.com'), (3, 'c@example.com')",
             "INSERT INTO app.orders VALUES (2, 2, 1.00), (3, 3, 2.00)",
             "ANALYZE TABLE app.customer, app.orders");
@@ -69,13 +59,6 @@ class SchemaFingerprintProbeTest {
             .containsExactly("app.invoices");
     }
 
-    /**
-     * Under each grant profile that can see the whole structure, the account
-     * sees one fingerprint — the snapshot a metadata-only account takes
-     * matches the one an account that can read rows takes. SHOW VIEW alone
-     * cannot see columns (docs/mysql-performance-schema.md), and its
-     * fingerprint says so by differing.
-     */
     @Test
     void everyFullMetadataProfileSeesTheSameFingerprint() {
         SchemaFingerprint selecting = fingerprint("p_select_showview").onlySchema("app");

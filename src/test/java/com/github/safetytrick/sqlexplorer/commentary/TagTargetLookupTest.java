@@ -12,14 +12,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * The batched lookup answers in the order it was asked.
- *
- * <p>THAT CONTRACT IS LOAD-BEARING AND UNTYPED. Callers zip the answer against
- * the rows they sent, so a reordering — a {@code groupingBy}, a repository
- * returning rows in its own order — would attribute every tag to the wrong row
- * and look like nothing at all. Nothing but these tests holds it (sqlx-3ai).
- */
 class TagTargetLookupTest {
 
     private static final String ENV = "regression";
@@ -52,7 +44,6 @@ class TagTargetLookupTest {
         TagTarget events = TagTarget.ofTable("app_main", "events");
         TagTarget audit = TagTarget.ofTable("app_main", "audit");
         when(tagRepository.findAllByTypeAndSchemaNameInAndEnvironmentName(eq("table"), anyList(), eq(ENV)))
-            // deliberately not in the order asked, which is the whole point
             .thenReturn(List.of(tag("c", audit), tag("a", orders), tag("b", events)));
 
         List<List<Tag>> answer = lookup.tagsFor(List.of(orders, events, audit));
@@ -63,10 +54,6 @@ class TagTargetLookupTest {
         assertThat(answer.get(2)).extracting(Tag::getName).containsExactly("c");
     }
 
-    /**
-     * The schema-wide fetch over-fetches on purpose; the exact target is matched
-     * in memory. Without that, one table's tags would appear on another's row.
-     */
     @Test
     void anotherTablesTagsInTheSameSchemaAreNotAttributedHere() {
         TagTarget orders = TagTarget.ofTable("app_main", "orders");
@@ -76,7 +63,6 @@ class TagTargetLookupTest {
         assertThat(lookup.tagsFor(List.of(orders)).get(0)).isEmpty();
     }
 
-    /** A target with nothing attached still occupies its position. */
     @Test
     void anUntaggedTargetIsAnEmptyListNotAGap() {
         List<List<Tag>> answer = lookup.tagsFor(
@@ -86,7 +72,6 @@ class TagTargetLookupTest {
         assertThat(answer).allSatisfy(tags -> assertThat(tags).isEmpty());
     }
 
-    /** A caller may legitimately list the same row twice. */
     @Test
     void aDuplicateTargetGetsTheSameAnswerAtBothPositions() {
         TagTarget app_main = TagTarget.ofSchema("app_main");
@@ -100,7 +85,6 @@ class TagTargetLookupTest {
         assertThat(answer.get(2)).extracting(Tag::getName).containsExactly("system");
     }
 
-    /** Mixed kinds in one request, each answered from its own query. */
     @Test
     void kindsAreMixedFreelyInOneRequest() {
         TagTarget schema = TagTarget.ofSchema("app_main");
@@ -120,10 +104,6 @@ class TagTargetLookupTest {
         assertThat(answer.get(2)).extracting(Tag::getName).containsExactly("clickhouse");
     }
 
-    /**
-     * THE POINT OF THE WHOLE CHANGE. A table whose name contains '/' has no path
-     * form, so a path-keyed batch could neither ask about it nor return it.
-     */
     @Test
     void aTableNameContainingASeparatorCanBeAskedAboutAndAnswered() {
         TagTarget odd = TagTarget.ofTable("probe", "a/b");

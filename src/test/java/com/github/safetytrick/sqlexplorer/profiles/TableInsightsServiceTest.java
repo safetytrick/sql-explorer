@@ -51,7 +51,6 @@ class TableInsightsServiceTest {
         when(sqlSchemaService.getTable(SESSIONS)).thenReturn(structure());
         when(sqlRepositoryService.getTableQueries(SESSIONS)).thenAnswer(inv -> Stream.of(
             profile("q1", null,
-                // raw name keeps the backticks; matching must use the normalized name
                 List.of(new ColumnReference(SESSIONS, "`status`", "status")),
                 List.of(join(SESSIONS, "user_id", USERS, "id"))),
             profile("q2", null,
@@ -65,20 +64,14 @@ class TableInsightsServiceTest {
                 ColumnUsage::autoIncrement, ColumnUsage::roles, ColumnUsage::queries)
             .containsExactly(
                 tuple("id", true, false, true, List.of(), 0),
-                // used as a join column in q1 and a criteria column in q2
                 tuple("user_id", false, true, false, List.of("criteria", "join"), 2),
                 tuple("status", false, false, false, List.of("criteria"), 1),
                 tuple("token", false, false, false, List.of(), 0));
-        // users.email belongs to the other table and must not leak in
         assertThat(columns).extracting(ColumnUsage::name).doesNotContain("email");
         assertThat(columns.get(2).characterSet()).isEqualTo("utf8mb4");
         assertThat(columns.get(2).nullable()).isTrue();
     }
 
-    /**
-     * ORDER BY is a role of its own (sqlx-n5j.8); LIKE is not — it qualifies
-     * the criteria role with how the column is compared (sqlx-n5j.7).
-     */
     @Test
     void orderByIsARoleAndLikeQualifiesCriteria() {
         when(sqlSchemaService.getTable(SESSIONS)).thenReturn(structure());
@@ -86,7 +79,6 @@ class TableInsightsServiceTest {
         leading.setOrderByColumns(List.of(criteria(SESSIONS, "status")));
         leading.setCriteriaComparisons(List.of(
             comparison("token", "like", true),
-            // a second LIKE on the same column in the same query counts the query once
             comparison("token", "like", false)));
         SqlProfile unknown = profile("q2", null,
             List.of(criteria(SESSIONS, "token"), criteria(SESSIONS, "status")), List.of());
@@ -124,7 +116,6 @@ class TableInsightsServiceTest {
         SqlProfile forced = profile("q1", null, List.of(), List.of());
         forced.setIndexHints(List.of(hint(SESSIONS, "`Sessions_User_Idx`", "FORCE"), hint(SESSIONS, "PRIMARY", "IGNORE")));
         SqlProfile used = profile("q2", null, List.of(), List.of());
-        // the same index named twice by one query counts that query once
         used.setIndexHints(List.of(hint(SESSIONS, "sessions_user_idx", "USE"), hint(SESSIONS, "sessions_user_idx", "FORCE"),
             hint(SESSIONS, "sessions_gone_idx", "FORCE"), hint(USERS, "users_email_idx", "FORCE")));
         when(sqlRepositoryService.getTableQueries(SESSIONS)).thenAnswer(inv -> Stream.of(forced, used,

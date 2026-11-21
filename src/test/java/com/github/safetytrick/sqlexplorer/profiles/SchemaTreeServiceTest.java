@@ -34,7 +34,6 @@ class SchemaTreeServiceTest {
     void setUp() {
         sqlRepositoryService = mock(SqlRepositoryService.class);
         sqlSchemaService = mock(SqlSchemaService.class);
-        // Nothing archived: the ordinary case, before any reset has happened.
         ArchivedActivity archived = org.mockito.Mockito.mock(ArchivedActivity.class);
         org.mockito.Mockito.when(archived.lastTouchedBeforeThisRun()).thenReturn(java.util.Map.of());
         service = new SchemaTreeService(sqlRepositoryService, sqlSchemaService, new IgnoredSchemas(), archived);

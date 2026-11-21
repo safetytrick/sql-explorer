@@ -14,15 +14,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * One file per capture, and the corpus is the newest of them.
- *
- * <p>Overwriting a single file destroyed the only record that an earlier
- * window had been observed, which is what a Performance Schema reset looks
- * like from the outside. Keeping the files makes the gap visible; reading only
- * the newest keeps the corpus correct, because captures overlap and their
- * union would double-count (sqlx-sy5).
- */
 class CaptureFileLayoutTest {
 
     @TempDir
@@ -46,12 +37,6 @@ class CaptureFileLayoutTest {
         return directory.resolve("sql-repository.parquet").toString();
     }
 
-    /**
-     * A real, sealed capture. Empty placeholder files will not do any more:
-     * {@link ParquetSqlRepository#latestCapture} answers the newest capture
-     * that can actually be read, because the newest <em>name</em> is normally
-     * the running process's own file, still open and footerless (sqlx-sy5).
-     */
     private void writeCapture(String instant) throws IOException {
         ParquetConfig config = new ParquetConfig();
         config.setFilename(base());
@@ -66,7 +51,6 @@ class CaptureFileLayoutTest {
         assertThat(file.getParent()).isEqualTo(directory);
     }
 
-    /** Two captures must not collide, or the second still destroys the first. */
     @Test
     void twoCapturesGetTwoFiles() {
         Path first = ParquetSink.fileFor(base(), capturedAt("2026-08-30T02:51:36Z"));
@@ -75,7 +59,6 @@ class CaptureFileLayoutTest {
         assertThat(first).isNotEqualTo(second);
     }
 
-    /** Chronological order has to survive as name order, or "latest" needs parsing. */
     @Test
     void theStampSortsChronologically() {
         String earlier = String.valueOf(ParquetSink.fileFor(base(), capturedAt("2026-08-30T02:51:36Z")).getFileName());
@@ -90,8 +73,6 @@ class CaptureFileLayoutTest {
             .isEqualTo("sql-repository.parquet");
     }
 
-    // ── what the corpus reads ──
-
     @Test
     void theCorpusIsTheNewestCapture() throws IOException {
         writeCapture("2026-08-30T02:51:36Z");
@@ -102,7 +83,6 @@ class CaptureFileLayoutTest {
             .isEqualTo("sql-repository-primary-20260901T000000Z.parquet");
     }
 
-    /** The single-file layout that existed before this must still load. */
     @Test
     void fallsBackToTheLegacySingleFileWhenNoCaptureIsStamped() throws IOException {
         Files.createFile(directory.resolve("sql-repository.parquet"));
@@ -111,7 +91,6 @@ class CaptureFileLayoutTest {
             .isEqualTo("sql-repository.parquet");
     }
 
-    /** A stamped capture wins over the legacy file, which is the older data. */
     @Test
     void aStampedCaptureIsPreferredOverTheLegacyFile() throws IOException {
         Files.createFile(directory.resolve("sql-repository.parquet"));
@@ -121,12 +100,6 @@ class CaptureFileLayoutTest {
             .isEqualTo("sql-repository-primary-20260901T000000Z.parquet");
     }
 
-    /**
-     * Unrelated files in the directory must not be mistaken for captures. This
-     * is the naming question, so it asks {@code captures} — the one owner of
-     * what a capture file is called — rather than inferring it from which file
-     * the corpus happened to resolve to.
-     */
     @Test
     void ignoresFilesThatAreNotCapturesOfThisBase() throws IOException {
         Files.createFile(directory.resolve("something-else-primary-20270101T000000Z.parquet"));
@@ -137,11 +110,6 @@ class CaptureFileLayoutTest {
             .containsExactly("sql-repository-primary-20260830T025136Z.parquet");
     }
 
-    /**
-     * The capture an import is still writing has no footer, and must not be
-     * served as the corpus — it would read as an empty environment for the
-     * whole life of the process.
-     */
     @Test
     void anInProgressCaptureIsNotYetTheCorpus() throws IOException {
         writeCapture("2026-08-30T02:51:36Z");
@@ -151,15 +119,6 @@ class CaptureFileLayoutTest {
             .isEqualTo("sql-repository-primary-20260830T025136Z.parquet");
     }
 
-    // ── per source ──
-
-    /**
-     * "The newest capture" and "the newest capture OF THIS SOURCE" are
-     * different questions once two sources are loaded, and the second is
-     * almost always the one meant. Asking the first returns whichever source
-     * happened to be captured last — which is the shape of the bug that made
-     * captures per-source (sqlx-fx2).
-     */
     @Test
     void aSourceFindsItsOwnLatestCaptureRatherThanTheNewestOverall() throws IOException {
         ParquetConfig config = new ParquetConfig();
@@ -177,12 +136,6 @@ class CaptureFileLayoutTest {
         assertThat(ParquetSqlRepository.capturesOf(base(), "primary")).hasSize(1);
     }
 
-    /**
-     * A source whose name another source's extends — a cluster's primary and its
-     * replicas, shard1 and shard1-replica-a — finds only its own captures. The
-     * match was a name prefix, so shard1's latest capture was whichever of
-     * shard1 and its replicas wrote last (sqlx-8ec).
-     */
     @Test
     void aSourceDoesNotFindTheCapturesOfASourceWhoseNameExtendsIt() throws IOException {
         ParquetConfig config = new ParquetConfig();
@@ -204,7 +157,6 @@ class CaptureFileLayoutTest {
         assertThat(ParquetSqlRepository.capturesOf(base(), "shard1-etl")).hasSize(1);
     }
 
-    /** A source that has never been captured has no capture, not someone else's. */
     @Test
     void anUncapturedSourceResolvesToNothing() throws IOException {
         ParquetConfig config = new ParquetConfig();
@@ -215,12 +167,6 @@ class CaptureFileLayoutTest {
         assertThat(ParquetSqlRepository.capturesOf(base(), "never-loaded")).isEmpty();
     }
 
-    /**
-     * Two refs must never share a file name — that would re-merge their
-     * captures and recreate the bug. A ref needing rewriting for the
-     * filesystem carries a digest of the original so it stays distinct;
-     * ParquetSqlSource uses a file path as its ref, so this is not theoretical.
-     */
     @Test
     void sourceRefsThatSanitiseAlikeStillGetDistinctFiles() {
         String left = ParquetSink.fileToken("/var/data/one.parquet");
@@ -228,29 +174,9 @@ class CaptureFileLayoutTest {
 
         assertThat(left).isNotEqualTo(right);
         assertThat(left).doesNotContain("/");
-        // an already-safe ref is left legible
         assertThat(ParquetSink.fileToken("primary")).isEqualTo("primary-");
     }
 
-    // ── one snapshot per source ──
-
-    /**
-     * THE INVARIANT, and it is not obvious now that a capture is plainly one
-     * row per profile: two captures of ONE source must never both be read.
-     *
-     * <p>Performance Schema counters are cumulative since the last reset, so
-     * consecutive captures of a source are overlapping snapshots of the same
-     * counters rather than independent observations — adding them
-     * double-counts every query in the overlap. Every read path takes exactly
-     * one: PerformanceSchemaFileSourceFactory.scan takes max(createdOn) per
-     * source ref, this takes the newest sealed capture, and a direct read is a
-     * single snapshot. Summing ACROSS sources is the correct case, because
-     * those are different servers with different counters (sqlx-4ww).
-     *
-     * <p>A reset is the one case where two captures of one source could validly
-     * be summed, since the intervals are then disjoint. That is sqlx-65m, and
-     * it must prove the reset before it sums.
-     */
     @Test
     void aSourceResolvesToExactlyOneCaptureHoweverManyItHas() throws IOException {
         ParquetConfig config = new ParquetConfig();
@@ -269,7 +195,6 @@ class CaptureFileLayoutTest {
             .hasToString("sql-repository-primary-20260901T025136Z.parquet");
     }
 
-    /** End to end: written where it says, and found again as the corpus. */
     @Test
     void aWrittenCaptureIsTheOneTheCorpusFinds() throws IOException {
         ParquetConfig config = new ParquetConfig();

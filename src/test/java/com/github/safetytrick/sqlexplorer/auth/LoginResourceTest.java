@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** {@code ?return=} is a path on this site or nothing: never an open redirect. */
 class LoginResourceTest {
 
     @Test

@@ -39,16 +39,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * A statement's figures on each source it ran on, from the same per-source
- * corpus search and topology read (sqlx-rw2.9).
- */
 class QuerySourcesServiceTest {
 
     private static final LocalDateTime START = LocalDateTime.parse("2026-11-01T00:00:00");
     private static final Instant CAPTURED = Instant.parse("2026-11-11T12:00:00Z");
 
-    /** executions and seconds of the one statement, per source; "export" names no configured server. */
     private static final Map<String, long[]> FIGURES = Map.of(
         "shard1", new long[] {100, 10},
         "shard1-replica", new long[] {300, 30},
@@ -119,7 +114,6 @@ class QuerySourcesServiceTest {
         when(input.fromPerformanceSchema(any(), any(), any(), any()))
             .thenAnswer(call -> repositoryFor(call.getArgument(0)));
         EnvironmentRegistry registry = mock(EnvironmentRegistry.class);
-        // the manager's view of the environment is not under test; the service reads the real one
         when(registry.get(anyString())).thenReturn(mock(Environment.class));
         SqlRepositoryManager manager =
             new SqlRepositoryManager(input, registry, mock(CaptureRehydrator.class), 4, Clock.systemUTC());
@@ -146,7 +140,6 @@ class QuerySourcesServiceTest {
         assertThat(replica.capturedAt()).isEqualTo(CAPTURED);
     }
 
-    /** A source named after no configured server is still where it ran; it just has no cluster or roles. */
     @Test
     void aSourceNamingNoConfiguredServerHasNoClusterOrRoles() {
         QuerySourcesService.QuerySource export = service.whereItRuns("d1").getLast();

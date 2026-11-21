@@ -53,13 +53,11 @@ class TopologyServiceTest {
             Set.of(roles));
     }
 
-    /** shard1: primary, replica, an uncaptured analytics box; shard2: a primary that failed to read. */
     private static Environment environment() {
         DatabaseServer primary = server("shard1", true, ServerRole.PRIMARY);
         DatabaseServer replica = server("shard1-replica", true, ServerRole.REPLICA);
         DatabaseServer etl = server("shard1-etl", false, ServerRole.ANALYTICS);
         DatabaseServer primary2 = server("shard2", true, ServerRole.PRIMARY);
-        // declared replica-first, to show the primary is put first
         return Environment.ofClusters("env", List.of(
             new Cluster("shard1", List.of(etl, replica, primary), List.of(primary)),
             new Cluster("shard2", List.of(primary2), List.of(primary2))), false, null);
@@ -73,7 +71,6 @@ class TopologyServiceTest {
                 true));
         when(manager.getRepositories("env")).thenReturn(List.of(repositories));
         when(manager.getFailedSources("env")).thenReturn(failures);
-        // the scoped corpus: what a search with sources=<ref> reads
         when(manager.getSqlRepository(eq("env"), any(SourceScope.class))).thenAnswer(call -> {
             SourceScope scope = call.getArgument(1);
             return repository("scoped", Stream.of(repositories)
@@ -106,7 +103,6 @@ class TopologyServiceTest {
         };
     }
 
-    /** {@code seconds} of total time over {@code days} days from START. */
     private static SqlProfile profile(String digest, String type, long executions, double seconds, int days) {
         RuntimeMetrics metrics = new RuntimeMetrics(false, executions, 0L, 0L,
             BigDecimal.valueOf(seconds).multiply(BigDecimal.valueOf(1_000_000_000_000L)), BigDecimal.ZERO,
@@ -153,12 +149,10 @@ class TopologyServiceTest {
                 org.assertj.core.groups.Tuple.tuple(QueryKind.WRITE, 300L),
                 org.assertj.core.groups.Tuple.tuple(QueryKind.OTHER, 100L),
                 org.assertj.core.groups.Tuple.tuple(QueryKind.UNKNOWN, 0L));
-        // 100 s over its own 10-day window
         assertThat(primary.load().secondsPerDay()).isCloseTo(10, within(1e-9));
         assertThat(primary.window().days()).isCloseTo(10, within(1e-9));
         assertThat(primary.shareOfTime()).isCloseTo(0.5, within(1e-9));
 
-        // the same digest counts again where it ran; lowercase type still reads
         Topology.Server replica = shard1.servers().get(1);
         assertThat(replica.load().shares().get(0).executions()).isEqualTo(1000);
         assertThat(replica.load().secondsPerDay()).isCloseTo(25, within(1e-9));
@@ -167,7 +161,6 @@ class TopologyServiceTest {
         assertThat(etl.status()).isEqualTo(Status.NO_SOURCE);
         assertThat(etl.load()).isNull();
 
-        // a cluster's rate is its servers' rates added, not its total over a merged window
         assertThat(shard1.load().seconds()).isCloseTo(200, within(1e-9));
         assertThat(shard1.load().secondsPerDay()).isCloseTo(35, within(1e-9));
         assertThat(report.total().executions()).isEqualTo(2050);

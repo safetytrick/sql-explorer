@@ -46,7 +46,6 @@ class SqlSourceResourceTest {
             environmentContext, environmentRegistry,
             sqlSourceEntityRepository, sourceRefEntityRepository, sqlSourceEntityService);
 
-        // persisted uploads: "mine" attributed to prod, "theirs" to staging, "legacy" unattributed
         when(environmentRegistry.getDefaultName()).thenReturn("staging");
         when(sqlSourceEntityRepository.findDistinctBy()).thenReturn(List.of(
             new SourceRefRequest("mine"), new SourceRefRequest("theirs"), new SourceRefRequest("legacy")));

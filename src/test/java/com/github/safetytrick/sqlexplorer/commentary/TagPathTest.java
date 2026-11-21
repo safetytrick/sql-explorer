@@ -7,16 +7,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * What a tag points at.
- *
- * <p>THE DEFECT THESE EXIST FOR. MySQL identifiers may contain {@code /} when
- * quoted, and the old tail regex {@code ([^/]+)/[^/]+$} read the type of
- * {@code /schema/probe/table/a/b} as {@code "a"}. A tag typed {@code a} is
- * invisible to {@code findAllByType("table")}, so no lens, filter or bulk
- * operation could find it, and a nonexistent type appeared in the tag manager.
- * The path is client-supplied, so any client could create that row (sqlx-0lj).
- */
 class TagPathTest {
 
     @Test
@@ -35,10 +25,6 @@ class TagPathTest {
         assertThat(path.elements()).isEqualTo(Map.of("schema", "app_main", "table", "orders"));
     }
 
-    /**
-     * The digest carries a colon and a version prefix, and neither is a
-     * separator here — the whole remainder is the digest.
-     */
     @Test
     void aQueryPath() {
         TagPath path = TagPath.require("/query/v3:7ec9bb5c128394a7");
@@ -47,11 +33,6 @@ class TagPathTest {
         assertThat(path.elements()).isEqualTo(Map.of("query", "v3:7ec9bb5c128394a7"));
     }
 
-    /**
-     * THE REGRESSION. Refused rather than read as some other table. That makes
-     * such a table un-taggable, which is the honest failure — the format cannot
-     * address it — and is strictly better than a row nobody can find.
-     */
     @Test
     void aTableNameContainingASeparatorIsRefused() {
         assertThat(TagPath.parse("/schema/probe/table/a/b")).isNull();
@@ -61,7 +42,6 @@ class TagPathTest {
             .hasMessageContaining("/schema/{schema}/table/{table}");
     }
 
-    /** The same for a schema, by the same rule. */
     @Test
     void aSchemaNameContainingASeparatorIsRefused() {
         assertThat(TagPath.parse("/schema/a/b")).isNull();
@@ -95,11 +75,6 @@ class TagPathTest {
         assertThat(TagPath.require(longest).type()).isEqualTo("table");
     }
 
-    /**
-     * Read back through the entity, which is how every consumer reaches this.
-     * The parts come from the typed columns now, not from re-parsing a string
-     * (sqlx-11v) — an untargeted tag simply has none.
-     */
     @Test
     void anUntargetedTagHasNoElements() {
         assertThat(new Tag().getPathElements()).isEmpty();
@@ -124,7 +99,6 @@ class TagPathTest {
         assertThat(tag.getPathElements()).containsExactlyEntriesOf(Map.of("query", "v3:abc"));
     }
 
-    /** Bulk tagging derives the type the same way, so it refuses the same paths. */
     @Test
     void bulkTaggingDerivesTheSameTypes() {
         assertThat(BulkTagService.typeOf("/schema/app_main")).isEqualTo("schema");
@@ -135,7 +109,6 @@ class TagPathTest {
             .isInstanceOf(BulkTagRequestException.class);
     }
 
-    /** A column is a table path plus one segment (sqlx-n5j.1). */
     @Test
     void aColumnPathIsAColumnTarget() {
         TagPath path = TagPath.require("/schema/app/table/account/column/status");
@@ -149,7 +122,6 @@ class TagPathTest {
         assertThat(BulkTagService.typeOf("/schema/app/table/account/column/status")).isEqualTo("column");
     }
 
-    /** As strict as the table shape: an empty or separated column segment is refused. */
     @Test
     void aMalformedColumnPathIsRefused() {
         assertThat(TagPath.parse("/schema/app/table/account/column/")).isNull();

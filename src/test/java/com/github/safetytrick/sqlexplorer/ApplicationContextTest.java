@@ -30,19 +30,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The application starts: every bean can be built and wired, the Liquibase
- * changelog runs, and the JPA mappings agree with the tables it makes. And,
- * over real HTTP, the MCP endpoint answers — it is a plain servlet beside the
- * DispatcherServlet, so only a running server shows it is mapped and wired.
- *
- * <p>Nothing else boots the whole context, so without this a bean Spring
- * cannot construct passes the build and fails only when the jar starts — which
- * is how a resource with two unannotated constructors reached a running
- * container. The explorer database is MySQL and its changelog is MySQL's own
- * SQL, so it runs against a real one rather than an in-memory stand-in. No
- * environments are configured, so nothing is pulled or connected at startup.
- */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class ApplicationContextTest {
@@ -50,16 +37,13 @@ class ApplicationContextTest {
     @Container
     static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4.4");
 
-    /** The explorer's own data source, which binds {@code datasources.explorer.*} rather than Boot's. */
     @DynamicPropertySource
     static void explorerDatabase(DynamicPropertyRegistry registry) {
         registry.add("datasources.explorer.jdbc-url", MYSQL::getJdbcUrl);
         registry.add("datasources.explorer.username", MYSQL::getUsername);
         registry.add("datasources.explorer.password", MYSQL::getPassword);
-        // two environments with nothing in them: enough to show a tool reads the one it is asked for
         registry.add("environments.alpha.default", () -> "true");
         registry.add("environments.beta.default", () -> "false");
-        // captures, schema snapshots and reports are written beside this
         registry.add("parquet-sink.filename", () -> CAPTURES.resolve("sql-repository.parquet").toString());
     }
 
@@ -115,7 +99,6 @@ class ApplicationContextTest {
         assertThat(result.path("content").get(0).path("text").asString()).containsIgnoringCase("select");
     }
 
-    /** An environment a tool names but nobody configured is refused, as the REST API refuses it with a 404. */
     @Test
     void mcpRefusesAnEnvironmentItDoesNotKnow() throws Exception {
         JsonNode result = mcp("tools/call", "{\"name\":\"list_schemas\",\"arguments\":{\"environment\":\"nope\"}}", null)
@@ -126,7 +109,6 @@ class ApplicationContextTest {
             .contains("no environment \"nope\"").contains("alpha, beta");
     }
 
-    /** A tool reads the environment it names, through the same request scope a REST call uses. */
     @Test
     void mcpReadsTheEnvironmentItIsAskedFor() throws Exception {
         JsonNode result = mcp("tools/call", "{\"name\":\"list_schemas\",\"arguments\":{\"environment\":\"beta\"}}", null)
@@ -136,7 +118,6 @@ class ApplicationContextTest {
         assertThat(result.path("content").get(0).path("text").asString()).isEqualTo("[ ]");
     }
 
-    /** The environment is a path segment, so the URL alone says which corpus a request reads (sqlx-e13.6). */
     @Test
     void restReadsTheEnvironmentInItsPath() throws Exception {
         HttpResponse<String> beta = get("/env/beta/schemas");
@@ -144,24 +125,17 @@ class ApplicationContextTest {
         assertThat(jsonMapper.readTree(beta.body()).isArray()).isTrue();
     }
 
-    /** No silent answer from the default environment: an unknown name is not found. */
     @Test
     void restRefusesAnEnvironmentItDoesNotKnow() throws Exception {
         assertThat(get("/env/nope/schemas").statusCode()).isEqualTo(404);
     }
 
-    /** The old unprefixed paths are gone rather than quietly reading the default environment. */
     @Test
     void restNoLongerServesEnvironmentScopedPathsWithoutAnEnvironment() throws Exception {
         assertThat(get("/schemas").statusCode()).isEqualTo(404);
         assertThat(get("/environments").statusCode()).isEqualTo(200);
     }
 
-    /**
-     * Every endpoint is either under /env/{env}/ or deliberately global. A new
-     * controller has to choose: forgetting @EnvironmentScoped would serve an
-     * environment's data on a path authorization cannot read a scope from.
-     */
     @Test
     void everyControllerIsEnvironmentScopedOrKnownGlobal() {
         Set<String> global = Set.of("UserResource", "QueryCleanupResource", "AnalysisFailureResource",
@@ -186,7 +160,6 @@ class ApplicationContextTest {
             HttpResponse.BodyHandlers.ofString());
     }
 
-    /** A client's config can pin its environment with a header; an argument still wins. */
     @Test
     void mcpReadsTheEnvironmentItsConfigPins() throws Exception {
         HttpResponse<String> pinned = post("tools/call", "{\"name\":\"list_schemas\",\"arguments\":{}}", null, "nope");
@@ -195,10 +168,6 @@ class ApplicationContextTest {
         assertThat(jsonMapper.readTree(overridden.body()).path("result").path("isError").asBoolean()).as(overridden.body()).isFalse();
     }
 
-    /**
-     * Sign-in is off by default (sqlx-e13.1): no session needed, and everyone
-     * is the legacy admin. OidcSignInTest covers it on.
-     */
     @Test
     void withSignInOffEveryoneIsTheLegacyAdmin() throws Exception {
         HttpResponse<String> response = http.send(HttpRequest.newBuilder(
@@ -211,17 +180,12 @@ class ApplicationContextTest {
         assertThat(user.path("groups").isEmpty()).isTrue();
     }
 
-    /** A page on another site cannot drive it through someone's localhost. */
     @Test
     void mcpRefusesAForeignOrigin() throws Exception {
         assertThat(post("tools/list", "{}", "https://attacker.example.com").statusCode()).isEqualTo(403);
         assertThat(post("tools/list", "{}", "http://localhost:4200").statusCode()).isEqualTo(200);
     }
 
-    /**
-     * Nor through a name rebound to this machine, though that page is its own
-     * origin: with sign-in off only localhost is trusted (McpOriginValidator).
-     */
     @Test
     void mcpRefusesAReboundNameWithSignInOff() throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/sql-explorer/mcp"))

@@ -51,12 +51,6 @@ class RepeatedBlockSerializationTest {
             .doesNotContain("\"schema\"");
     }
 
-    /**
-     * A digest group keeps the first member's normalized query text, and the
-     * offsets index into that exact string — so the repeats have to come from
-     * the same member. Later members merged at import carry the raw text and no
-     * repeats, so without the override every merged query lost its badges.
-     */
     @Test
     void mergedProfileKeepsTheRepeatsOfTheQueryItShows() {
         SqlProfile mergedAtImport = SqlProfile.newBuilder()
@@ -93,7 +87,6 @@ class RepeatedBlockSerializationTest {
             .doesNotContain("\"schema\"");
     }
 
-    /** The array shape the workbench expander reads off a profile. */
     @Test
     void profileSerializesItsMergedChildren() {
         String json = mapper.writeValueAsString(representativeWithGroup());
@@ -105,13 +98,6 @@ class RepeatedBlockSerializationTest {
             .doesNotContain("\"schema\"");
     }
 
-    /**
-     * The group describes itself from its members rather than reading a stored
-     * field. That is what lets a corpus rebuilt from a capture recreate the
-     * group at all — merging is a function of the normalized digest, so
-     * persisting it left a rehydrated corpus unable to reconstruct it
-     * (sqlx-4ww).
-     */
     @Test
     void mergedProfileDescribesItsGroupFromItsMembers() {
         MergedSqlProfile merged =
@@ -124,7 +110,6 @@ class RepeatedBlockSerializationTest {
             .extracting(RepeatedBlock::getCount).containsExactly(4);
     }
 
-    /** A stored group is ignored — the members are the truth. */
     @Test
     void aStoredGroupOnTheRepresentativeIsNotReadBack() {
         MergedSqlProfile merged =

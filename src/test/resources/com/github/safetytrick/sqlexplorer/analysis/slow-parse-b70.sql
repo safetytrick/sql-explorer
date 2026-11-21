@@ -1,4 +1,3 @@
--- fixture: slow-parse-b70
 SELECT `this_` . `id` AS `id1_94_0_` ,
        `this_` . `member_id` AS `member_2_94_0_` , 
        `this_` . `branch_id` AS `branch3_94_0_` , 

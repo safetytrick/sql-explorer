@@ -39,7 +39,6 @@ class TagManagerServiceTest {
             usage("audit", "query", 4, OLD),
             usage("audit", "table", 2, RECENT),
             usage("audit", "schema", 1, OLD),
-            // legacy tag: assignments exist but no definition row
             usage("legacy", "query", 1, RECENT)));
 
         List<TagSummary> summaries = service.getSummaries();

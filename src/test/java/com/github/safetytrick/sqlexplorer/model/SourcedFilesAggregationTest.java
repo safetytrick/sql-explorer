@@ -8,16 +8,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * `sourcedFiles` answers "which files contributed to this query", which is only
- * interesting once a query spans more than one of them.
- *
- * <p>{@link MergedSqlProfile} has always flat-mapped this across a merge group
- * correctly. What it flat-mapped was empty lists: the singular
- * {@code sourceFileName} written at ingest was never carried into the plural,
- * so all 3,608 live profiles had an empty list and the field looked like dead
- * weight rather than an unfinished seam.
- */
 class SourcedFilesAggregationTest {
 
     @Test
@@ -29,10 +19,6 @@ class SourcedFilesAggregationTest {
             .containsExactly("monday.tsv", "tuesday.tsv", "monday.tsv");
     }
 
-    /**
-     * A live source is not a file, so it contributes no name — and an empty
-     * list is the honest answer rather than a placeholder.
-     */
     @Test
     void isEmptyWhenNothingCameFromAFile() {
         MergedSqlProfile merged = new MergedSqlProfile(List.of(profileFrom(null), profileFrom(null)));

@@ -30,11 +30,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * A load reuses the analysis already in memory before reading any capture —
- * so the corpus it builds shares its analysis with the one it replaces
- * (sqlx-sqy.5).
- */
 class ResidentReuseTest {
 
     private static SqlSource source(String ref) {
@@ -87,7 +82,6 @@ class ResidentReuseTest {
     void theResidentCorpusIsIndexedIncludingMergedMembersAndOnlyTheRestComesFromCaptures() {
         List<AnalysisContext> contexts = new ArrayList<>();
         SqlEvidenceInputService input = mock(SqlEvidenceInputService.class);
-        // first load: shard1 holds one plain profile and one merge group of two
         when(input.fromPerformanceSchema(any(), any(), any(), any())).thenAnswer(call -> {
             contexts.add(call.getArgument(3));
             return holding("shard1", analysed("aaa"),

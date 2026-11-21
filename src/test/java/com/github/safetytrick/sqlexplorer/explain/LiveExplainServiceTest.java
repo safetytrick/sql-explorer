@@ -12,20 +12,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * The guard rails, which are the whole of this feature's risk. This is the only
- * code in the application that runs a statement of our choosing against an
- * analyzed database; every test here is about something it must refuse.
- */
 class LiveExplainServiceTest {
 
-    // ── rule 1: the environment must opt in ──
-
-    /**
-     * The default matters more than the switch. An environment that says
-     * nothing about EXPLAIN must not permit it, so a config file that has never
-     * heard of this feature cannot enable it by omission.
-     */
     @Test
     void refusesAnEnvironmentThatHasNotOptedIn() {
         LiveExplainService service = serviceFor(new Environment("regression", List.of()));
@@ -37,7 +25,6 @@ class LiveExplainServiceTest {
         assertThat(result.detail()).contains("explainEnabled");
     }
 
-    /** A cached environment connects to nothing, EXPLAIN included, until it is pulled (sqlx-nbi.4). */
     @Test
     void refusesACachedEnvironmentWithoutConnecting() {
         Environment environment = new Environment("offline-dummy", List.of(), true);
@@ -60,11 +47,8 @@ class LiveExplainServiceTest {
 
         LiveExplainService.Result result = service.explain("select 1", "probe");
 
-        // no servers configured, so it stops there — but not at NOT_ENABLED
         assertThat(result.failure()).isEqualTo(LiveExplainService.Failure.NO_SERVER);
     }
-
-    // ── rule 3: what may be sent at all ──
 
     /**
      * EXPLAIN ANALYZE executes the statement rather than planning it — measured
@@ -91,7 +75,6 @@ class LiveExplainServiceTest {
             .contains("already an EXPLAIN");
     }
 
-    /** A second statement after a semicolon would run without being planned. */
     @Test
     void refusesMoreThanOneStatement() {
         assertThat(LiveExplainService.assertExplainable("select 1; drop table orders"))
@@ -100,17 +83,11 @@ class LiveExplainServiceTest {
             .isNotNull();
     }
 
-    /** A trailing semicolon is not a second statement. */
     @Test
     void allowsATrailingSemicolon() {
         assertThat(LiveExplainService.assertExplainable("select id from orders;")).isNull();
     }
 
-    /**
-     * The corpus stores MySQL's digest text, whose values are `?`. EXPLAIN of
-     * that is a syntax error (1064, verified on 8.4.4), so it is refused here
-     * with an answer more useful than the server's complaint.
-     */
     @Test
     void refusesDigestTextAndSaysWhatToDoInstead() {
         String refusal = LiveExplainService.assertExplainable("select id from orders where total > ?");
@@ -131,7 +108,6 @@ class LiveExplainServiceTest {
             "update orders set total = 1 where id = 2")).isNull();
     }
 
-    /** Planning is cheap; a connection held open against production is not. */
     @Test
     void timeBoxesEveryStatement() {
         assertThat(LiveExplainService.QUERY_TIMEOUT_SECONDS).isBetween(1, 30);

@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** A statement that parses is typed by what the parser read (sqlx-a9h). */
 class StatementTypeAnalyzerTest {
 
     private static String typeOf(String sql) throws JSQLParserException {

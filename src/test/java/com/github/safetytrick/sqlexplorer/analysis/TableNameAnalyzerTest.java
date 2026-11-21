@@ -35,7 +35,6 @@ public class TableNameAnalyzerTest {
 
         sqlAnalysisService.analyzeSql(sql, builder);
         List<String> tableNames = builder.getTables().stream().map(TableReference::getNormalizedTableName).collect(Collectors.toList());
-        // jsqlparser 5.x's TablesNamesFinder no longer preserves source order; the set of tables is what matters.
         assertThat(tableNames).containsExactlyInAnyOrder("member_session", "branch", "branch_config");
 
     }

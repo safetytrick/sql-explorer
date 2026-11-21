@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** How two definitions of one table differ, element by element (sqlx-a6z). */
 class TableDiffTest {
 
     private static TableStructure table(String ddl) throws Exception {
