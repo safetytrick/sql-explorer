@@ -45,8 +45,7 @@ public class SqlProfileExtension {
             return 1;
         }
 
-        // reversed
-        return other.getRuntimeMetrics().getTotalTime().compareTo(thiz.getRuntimeMetrics().getTotalTime());
+        return Comparator.<java.math.BigDecimal>reverseOrder().compare(thiz.getRuntimeMetrics().getTotalTime(), other.getRuntimeMetrics().getTotalTime());
     };
 
     public static boolean constrainedBy(@This SqlProfile profile, ColumnReference reference) {
