@@ -142,7 +142,6 @@ public class QueryNormalizer {
             return null;
         }
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
         private void replaceExpression(SelectItem item) {
             if (item.getExpression() != null) {
                 item.setExpression(collapse(item.getExpression(), repeats));
@@ -150,8 +149,6 @@ public class QueryNormalizer {
         }
     }
 
-    /** Recursively collapse repeated blocks inside an expression tree. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private static Expression collapse(Expression expression, List<Repeat> repeats) {
         if (expression == null) {
             return null;
@@ -247,8 +244,6 @@ public class QueryNormalizer {
         return result;
     }
 
-    /** Dedup IN-list elements by their normalized serialized form: {@code IN (?, ?, ?)} → {@code IN (?)}. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private static void dedupInPlace(ExpressionList list, List<Repeat> repeats) {
         Map<String, Expression> distinct = new LinkedHashMap<>();
         Map<String, Integer> occurrences = new LinkedHashMap<>();
@@ -269,7 +264,6 @@ public class QueryNormalizer {
      * Rows are the elements when every element is itself an expression list;
      * a single-row VALUES has scalar elements.
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private static void collapseValuesRows(Values values, List<Repeat> repeats) {
         ExpressionList expressions = values.getExpressions();
         if (expressions == null || expressions.size() < 2) {
