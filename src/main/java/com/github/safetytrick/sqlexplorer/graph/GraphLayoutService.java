@@ -15,9 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 class GraphLayoutService {
 
     static final Set<String> KINDS = Set.of("schema", "aggregate", "table");
-    /** MySQL's identifier limit. */
-    private static final int NAME_LIMIT = 64;
-    /** Far beyond any real grid; a bound so a bad client cannot store nonsense. */
+    private static final int MYSQL_IDENTIFIER_MAX_LENGTH = 64;
     private static final int SLOT_LIMIT = 10_000;
 
     private final GraphLayoutRepository repository;
@@ -107,8 +105,8 @@ class GraphLayoutService {
 
     private static String normalized(String name) {
         String value = name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
-        if (value.length() > NAME_LIMIT) {
-            throw bad("name longer than " + NAME_LIMIT + ": " + value);
+        if (value.length() > MYSQL_IDENTIFIER_MAX_LENGTH) {
+            throw bad("name longer than " + MYSQL_IDENTIFIER_MAX_LENGTH + ": " + value);
         }
         return value;
     }
